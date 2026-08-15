@@ -1,0 +1,8 @@
+.wpt/
+artifacts/
+history.sqlite
+__pycache__/
+.venv/
+*.pyc
+wptreport.json
+.pytest_cache/
