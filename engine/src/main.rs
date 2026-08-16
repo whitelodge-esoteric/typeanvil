@@ -15,6 +15,7 @@ mod css;
 mod dom;
 mod geom;
 mod layout;
+mod stylo_dom;
 mod pdf;
 
 use std::path::PathBuf;

@@ -36,16 +36,13 @@ use selectors::attr::{AttrSelectorOperation, CaseSensitivity, NamespaceConstrain
 use selectors::bloom::BloomFilter;
 use selectors::matching::{ElementSelectorFlags, MatchingContext};
 use selectors::{Element as SelectorsElement, OpaqueElement};
-use servo_arc::ArcBorrow;
-use style::context::TreeCountingCaches;
-use style::data::{ElementData, ElementDataMut, ElementDataRef, ElementDataWrapper};
-use style::device::Device;
+use servo_arc::{Arc, ArcBorrow};
+use style::data::{ElementDataMut, ElementDataRef, ElementDataWrapper};
 use style::dom::{LayoutIterator, NodeInfo, TDocument, TElement, TNode, TShadowRoot};
 use style::properties::PropertyDeclarationBlock;
 use style::selector_parser::{AttrValue, Lang, PseudoElement, SelectorImpl};
 use style::shared_lock::{Locked, SharedRwLock};
 use style::stylist::CascadeData;
-use style::values::computed::TreeCountingResult;
 use style::values::computed::Display;
 use style::values::AtomIdent;
 use style::LocalName;
@@ -132,11 +129,11 @@ impl<'a> TyBackend<'a> {
 
 impl<'a> NodeInfo for TyNode<'a> {
     fn is_element(&self) -> bool {
-        matches!(self.backend.dom.nodes[self.0].kind, NodeKind::Element(_))
+        matches!(self.backend.dom.nodes[self.id].kind, NodeKind::Element(_))
     }
 
     fn is_text_node(&self) -> bool {
-        matches!(self.backend.dom.nodes[self.0].kind, NodeKind::Text(_))
+        matches!(self.backend.dom.nodes[self.id].kind, NodeKind::Text(_))
     }
 }
 
@@ -366,7 +363,7 @@ impl<'a> TElement for TyElement<'a> {
         self.backend.ids.get(&self.id)
     }
 
-    fn each_class<F>(&self, callback: F)
+    fn each_class<F>(&self, mut callback: F)
     where
         F: FnMut(&AtomIdent),
     {
@@ -467,11 +464,11 @@ impl<'a> TElement for TyElement<'a> {
         false
     }
 
-    fn shadow_root(&self) -> Option<Self::ConcreteNode::ConcreteShadowRoot> {
+    fn shadow_root(&self) -> Option<<Self::ConcreteNode as TNode>::ConcreteShadowRoot> {
         None
     }
 
-    fn containing_shadow(&self) -> Option<Self::ConcreteNode::ConcreteShadowRoot> {
+    fn containing_shadow(&self) -> Option<<Self::ConcreteNode as TNode>::ConcreteShadowRoot> {
         None
     }
 
@@ -528,7 +525,7 @@ impl<'a> TElement for TyElement<'a> {
     }
 
     fn get_attr(&self, attr: &LocalName, namespace: &Namespace) -> Option<String> {
-        if *namespace != self.backend.html_ns {
+        if namespace.0 != self.backend.html_ns {
             return None;
         }
         // The seam only carries id/class; the style attribute is not stored.
@@ -728,15 +725,6 @@ impl<'a> SelectorsElement for TyElement<'a> {
     }
 }
 
-impl<'a> ElementContext for TyElement<'a> {
-    fn get_attr(&self, attr: &LocalName, namespace: &Namespace) -> Option<String> {
-        TElement::get_attr(self, attr, namespace)
-    }
-
-    fn get_tree_counting_result(&self, caches: &mut TreeCountingCaches) -> TreeCountingResult {
-        TElement::get_tree_counting_result(self, caches)
-    }
-}
 
 // ---------------------------------------------------------------------------
 // TyDocument / TyShadowRoot
@@ -775,9 +763,23 @@ impl<'a> TDocument for TyDocument<'a> {
 }
 
 /// A stylo view of a shadow root. Never exists in our tree.
+// `TyBackend` holds an `UnsafeCell`, so equality is backend-pointer identity
+// (there is exactly one backend per cascade) and `Debug` prints a placeholder.
 #[derive(Clone, Copy)]
 pub struct TyShadowRoot<'a> {
     backend: &'a TyBackend<'a>,
+}
+
+impl<'a> PartialEq for TyShadowRoot<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self.backend, other.backend)
+    }
+}
+
+impl<'a> fmt::Debug for TyShadowRoot<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "TyShadowRoot")
+    }
 }
 
 impl<'a> TShadowRoot for TyShadowRoot<'a> {

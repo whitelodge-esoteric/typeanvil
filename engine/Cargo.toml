@@ -21,11 +21,17 @@ servo_arc = "0.4"
 app_units = "0.7"
 euclid = "0.22"
 style_traits = { package = "stylo_traits", version = "0.20", features = ["servo"] }
+stylo_atoms = "0.20"
+parking_lot = "0.12"
+rustc-hash = "2"
 string_cache = "0.9"
 web_atoms = "0.2"
 # Required by stylo's servo feature (explicit per CORE-56 ground truth).
 url = "2.5"
 mime = "0.3"
+# Transition: the hand-rolled cascade still parses with cssparser until the
+# stylo path replaces it (CORE-56). Removed once css.rs is fully stylo.
+cssparser = "0.35"
 # PDF output (Typst's production backend).
 krilla = "0.8"
 # Errors.
