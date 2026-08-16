@@ -9,3 +9,9 @@ wptreport.json
 
 # Rust engine build artifacts (Cargo.lock is committed — binary crate).
 engine/target/
+
+# Docusaurus docs site (docsite/)
+docsite/node_modules/
+docsite/build/
+docsite/.docusaurus/
+docsite/.cache/

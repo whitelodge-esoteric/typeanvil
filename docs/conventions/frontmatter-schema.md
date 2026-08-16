@@ -57,6 +57,10 @@ once complete — they are records of what happened. In-progress research may be
 
 - File names are kebab-case: `line-breaking.spec.md` → URL
   `/docs/specifications/line-breaking.spec`. No dates or spaces in file names.
+- **Spec slugs end in a dot-suffix.** `.spec.md` produces a URL ending in
+  `.spec`, which Docusaurus (and some static hosts) treat as a file extension
+  and fail to serve as a clean route. Give every spec an explicit slug without
+  the suffix: `slug: /specifications/wpt-conformance-harness`.
 - `_category_.yml` in each folder sets the sidebar label and position:
 
 ```yaml
