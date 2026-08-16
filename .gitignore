@@ -6,3 +6,6 @@ __pycache__/
 *.pyc
 wptreport.json
 .pytest_cache/
+
+# Rust engine build artifacts (Cargo.lock is committed — binary crate).
+engine/target/

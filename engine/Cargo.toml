@@ -1,0 +1,30 @@
+[package]
+name = "typeanvil"
+version = "0.0.1"
+edition = "2021"
+description = "Typeanvil — HTML/CSS to PDF typesetting engine (walking skeleton)"
+license = "MPL-2.0"
+publish = false
+
+[[bin]]
+name = "typeanvil"
+path = "src/main.rs"
+
+[dependencies]
+# HTML parsing (WHATWG-compliant, Servo).
+html5ever = "0.39"
+markup5ever_rcdom = "0.39"
+# CSS tokenizing/parsing (Servo).
+cssparser = "0.35"
+# PDF output (Typst's production backend).
+krilla = "0.8"
+# Errors.
+anyhow = "1"
+
+[profile.release]
+# Deterministic: no fast-math / reassociation. IEEE-754 semantics preserved by
+# default in rustc; we additionally forbid FMA contraction at call sites.
+lto = "thin"
+
+[dev-dependencies]
+tempfile = "3"
