@@ -1,3 +1,14 @@
+---
+title: Rust Typesetting Architecture Brief — for Typeanvil build-vs-wrap decisions
+type: research
+status: approved
+owner: elijah
+created: 2026-08-14
+updated: 2026-08-16
+sidebar_position: 1
+tags: [rust, ecosystem, typst, krilla, build-vs-wrap]
+---
+
 # Rust Typesetting Architecture Brief — for Typeanvil build-vs-wrap decisions
 
 ## 1. Typst's architecture
