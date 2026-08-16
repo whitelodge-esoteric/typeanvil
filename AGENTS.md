@@ -9,28 +9,41 @@ Typeanvil is an AI-first HTML/Markdown → PDF typesetting engine. Rust engine i
 2. `docs/conventions/doc-conventions.md` — the rules of the house.
 3. `docs/conventions/frontmatter-schema.md` — the frontmatter contract.
 
-## The docs are the source of truth
+## How we work: spec-driven
 
-- **Read the docs before you write code.** To implement or change a feature,
-  read its spec in `docs/specifications/` first. To release, read the runbook
-  in `docs/operations/`.
-- When spec and code disagree, one of them is wrong — raise it in the PR, never
-  let code silently drift from an approved spec.
-- A PR that changes behavior MUST update the spec in the same PR. A feature
-  without a spec is not done.
+Every feature starts as a spec; code follows the spec; tests prove the spec.
 
-## Doc conventions (enforced — see below)
+1. **Spec first.** New feature → write its spec in
+   `docs/specifications/<feature>.spec.md` before (or in the same PR as) the
+   code. No spec, no feature.
+2. **Implement to the spec.** The spec's Behavior ("shall" statements) and
+   Acceptance Criteria are the contract. If code and spec disagree, one of them
+   is wrong — raise it in the PR, never silently drift from an approved spec.
+3. **Same-PR sync.** A PR that changes behavior updates the spec in the same
+   PR. Docs are part of "done", not an afterthought.
+4. **Verify.** Run the tests mapped from the spec's acceptance criteria, then
+   `python3 scripts/validate_docs.py`.
 
+## How to handle documentation
+
+- Read the relevant doc before coding; write or update docs as you go, not
+  after the fact.
 - Every `docs/**/*.md` carries frontmatter: `title, type, status, owner,
   created, updated, sidebar_position, tags`.
 - `type` ∈ `spec | architecture | lesson | runbook | convention | research`.
-- **Specs** live in `docs/specifications/`, are named `<feature>.spec.md`,
-  declare `type: spec`, and MUST have a `slug` frontmatter that starts with
-  `/specifications/` and does NOT end in `.spec` (a `.spec` URL suffix breaks
-  the Docusaurus site).
-- Research goes in `docs/research/<area>/`; runbooks in `docs/operations/`;
-  lessons in `docs/lessons/` — never delete a lesson, supersede it.
-- Transient AI task prompts go in `prompts/` at the repo root, never in `docs/`.
+- Lifecycle: `draft` → `in-review` → `approved` → `superseded`. Bump `updated`
+  on every edit, in the same commit.
+- **Specs** live in `docs/specifications/<feature>.spec.md`, declare
+  `type: spec`, carry a unique `spec_id`, and MUST have a `slug` starting with
+  `/specifications/` that does NOT end in `.spec` (a dot-suffix URL breaks the
+  Docusaurus site).
+- Research → `docs/research/<area>/` (cited, self-contained). Runbooks →
+  `docs/operations/`. Lessons → `docs/lessons/` — never delete a lesson,
+  supersede it.
+- Transient task prompts → `prompts/` at the repo root, never `docs/`.
+- Write human-first (plain English, short sentences, lead with the point),
+  machine-parseable second (stable section headings, "shall" for normative
+  statements).
 
 ## Enforcement
 
