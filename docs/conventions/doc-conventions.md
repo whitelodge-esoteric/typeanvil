@@ -93,6 +93,10 @@ implement. Serve both:
 - Use **"shall"** for normative statements: "The engine shall wrap at word
   boundaries." Everything else is explanation.
 - One spec = one feature. If a spec grows a second feature, split it.
+- Specs live in `specifications/` and are named `<feature>.spec.md`. Each spec
+  carries an explicit `slug` frontmatter — a URL ending in `.spec` breaks the
+  Docusaurus site (see `frontmatter-schema.md`). Both rules are enforced by the
+  validator.
 
 Canonical spec structure, in order:
 
@@ -189,9 +193,10 @@ composing task prompts; `docs/` is the ground truth those prompts point at.
 Research an agent produces goes into `docs/research/`, categorized by
 directory, with frontmatter.
 
-## Enforcement (future)
+## Enforcement
 
-Nothing here is enforced mechanically yet. Planned: `scripts/validate_docs.py`
-checks every `docs/**/*.md` against `frontmatter-schema.md` (required fields,
-valid enums, `updated` freshness) and runs as a pre-commit or CI check. Until
-then, review is the enforcement.
+`scripts/validate_docs.py` enforces the frontmatter schema and the spec
+naming/slug rules. It runs in pre-commit (`pre-commit run --all-files`) and in
+CI (`.github/workflows/docs-validation.yml`), so a doc that breaks a convention
+cannot be committed or pushed. `AGENTS.md` at the repo root points agents at
+these conventions before they touch anything.

@@ -78,6 +78,43 @@ def check_file(path: Path) -> list[str]:
             errors.append(f"{path.relative_to(ROOT)}: '{field}' must be YYYY-MM-DD, got '{data[field]}'")
     if "tags" in data and not isinstance(data["tags"], list):
         errors.append(f"{path.relative_to(ROOT)}: 'tags' must be a list")
+    if data.get("type") == "spec" or path.name.endswith(".spec.md"):
+        errors.extend(check_spec_conventions(path, data))
+    return errors
+
+
+def check_spec_conventions(path: Path, data: dict) -> list[str]:
+    """Enforce the .spec.md convention (frontmatter-schema.md, Docusaurus slugs).
+
+    Specs: live in specifications/, named <feature>.spec.md, declare
+    type: spec, and carry a slug starting /specifications/ that does NOT end
+    in .spec (a dot-suffix URL breaks the Docusaurus site).
+    """
+    rel = path.relative_to(DOCS)
+    in_specs_dir = rel.parts[0] == "specifications"
+    is_spec_filename = path.name.endswith(".spec.md")
+    is_spec_type = data.get("type") == "spec"
+    errors: list[str] = []
+    if is_spec_type and not in_specs_dir:
+        errors.append(f"{rel}: type: spec docs must live under specifications/")
+    if is_spec_filename and not is_spec_type:
+        errors.append(f"{rel}: *.spec.md files must declare type: spec")
+    if is_spec_type:
+        if not is_spec_filename:
+            errors.append(f"{rel}: spec files must be named <feature>.spec.md")
+        slug = data.get("slug")
+        if not slug:
+            errors.append(
+                f"{rel}: spec docs require a 'slug' (a .spec URL suffix breaks "
+                "the Docusaurus site)"
+            )
+        else:
+            if str(slug).endswith(".spec"):
+                errors.append(
+                    f"{rel}: slug must not end in '.spec' — use '/specifications/<feature>'"
+                )
+            if not str(slug).startswith("/specifications/"):
+                errors.append(f"{rel}: slug should start with '/specifications/'")
     return errors
 
 
