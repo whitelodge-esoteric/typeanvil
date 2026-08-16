@@ -9,7 +9,8 @@ const config: Config = {
   tagline: 'HTML/Markdown → PDF typesetting engine — engineering source of truth',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
-  // (v4 flag disabled for now: v4-compat mode drops mermaid MDX transforms.)
+  // v4 flag left off: it reworks markdown/mermaid config; verify compatibility
+  // with @docusaurus/theme-mermaid before enabling.
 
   // Production URL — placeholder until Typeanvil has a domain.
   url: 'https://typeanvil.dev',
