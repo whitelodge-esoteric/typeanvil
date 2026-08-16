@@ -1,3 +1,15 @@
+---
+title: omp + Nous Portal Setup
+type: runbook
+status: approved
+owner: elijah
+created: 2026-08-15
+updated: 2026-08-16
+sidebar_position: 1
+tags: [tooling, omp, nous]
+trigger: when setting up omp on a new machine
+---
+
 # omp + Nous Portal setup
 
 omp had no API key on this machine (`ANTHROPIC_API_KEY` empty in `~/.hermes/.env`).

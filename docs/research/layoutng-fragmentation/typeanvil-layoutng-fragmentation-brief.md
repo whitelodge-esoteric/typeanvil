@@ -1,3 +1,14 @@
+---
+title: "LayoutNG Block Fragmentation: Lessons for a Fragmentation-First Print Engine (Typeanvil)"
+type: research
+status: approved
+owner: elijah
+created: 2026-08-14
+updated: 2026-08-16
+sidebar_position: 1
+tags: [layout, fragmentation, chromium, layoutng, css]
+---
+
 # LayoutNG Block Fragmentation: Lessons for a Fragmentation-First Print Engine (Typeanvil)
 
 **Sources:** Morten Stenshorne, *RenderingNG deep-dive: LayoutNG block fragmentation* (developer.chrome.com/docs/chromium/renderingng-fragmentation, 2023); Ian Kilpatrick & Koji Ishii, *RenderingNG deep-dive: LayoutNG* (developer.chrome.com/docs/chromium/layoutng, 2021); Chris Harrelson, *Key data structures in RenderingNG* (developer.chrome.com/docs/chromium/renderingng-data-structures); Chromium source docs: `third_party/blink/renderer/core/layout/layout_ng.md` and `block_fragmentation_tutorial.md` (chromium.googlesource.com); CSS Fragmentation Module Level 3 (w3.org/TR/css-break-3).

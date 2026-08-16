@@ -1,3 +1,14 @@
+---
+title: WPT-Based Conformance Harness for Typeanvil (HTML/CSS→PDF)
+type: research
+status: approved
+owner: elijah
+created: 2026-08-14
+updated: 2026-08-16
+sidebar_position: 1
+tags: [wpt, harness, conformance, testing]
+---
+
 # WPT-Based Conformance Harness for Typeanvil (HTML/CSS→PDF)
 
 ## 1. How WPT structures layout & paged-media tests

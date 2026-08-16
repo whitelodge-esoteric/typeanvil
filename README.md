@@ -8,12 +8,19 @@ Production-grade HTML/Markdown → PDF typesetting engine. A PrinceXML competito
 
 **Typography differentiator:** Knuth-Plass total-fit line breaking + character protrusion as defaults — nobody in the HTML-to-PDF space ships this, not even Prince.
 
+## Documentation
+
+`docs/` is the engineering source of truth — conventions, feature specs,
+architecture, operations runbooks, lessons, and research. Start at
+`docs/README.md`; the rules for writing docs are in
+`docs/conventions/doc-conventions.md`.
+
 ## Project notes (Obsidian vault)
 
 - `brain/Projects/Typeanvil/Project Overview.md` — founding research, market gap, naming, architecture principles
 - `brain/Projects/Typeanvil/Pricing Strategy.md` — pricing vs Prince XML ($3,800/server) and DocRaptor
 - `brain/Projects/Typeanvil/Architecture.md` — architecture sketch (Rust, wrap-vs-build, fragmentation-first)
-- `research/` (this repo) — the three underlying research briefs: LayoutNG fragmentation, Rust ecosystem, WPT harness
+- `docs/research/` — research briefs (LayoutNG fragmentation, Rust ecosystem, WPT harness)
 
 ## Status
 
