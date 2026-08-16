@@ -11,11 +11,21 @@ name = "typeanvil"
 path = "src/main.rs"
 
 [dependencies]
-# HTML parsing (WHATWG-compliant, Servo).
 html5ever = "0.39"
 markup5ever_rcdom = "0.39"
-# CSS tokenizing/parsing (Servo).
-cssparser = "0.35"
+# CSS engine (Servo stylo). `dom` is the stylo_dom companion crate.
+stylo = { version = "0.20", default-features = false, features = ["servo"] }
+dom = { package = "stylo_dom", version = "0.20" }
+selectors = "0.40"
+servo_arc = "0.4"
+app_units = "0.7"
+euclid = "0.22"
+style_traits = { package = "stylo_traits", version = "0.20", features = ["servo"] }
+string_cache = "0.9"
+web_atoms = "0.2"
+# Required by stylo's servo feature (explicit per CORE-56 ground truth).
+url = "2.5"
+mime = "0.3"
 # PDF output (Typst's production backend).
 krilla = "0.8"
 # Errors.
