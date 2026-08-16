@@ -41,6 +41,8 @@ flowchart LR
 2. `conventions/frontmatter-schema.md` — the frontmatter every doc must carry
 3. `specifications/` — the features, one file each
 4. `research/` — what we've studied, topic by topic
+5. Browse this site interactively: `cd docsite && npm run start` (see
+   `operations/docs-site.md`)
 
 ## Not in this directory
 

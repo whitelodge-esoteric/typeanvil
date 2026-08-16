@@ -1,5 +1,6 @@
 ---
 title: WPT Conformance Harness
+slug: /specifications/wpt-conformance-harness
 type: spec
 status: approved
 owner: elijah
