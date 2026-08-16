@@ -40,6 +40,7 @@ make the docs AI-parseable.
 | `applies_to` | string | Component + scope, e.g. `engine 0.0.x`. |
 | `dependencies` | list | Specs this one builds on. |
 | `supersedes` | string | Spec id this one replaces. |
+| `slug` | string | **Required** — Docusaurus route, see Docusaurus specifics below. |
 
 **`runbook`** adds:
 
@@ -59,8 +60,10 @@ once complete — they are records of what happened. In-progress research may be
   `/docs/specifications/line-breaking.spec`. No dates or spaces in file names.
 - **Spec slugs end in a dot-suffix.** `.spec.md` produces a URL ending in
   `.spec`, which Docusaurus (and some static hosts) treat as a file extension
-  and fail to serve as a clean route. Give every spec an explicit slug without
-  the suffix: `slug: /specifications/wpt-conformance-harness`.
+  and fail to serve as a clean route. Every spec therefore carries an explicit
+  `slug` without the suffix: `slug: /specifications/wpt-conformance-harness`.
+  The slug must start with `/specifications/` and must not end in `.spec`.
+  Enforced by `scripts/validate_docs.py`.
 - `_category_.yml` in each folder sets the sidebar label and position:
 
 ```yaml
@@ -150,6 +153,10 @@ tags: [rust, ecosystem, typst, build-vs-wrap]
 - `updated` is the date of the last substantive change, bumped in the same
   commit as the change.
 - Every spec has a unique `spec_id`.
+- Specs live in `specifications/`, are named `<feature>.spec.md`, declare
+  `type: spec`, and carry a `slug` starting `/specifications/` that does not
+  end in `.spec`. A `.spec.md` file that is not `type: spec` (or vice versa) is
+  a review failure. All enforced by `scripts/validate_docs.py`.
 - `_category_.yml` files need no frontmatter.
 - The category index page (`docs/README.md`) only needs `title` and
   `sidebar_position` — it is Docusaurus's site home, not a typed doc.
