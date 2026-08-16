@@ -1,29 +1,52 @@
-//! CSS cascade.
+//! CSS cascade — driven by Servo's `stylo` engine.
 //!
-//! ## Path taken: hand-rolled cascade (sanctioned fallback), not stylo.
+//! [`ComputedStyle`] is the output contract: layout and PDF read only this.
+//! [`cascade`] is the single entry point; the hand-rolled cssparser cascade
+//! that previously lived here was replaced wholesale by stylo's matching and
+//! cascade (CORE-56).
 //!
-//! The issue's headline spike was binding Servo's `stylo` crate for a
-//! web-grade cascade. `stylo` (0.20) requires implementing the `TElement` /
-//! `TNode` / `TDocument` trait family over our DOM, plus atom interning,
-//! restyle snapshots, and a `SharedStyleContext` — a deep, multi-day binding
-//! surface that would dominate a *walking skeleton*. The Architecture note
-//! flags exactly this as the biggest wrap risk and documents a sanctioned
-//! fallback: a hand-rolled cascade on `cssparser` (+ selector matching).
+//! Pipeline per call to [`cascade`]:
 //!
-//! We take the fallback, but keep the seam clean: [`ComputedStyle`] is the
-//! output contract and [`cascade`] is the single entry point. Swapping stylo in
-//! later means reimplementing `cascade` to produce the same `ComputedStyle`,
-//! with zero changes to layout or PDF code.
+//! 1. Parse the author stylesheet with `style::stylesheets::Stylesheet::from_str`.
+//! 2. Build a print [`Device`] and a [`Stylist`] seeded with the stylesheet.
+//! 3. Build a [`SharedStyleContext`] and a [`ThreadLocalStyleContext`], then
+//!    resolve each element in pre-order with `StyleResolverForElement`
+//!    (parents first, so `borrow_data`-based inheritance works).
+//! 4. Convert the resulting `ComputedValues` into [`ComputedStyle`].
 //!
 //! Supported today: inline `<style>` rules; element / `.class` / `#id` /
 //! descendant selectors; specificity ordering; inheritance of `color`,
 //! `font-size`, `font-family`; non-inherited `display`, `background-color`,
 //! `margin`, `padding`.
+//!
+//! Determinism note: stylo's rule tree and style sharing cache are pure
+//! functions of (stylesheet, element data), and every element is resolved
+//! from an empty `ElementData` on a fresh backend, so the output is
+//! byte-identical across runs.
 
-use cssparser::{Parser, ParserInput, Token};
+use euclid::{Scale, Size2D};
+use style_traits::{CSSPixel, DevicePixel};
+use servo_arc::Arc;
+use style::device::Device;
+use style::device::servo::FontMetricsProvider;
+use style::media_queries::MediaType;
+use style::properties::style_structs::Font;
+use style::properties::ComputedValues;
+use style::queries::values::PrefersColorScheme;
+use style::servo::media_features::PointerCapabilities;
+use style::shared_lock::{SharedRwLock, StylesheetGuards};
+use style::stylist::{RuleInclusion, Stylist};
+use style::stylesheets::{AllowImportRules, Origin, Stylesheet as StylesheetFromStylo, UrlExtraData};
+use style::values::computed::font::{FontFamily, SingleFontFamily};
+use style::values::computed::Color as ComputedColor;
+use style::values::computed::Length;
+use style::values::specified::box_::DisplayOutside;
+use style::values::specified::font::FONT_MEDIUM_PX;
+use url::Url;
 
 use crate::dom::{Dom, NodeId, NodeKind};
 use crate::geom::{px_to_pt, Scalar};
+use crate::stylo_dom::{TyBackend, TyElement};
 
 /// An sRGB color, 8 bits per channel.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -83,589 +106,374 @@ impl ComputedStyle {
         }
     }
 
-    /// Derive a child style from a parent, resetting non-inherited properties to
-    /// their initial values and carrying inherited ones (color/font).
-    fn inherit_from(parent: &ComputedStyle, default_display: Display) -> ComputedStyle {
-        ComputedStyle {
-            // Inherited.
-            color: parent.color,
-            font_size: parent.font_size,
-            font_family: parent.font_family.clone(),
-            // Not inherited: reset.
-            background_color: None,
-            display: default_display,
-            margin_top: Scalar::ZERO,
-            margin_right: Scalar::ZERO,
-            margin_bottom: Scalar::ZERO,
-            margin_left: Scalar::ZERO,
-            padding_top: Scalar::ZERO,
-            padding_right: Scalar::ZERO,
-            padding_bottom: Scalar::ZERO,
-            padding_left: Scalar::ZERO,
-        }
-    }
-}
-
-// --- Selector model -------------------------------------------------------
-
-/// One compound selector piece: `tag.class#id` (any part optional).
-#[derive(Clone, Debug, Default)]
-struct Compound {
-    tag: Option<String>,
-    id: Option<String>,
-    classes: Vec<String>,
-}
-
-/// A selector is a descendant chain of compound selectors, e.g. `body p.lead`.
-#[derive(Clone, Debug)]
-struct Selector {
-    parts: Vec<Compound>,
-}
-
-impl Selector {
-    /// CSS specificity as (id, class, type) packed for ordering.
-    fn specificity(&self) -> (u32, u32, u32) {
-        let mut a = 0;
-        let mut b = 0;
-        let mut c = 0;
-        for p in &self.parts {
-            if p.id.is_some() {
-                a += 1;
-            }
-            b += p.classes.len() as u32;
-            if p.tag.is_some() {
-                c += 1;
-            }
-        }
-        (a, b, c)
-    }
-}
-
-#[derive(Clone, Debug)]
-struct Declaration {
-    property: String,
-    value: String,
-}
-
-#[derive(Clone, Debug)]
-struct Rule {
-    selectors: Vec<Selector>,
-    declarations: Vec<Declaration>,
 }
 
 /// A parsed stylesheet.
-#[derive(Debug, Default)]
+///
+/// The stylo engine parses CSS lazily inside [`cascade`]; this type exists so
+/// the seam (`Stylesheet::parse`) survives and layout can thread the CSS text
+/// through. It intentionally carries no structure of its own — stylo owns the
+/// parsing and matching.
+#[derive(Debug, Clone, Default)]
 pub struct Stylesheet {
-    rules: Vec<Rule>,
+    css: String,
 }
 
 impl Stylesheet {
-    /// Parse CSS source text into rules. Tolerant: unparseable rules are skipped.
+    /// Collect CSS source text. Parsing is deferred to stylo inside [`cascade`].
     pub fn parse(css: &str) -> Stylesheet {
-        let mut rules = Vec::new();
-        for (prelude, block) in split_rules(css) {
-            let selectors = parse_selector_list(&prelude);
-            if selectors.is_empty() {
-                continue;
-            }
-            let declarations = parse_declarations(&block);
-            if declarations.is_empty() {
-                continue;
-            }
-            rules.push(Rule {
-                selectors,
-                declarations,
-            });
-        }
-        Stylesheet { rules }
-    }
-}
-
-/// Split a stylesheet into `(prelude, block)` pairs at top-level `{ }`.
-/// Comments are stripped first. Nested braces are not expected at this layer
-/// (no at-rules in the skeleton) but are handled defensively.
-fn split_rules(css: &str) -> Vec<(String, String)> {
-    let css = strip_comments(css);
-    let mut out = Vec::new();
-    let mut prelude = String::new();
-    let bytes = css.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        let ch = bytes[i] as char;
-        if ch == '{' {
-            // Consume until matching close brace (depth-tracked).
-            let mut depth = 1;
-            let mut block = String::new();
-            i += 1;
-            while i < bytes.len() && depth > 0 {
-                let c = bytes[i] as char;
-                if c == '{' {
-                    depth += 1;
-                } else if c == '}' {
-                    depth -= 1;
-                    if depth == 0 {
-                        i += 1;
-                        break;
-                    }
-                }
-                block.push(c);
-                i += 1;
-            }
-            out.push((prelude.trim().to_string(), block));
-            prelude.clear();
-        } else {
-            prelude.push(ch);
-            i += 1;
+        Stylesheet {
+            css: css.to_string(),
         }
     }
-    out
+
+    /// The raw CSS source.
+    pub fn source(&self) -> &str {
+        &self.css
+    }
 }
 
-fn strip_comments(css: &str) -> String {
-    let mut out = String::with_capacity(css.len());
-    let bytes = css.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if i + 1 < bytes.len() && bytes[i] == b'/' && bytes[i + 1] == b'*' {
-            i += 2;
-            while i + 1 < bytes.len() && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
-                i += 1;
-            }
-            i += 2;
-        } else {
-            out.push(bytes[i] as char);
-            i += 1;
+// --- Stylo plumbing --------------------------------------------------------
+
+/// The sole [`FontMetricsProvider`] this engine needs: stylo queries font
+/// metrics for `ex`/`ch`/etc. units, none of which the skeleton uses. We
+/// answer with the CSS-defined default assumptions.
+#[derive(Debug)]
+struct SkeletonFontMetrics;
+
+impl FontMetricsProvider for SkeletonFontMetrics {
+    fn query_font_metrics(
+        &self,
+        _vertical: bool,
+        _font: &style::properties::style_structs::Font,
+        _base_size: style::values::computed::CSSPixelLength,
+        _flags: style::values::specified::font::QueryFontMetricsFlags,
+    ) -> style::font_metrics::FontMetrics {
+        style::font_metrics::FontMetrics::default()
+    }
+
+    fn base_size_for_generic(&self, _generic: style::values::computed::font::GenericFontFamily) -> Length {
+        Length::new(FONT_MEDIUM_PX)
+    }
+}
+
+/// The stylo bookkeeping for one [`cascade`] call: the device, the stylist
+/// seeded with the author stylesheet, and the lock that guards the parsed
+/// rules. The [`TyBackend`] (element-data arena) lives alongside at the call
+/// site so its `'a`-tied references don't fight the session's own borrows.
+struct CascadeSession {
+    stylist: Stylist,
+    _lock: SharedRwLock,
+}
+
+impl CascadeSession {
+    /// Minimal UA stylesheet: the HTML default block layout the engine needs.
+    /// (Stylo ships no defaults; without this, h1/p/etc. compute as inline.)
+    const UA_CSS: &'static str = r#"
+        html, body, div, p, h1, h2, h3, h4, h5, h6, ul, ol, li, dl, dt, dd,
+        blockquote, pre, table, thead, tbody, tfoot, tr, section, article,
+        header, footer, nav, main, aside, figure, figcaption { display: block; }
+        h1, h2, h3, h4, h5, h6 { font-weight: bold; }
+        h1 { font-size: 2em; margin: 0.67em 0; }
+        h2 { font-size: 1.5em; margin: 0.83em 0; }
+        h3 { font-size: 1.17em; margin: 1em 0; }
+        h4 { font-size: 1em; margin: 1.33em 0; }
+        h5 { font-size: 0.83em; margin: 1.67em 0; }
+        h6 { font-size: 0.67em; margin: 2.33em 0; }
+        p { margin: 1em 0; }
+        ul, ol { padding-left: 2.5em; margin: 1em 0; }
+        body { margin: 8px; }
+        blockquote { margin: 1em 2.5em; }
+        pre { margin: 1em 0; font-family: monospace; }
+        table { border-collapse: collapse; }
+        td, th { display: table-cell; }
+    "#;
+
+    fn new(lock: &SharedRwLock, css: &str) -> Self {
+        let guard = lock.read();
+        let guards = StylesheetGuards::same(&guard);
+
+        let default_values = ComputedValues::initial_values_with_font_override(Font::initial_values());
+        let viewport = Size2D::<f32, CSSPixel>::new(1024.0, 768.0);
+        let device_size = Size2D::<f32, DevicePixel>::new(1024.0, 768.0);
+        let url_data = UrlExtraData(Arc::new(
+            Url::parse("http://localhost/").expect("static URL is valid"),
+        ));
+        let parse_sheet = |css: &str, origin: Origin| -> StylesheetFromStylo {
+            StylesheetFromStylo::from_str(
+                css,
+                url_data.clone(),
+                origin,
+                Arc::new(lock.wrap(style::media_queries::MediaList::empty())),
+                lock.clone(),
+                None,
+                None,
+                style::context::QuirksMode::NoQuirks,
+                AllowImportRules::No,
+            )
+        };
+        let ua_sheet = parse_sheet(Self::UA_CSS, Origin::UserAgent);
+        let author_sheet = parse_sheet(css, Origin::Author);
+
+        let mut stylist = Stylist::new(
+            Device::new(
+                MediaType::print(),
+                style::context::QuirksMode::NoQuirks,
+                viewport,
+                device_size,
+                Scale::new(1.0),
+                Box::new(SkeletonFontMetrics),
+                default_values.clone(),
+                PrefersColorScheme::Light,
+                PointerCapabilities::empty(),
+                PointerCapabilities::empty(),
+            ),
+            style::context::QuirksMode::NoQuirks,
+        );
+        stylist.append_stylesheet(
+            style::stylesheets::DocumentStyleSheet(Arc::new(ua_sheet)),
+            &lock.read(),
+        );
+        stylist.append_stylesheet(
+            style::stylesheets::DocumentStyleSheet(Arc::new(author_sheet)),
+            &lock.read(),
+        );
+        stylist.flush(&guards);
+
+        CascadeSession {
+            stylist,
+            _lock: lock.clone(),
         }
     }
-    out
+
+    /// Resolve the style for one element. `parent` is the already-resolved
+    /// parent `ComputedValues` (or `None` for the root).
+    ///
+    /// This drives matching + cascade directly on the stylist, bypassing
+    /// `StyleResolverForElement`: stylo's style-sharing cache transmutes the
+    /// element type to a `usize` in thread-local storage and asserts the
+    /// element is pointer-sized. Our `TyElement` is 16 bytes (NodeId +
+    /// backend ref), so that path panics; the manual route is functionally
+    /// identical (same rule collection, same cascade), just without the
+    /// sharing-cache optimization.
+    fn resolve<'a>(
+        &mut self,
+        element: TyElement<'a>,
+        parent: Option<&Arc<ComputedValues>>,
+    ) -> (Arc<ComputedValues>, ComputedStyle) {
+        let guard = self._lock.read();
+        let guards = StylesheetGuards::same(&guard);
+
+        // 1. Collect the applicable declarations (matching).
+        let mut selector_caches = selectors::context::SelectorCaches::default();
+        let mut matching_context = selectors::context::MatchingContext::new_for_visited(
+            selectors::matching::MatchingMode::Normal,
+            None, // no bloom filter: selector matching is still exact, just uncached
+            &mut selector_caches,
+            selectors::matching::VisitedHandlingMode::AllLinksUnvisited,
+            selectors::matching::QuirksMode::NoQuirks,
+            selectors::matching::NeedsSelectorFlags::Yes,
+            selectors::matching::MatchingForInvalidation::No,
+        );
+        let mut applicable = style::applicable_declarations::ApplicableDeclarationList::new();
+        self.stylist.push_applicable_declarations(
+            element,
+            None,
+            None,
+            None,
+            style::properties::AnimationDeclarations::default(),
+            RuleInclusion::All,
+            &mut applicable,
+            &mut matching_context,
+        );
+
+        // 2. Build the rule node from the matched rules.
+        let rule_node = self.stylist.rule_tree().compute_rule_node(&mut applicable, &guards);
+        let inputs = style::context::CascadeInputs {
+            rules: Some(rule_node),
+            visited_rules: None,
+            flags: matching_context.extra_data.cascade_input_flags,
+            included_cascade_flags: style::rule_tree::RuleCascadeFlags::empty(),
+        };
+
+        // 3. Cascade against the parent style.
+        let parent = parent.map(|p| &**p);
+        let tactic = style::values::specified::position::PositionTryFallbacksTryTactic(
+            Default::default(),
+        );
+        let mut rule_cache_conditions = style::rule_cache::RuleCacheConditions::default();
+        let mut tree_counting = style::context::TreeCountingCaches::default();
+        let primary = self.stylist.cascade_style_and_visited(
+            Some(element),
+            None,
+            &inputs,
+            &guards,
+            parent,
+            parent,
+            style::properties::FirstLineReparenting::No,
+            &tactic,
+            None, // no rule cache (safe: `try_to_use_cached_reset_properties` returns false)
+            &mut rule_cache_conditions,
+            &mut tree_counting,
+        );
+
+        let computed = Self::convert(&primary);
+        (primary, computed)
+    }
+
+    /// Convert stylo's `ComputedValues` into the engine's [`ComputedStyle`].
+    fn convert(values: &ComputedValues) -> ComputedStyle {
+        let color = values.clone_color();
+        let font = values.get_font();
+        let box_ = values.get_box();
+        let background = values.get_background();
+        let margin = values.get_margin();
+        let padding = values.get_padding();
+
+        let display = match box_.clone_display() {
+            d if d.is_none() => Display::None,
+            d if d.outside() == DisplayOutside::Block => Display::Block,
+            _ => Display::Inline,
+        };
+
+        // `color` is the computed `color` property, always an absolute color
+        // once resolved (currentcolor etc. are resolved by the cascade).
+        let [r, g, b, _a] = color.to_nscolor().to_le_bytes();
+        let color = Color { r, g, b };
+
+        let background_color = match background.clone_background_color() {
+            ComputedColor::Absolute(c) if !c.is_transparent() => {
+                let [r, g, b, _a] = c.to_nscolor().to_le_bytes();
+                Some(Color { r, g, b })
+            }
+            _ => None,
+        };
+
+        let font_size = px_to_pt(font.clone_font_size().computed_size().px() as f64);
+        let font_family = first_family_name(font.clone_font_family())
+            .unwrap_or_else(|| "sans-serif".to_string());
+
+        let margin_top = lp_or_auto_to_pt(&margin.clone_margin_top());
+        let margin_right = lp_or_auto_to_pt(&margin.clone_margin_right());
+        let margin_bottom = lp_or_auto_to_pt(&margin.clone_margin_bottom());
+        let margin_left = lp_or_auto_to_pt(&margin.clone_margin_left());
+        let padding_top = nn_lp_to_pt(&padding.clone_padding_top());
+        let padding_right = nn_lp_to_pt(&padding.clone_padding_right());
+        let padding_bottom = nn_lp_to_pt(&padding.clone_padding_bottom());
+        let padding_left = nn_lp_to_pt(&padding.clone_padding_left());
+
+        ComputedStyle {
+            color,
+            background_color,
+            font_size,
+            font_family,
+            display,
+            margin_top,
+            margin_right,
+            margin_bottom,
+            margin_left,
+            padding_top,
+            padding_right,
+            padding_bottom,
+            padding_left,
+        }
+    }
 }
 
-fn parse_selector_list(prelude: &str) -> Vec<Selector> {
-    prelude
-        .split(',')
-        .filter_map(|s| parse_selector(s.trim()))
-        .collect()
+
+/// Convert a stylo `LengthPercentageOrAuto` (the margin/padding computed
+/// values) to points. `auto` and percentages resolve to zero (the skeleton
+/// has no containing-block resolution).
+fn lp_or_auto_to_pt(value: &style::values::computed::Margin) -> Scalar {
+    use style::values::generics::length::GenericMargin::*;
+    match value {
+        LengthPercentage(lp) => lp
+            .to_length()
+            .map(|len| px_to_pt(len.px() as f64))
+            .unwrap_or(Scalar::ZERO),
+        Auto | AnchorSizeFunction(_) | AnchorContainingCalcFunction(_) => Scalar::ZERO,
+    }
 }
 
-fn parse_selector(s: &str) -> Option<Selector> {
-    if s.is_empty() {
-        return None;
+/// Convert a stylo `NonNegativeLengthPercentage` (the padding computed
+/// values) to points. Percentages resolve to zero (the skeleton has no
+/// containing-block resolution).
+fn nn_lp_to_pt(value: &style::values::computed::NonNegativeLengthPercentage) -> Scalar {
+    value
+        .0
+        .to_length()
+        .map(|len| px_to_pt(len.px() as f64))
+        .unwrap_or(Scalar::ZERO)
+}
+/// The first family name from a computed `font-family`, or `None`.
+fn first_family_name(family: FontFamily) -> Option<String> {
+    let mut it = family.families.list.iter();
+    match it.next() {
+        Some(SingleFontFamily::FamilyName(name)) => Some(name.name.to_string()),
+        _ => None,
     }
-    let mut parts = Vec::new();
-    for token in s.split_whitespace() {
-        let compound = parse_compound(token)?;
-        parts.push(compound);
-    }
-    if parts.is_empty() {
-        None
+}
+
+/// Recurse the DOM in pre-order, resolving each element with stylo.
+fn walk<'a>(
+    backend: &'a TyBackend<'a>,
+    session: &mut CascadeSession,
+    id: NodeId,
+    parent_values: Option<&Arc<ComputedValues>>,
+    parent_style: Option<&ComputedStyle>,
+    out: &mut [ComputedStyle],
+) {
+    let children = backend.dom.nodes[id].children.clone();
+    let is_element = matches!(backend.dom.nodes[id].kind, NodeKind::Element(_));
+    let mut own_values: Option<Arc<ComputedValues>> = None;
+    let mut own_style: Option<ComputedStyle> = None;
+
+    if is_element {
+        let element = TyElement::new(id, backend);
+        let (values, style) = session.resolve(element, parent_values);
+        out[id] = style;
+        own_values = Some(values);
+        own_style = Some(out[id].clone());
     } else {
-        Some(Selector { parts })
+        // Root and text nodes inherit the parent style verbatim.
+        let style = parent_style.cloned().unwrap_or_else(ComputedStyle::initial);
+        out[id] = style;
     }
-}
 
-/// Parse `tag.class1.class2#id` (in any order after an optional leading tag).
-fn parse_compound(s: &str) -> Option<Compound> {
-    let mut compound = Compound::default();
-    let mut chars = s.chars().peekable();
-    // Optional leading type selector or universal.
-    if let Some(&c) = chars.peek() {
-        if c == '*' {
-            chars.next();
-        } else if c.is_ascii_alphabetic() {
-            let mut tag = String::new();
-            while let Some(&c) = chars.peek() {
-                if c == '.' || c == '#' {
-                    break;
-                }
-                tag.push(c);
-                chars.next();
-            }
-            compound.tag = Some(tag.to_ascii_lowercase());
-        }
-    }
-    // Then any sequence of `.class` / `#id`.
-    while let Some(&c) = chars.peek() {
-        match c {
-            '.' => {
-                chars.next();
-                let mut cls = String::new();
-                while let Some(&c) = chars.peek() {
-                    if c == '.' || c == '#' {
-                        break;
-                    }
-                    cls.push(c);
-                    chars.next();
-                }
-                if cls.is_empty() {
-                    return None;
-                }
-                compound.classes.push(cls);
-            }
-            '#' => {
-                chars.next();
-                let mut id = String::new();
-                while let Some(&c) = chars.peek() {
-                    if c == '.' || c == '#' {
-                        break;
-                    }
-                    id.push(c);
-                    chars.next();
-                }
-                if id.is_empty() {
-                    return None;
-                }
-                compound.id = Some(id);
-            }
-            _ => return None, // unsupported combinator/pseudo in skeleton
-        }
-    }
-    Some(compound)
-}
-
-/// Parse `prop: value; prop: value` inside a declaration block using cssparser's
-/// tokenizer to reconstruct trimmed value strings.
-fn parse_declarations(block: &str) -> Vec<Declaration> {
-    let mut out = Vec::new();
-    for chunk in block.split(';') {
-        let chunk = chunk.trim();
-        if chunk.is_empty() {
-            continue;
-        }
-        let Some(colon) = chunk.find(':') else {
-            continue;
-        };
-        let property = chunk[..colon].trim().to_ascii_lowercase();
-        let value = chunk[colon + 1..].trim().to_string();
-        if property.is_empty() || value.is_empty() {
-            continue;
-        }
-        out.push(Declaration { property, value });
-    }
-    out
-}
-
-// --- Matching -------------------------------------------------------------
-
-fn compound_matches(compound: &Compound, dom: &Dom, id: NodeId) -> bool {
-    let NodeKind::Element(el) = &dom.nodes[id].kind else {
-        return false;
-    };
-    if let Some(tag) = &compound.tag {
-        if !el.tag.eq_ignore_ascii_case(tag) {
-            return false;
-        }
-    }
-    if let Some(sel_id) = &compound.id {
-        if el.id.as_deref() != Some(sel_id.as_str()) {
-            return false;
-        }
-    }
-    for cls in &compound.classes {
-        if !el.classes.iter().any(|c| c == cls) {
-            return false;
-        }
-    }
-    true
-}
-
-/// Descendant-combinator match: the last compound must match `id`, and each
-/// earlier compound must match some ancestor in order.
-fn selector_matches(selector: &Selector, dom: &Dom, id: NodeId) -> bool {
-    let parts = &selector.parts;
-    let last = parts.len() - 1;
-    if !compound_matches(&parts[last], dom, id) {
-        return false;
-    }
-    // Walk ancestors, greedily matching remaining compounds from right to left.
-    let mut remaining = last;
-    let mut cur = dom.nodes[id].parent;
-    while remaining > 0 {
-        let Some(anc) = cur else {
-            return false;
-        };
-        if compound_matches(&parts[remaining - 1], dom, anc) {
-            remaining -= 1;
-        }
-        cur = dom.nodes[anc].parent;
-    }
-    true
-}
-
-// --- Value parsing --------------------------------------------------------
-
-fn parse_color(value: &str) -> Option<Color> {
-    let v = value.trim();
-    if let Some(hex) = v.strip_prefix('#') {
-        return parse_hex(hex);
-    }
-    // A small set of named colors + rgb() via cssparser tokenizer.
-    match v.to_ascii_lowercase().as_str() {
-        "black" => return Some(Color { r: 0, g: 0, b: 0 }),
-        "white" => {
-            return Some(Color {
-                r: 255,
-                g: 255,
-                b: 255,
-            })
-        }
-        "red" => return Some(Color { r: 255, g: 0, b: 0 }),
-        "green" => return Some(Color { r: 0, g: 128, b: 0 }),
-        "blue" => return Some(Color { r: 0, g: 0, b: 255 }),
-        "transparent" => return None,
-        _ => {}
-    }
-    parse_rgb_func(v)
-}
-
-fn parse_hex(hex: &str) -> Option<Color> {
-    let hex = hex.trim();
-    match hex.len() {
-        3 => {
-            let r = u8::from_str_radix(&hex[0..1], 16).ok()?;
-            let g = u8::from_str_radix(&hex[1..2], 16).ok()?;
-            let b = u8::from_str_radix(&hex[2..3], 16).ok()?;
-            Some(Color {
-                r: r * 17,
-                g: g * 17,
-                b: b * 17,
-            })
-        }
-        6 => {
-            let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
-            let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
-            let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-            Some(Color { r, g, b })
-        }
-        _ => None,
-    }
-}
-
-/// Parse `rgb(r, g, b)` using cssparser's tokenizer.
-fn parse_rgb_func(v: &str) -> Option<Color> {
-    let mut input = ParserInput::new(v);
-    let mut parser = Parser::new(&mut input);
-    let name = parser.expect_function().ok()?.to_string();
-    if !name.eq_ignore_ascii_case("rgb") && !name.eq_ignore_ascii_case("rgba") {
-        return None;
-    }
-    let comps: Option<Vec<u8>> = parser
-        .parse_nested_block(|p| {
-            let mut vals = Vec::new();
-            while vals.len() < 3 {
-                let n = match p.next() {
-                    Ok(Token::Number { value, .. }) => *value,
-                    Ok(_) => continue, // skip commas/whitespace
-                    Err(_) => break,
-                };
-                vals.push(n.clamp(0.0, 255.0) as u8);
-            }
-            Ok::<_, cssparser::ParseError<()>>(vals)
-        })
-        .ok();
-    let comps = comps?;
-    if comps.len() < 3 {
-        return None;
-    }
-    Some(Color {
-        r: comps[0],
-        g: comps[1],
-        b: comps[2],
-    })
-}
-
-/// Parse a CSS length to points. Supports `px`, `pt`, `in`. Unitless → treated
-/// as `px` (skeleton simplification).
-fn parse_length(value: &str) -> Option<Scalar> {
-    let v = value.trim();
-    let (num, unit) = split_number_unit(v)?;
-    match unit.as_str() {
-        "px" | "" => Some(px_to_pt(num)),
-        "pt" => Some(Scalar(num)),
-        "in" => Some(Scalar(num * 72.0)),
-        "em" => None, // resolved by caller relative to font-size; unsupported here
-        _ => None,
-    }
-}
-
-fn split_number_unit(v: &str) -> Option<(f64, String)> {
-    let end = v
-        .find(|c: char| c.is_ascii_alphabetic() || c == '%')
-        .unwrap_or(v.len());
-    let num: f64 = v[..end].trim().parse().ok()?;
-    let unit = v[end..].trim().to_ascii_lowercase();
-    Some((num, unit))
-}
-
-fn apply_declaration(style: &mut ComputedStyle, decl: &Declaration) {
-    match decl.property.as_str() {
-        "color" => {
-            if let Some(c) = parse_color(&decl.value) {
-                style.color = c;
-            }
-        }
-        "background-color" | "background" => {
-            style.background_color = parse_color(&decl.value);
-        }
-        "font-size" => {
-            if let Some(l) = parse_length(&decl.value) {
-                style.font_size = l;
-            }
-        }
-        "font-family" => {
-            let fam = decl
-                .value
-                .split(',')
-                .next()
-                .unwrap_or("")
-                .trim()
-                .trim_matches('"')
-                .trim_matches('\'')
-                .to_string();
-            if !fam.is_empty() {
-                style.font_family = fam;
-            }
-        }
-        "display" => {
-            style.display = match decl.value.trim().to_ascii_lowercase().as_str() {
-                "block" => Display::Block,
-                "none" => Display::None,
-                "inline" => Display::Inline,
-                _ => style.display,
-            };
-        }
-        "margin" => {
-            if let Some(l) = parse_length(&decl.value) {
-                style.margin_top = l;
-                style.margin_right = l;
-                style.margin_bottom = l;
-                style.margin_left = l;
-            }
-        }
-        "margin-top" => set_len(&mut style.margin_top, &decl.value),
-        "margin-right" => set_len(&mut style.margin_right, &decl.value),
-        "margin-bottom" => set_len(&mut style.margin_bottom, &decl.value),
-        "margin-left" => set_len(&mut style.margin_left, &decl.value),
-        "padding" => {
-            if let Some(l) = parse_length(&decl.value) {
-                style.padding_top = l;
-                style.padding_right = l;
-                style.padding_bottom = l;
-                style.padding_left = l;
-            }
-        }
-        "padding-top" => set_len(&mut style.padding_top, &decl.value),
-        "padding-right" => set_len(&mut style.padding_right, &decl.value),
-        "padding-bottom" => set_len(&mut style.padding_bottom, &decl.value),
-        "padding-left" => set_len(&mut style.padding_left, &decl.value),
-        _ => {}
-    }
-}
-
-fn set_len(slot: &mut Scalar, value: &str) {
-    if let Some(l) = parse_length(value) {
-        *slot = l;
-    }
-}
-
-/// UA default `display` for the handful of block-level tags we care about.
-fn ua_display(tag: &str) -> Display {
-    matches!(
-        tag,
-        "html"
-            | "body"
-            | "div"
-            | "p"
-            | "h1"
-            | "h2"
-            | "h3"
-            | "h4"
-            | "h5"
-            | "h6"
-            | "section"
-            | "article"
-            | "header"
-            | "footer"
-            | "ul"
-            | "ol"
-            | "li"
-            | "blockquote"
-    )
-    .then_some(Display::Block)
-    .unwrap_or(Display::Inline)
-}
-
-/// UA default margins (px) for common tags, approximating browser defaults so
-/// stacked blocks get visible separation.
-fn ua_margins(tag: &str) -> (f64, f64) {
-    // (top+bottom em-ish px, using font-size-independent px for the skeleton)
-    match tag {
-        "h1" => (21.0, 21.0),
-        "h2" => (19.0, 19.0),
-        "h3" => (18.0, 18.0),
-        "p" => (16.0, 16.0),
-        "ul" | "ol" | "blockquote" => (16.0, 16.0),
-        _ => (0.0, 0.0),
+    let child_parent_values = own_values.as_ref().or(parent_values);
+    let child_parent_style = own_style.as_ref().or(parent_style);
+    for child in children {
+        walk(
+            backend,
+            session,
+            child,
+            child_parent_values,
+            child_parent_style,
+            out,
+        );
     }
 }
 
 /// The cascade entry point. Produces a `ComputedStyle` per DOM node id
 /// (indexed by `NodeId`). Text nodes inherit their parent's style.
 ///
-/// This is the swap boundary for stylo: reimplement this function to produce
-/// the same `Vec<ComputedStyle>` and nothing downstream changes.
+/// This is the swap boundary between the engine and stylo: layout and PDF
+/// read only the returned `Vec<ComputedStyle>`.
 pub fn cascade(dom: &Dom, stylesheet: &Stylesheet) -> Vec<ComputedStyle> {
+    let lock = SharedRwLock::new();
+    let backend = TyBackend::new(dom, &lock);
+    let mut session = CascadeSession::new(&lock, stylesheet.source());
     let mut styles = vec![ComputedStyle::initial(); dom.nodes.len()];
-    // Depth-first from root so parents are computed before children.
-    let root = dom.root;
-    let root_style = ComputedStyle::initial();
-    compute_node(dom, stylesheet, root, &root_style, &mut styles);
+    // Pre-order walk: parents are resolved before children, and the parent's
+    // `ComputedValues` is threaded down explicitly (the element-data map on
+    // the backend is not needed for inheritance in this path).
+    walk(
+        &backend,
+        &mut session,
+        dom.root,
+        None,
+        None,
+        &mut styles,
+    );
     styles
-}
-
-fn compute_node(
-    dom: &Dom,
-    stylesheet: &Stylesheet,
-    id: NodeId,
-    parent_style: &ComputedStyle,
-    out: &mut [ComputedStyle],
-) {
-    let style = match &dom.nodes[id].kind {
-        NodeKind::Root => parent_style.clone(),
-        NodeKind::Text(_) => parent_style.clone(),
-        NodeKind::Element(el) => {
-            let default_display = ua_display(&el.tag);
-            let mut style = ComputedStyle::inherit_from(parent_style, default_display);
-            // UA margins.
-            let (mt, mb) = ua_margins(&el.tag);
-            style.margin_top = px_to_pt(mt);
-            style.margin_bottom = px_to_pt(mb);
-
-            // Collect matching (specificity, source-order) declarations.
-            let mut matched: Vec<(&Selector, usize, usize)> = Vec::new(); // (sel, rule_idx, decl group)
-            for (ri, rule) in stylesheet.rules.iter().enumerate() {
-                for selector in &rule.selectors {
-                    if selector_matches(selector, dom, id) {
-                        matched.push((selector, ri, ri));
-                    }
-                }
-            }
-            // Sort by specificity then source order (stable).
-            matched.sort_by(|a, b| {
-                a.0.specificity()
-                    .cmp(&b.0.specificity())
-                    .then(a.1.cmp(&b.1))
-            });
-            for (_, ri, _) in matched {
-                for decl in &stylesheet.rules[ri].declarations {
-                    apply_declaration(&mut style, decl);
-                }
-            }
-            style
-        }
-    };
-    out[id] = style.clone();
-    let children = dom.nodes[id].children.clone();
-    for child in children {
-        compute_node(dom, stylesheet, child, &style, out);
-    }
 }
