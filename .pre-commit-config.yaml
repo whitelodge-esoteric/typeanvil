@@ -1,0 +1,13 @@
+# pre-commit hooks (https://pre-commit.com)
+# Install: uv tool install pre-commit && pre-commit install
+# Run all: pre-commit run --all-files
+repos:
+  - repo: local
+    hooks:
+      - id: validate-docs-frontmatter
+        name: validate docs frontmatter
+        description: Enforces docs/conventions/frontmatter-schema.md on every docs/**/*.md
+        entry: python3 scripts/validate_docs.py
+        language: system
+        files: ^docs/
+        pass_filenames: false

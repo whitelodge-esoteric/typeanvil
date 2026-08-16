@@ -1,0 +1,28 @@
+# Docs frontmatter validation — runs the same check as the pre-commit hook.
+# Activates when the repo has a GitHub remote and this workflow is pushed.
+name: docs-validation
+
+on:
+  push:
+    paths:
+      - "docs/**"
+      - "scripts/validate_docs.py"
+      - ".pre-commit-config.yaml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "scripts/validate_docs.py"
+      - ".pre-commit-config.yaml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pre-commit
+        run: pip install pre-commit
+      - name: Run docs validation (pre-commit all-files)
+        run: pre-commit run --all-files
