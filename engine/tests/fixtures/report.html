@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @page {
+    margin: 0.5in;
+    @top-left { content: string(chapter); }
+    @bottom-center { content: counter(page); }
+  }
+  body { color: #222; font-size: 12px; }
+  h1 { color: #1d3557; font-size: 20px; string-set: chapter content(); margin-bottom: 6px; }
+  h2 { color: #457b9d; font-size: 15px; margin-bottom: 4px; }
+  p { margin-bottom: 6px; }
+  .chapter { display: block; break-before: page; }
+  .toc { display: block; }
+  .toc h1 { string-set: chapter content(); }
+  .toc a { display: block; }
+  .e1 { content: "Chapter 1: Foundations " leader('.') target-counter(attr(href), page); }
+  .e2 { content: "Chapter 2: Methods " leader('.') target-counter(attr(href), page); }
+  .e3 { content: "Chapter 3: Results " leader('.') target-counter(attr(href), page); }
+</style>
+</head>
+<body>
+  <div class="toc">
+    <h1>Table of Contents</h1>
+    <a class="e1" href="#ch1">Chapter 1</a>
+    <a class="e2" href="#ch2">Chapter 2</a>
+    <a class="e3" href="#ch3">Chapter 3</a>
+  </div>
+
+  <div class="chapter">
+    <h1 id="ch1">Foundations</h1>
+    <h2>Background</h2>
+    <p>This report examines the load-bearing assumptions behind the system and
+    the evidence gathered over the study period. The foundations chapter sets
+    out the terminology and the measurement conventions used throughout.</p>
+    <p>Each subsequent chapter builds on the definitions established here, so
+    the reader is encouraged to treat this material as the reference glossary
+    for the remainder of the document.</p>
+    <h2>Scope</h2>
+    <p>The scope is deliberately narrow: only the paged-media behaviors that a
+    typesetting engine must reproduce to render a professional report are
+    considered. Everything else is out of band.</p>
+  </div>
+
+  <div class="chapter">
+    <h1 id="ch2">Methods</h1>
+    <h2>Procedure</h2>
+    <p>The procedure followed a fixed protocol applied identically across all
+    trials. Determinism was verified by re-running each case and comparing the
+    byte output, which must be identical for the run to count.</p>
+    <p>Instrumentation was kept minimal to avoid perturbing the measured
+    quantities, and every derived figure is traceable to a raw observation.</p>
+    <h2>Materials</h2>
+    <p>Materials were sourced from a single deterministic generator so that the
+    inputs themselves never varied between runs of the experiment.</p>
+  </div>
+
+  <div class="chapter">
+    <h1 id="ch3">Results</h1>
+    <h2>Findings</h2>
+    <p>The findings confirm the central hypothesis: running headers, page
+    numbers, and cross-referenced page numbers can all be produced in a single
+    bounded set of layout passes without sacrificing determinism.</p>
+    <p>The table of contents at the front of this document resolves each entry
+    to the page where its chapter begins, with dotted leaders filling the space
+    between the title and the number.</p>
+    <h2>Discussion</h2>
+    <p>Future work will extend the running-content model to cloned elements and
+    to named counter styles, neither of which was required for this report.</p>
+  </div>
+</body>
+</html>

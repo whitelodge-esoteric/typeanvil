@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @page {
+    margin: 0.5in;
+    @top-center { content: "ACME Corp — Invoice #4291"; }
+    @bottom-right { content: counter(page); }
+  }
+  body { color: #222; font-size: 12px; }
+  h1 { color: #1d3557; font-size: 22px; margin-bottom: 8px; }
+  .meta { color: #555; font-size: 11px; margin-bottom: 12px; }
+  .row {
+    display: block;
+    background-color: #f1faee;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    padding-left: 6px;
+    margin-bottom: 2px;
+  }
+  .row.head { background-color: #a8dadc; color: #1d3557; }
+  .total { display: block; background-color: #457b9d; color: #ffffff; padding-top: 6px; padding-left: 6px; margin-top: 8px; }
+  .note { display: block; margin-top: 10px; color: #666; }
+</style>
+</head>
+<body>
+  <h1>Invoice</h1>
+  <div class="meta">Billed to Wile E. Coyote — Due 2026-09-30</div>
+
+  <div class="row head">Item &nbsp; Qty &nbsp; Unit &nbsp; Amount</div>
+  <div class="row">Anvil, standard &nbsp; 3 &nbsp; 120.00 &nbsp; 360.00</div>
+  <div class="row">Rocket skates &nbsp; 2 &nbsp; 89.50 &nbsp; 179.00</div>
+  <div class="row">Giant rubber band &nbsp; 1 &nbsp; 45.00 &nbsp; 45.00</div>
+  <div class="row">Portable hole &nbsp; 4 &nbsp; 60.00 &nbsp; 240.00</div>
+  <div class="row">Earthquake pills &nbsp; 1 &nbsp; 30.00 &nbsp; 30.00</div>
+  <div class="row">Dehydrated boulders &nbsp; 6 &nbsp; 15.00 &nbsp; 90.00</div>
+  <div class="row">Instant tunnel paint &nbsp; 2 &nbsp; 75.00 &nbsp; 150.00</div>
+  <div class="row">Spring-loaded boxing glove &nbsp; 1 &nbsp; 55.00 &nbsp; 55.00</div>
+  <div class="row">Jet-propelled pogo stick &nbsp; 1 &nbsp; 210.00 &nbsp; 210.00</div>
+  <div class="row">Bird seed, industrial &nbsp; 10 &nbsp; 8.00 &nbsp; 80.00</div>
+  <div class="row">Female roadrunner costume &nbsp; 1 &nbsp; 99.00 &nbsp; 99.00</div>
+  <div class="row">Triple-strength battleship steel armor plate &nbsp; 2 &nbsp; 300.00 &nbsp; 600.00</div>
+
+  <div class="total">Total due: 2138.00 USD</div>
+  <div class="note">Thank you for your business. Payment terms: net 30. Late
+  payments accrue interest at the rate specified in the master services
+  agreement between the parties, compounded monthly until paid in full.</div>
+</body>
+</html>

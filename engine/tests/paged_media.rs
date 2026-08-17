@@ -1,0 +1,450 @@
+//! Paged-media acceptance tests — one per acceptance criterion in
+//! `docs/specifications/paged-media-css.spec.md`.
+//!
+//! These drive the library directly (`typeanvil::layout::layout`) and assert on
+//! the fragment tree / outline model, plus determinism through the CLI. The
+//! fragmentation tests (forced break, orphans/widows, avoid, monolithic,
+//! 1,000-page linear) live in `fragmentation.rs` and run unchanged — this file
+//! never touches them (regression guard, spec AC #13).
+
+use std::path::Path;
+use std::process::Command;
+
+use typeanvil::css::Stylesheet;
+use typeanvil::dom::{Dom, NodeKind};
+use typeanvil::frag::{Fragment, FragmentContent, Fragmentainer};
+use typeanvil::geom::{PageGeometry, Scalar};
+use typeanvil::layout::{layout, Layout};
+
+// --- helpers ---------------------------------------------------------------
+
+/// Points from inches.
+fn inches(v: f64) -> Scalar {
+    Scalar(v * 72.0)
+}
+
+/// A page geometry with uniform margins (inches).
+fn geometry(w_in: f64, h_in: f64, margin_in: f64) -> PageGeometry {
+    PageGeometry {
+        width: inches(w_in),
+        height: inches(h_in),
+        margin_top: inches(margin_in),
+        margin_right: inches(margin_in),
+        margin_bottom: inches(margin_in),
+        margin_left: inches(margin_in),
+    }
+}
+
+/// Collect all `<style>` text into a stylesheet (mirrors the CLI).
+fn stylesheet_of(dom: &Dom) -> Stylesheet {
+    let mut css = String::new();
+    for (id, node) in dom.nodes.iter().enumerate() {
+        if let NodeKind::Element(el) = &node.kind {
+            if el.tag == "style" {
+                css.push_str(&dom.text_content(id));
+                css.push('\n');
+            }
+        }
+    }
+    Stylesheet::parse(&css)
+}
+
+/// Lay out an HTML string with the given geometry.
+fn lay(html: &str, geo: PageGeometry) -> Layout {
+    let dom = Dom::parse(html).unwrap();
+    let ss = stylesheet_of(&dom);
+    layout(&dom, &ss, geo)
+}
+
+/// All text-run strings on one fragmentainer, in pre-order (document order).
+fn page_texts(page: &Fragmentainer) -> Vec<String> {
+    let mut out = Vec::new();
+    collect_text(&page.root, &mut out);
+    out
+}
+
+fn collect_text(frag: &Fragment, out: &mut Vec<String>) {
+    if let FragmentContent::Text(run) = &frag.content {
+        out.push(run.text.clone());
+    }
+    for child in &frag.children {
+        collect_text(child, out);
+    }
+}
+
+fn any_text_contains(page: &Fragmentainer, needle: &str) -> bool {
+    page_texts(page).iter().any(|t| t.contains(needle))
+}
+
+/// The absolute (x, y) of the first text run containing `needle` on a page.
+fn text_pos(page: &Fragmentainer, needle: &str) -> Option<(f64, f64)> {
+    fn walk(frag: &Fragment, px: f64, py: f64, needle: &str) -> Option<(f64, f64)> {
+        let ax = px + frag.offset.x.get();
+        let ay = py + frag.offset.y.get();
+        if let FragmentContent::Text(run) = &frag.content {
+            if run.text.contains(needle) {
+                return Some((px + run.baseline.x.get(), py + run.baseline.y.get()));
+            }
+        }
+        for child in &frag.children {
+            if let Some(p) = walk(child, ax, ay, needle) {
+                return Some(p);
+            }
+        }
+        None
+    }
+    walk(&page.root, 0.0, 0.0, needle)
+}
+
+fn bin() -> &'static str {
+    env!("CARGO_BIN_EXE_typeanvil")
+}
+
+fn render_cli(html: &Path, out: &Path, w: &str, h: &str) {
+    let status = Command::new(bin())
+        .args([
+            "render",
+            html.to_str().unwrap(),
+            "--page-width",
+            w,
+            "--page-height",
+            h,
+            "--margin-top",
+            "0.5in",
+            "--margin-right",
+            "0.5in",
+            "--margin-bottom",
+            "0.5in",
+            "--margin-left",
+            "0.5in",
+            "-o",
+            out.to_str().unwrap(),
+        ])
+        .status()
+        .expect("failed to spawn typeanvil");
+    assert!(status.success(), "engine exited non-zero: {status:?}");
+}
+
+// --- 1. Page size from @page -----------------------------------------------
+
+#[test]
+fn page_size_from_at_page() {
+    let html = r#"<html><head><style>
+        @page { size: 8.5in 11in; }
+        p { font-size: 12px; }
+    </style></head><body><p>Hello paged media.</p></body></html>"#;
+    // CLI default 5in x 3in must be overridden by @page.
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    for page in &layout.pages {
+        assert_eq!(page.root.size.0.get(), inches(8.5).get());
+        assert_eq!(page.root.size.1.get(), inches(11.0).get());
+    }
+}
+
+// --- 2. Page margins from @page --------------------------------------------
+
+#[test]
+fn page_margins_from_at_page() {
+    let html = r#"<html><head><style>
+        @page { size: 8.5in 11in; margin: 1in; }
+        p { font-size: 12px; }
+    </style></head><body><p>Body text with a one inch margin.</p></body></html>"#;
+    let layout = lay(html, geometry(8.5, 11.0, 0.25));
+    // The first content line's baseline must sit at least 1in from the top-left.
+    let (x, y) = text_pos(&layout.pages[0], "Body").expect("content text missing");
+    assert!(x >= inches(1.0).get() - 0.01, "content x {x} not inset 1in");
+    assert!(y >= inches(1.0).get() - 0.01, "content y {y} not inset 1in");
+}
+
+// --- 3. Margin-box header --------------------------------------------------
+
+#[test]
+fn margin_box_header() {
+    let html = r#"
+    <html><head><style>
+        @page { margin: 0.5in; @top-center { content: "Report"; } }
+        p { font-size: 12px; }
+        .pb { break-before: page; }
+    </style></head><body>
+        <p>First page paragraph one.</p>
+        <p class="pb">Second page paragraph.</p>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    assert!(layout.pages.len() >= 2, "expected multi-page");
+    for page in &layout.pages {
+        assert!(
+            any_text_contains(page, "Report"),
+            "page {} missing top-center header",
+            page.index
+        );
+        // The header sits in the top margin (above the 0.5in content top).
+        let (_, y) = text_pos(page, "Report").unwrap();
+        assert!(y < inches(0.5).get(), "header y {y} not in top margin");
+    }
+}
+
+// --- 4. Named pages --------------------------------------------------------
+
+#[test]
+fn named_pages() {
+    let html = r#"<html><head><style>
+        @page { size: 5in 3in; }
+        @page landscape { size: 8in 3in; }
+        section { display: block; }
+        section.note { page: landscape; break-before: page; }
+        p { font-size: 12px; }
+    </style></head><body>
+        <section><p>Default page section.</p></section>
+        <section class="note"><p>Landscape section.</p></section>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.25));
+    assert!(layout.pages.len() >= 2, "expected two pages");
+    assert_eq!(layout.pages[0].root.size.0.get(), inches(5.0).get());
+    // The landscape section starts page 2 → wider page.
+    assert_eq!(layout.pages[1].root.size.0.get(), inches(8.0).get());
+}
+
+// --- 5. First / left / right selectors -------------------------------------
+
+#[test]
+fn first_left_right() {
+    let html = r#"
+    <html><head><style>
+        @page { margin: 0.25in; }
+        @page :first { margin-top: 1.5in; }
+        p { font-size: 12px; }
+        .pb { break-before: page; }
+    </style></head><body>
+        <p>First page content one.</p>
+        <p class="pb">Second page content.</p>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.25));
+    assert!(layout.pages.len() >= 2);
+    let (_, y1) = text_pos(&layout.pages[0], "First").unwrap();
+    let (_, y2) = text_pos(&layout.pages[1], "Second").unwrap();
+    // Page 1 has a 1.5in top margin; page 2 uses the default 0.25in.
+    assert!(y1 > y2, "page 1 top ({y1}) should be below page 2 top ({y2})");
+    assert!(y1 >= inches(1.5).get() - 0.01, "page 1 top margin not applied");
+}
+
+// --- 6. Running string -----------------------------------------------------
+
+#[test]
+fn running_header_string() {
+    let html = r#"<html><head><style>
+        @page { margin: 0.4in; @top-left { content: string(chapter); } }
+        h1 { string-set: chapter content(); font-size: 14px; }
+        .c { display: block; break-before: page; }
+        p { font-size: 12px; }
+    </style></head><body>
+        <p>Front matter before any heading.</p>
+        <div class="c"><h1>Alpha</h1><p>Alpha body.</p></div>
+        <div class="c"><h1>Beta</h1><p>Beta body.</p></div>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.4));
+    assert!(layout.pages.len() >= 3, "expected front + two chapters");
+    // Page 1 (front matter) has no chapter assigned yet → empty header.
+    assert!(
+        !any_text_contains(&layout.pages[0], "Alpha")
+            && !any_text_contains(&layout.pages[0], "Beta"),
+        "page 1 header should be empty before first h1"
+    );
+    // Later pages carry the current chapter in the top-left.
+    let has_alpha = layout.pages.iter().any(|p| any_text_contains(p, "Alpha"));
+    let has_beta = layout.pages.iter().any(|p| any_text_contains(p, "Beta"));
+    assert!(has_alpha && has_beta, "chapter headers missing");
+}
+
+// --- 7. Page counter -------------------------------------------------------
+
+#[test]
+fn page_counter() {
+    let html = r#"
+    <html><head><style>
+        @page { margin: 0.4in; @bottom-right { content: counter(page); } }
+        p { font-size: 12px; }
+        .pb { break-before: page; }
+    </style></head><body>
+        <p>Page one.</p>
+        <p class="pb">Page two.</p>
+        <p class="pb">Page three.</p>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.4));
+    assert!(layout.pages.len() >= 3);
+    assert!(any_text_contains(&layout.pages[0], "1"));
+    assert!(any_text_contains(&layout.pages[1], "2"));
+    assert!(any_text_contains(&layout.pages[2], "3"));
+
+    // counter-reset: page 0 restarts the count at the section's page.
+    let html2 = r#"<html><head><style>
+        @page { margin: 0.4in; @bottom-right { content: counter(page); } }
+        .reset { display: block; break-before: page; counter-reset: page 0; }
+        p { font-size: 12px; }
+    </style></head><body>
+        <p>First.</p>
+        <div class="reset"><p>Reset here.</p></div>
+    </body></html>"#;
+    let l2 = lay(html2, geometry(5.0, 3.0, 0.4));
+    assert!(l2.pages.len() >= 2);
+    // Page 2 is reset to counter 0 (bottom-right shows "0").
+    let p2 = page_texts(&l2.pages[1]);
+    assert!(p2.iter().any(|t| t == "0"), "reset page counter not 0: {p2:?}");
+}
+
+// --- 8. TOC target-counter -------------------------------------------------
+
+#[test]
+fn toc_target_counter() {
+    let html = r##"<html><head><style>
+        @page { margin: 0.4in; }
+        body { margin: 0; }
+        .toc a { display: block; }
+        .e1 { content: "Chapter 1 " leader('.') target-counter(attr(href), page); }
+        .e2 { content: "Chapter 2 " leader('.') target-counter(attr(href), page); }
+        .ch { display: block; break-before: page; }
+        h1 { font-size: 14px; }
+        p { font-size: 12px; }
+    </style></head><body>
+        <div class="toc">
+            <a class="e1" href="#ch1">Chapter 1</a>
+            <a class="e2" href="#ch2">Chapter 2</a>
+        </div>
+        <div class="ch"><h1 id="ch1">One</h1><p>Body one.</p></div>
+        <div class="ch"><h1 id="ch2">Two</h1><p>Body two.</p></div>
+    </body></html>"##;
+    let layout = lay(html, geometry(5.0, 3.0, 0.4));
+    let toc = page_texts(&layout.pages[0]);
+    // ch1 starts on page 2 (index 1) and ch2 on page 3 (index 2): 1-based 2, 3.
+    let e1 = toc.iter().find(|t| t.contains("Chapter 1")).expect("entry 1");
+    let e2 = toc.iter().find(|t| t.contains("Chapter 2")).expect("entry 2");
+    assert!(e1.ends_with('2'), "entry 1 wrong page number: {e1:?}");
+    assert!(e2.ends_with('3'), "entry 2 wrong page number: {e2:?}");
+    // Dotted leader present.
+    assert!(e1.contains(".."), "entry 1 missing leader dots: {e1:?}");
+    // The leader reaches near the right content edge: line width ~= content
+    // width. The content box is (5 - 0.8)in = 4.2in wide; the filled line
+    // should be within one glyph advance of that width.
+    let content_w = inches(5.0 - 0.8).get();
+    let advance = 12.0 * 0.5;
+    let line_w = e1.chars().count() as f64 * advance;
+    assert!(
+        line_w >= content_w - advance,
+        "leader did not reach content edge: line {line_w} vs {content_w}"
+    );
+}
+
+// --- 9. PDF bookmarks ------------------------------------------------------
+
+#[test]
+fn pdf_bookmarks() {
+    let html = r#"<html><head><style>
+        @page { margin: 0.4in; }
+        .ch { display: block; break-before: page; }
+        h1 { font-size: 16px; }
+        h2 { font-size: 13px; }
+        p { font-size: 12px; }
+    </style></head><body>
+        <div class="ch"><h1>Alpha</h1><h2>Alpha One</h2><p>Body.</p><h2>Alpha Two</h2><p>Body.</p></div>
+        <div class="ch"><h1>Beta</h1><h2>Beta One</h2><p>Body.</p></div>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.4));
+    let hs = &layout.headings;
+    // Five headings in DOM order: h1 Alpha, h2 Alpha One, h2 Alpha Two, h1 Beta,
+    // h2 Beta One.
+    assert_eq!(hs.len(), 5, "heading count: {hs:?}");
+    assert_eq!(hs[0].level, 1);
+    assert_eq!(hs[0].title, "Alpha");
+    assert_eq!(hs[1].level, 2);
+    assert_eq!(hs[1].title, "Alpha One");
+    assert_eq!(hs[3].level, 1);
+    assert_eq!(hs[3].title, "Beta");
+    // Alpha is on page 0, Beta on a later page.
+    assert_eq!(hs[0].page_index, 0);
+    assert!(hs[3].page_index > hs[0].page_index, "Beta not on a later page");
+}
+
+// --- 10. Invoice demo ------------------------------------------------------
+
+#[test]
+fn invoice_demo() {
+    let dir = tempfile::tempdir().unwrap();
+    let html = Path::new("tests/fixtures/invoice.html");
+    let a = dir.path().join("a.pdf");
+    let b = dir.path().join("b.pdf");
+    render_cli(html, &a, "5in", "3in");
+    render_cli(html, &b, "5in", "3in");
+
+    let ba = std::fs::read(&a).unwrap();
+    let bb = std::fs::read(&b).unwrap();
+    assert!(ba.len() > 1024, "invoice PDF too small");
+    assert!(ba.starts_with(b"%PDF"), "not a PDF");
+    assert_eq!(ba, bb, "invoice PDF is not byte-deterministic");
+
+    // Multi-page: assert via the fragment tree (marker counting is flaky).
+    let src = std::fs::read_to_string(html).unwrap();
+    let dom = Dom::parse(&src).unwrap();
+    let ss = stylesheet_of(&dom);
+    let layout = layout(&dom, &ss, geometry(5.0, 3.0, 0.5));
+    assert!(layout.pages.len() >= 2, "invoice should be multi-page");
+    // Running header + footer page number appear.
+    assert!(any_text_contains(&layout.pages[0], "ACME"));
+    assert!(any_text_contains(&layout.pages[0], "1"));
+}
+
+// --- 11. Report demo -------------------------------------------------------
+
+#[test]
+fn report_demo() {
+    let dir = tempfile::tempdir().unwrap();
+    let html = Path::new("tests/fixtures/report.html");
+    let a = dir.path().join("a.pdf");
+    let b = dir.path().join("b.pdf");
+    render_cli(html, &a, "5in", "3in");
+    render_cli(html, &b, "5in", "3in");
+    let ba = std::fs::read(&a).unwrap();
+    let bb = std::fs::read(&b).unwrap();
+    assert!(ba.starts_with(b"%PDF"));
+    assert_eq!(ba, bb, "report PDF is not byte-deterministic");
+
+    let src = std::fs::read_to_string(html).unwrap();
+    let dom = Dom::parse(&src).unwrap();
+    let ss = stylesheet_of(&dom);
+    let layout = layout(&dom, &ss, geometry(5.0, 3.0, 0.5));
+    assert!(layout.pages.len() >= 4, "report should be multi-page (TOC + 3 chapters)");
+
+    // The TOC page numbers are present and correct: each entry ends in a page
+    // number that matches the chapter's landing page.
+    let toc = page_texts(&layout.pages[0]);
+    let e1 = toc.iter().find(|t| t.contains("Chapter 1")).expect("toc e1");
+    assert!(e1.contains(".."), "TOC leader dots missing");
+    // Chapter 1 lands on page index 1 (2nd page) → number "2".
+    assert!(e1.trim_end().ends_with('2'), "TOC entry 1 page number: {e1:?}");
+    // Headings drive the outline.
+    assert!(layout.headings.iter().any(|h| h.title == "Foundations"));
+}
+
+// --- 12. Determinism -------------------------------------------------------
+
+#[test]
+fn determinism_multi() {
+    let html = r#"<html><head><style>
+        @page { margin: 0.4in;
+            @top-center { content: "Deterministic"; }
+            @bottom-right { content: counter(page); } }
+        p { font-size: 12px; }
+    </style></head><body>
+        <p>Page one text.</p>
+        <p style="break-before: page">Page two text.</p>
+        <p style="break-before: page">Page three text.</p>
+    </body></html>"#;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("in.html");
+    std::fs::write(&path, html).unwrap();
+    let a = dir.path().join("a.pdf");
+    let b = dir.path().join("b.pdf");
+    render_cli(&path, &a, "5in", "3in");
+    render_cli(&path, &b, "5in", "3in");
+    let ba = std::fs::read(&a).unwrap();
+    let bb = std::fs::read(&b).unwrap();
+    assert_eq!(ba, bb, "margin-box PDF not byte-identical across runs");
+}
