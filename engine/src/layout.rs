@@ -1,184 +1,554 @@
-//! Trivial block layout.
+//! Block fragmentation: layout as a pure function producing a fragment tree.
 //!
-//! Block-level elements are stacked vertically inside the page content box.
-//! Each block's inline text is greedily broken into lines at the available
-//! width (first-fit; Knuth-Plass is a later issue). When the next line would
-//! overflow the current page, a new page begins — the seed of the
-//! fragmentation model, kept deliberately trivial.
+//! LayoutNG's model, greenfield. Layout is
+//! `(node, constraints, break_token) → (fragment, outgoing_token)` with no
+//! engine-global mutable state. The [`Fragment`] tree (in [`crate::frag`]) is
+//! the sole output; pages are first-class [`Fragmentainer`]s.
 //!
-//! Text width is approximated (0.5 em per character) rather than shaped;
-//! real shaping via HarfRust is out of scope for the skeleton.
+//! ## Algorithm
+//!
+//! [`layout`] cascades styles once, then paginates: it lays out `<body>` into
+//! fragmentainer 0 with a break-before token; whenever a box runs out of
+//! fragmentainer space it returns an outgoing [`BreakToken`] carrying
+//! `consumed_block_size` + `seen_all_children` and nested child tokens. Page
+//! N+1 replays the same recursion with that token — finished children skipped,
+//! unfinished resumed — so each box is laid out a bounded number of times and
+//! pagination is O(n) (no relayout-from-scratch per page).
+//!
+//! `break-inside: avoid`, `orphans`, and `widows` are honored at the offending
+//! breakpoint: an avoid-block that would break but fits whole on a fresh page
+//! is aborted and deferred wholly to the next fragmentainer (the once-per-flow
+//! abort-and-defer that bounds avoidance cost); orphans/widows shift a text
+//! run's split so no page ends or begins with fewer than the required lines,
+//! dropping the constraint (css-break-3 §4.4) when the run is too short to
+//! satisfy both. [`BreakAppeal`] classifies breakpoint quality (forced/clean →
+//! last-resort) for these decisions.
+//!
+//! Monolithic content (a line taller than the page, a fixed-height box) is
+//! never sliced: when it does not fit and the page is otherwise empty it is
+//! placed anyway (last resort), overflowing its fragmentainer.
+//!
+//! Text line layout keeps the skeleton's approximate 0.5-em-per-char advance
+//! (real shaping is a later issue) but now flows through the fragment model.
 
-use crate::css::{cascade, Color, ComputedStyle, Display, Stylesheet};
+use crate::css::{cascade, ComputedStyle, Display, Stylesheet};
 use crate::dom::{Dom, NodeId, NodeKind};
-use crate::geom::{PageGeometry, Point, Rect, Scalar};
+use crate::frag::{
+    BreakInside, BreakToken, ChildToken, Fragment, FragmentContent, Fragmentainer, TextRun,
+};
+use crate::geom::{PageGeometry, Point, Scalar};
 
 /// Line-height multiple applied to font-size.
 const LINE_HEIGHT_FACTOR: f64 = 1.2;
 /// Approximate average glyph advance as a fraction of the em (font-size).
 const AVG_ADVANCE_EM: f64 = 0.5;
+/// Safety cap: a runaway that emits more pages than this is a bug, not a
+/// document. Sized generously above the O(n) test (1,000 pages).
+const MAX_PAGES: usize = 100_000;
 
-/// A single laid-out line of text, positioned absolutely (points, top-left).
-#[derive(Clone, Debug)]
-pub struct TextLine {
-    pub text: String,
-    pub origin: Point,
-    pub font_size: Scalar,
-    pub color: Color,
-    /// Resolved font family (unused by the skeleton PDF backend, which embeds a
-    /// single font; carried for the shaping stage).
-    #[allow(dead_code)]
-    pub font_family: String,
-}
-
-/// A laid-out block box background (only emitted when it has a background).
-#[derive(Clone, Debug)]
-pub struct BlockRect {
-    pub rect: Rect,
-    pub color: Color,
-}
-
-/// One output page.
-#[derive(Clone, Debug, Default)]
-pub struct Page {
-    pub rects: Vec<BlockRect>,
-    pub lines: Vec<TextLine>,
-}
-
-/// The full paginated layout.
+/// The full paginated layout. `pages` *are* fragmentainers.
 #[derive(Clone, Debug)]
 pub struct Layout {
     pub geometry: PageGeometry,
-    pub pages: Vec<Page>,
+    pub pages: Vec<Fragmentainer>,
 }
 
-/// Layout state threaded through block stacking.
-struct Cursor<'a> {
+/// The outcome of laying out one box into one fragmentainer.
+struct BlockResult {
+    /// The produced fragment (empty children if nothing fit).
+    fragment: Fragment,
+    /// Block size consumed in this fragmentainer by this fragment.
+    used: Scalar,
+    /// Continuation for the next fragmentainer, or `None` if the box finished.
+    outgoing: Option<BreakToken>,
+    /// True if this box produced no content at all in this fragmentainer (used
+    /// to suppress spurious empty fragments after a forced break).
+    empty: bool,
+}
+
+/// One ordered piece of a block's content, in document order.
+enum Item {
+    /// A run of inline text (this block's own text between block children).
+    Text(String),
+    /// A block-level child element.
+    Block(NodeId),
+}
+
+/// Immutable layout inputs, threaded by shared reference (no mutable state).
+struct Ctx<'a> {
     dom: &'a Dom,
     styles: &'a [ComputedStyle],
-    content: Rect,
-    pages: Vec<Page>,
-    /// Current y within the content box (points, top-down).
-    y: Scalar,
+    /// Content-box width available to top-level blocks (page minus page margins).
+    content_x: Scalar,
+    content_width: Scalar,
+    /// Total content-box height of a fragmentainer.
+    page_height: Scalar,
 }
 
-impl<'a> Cursor<'a> {
-    fn new(dom: &'a Dom, styles: &'a [ComputedStyle], geometry: PageGeometry) -> Self {
-        let content = geometry.content_rect();
-        Cursor {
-            dom,
-            styles,
-            content,
-            pages: vec![Page::default()],
-            y: content.y,
+/// Run the pipeline stage: cascade, then paginate into fragmentainers.
+pub fn layout(dom: &Dom, stylesheet: &Stylesheet, geometry: PageGeometry) -> Layout {
+    let styles = cascade(dom, stylesheet);
+    let content = geometry.content_rect();
+    let ctx = Ctx {
+        dom,
+        styles: &styles,
+        content_x: content.x,
+        content_width: content.width,
+        page_height: content.height,
+    };
+
+    // The fragmentation root: <body>, or the document root if absent.
+    let root = dom.find_tag("body").unwrap_or(dom.root);
+
+    let page_size = (geometry.width, geometry.height);
+    let mut pages: Vec<Fragmentainer> = Vec::new();
+    // Start fresh (IsBreakBefore): the root box has not started yet.
+    let mut incoming = Some(BreakToken::break_before());
+
+    while let Some(token) = incoming.take() {
+        let page_index = pages.len();
+        let mut fragmentainer = Fragmentainer::new(page_index, page_size);
+
+        // Lay the root box into this page's content box.
+        let res = ctx.layout_root(root, content.y, &token);
+
+        if !res.empty {
+            fragmentainer.root.children.push(res.fragment);
+        }
+        pages.push(fragmentainer);
+
+        incoming = res.outgoing;
+
+        if pages.len() >= MAX_PAGES {
+            // Deterministic hard stop; `seen_all_children` should prevent this.
+            break;
         }
     }
 
-    fn cur_page(&mut self) -> &mut Page {
-        self.pages.last_mut().expect("always one page")
+    // Edge case: an empty document still yields exactly one blank page.
+    if pages.is_empty() {
+        pages.push(Fragmentainer::new(0, page_size));
     }
 
-    /// Bottom edge of the content box.
-    fn content_bottom(&self) -> Scalar {
-        self.content.y + self.content.height
+    Layout { geometry, pages }
+}
+
+impl<'a> Ctx<'a> {
+    /// Lay the root/body box directly into the page content box. The root box
+    /// itself carries no page margin; its children flow from `content_top`.
+    fn layout_root(&self, id: NodeId, content_top: Scalar, token: &BreakToken) -> BlockResult {
+        // The root is laid out like any block, positioned at the content-box
+        // origin. `bottom_limit` is the absolute y of the content-box bottom.
+        let bottom_limit = content_top + self.page_height;
+        self.layout_block(
+            id,
+            self.content_x,
+            self.content_width,
+            content_top,
+            bottom_limit,
+            false,
+            token,
+        )
     }
 
-    /// Start a fresh page and reset the vertical cursor.
-    fn new_page(&mut self) {
-        self.pages.push(Page::default());
-        self.y = self.content.y;
-    }
-
-    /// Lay out one block element subtree.
-    fn layout_block(&mut self, id: NodeId) {
-        let style = self.styles[id].clone();
+    /// Lay out one block into the current fragmentainer.
+    ///
+    /// - `origin_x`: left edge for this box's border-box (points).
+    /// - `avail_width`: width available for this box's border-box.
+    /// - `top`: y where this box starts in the fragmentainer (points).
+    /// - `bottom_limit`: y beyond which content does not fit (the fragmentainer
+    ///   content bottom).
+    /// - `token`: incoming continuation (break-before = start fresh).
+    fn layout_block(
+        &self,
+        id: NodeId,
+        origin_x: Scalar,
+        avail_width: Scalar,
+        top: Scalar,
+        bottom_limit: Scalar,
+        page_has_content: bool,
+        token: &BreakToken,
+    ) -> BlockResult {
+        let style = &self.styles[id];
         if style.display == Display::None {
-            return;
+            return BlockResult {
+                fragment: Fragment::block(Point::new(origin_x, top), (Scalar::ZERO, Scalar::ZERO)),
+                used: Scalar::ZERO,
+                outgoing: None,
+                empty: true,
+            };
         }
 
-        // Top margin + padding advance the cursor.
-        self.y += style.margin_top;
-        let box_top = self.y;
-        let box_left = self.content.x + style.margin_left + style.padding_left;
-        let inner_width = self.content.width
+        let fresh = token.is_break_before();
+
+        // Margins/padding adjoining a fragmentainer break truncate to zero
+        // (css-break-3). On resume (not fresh) the top margin/padding is gone.
+        let margin_top = if fresh { style.margin_top } else { Scalar::ZERO };
+        let padding_top = if fresh { style.padding_top } else { Scalar::ZERO };
+
+        let box_top = top + margin_top;
+        let inner_left = origin_x + style.margin_left + style.padding_left;
+        let inner_width = avail_width
             - style.margin_left
             - style.margin_right
             - style.padding_left
             - style.padding_right;
-        self.y += style.padding_top;
+        let content_top = box_top + padding_top;
 
-        // Gather this block's own inline text (direct text descendants that are
-        // not inside a nested block). For the skeleton we treat any text in the
-        // subtree that is not under a child block as this block's content.
-        let text = self.collect_inline_text(id);
-        if !text.trim().is_empty() {
-            self.layout_text(&text, box_left, inner_width, &style);
+        // Build the ordered child-item list (stable, document order).
+        let items = self.collect_items(id);
+
+        // Cursor within the fragmentainer for this box's children.
+        let mut y = content_top;
+        let mut children: Vec<Fragment> = Vec::new();
+        let mut outgoing_children: Vec<ChildToken> = Vec::new();
+        let mut broke = false;
+        let mut seen_all = true;
+        // Whether the *fragmentainer* holds any content at or above this box's
+        // flow position — threaded so monolithic last-resort placement only
+        // fires on a genuinely empty page, not merely an empty (just-started)
+        // box. Becomes true once this box places anything.
+        let mut placed = page_has_content;
+
+        // Resume bookkeeping: which child index to start from, and its token.
+        // `child_tokens` come positionally; a break-before child token means
+        // "start that child fresh here".
+        // `HasSeenAllChildren` with no pending child tokens means this box
+        // finished every child on an earlier fragmentainer: nothing remains,
+        // so terminate rather than emit a spurious trailing page.
+        if !fresh && token.seen_all_children && token.child_tokens.is_empty() {
+            return BlockResult {
+                fragment: Fragment::block(Point::new(origin_x, top), (avail_width, Scalar::ZERO)),
+                used: Scalar::ZERO,
+                outgoing: None,
+                empty: true,
+            };
         }
 
-        // Recurse into child block elements.
-        for &child in &self.dom.nodes[id].children {
-            if let NodeKind::Element(_) = &self.dom.nodes[child].kind {
-                if self.styles[child].display == Display::Block {
-                    self.layout_block(child);
+        let start_index = if fresh {
+            0
+        } else {
+            // Resume at the first unfinished child (lowest index in the token).
+            token
+                .child_tokens
+                .first()
+                .map(|c| c.index)
+                .unwrap_or(items.len())
+        };
+
+        let line_height = |s: &ComputedStyle| s.font_size * LINE_HEIGHT_FACTOR;
+
+        let mut i = start_index;
+        while i < items.len() {
+            // Forced break-before on a block child starts a new fragmentainer.
+            if let Item::Block(child) = &items[i] {
+                let cstyle = &self.styles[*child];
+                let child_fresh = self.child_incoming(token, i).is_break_before();
+                if child_fresh
+                    && cstyle.break_before.is_forced()
+                    && (!children.is_empty() || broke || i > start_index)
+                {
+                    // Defer the rest to the next page, starting at this child.
+                    seen_all = false;
+                    outgoing_children.push(ChildToken {
+                        index: i,
+                        token: BreakToken::break_before(),
+                    });
+                    broke = true;
+                    break;
+                }
+            }
+
+            match &items[i] {
+                Item::Text(text) => {
+                    let child_tok = self.child_incoming(token, i);
+                    let lh = line_height(style);
+                    let lines = self.break_lines(text, inner_width, style);
+                    // How many lines already consumed by earlier fragments.
+                    let consumed_lines =
+                        (child_tok.consumed_block_size.get() / lh.get()).round() as usize;
+                    let mut li = consumed_lines;
+                    // Place as many lines as fit. A run that is the first thing
+                    // on an otherwise-empty page places at least one line even
+                    // when taller than the page (last resort → monolithic
+                    // overflow, never sliced).
+                    while li < lines.len() {
+                        let fits = y + lh <= bottom_limit;
+                        // Last resort only on a genuinely empty fragmentainer.
+                        let last_resort = !placed && li == consumed_lines;
+                        if !fits && !last_resort {
+                            break;
+                        }
+                        let baseline = y + style.font_size;
+                        let run = TextRun {
+                            text: lines[li].clone(),
+                            baseline: Point::new(inner_left, baseline),
+                            font_size: style.font_size,
+                            color: style.color,
+                            font_family: style.font_family.clone(),
+                        };
+                        children.push(Fragment::line(
+                            Point::new(inner_left, y),
+                            (inner_width, lh),
+                            run,
+                        ));
+                        y += lh;
+                        li += 1;
+                        placed = true;
+                        // A last-resort line that overflowed: stop here so the
+                        // rest of the run continues on the next fragmentainer.
+                        if last_resort && y > bottom_limit {
+                            break;
+                        }
+                    }
+
+                    if li < lines.len() {
+                        // The run breaks. `Tolerable` unless orphans/widows are
+                        // violated at the natural split, then `AvoidViolating`.
+                        let (split, _moved) = apply_orphans_widows(
+                            consumed_lines,
+                            li,
+                            lines.len(),
+                            style.orphans as usize,
+                            style.widows as usize,
+                        );
+                        // Natural split honored orphans/widows when `split ==
+                        // li`; otherwise the constraint pulled the break back.
+                        // If widows/orphans pulled the split back, drop the
+                        // now-excess lines from this page.
+                        if split < li {
+                            for _ in 0..(li - split) {
+                                children.pop();
+                                y = y - lh;
+                            }
+                        }
+                        let consumed = lh * (split as f64);
+                        seen_all = false;
+                        outgoing_children.push(ChildToken {
+                            index: i,
+                            token: BreakToken {
+                                consumed_block_size: consumed,
+                                seen_all_children: false,
+                                child_tokens: Vec::new(),
+                                break_before: false,
+                            },
+                        });
+                        broke = true;
+                        break;
+                    }
+                }
+                Item::Block(child) => {
+                    let child_tok = self.child_incoming(token, i);
+                    let res = self.layout_block(
+                        *child,
+                        inner_left,
+                        inner_width,
+                        y,
+                        bottom_limit,
+                        placed,
+                        &child_tok,
+                    );
+
+                    // break-inside: avoid — if the child broke but *could* fit
+                    // whole on a fresh page, move it wholly to the next page.
+                    // Once-per-flow abort-and-defer: on the next page the child
+                    // arrives break-before and (fitting a full page) does not
+                    // re-trigger this, so the cost is bounded.
+                    let cstyle = &self.styles[*child];
+                    if cstyle.break_inside == BreakInside::Avoid
+                        && res.outgoing.is_some()
+                        && child_tok.is_break_before()
+                        && placed
+                    {
+                        let fits_fresh = self.block_fits_fresh(*child, inner_width);
+                        if fits_fresh {
+                            seen_all = false;
+                            outgoing_children.push(ChildToken {
+                                index: i,
+                                token: BreakToken::break_before(),
+                            });
+                            broke = true;
+                            break;
+                        }
+                    }
+
+                    if !res.empty {
+                        children.push(res.fragment);
+                        y += res.used;
+                        placed = true;
+                    }
+
+                    if let Some(tok) = res.outgoing {
+                        seen_all = false;
+                        outgoing_children.push(ChildToken {
+                            index: i,
+                            token: tok,
+                        });
+                        broke = true;
+                        break;
+                    }
+
+                    // Forced break-after: rest goes to the next page.
+                    if cstyle.break_after.is_forced() && i + 1 < items.len() {
+                        seen_all = false;
+                        outgoing_children.push(ChildToken {
+                            index: i + 1,
+                            token: BreakToken::break_before(),
+                        });
+                        broke = true;
+                        break;
+                    }
+                }
+            }
+            i += 1;
+        }
+
+        // Padding-bottom / margin-bottom only apply when the box finished.
+        let padding_bottom = if broke { Scalar::ZERO } else { style.padding_bottom };
+        y += padding_bottom;
+
+        let box_height = y - box_top;
+
+        // Rebase children to be parent-relative: each child's offset (and any
+        // text baseline) is stored relative to this fragment's own top-left, so
+        // the tree carries LayoutNG-style parent-relative geometry. The PDF
+        // walk re-accumulates absolutes from the fragmentainer down.
+        let origin = Point::new(origin_x, box_top);
+        for child in &mut children {
+            child.offset = Point::new(child.offset.x - origin.x, child.offset.y - origin.y);
+            if let FragmentContent::Text(run) = &mut child.content {
+                run.baseline =
+                    Point::new(run.baseline.x - origin.x, run.baseline.y - origin.y);
+            }
+        }
+
+        // Background fill spans the box's border box in this fragmentainer.
+        let mut fragment = Fragment::block(origin, (avail_width, box_height));
+        if let Some(bg) = style.background_color {
+            if box_height.get() > 0.0 {
+                fragment.content = FragmentContent::Background(bg);
+            }
+        }
+        fragment.children = children;
+
+        let outgoing = if broke {
+            let consumed = token.consumed_block_size + box_height;
+            let tok = BreakToken {
+                consumed_block_size: consumed,
+                seen_all_children: seen_all,
+                child_tokens: outgoing_children,
+                break_before: false,
+            };
+            fragment.break_token = Some(tok.clone());
+            Some(tok)
+        } else {
+            None
+        };
+
+        // margin-bottom advances the *parent* cursor, not the box height.
+        let margin_bottom = if broke { Scalar::ZERO } else { style.margin_bottom };
+        let used = (box_top - top) + box_height + margin_bottom;
+
+        let empty = children_empty(&fragment) && outgoing.is_none() && box_height.get() <= 0.0;
+
+        BlockResult {
+            fragment,
+            used,
+            outgoing,
+            empty,
+        }
+    }
+
+    /// The incoming token for child `index` of a box: its nested continuation
+    /// if present, else a start-fresh (break-before) token.
+    fn child_incoming(&self, parent: &BreakToken, index: usize) -> BreakToken {
+        parent
+            .child_tokens
+            .iter()
+            .find(|c| c.index == index)
+            .map(|c| c.token.clone())
+            .unwrap_or_else(BreakToken::break_before)
+    }
+
+    /// Whether a block laid out fresh would fit within one full fragmentainer
+    /// (used for `break-inside: avoid`). Measures height greedily.
+    fn block_fits_fresh(&self, id: NodeId, avail_width: Scalar) -> bool {
+        let h = self.measure_block(id, avail_width);
+        h <= self.page_height
+    }
+
+    /// Measure a block's fresh height greedily (no fragmentation). Bounded and
+    /// memo-free but O(subtree); called at most once per avoid-box per flow.
+    fn measure_block(&self, id: NodeId, avail_width: Scalar) -> Scalar {
+        let style = &self.styles[id];
+        if style.display == Display::None {
+            return Scalar::ZERO;
+        }
+        let inner_width = avail_width
+            - style.margin_left
+            - style.margin_right
+            - style.padding_left
+            - style.padding_right;
+        let mut h = style.margin_top + style.padding_top + style.padding_bottom + style.margin_bottom;
+        for item in self.collect_items(id) {
+            match item {
+                Item::Text(text) => {
+                    let lines = self.break_lines(&text, inner_width, style);
+                    h = h + (style.font_size * LINE_HEIGHT_FACTOR) * (lines.len() as f64);
+                }
+                Item::Block(child) => {
+                    h = h + self.measure_block(child, inner_width);
                 }
             }
         }
+        h
+    }
 
-        self.y += style.padding_bottom;
-
-        // Emit background rect if present (covering top→current y).
-        if let Some(bg) = style.background_color {
-            let height = self.y - box_top;
-            if height.get() > 0.0 {
-                let rect = Rect::new(
-                    self.content.x + style.margin_left,
-                    box_top,
-                    self.content.width - style.margin_left - style.margin_right,
-                    height,
-                );
-                self.cur_page().rects.push(BlockRect { rect, color: bg });
-            }
+    /// Collect a block's children as an ordered item list: contiguous inline
+    /// text becomes one `Text` item; each block child becomes a `Block` item.
+    fn collect_items(&self, id: NodeId) -> Vec<Item> {
+        let mut items: Vec<Item> = Vec::new();
+        let mut pending = String::new();
+        self.collect_items_rec(id, &mut items, &mut pending);
+        if !pending.trim().is_empty() {
+            items.push(Item::Text(std::mem::take(&mut pending)));
         }
-
-        self.y += style.margin_bottom;
+        items
     }
 
-    /// Collect text that belongs directly to this block (stops at nested
-    /// block-level elements, whose text is laid out when we recurse).
-    fn collect_inline_text(&self, id: NodeId) -> String {
-        let mut out = String::new();
-        self.collect_inline_rec(id, &mut out);
-        out
-    }
-
-    fn collect_inline_rec(&self, id: NodeId, out: &mut String) {
+    fn collect_items_rec(&self, id: NodeId, items: &mut Vec<Item>, pending: &mut String) {
         for &child in &self.dom.nodes[id].children {
             match &self.dom.nodes[child].kind {
-                NodeKind::Text(t) => out.push_str(t),
+                NodeKind::Text(t) => pending.push_str(t),
                 NodeKind::Element(_) => {
                     if self.styles[child].display == Display::Block {
-                        continue; // handled by recursion in layout_block
+                        if !pending.trim().is_empty() {
+                            items.push(Item::Text(std::mem::take(pending)));
+                        } else {
+                            pending.clear();
+                        }
+                        items.push(Item::Block(child));
+                    } else {
+                        // Inline element: fold its text into the current run.
+                        self.collect_items_rec(child, items, pending);
                     }
-                    self.collect_inline_rec(child, out);
                 }
                 NodeKind::Root => {}
             }
         }
     }
 
-    /// Greedy first-fit line breaking. Emits `TextLine`s, paginating on overflow.
-    fn layout_text(&mut self, text: &str, left: Scalar, max_width: Scalar, style: &ComputedStyle) {
+    /// Greedy first-fit line breaking. Returns the lines (text only).
+    fn break_lines(&self, text: &str, max_width: Scalar, style: &ComputedStyle) -> Vec<String> {
         let words: Vec<&str> = text.split_whitespace().collect();
         if words.is_empty() {
-            return;
+            return Vec::new();
         }
-        let line_height = style.font_size * LINE_HEIGHT_FACTOR;
         let advance = style.font_size.get() * AVG_ADVANCE_EM;
-
+        let space_w = advance;
+        let mut lines: Vec<String> = Vec::new();
         let mut line = String::new();
         let mut line_w = 0.0f64;
-        let space_w = advance; // one avg-advance per space
-
         for word in words {
             let word_w = word.chars().count() as f64 * advance;
             let added = if line.is_empty() {
@@ -187,8 +557,7 @@ impl<'a> Cursor<'a> {
                 line_w + space_w + word_w
             };
             if !line.is_empty() && added > max_width.get() {
-                self.emit_line(&line, left, line_height, style);
-                line.clear();
+                lines.push(std::mem::take(&mut line));
                 line_w = 0.0;
             }
             if line.is_empty() {
@@ -201,59 +570,55 @@ impl<'a> Cursor<'a> {
             }
         }
         if !line.is_empty() {
-            self.emit_line(&line, left, line_height, style);
+            lines.push(line);
         }
-    }
-
-    fn emit_line(&mut self, text: &str, left: Scalar, line_height: Scalar, style: &ComputedStyle) {
-        // Paginate if this line would overflow the content box.
-        if self.y + line_height > self.content_bottom() && self.has_content_on_page() {
-            self.new_page();
-        }
-        // Baseline sits near the bottom of the line box (approximate).
-        let baseline = self.y + style.font_size;
-        let line = TextLine {
-            text: text.to_string(),
-            origin: Point::new(left, baseline),
-            font_size: style.font_size,
-            color: style.color,
-            font_family: style.font_family.clone(),
-        };
-        self.cur_page().lines.push(line);
-        self.y += line_height;
-    }
-
-    fn has_content_on_page(&self) -> bool {
-        self.pages
-            .last()
-            .map(|p| !p.lines.is_empty() || !p.rects.is_empty())
-            .unwrap_or(false)
+        lines
     }
 }
 
-/// Run the full pipeline stage: cascade already done, produce paginated layout.
-pub fn layout(dom: &Dom, stylesheet: &Stylesheet, geometry: PageGeometry) -> Layout {
-    let styles = cascade(dom, stylesheet);
-    let mut cursor = Cursor::new(dom, &styles, geometry);
-
-    // Find the <body>; fall back to the root if absent.
-    let start = dom.find_tag("body").unwrap_or(dom.root);
-
-    // Lay out block children of body (and any block body itself contains).
-    match &dom.nodes[start].kind {
-        NodeKind::Element(_) => cursor.layout_block(start),
-        _ => {
-            let children = dom.nodes[start].children.clone();
-            for child in children {
-                if let NodeKind::Element(_) = &dom.nodes[child].kind {
-                    cursor.layout_block(child);
-                }
-            }
-        }
+/// Adjust a text-run split for `orphans`/`widows`.
+///
+/// `first..split` lines stay on the current page; `split..total` move to the
+/// next. `orphans` requires at least that many lines *before* the break;
+/// `widows` requires at least that many *after*. css-break-3 §4.4: when the
+/// constraints cannot both hold (the run is too short), the constraints are
+/// dropped rather than looping — we clamp to a valid split. Returns
+/// `(adjusted_split, lines_moved)`.
+fn apply_orphans_widows(
+    first: usize,
+    natural_split: usize,
+    total: usize,
+    orphans: usize,
+    widows: usize,
+) -> (usize, usize) {
+    let orphans = orphans.max(1);
+    let widows = widows.max(1);
+    let available = total - first;
+    // Not enough lines to honor both constraints → drop them (§4.4).
+    if available < orphans + widows {
+        return (natural_split, total - natural_split);
     }
-
-    Layout {
-        geometry,
-        pages: cursor.pages,
+    let mut split = natural_split;
+    // Orphans: keep at least `orphans` lines before the break.
+    if split - first < orphans {
+        split = first + orphans;
     }
+    // Widows: leave at least `widows` lines after the break.
+    if total - split < widows {
+        split = total - widows;
+    }
+    // Clamp to a sane range.
+    if split <= first {
+        split = first + orphans;
+    }
+    if split >= total {
+        split = total - widows;
+    }
+    (split, total - split)
+}
+
+/// A block fragment is "empty" for suppression if it drew nothing and holds no
+/// visible children.
+fn children_empty(f: &Fragment) -> bool {
+    f.children.is_empty() && matches!(f.content, FragmentContent::None)
 }

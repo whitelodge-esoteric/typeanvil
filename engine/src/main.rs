@@ -11,21 +11,15 @@
 //!     -o <output.pdf>
 //! ```
 
-mod css;
-mod dom;
-mod geom;
-mod layout;
-mod stylo_dom;
-mod pdf;
-
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 use anyhow::{anyhow, bail, Context, Result};
 
-use crate::css::Stylesheet;
-use crate::dom::Dom;
-use crate::geom::{PageGeometry, Scalar};
+use typeanvil::css::Stylesheet;
+use typeanvil::dom::Dom;
+use typeanvil::geom::{PageGeometry, Scalar};
+use typeanvil::{dom, layout, pdf};
 
 fn main() -> ExitCode {
     match run() {
