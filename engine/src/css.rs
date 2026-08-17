@@ -67,6 +67,11 @@ pub enum Display {
     None,
 }
 
+/// Break behavior at a box's leading/trailing boundary: the computed value of
+/// `break-before` / `break-after`. Re-exported from [`crate::frag`] so the
+/// cascade output contract carries it directly.
+pub use crate::frag::{BreakBetween, BreakInside};
+
 /// Fully computed style for one element. This is the cascade's output contract;
 /// layout and PDF read only this.
 #[derive(Clone, Debug)]
@@ -84,6 +89,16 @@ pub struct ComputedStyle {
     pub padding_right: Scalar,
     pub padding_bottom: Scalar,
     pub padding_left: Scalar,
+    /// `break-before` computed value (+ legacy `page-break-before`).
+    pub break_before: BreakBetween,
+    /// `break-after` computed value (+ legacy `page-break-after`).
+    pub break_after: BreakBetween,
+    /// `break-inside` computed value (+ legacy `page-break-inside`).
+    pub break_inside: BreakInside,
+    /// `orphans`: minimum lines left at the bottom of a fragmentainer.
+    pub orphans: u32,
+    /// `widows`: minimum lines carried to the top of the next fragmentainer.
+    pub widows: u32,
 }
 
 impl ComputedStyle {
@@ -103,6 +118,11 @@ impl ComputedStyle {
             padding_right: Scalar::ZERO,
             padding_bottom: Scalar::ZERO,
             padding_left: Scalar::ZERO,
+            break_before: BreakBetween::Auto,
+            break_after: BreakBetween::Auto,
+            break_inside: BreakInside::Auto,
+            orphans: 2,
+            widows: 2,
         }
     }
 
@@ -376,6 +396,16 @@ impl CascadeSession {
             padding_right,
             padding_bottom,
             padding_left,
+            // stylo's servo build does not compile the css-break longhands
+            // (`break-*`, `orphans`, `widows` are `engine = "gecko"`), so they
+            // are absent from `ComputedValues`. They default here and are
+            // filled by `apply_break_properties` from a targeted author-CSS
+            // parse (see `cascade`). This is the documented deviation.
+            break_before: BreakBetween::Auto,
+            break_after: BreakBetween::Auto,
+            break_inside: BreakInside::Auto,
+            orphans: 2,
+            widows: 2,
         }
     }
 }
@@ -475,5 +505,320 @@ pub fn cascade(dom: &Dom, stylesheet: &Stylesheet) -> Vec<ComputedStyle> {
         None,
         &mut styles,
     );
+    // Second pass: fill the css-break longhands stylo's servo build omits.
+    breaks::apply_break_properties(dom, stylesheet.source(), &mut styles);
     styles
+}
+
+/// Author-CSS parse for the css-break longhands stylo's servo build omits.
+///
+/// stylo declares `break-before`/`break-after`/`break-inside`/`orphans`/
+/// `widows` with `engine = "gecko"`; the servo build compiled here drops them
+/// entirely, so `ComputedValues` has no accessor for them. Rather than fork
+/// stylo, this module does a small, deterministic pass over the same author
+/// stylesheet text: it parses only these five properties, matches simple
+/// selectors (tag / `.class` / `#id`, comma lists) against the DOM in source
+/// order, and writes onto the already-cascaded [`ComputedStyle`] vec. Later /
+/// more-specific matches win, mirroring the cascade; the legacy `page-break-*`
+/// aliases map onto the same fields.
+mod breaks {
+    use super::{BreakBetween, BreakInside, ComputedStyle};
+    use crate::dom::{Dom, NodeId, NodeKind};
+
+    /// A parsed simple selector: an optional tag plus required classes/id.
+    struct SimpleSelector {
+        tag: Option<String>,
+        id: Option<String>,
+        classes: Vec<String>,
+        /// Higher wins ties; approximates specificity (id=100, class=10,
+        /// tag=1) then declaration order.
+        specificity: u32,
+    }
+
+    impl SimpleSelector {
+        fn matches(&self, dom: &Dom, id: NodeId) -> bool {
+            let NodeKind::Element(el) = &dom.nodes[id].kind else {
+                return false;
+            };
+            if let Some(tag) = &self.tag {
+                if !tag.eq_ignore_ascii_case(&el.tag) {
+                    return false;
+                }
+            }
+            if let Some(want) = &self.id {
+                if el.id.as_deref() != Some(want.as_str()) {
+                    return false;
+                }
+            }
+            self.classes.iter().all(|c| el.classes.iter().any(|x| x == c))
+        }
+    }
+
+    /// Parse one compound simple selector like `section.note#x`. Returns `None`
+    /// for anything with a combinator or pseudo we do not support.
+    fn parse_simple(sel: &str) -> Option<SimpleSelector> {
+        let sel = sel.trim();
+        if sel.is_empty() || sel.contains([' ', '>', '+', '~', ':', '[', '*']) {
+            return None;
+        }
+        let mut tag = None;
+        let mut id = None;
+        let mut classes = Vec::new();
+        let mut spec = 0u32;
+        let mut chars = sel.chars().peekable();
+        // Optional leading type selector.
+        let mut lead = String::new();
+        while let Some(&c) = chars.peek() {
+            if c == '.' || c == '#' {
+                break;
+            }
+            lead.push(c);
+            chars.next();
+        }
+        if !lead.is_empty() {
+            tag = Some(lead);
+            spec += 1;
+        }
+        while let Some(c) = chars.next() {
+            let mut ident = String::new();
+            while let Some(&nc) = chars.peek() {
+                if nc == '.' || nc == '#' {
+                    break;
+                }
+                ident.push(nc);
+                chars.next();
+            }
+            if ident.is_empty() {
+                return None;
+            }
+            match c {
+                '.' => {
+                    classes.push(ident);
+                    spec += 10;
+                }
+                '#' => {
+                    id = Some(ident);
+                    spec += 100;
+                }
+                _ => return None,
+            }
+        }
+        Some(SimpleSelector {
+            tag,
+            id,
+            classes,
+            specificity: spec,
+        })
+    }
+
+    /// One break declaration, keyed to a field.
+    #[derive(Clone, Copy)]
+    enum BreakDecl {
+        Before(BreakBetween),
+        After(BreakBetween),
+        Inside(BreakInside),
+        Orphans(u32),
+        Widows(u32),
+    }
+
+    fn parse_between(v: &str) -> Option<BreakBetween> {
+        match v.trim().to_ascii_lowercase().as_str() {
+            "auto" => Some(BreakBetween::Auto),
+            // `always` is the legacy page-break value = page break.
+            "page" | "always" => Some(BreakBetween::Page),
+            "left" => Some(BreakBetween::Left),
+            "right" => Some(BreakBetween::Right),
+            // `avoid` on a between-property is not a page break; treat as auto
+            // (this engine models between-avoidance only via appeal, not here).
+            "avoid" => Some(BreakBetween::Auto),
+            _ => None,
+        }
+    }
+
+    fn parse_inside(v: &str) -> Option<BreakInside> {
+        match v.trim().to_ascii_lowercase().as_str() {
+            "auto" => Some(BreakInside::Auto),
+            "avoid" | "avoid-page" => Some(BreakInside::Avoid),
+            _ => None,
+        }
+    }
+
+    /// Parse a declaration `prop: value` into zero or more [`BreakDecl`]s.
+    fn parse_decl(prop: &str, value: &str) -> Option<BreakDecl> {
+        let prop = prop.trim().to_ascii_lowercase();
+        match prop.as_str() {
+            "break-before" | "page-break-before" => parse_between(value).map(BreakDecl::Before),
+            "break-after" | "page-break-after" => parse_between(value).map(BreakDecl::After),
+            "break-inside" | "page-break-inside" => parse_inside(value).map(BreakDecl::Inside),
+            "orphans" => value.trim().parse::<u32>().ok().map(BreakDecl::Orphans),
+            "widows" => value.trim().parse::<u32>().ok().map(BreakDecl::Widows),
+            _ => None,
+        }
+    }
+
+    /// A matched (selector, declarations) rule with source order preserved.
+    struct Rule {
+        selectors: Vec<SimpleSelector>,
+        decls: Vec<BreakDecl>,
+        order: u32,
+    }
+
+    /// Strip `/* ... */` comments so they never leak into selectors/values.
+    fn strip_comments(css: &str) -> String {
+        let mut out = String::with_capacity(css.len());
+        let bytes = css.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            if i + 1 < bytes.len() && bytes[i] == b'/' && bytes[i + 1] == b'*' {
+                i += 2;
+                while i + 1 < bytes.len() && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
+                    i += 1;
+                }
+                i += 2;
+            } else {
+                out.push(bytes[i] as char);
+                i += 1;
+            }
+        }
+        out
+    }
+
+    /// Parse only the break rules out of a stylesheet. Blocks whose selector or
+    /// declarations we do not understand are skipped without failing.
+    fn parse_rules(css: &str) -> Vec<Rule> {
+        let css = strip_comments(css);
+        let mut rules = Vec::new();
+        let mut order = 0u32;
+        let mut rest = css.as_str();
+        while let Some(brace) = rest.find('{') {
+            let prelude = &rest[..brace];
+            let after = &rest[brace + 1..];
+            let Some(end) = after.find('}') else { break };
+            let body = &after[..end];
+            rest = &after[end + 1..];
+
+            // Skip at-rules (e.g. @page, @media) — prelude starts with '@'.
+            if prelude.trim_start().starts_with('@') {
+                order += 1;
+                continue;
+            }
+
+            let mut decls = Vec::new();
+            for decl in body.split(';') {
+                let Some((prop, value)) = decl.split_once(':') else {
+                    continue;
+                };
+                if let Some(d) = parse_decl(prop, value) {
+                    decls.push(d);
+                }
+            }
+            if decls.is_empty() {
+                order += 1;
+                continue;
+            }
+            let selectors: Vec<SimpleSelector> =
+                prelude.split(',').filter_map(parse_simple).collect();
+            if !selectors.is_empty() {
+                rules.push(Rule {
+                    selectors,
+                    decls,
+                    order,
+                });
+            }
+            order += 1;
+        }
+        rules
+    }
+
+    /// Apply parsed break rules onto the cascaded styles, then inherit the
+    /// inherited break properties (`orphans`, `widows`) down the tree.
+    pub fn apply_break_properties(dom: &Dom, css: &str, styles: &mut [ComputedStyle]) {
+        let rules = parse_rules(css);
+
+        // Track the winning (specificity, order) per (node, field) so a
+        // higher-priority declaration is not overwritten by a weaker one.
+        #[derive(Clone, Copy, Default)]
+        struct Won {
+            before: Option<(u32, u32)>,
+            after: Option<(u32, u32)>,
+            inside: Option<(u32, u32)>,
+            orphans: Option<(u32, u32)>,
+            widows: Option<(u32, u32)>,
+        }
+        let mut won = vec![Won::default(); styles.len()];
+        // Which nodes explicitly set orphans/widows (so inheritance skips them).
+        let mut set_orphans = vec![false; styles.len()];
+        let mut set_widows = vec![false; styles.len()];
+
+        for rule in &rules {
+            for sel in &rule.selectors {
+                let prio = (sel.specificity, rule.order);
+                for id in 0..dom.nodes.len() {
+                    if !sel.matches(dom, id) {
+                        continue;
+                    }
+                    for decl in &rule.decls {
+                        match *decl {
+                            BreakDecl::Before(v) => {
+                                if won[id].before.is_none_or(|w| prio >= w) {
+                                    styles[id].break_before = v;
+                                    won[id].before = Some(prio);
+                                }
+                            }
+                            BreakDecl::After(v) => {
+                                if won[id].after.is_none_or(|w| prio >= w) {
+                                    styles[id].break_after = v;
+                                    won[id].after = Some(prio);
+                                }
+                            }
+                            BreakDecl::Inside(v) => {
+                                if won[id].inside.is_none_or(|w| prio >= w) {
+                                    styles[id].break_inside = v;
+                                    won[id].inside = Some(prio);
+                                }
+                            }
+                            BreakDecl::Orphans(v) => {
+                                if won[id].orphans.is_none_or(|w| prio >= w) {
+                                    styles[id].orphans = v;
+                                    won[id].orphans = Some(prio);
+                                    set_orphans[id] = true;
+                                }
+                            }
+                            BreakDecl::Widows(v) => {
+                                if won[id].widows.is_none_or(|w| prio >= w) {
+                                    styles[id].widows = v;
+                                    won[id].widows = Some(prio);
+                                    set_widows[id] = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // orphans/widows are inherited: propagate from parent in pre-order for
+        // any node that did not set them explicitly.
+        inherit(dom, dom.root, styles, &set_orphans, &set_widows);
+    }
+
+    fn inherit(
+        dom: &Dom,
+        id: NodeId,
+        styles: &mut [ComputedStyle],
+        set_orphans: &[bool],
+        set_widows: &[bool],
+    ) {
+        if let Some(parent) = dom.nodes[id].parent {
+            if !set_orphans[id] {
+                styles[id].orphans = styles[parent].orphans;
+            }
+            if !set_widows[id] {
+                styles[id].widows = styles[parent].widows;
+            }
+        }
+        for &child in &dom.nodes[id].children {
+            inherit(dom, child, styles, set_orphans, set_widows);
+        }
+    }
 }
