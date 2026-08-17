@@ -134,6 +134,20 @@ typeanvil render <input.html> \
 Deterministic, offline, fixed page geometry. `PageSpec` defaults are the WPT
 print-reftest geometry: 5in × 3in, 0.5in margins on all sides.
 
+**Invoking the CLI engine (verified 2026-08-17, CORE-60):** `--cli-cmd` is the
+full command prefix and MUST include the `render` subcommand, because the
+harness appends the template args (which start with `{input}`) directly:
+
+```text
+.venv/bin/python -m harness run --engine cli \
+    --cli-cmd "engine/target/debug/typeanvil render" \
+    --workers 4 ...
+```
+
+Run the harness with the repo venv (`.venv/bin/python`, Python 3.11) — it has
+`pypdfium2` + `Pillow`; the system `/usr/bin/python3` (3.9) lacks them and
+every test fails as `ERROR` at rasterization.
+
 ## Acceptance Criteria
 
 Given/When/Then, each mapping to a real test in `tests/`:
