@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Typography Demo — Typeanvil</title>
+<style>
+  @page { size: 8.27in 11.69in; margin: 1in; }
+  body { font-family: sans-serif; font-size: 11pt; line-height: 1.35; color: #111; }
+  h1 { font-size: 20pt; margin: 0 0 0.4em 0; }
+  h2 { font-size: 14pt; margin: 1.2em 0 0.3em 0; }
+  p { text-align: justify; hyphens: auto; margin: 0 0 0.8em 0; }
+  .no-hyph { hyphens: none; }
+  blockquote { margin: 0.8em 2em; font-style: italic; }
+</style>
+</head>
+<body>
+
+<h1>Typography: what an engine owes a sentence</h1>
+
+<p>Good typesetting is invisible: the reader sees words, not the machinery
+that spaced them. This fixture exercises the passes that earn that
+invisibility — real shaping, total-fit line breaking, justified glue,
+hyphenation, and the optical niceties of protrusion and expansion. Compare
+the texture of these paragraphs against a first-fit engine: the spaces are
+uniform, no river runs down the column, and punctuation hangs neatly into
+the margins instead of being trapped inside the box, as if the typesetter
+had set the page by hand, line by line, the way a careful printer would.</p>
+
+<p>Consider how a justified line is made: every inter-word space carries a
+natural width plus a little stretch and a little shrink, and the line's
+excess or deficit is distributed across those spaces in proportion — never
+one giant gap at the end of the line, never a crammed seam between two
+words. When the spaces run out of room, the engine may expand the glyphs
+themselves, by a hair, within two percent; you cannot see it, but the line
+now reaches the margin exactly, and the next line begins where the last one
+ended, and the column edge is straight as a ruled line, on the left and on
+the right, on every page, from the first paragraph to the last.</p>
+
+<p>Punctuation is where the difference shows: a period at the end of a
+justified line is a tiny mark with a great deal of white around it, so it
+hangs slightly into the margin — a comma, a semicolon, a colon, a question
+mark, an exclamation point, each hangs by its own measure, determined once,
+applied everywhere. Open a book from a real press and hold a ruler to the
+right edge of the text block: the letters align, but the punctuation drifts
+past them, by a hair; that is protrusion, and now we do it too. Quotes at
+the start of a line hang the other way, into the left margin, so the opening
+mark never pushes the first letter off the grid. It is a small thing, but a
+page full of small things is a page that feels set, not dumped.</p>
+
+<p>The whole craft rests on measurement: every word is shaped against the
+actual font before a single line is chosen, so the advances that decide where
+a line breaks are the advances the reader will see. A capital W is wide and
+an i is narrow, and the engine knows both, exactly, to a fraction of a
+point; it does not guess by counting letters. The lines below are broken by
+a dynamic program that considers the whole paragraph at once, trading a
+loose line here for a tight one there, so that the total cost across the
+paragraph — the sum of the spacing badness of every line, plus a penalty for
+each hyphen — is as small as the paragraph allows. That is the difference
+between filling a box and setting a paragraph, and it is why the texture of
+these words is even, from the top of the page to the bottom.</p>
+
+<h2>Hyphenation</h2>
+
+<p>When a long word will not fit, the engine may break it, politely, with a
+hyphen. Consider the celebrated word
+antidisestablishmentarianism, or its longer cousin
+pneumonoultramicroscopicsilicovolcanoconiosis: both are broken by
+Knuth-Liang patterns at the syllables English readers expect, never
+mid-morpheme, and each hyphen carries a cost, so the engine prefers a clean
+break between words and hyphenates only when it genuinely helps. The next
+paragraph disables hyphenation, and you can see the column edge roughen
+where the long word overflows, because a word that will not break must not
+be broken — it is set whole, at whatever cost to the margin, rather than
+sliced in ignorance.</p>
+
+<p class="no-hyph">Here the same words appear with hyphenation switched off:
+antidisestablishmentarianism and
+pneumonoultramicroscopicsilicovolcanoconiosis stay whole, and the
+right margin gives way to them, which is the honest behavior — an engine
+that guesses at syllable boundaries invents words, and an invented word is
+worse than an imperfect margin, every time, without exception, on any page
+of any document anyone will ever read, hyphenated or not, justified or not.</p>
+
+<h2>The small print</h2>
+
+<p>Everything here is deterministic: the same input, the same font bytes,
+and the same width produce the same glyphs, the same breakpoints, the same
+protrusion, and the same expansion, run after run, on every platform; the
+PDF that this document renders into is byte-for-byte identical every time
+you render it, which matters when a contract, a catalog, or a court filing
+must be reproduced exactly, with no drifting metrics, no re-shaped lines,
+and no surprise reflow between one print run and the next.</p>
+
+<blockquote>“The craft of typography is the craft of making the machinery
+disappear — of setting words so the reader meets the author, not the
+engine.” — after the printers of old</blockquote>
+
+</body>
+</html>
