@@ -40,7 +40,7 @@ use style::stylesheets::{AllowImportRules, Origin, Stylesheet as StylesheetFromS
 use style::values::computed::font::{FontFamily, SingleFontFamily};
 use style::values::computed::Color as ComputedColor;
 use style::values::computed::Length;
-use style::values::specified::box_::DisplayOutside;
+use style::values::specified::box_::{DisplayInside, DisplayOutside};
 use style::values::specified::font::FONT_MEDIUM_PX;
 use style::values::specified::text::TextAlignKeyword;
 use url::Url;
@@ -66,6 +66,12 @@ pub enum Display {
     Block,
     Inline,
     None,
+    Table,
+    TableRowGroup,
+    TableHeaderGroup,
+    TableFooterGroup,
+    TableRow,
+    TableCell,
 }
 
 /// The `text-align` computed value (css-text-3 §8). Read from stylo's
@@ -127,6 +133,15 @@ pub use crate::frag::{BreakBetween, BreakInside};
 pub struct ComputedStyle {
     pub color: Color,
     pub background_color: Option<Color>,
+    /// Border widths (points) on each side; 0 = no border. Colors come from
+    /// [`ComputedStyle::border_color`].
+    pub border_top: Scalar,
+    pub border_right: Scalar,
+    pub border_bottom: Scalar,
+    pub border_left: Scalar,
+    /// Border color shared by all four sides (CORE-61: collapse model, single
+    /// color). `None` means the border is transparent / not painted.
+    pub border_color: Option<Color>,
     pub font_size: Scalar,
     pub font_family: String,
     pub display: Display,
@@ -179,6 +194,11 @@ impl ComputedStyle {
         ComputedStyle {
             color: Color::BLACK,
             background_color: None,
+            border_top: Scalar::ZERO,
+            border_right: Scalar::ZERO,
+            border_bottom: Scalar::ZERO,
+            border_left: Scalar::ZERO,
+            border_color: None,
             font_size: px_to_pt(16.0),
             font_family: "sans-serif".to_string(),
             display: Display::Inline,
@@ -270,8 +290,14 @@ impl CascadeSession {
     /// (Stylo ships no defaults; without this, h1/p/etc. compute as inline.)
     const UA_CSS: &'static str = r#"
         html, body, div, p, h1, h2, h3, h4, h5, h6, ul, ol, li, dl, dt, dd,
-        blockquote, pre, table, thead, tbody, tfoot, tr, section, article,
+        blockquote, pre, section, article,
         header, footer, nav, main, aside, figure, figcaption { display: block; }
+        table { display: table; border-collapse: collapse; }
+        thead { display: table-header-group; }
+        tbody { display: table-row-group; }
+        tfoot { display: table-footer-group; }
+        tr { display: table-row; }
+        td, th { display: table-cell; }
         h1, h2, h3, h4, h5, h6 { font-weight: bold; }
         h1 { font-size: 2em; margin: 0.67em 0; }
         h2 { font-size: 1.5em; margin: 0.83em 0; }
@@ -444,8 +470,35 @@ impl CascadeSession {
 
         let display = match box_.clone_display() {
             d if d.is_none() => Display::None,
-            d if d.outside() == DisplayOutside::Block => Display::Block,
-            _ => Display::Inline,
+            d => match d.inside() {
+                DisplayInside::Table => {
+                    if matches!(d.outside(), DisplayOutside::Block) {
+                        Display::Table
+                    } else {
+                        // inline-table is unsupported → block fallback.
+                        Display::Block
+                    }
+                }
+                DisplayInside::TableRowGroup => Display::TableRowGroup,
+                DisplayInside::TableHeaderGroup => Display::TableHeaderGroup,
+                DisplayInside::TableFooterGroup => Display::TableFooterGroup,
+                DisplayInside::TableRow => Display::TableRow,
+                DisplayInside::TableCell => Display::TableCell,
+                DisplayInside::TableColumn | DisplayInside::TableColumnGroup => {
+                    // Column boxes are unsupported; fall back to block.
+                    Display::Block
+                }
+                _ => {
+                    if matches!(
+                        d.outside(),
+                        DisplayOutside::Block | DisplayOutside::TableCaption | DisplayOutside::InternalTable
+                    ) {
+                        Display::Block
+                    } else {
+                        Display::Inline
+                    }
+                }
+            },
         };
 
         // `color` is the computed `color` property, always an absolute color
@@ -477,6 +530,14 @@ impl CascadeSession {
         ComputedStyle {
             color,
             background_color,
+            // Borders default to none here; filled by
+            // `apply_border_properties` from a targeted author-CSS parse
+            // (see `cascade`).
+            border_top: Scalar::ZERO,
+            border_right: Scalar::ZERO,
+            border_bottom: Scalar::ZERO,
+            border_left: Scalar::ZERO,
+            border_color: None,
             font_size,
             font_family,
             display,
@@ -610,8 +671,11 @@ pub fn cascade(dom: &Dom, stylesheet: &Stylesheet) -> Vec<ComputedStyle> {
     // Second pass: fill the css-break longhands stylo's servo build omits.
     breaks::apply_break_properties(dom, stylesheet.source(), &mut styles);
     // Third pass: fill paged-media properties (page / string-set / counters /
-    // content) — likewise absent from the servo stylo build.
+    // content).
     paged_props::apply_paged_properties(dom, stylesheet.source(), &mut styles);
+    // Fourth pass: fill border widths/colors (CORE-61 tables; the engine's
+    // ComputedStyle carries borders for border-collapse rendering).
+    borders::apply_border_properties(dom, stylesheet.source(), &mut styles);
     styles
 }
 
@@ -986,6 +1050,304 @@ mod breaks {
                 set_widows,
                 set_hyphens,
             );
+        }
+    }
+}
+
+/// Author-CSS parse for the `border` shorthand/longhands (CORE-61 tables).
+///
+/// stylo's servo build DOES compile border widths/colors, but the engine's
+/// `ComputedStyle` only carries margins/padding — borders were added for
+/// tables (border-collapse). This module reuses the `breaks` selector
+/// machinery and does a small, deterministic pass over the author stylesheet
+/// text: it parses `border` (1–4 widths, style token, color), the
+/// `border-top/right/bottom/left` longhands, and `border-color`, matching
+/// simple selectors in source order (later/more-specific wins, mirroring the
+/// cascade). Style keywords (`solid`, `dashed`, ...) are accepted and ignored
+/// (width+color are what render); `none`/`0` clears.
+mod borders {
+    use super::breaks::{parse_simple, strip_comments, SimpleSelector};
+    use super::{Color, ComputedStyle};
+    use crate::dom::Dom;
+    use crate::geom::Scalar;
+    use crate::paged::parse_length;
+
+    /// A parsed border declaration: optional per-side widths and a color.
+    #[derive(Clone, Debug, PartialEq)]
+    enum BorderDecl {
+        /// `border: <width> <style> <color>` — all four sides.
+        Shorthand {
+            width: Option<Scalar>,
+            color: Option<Color>,
+        },
+        /// `border-top` (etc.) longhand.
+        Side {
+            side: Side,
+            width: Option<Scalar>,
+            color: Option<Color>,
+        },
+        /// `border-color: <color>` — all four sides.
+        Color(Color),
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    enum Side {
+        Top,
+        Right,
+        Bottom,
+        Left,
+    }
+
+    struct Rule {
+        selectors: Vec<SimpleSelector>,
+        decls: Vec<BorderDecl>,
+        order: u32,
+    }
+
+    /// Parse a CSS color: `#rgb`/`#rrggbb` or a small named set. `None` for
+    /// `transparent` and anything unrecognized (caller keeps prior value).
+    pub(super) fn parse_color(s: &str) -> Option<Color> {
+        let s = s.trim().to_ascii_lowercase();
+        if s == "transparent" {
+            return None;
+        }
+        if let Some(hex) = s.strip_prefix('#') {
+            let hex: String = hex.chars().filter(|c| c.is_ascii_hexdigit()).collect();
+            let (r, g, b) = match hex.len() {
+                3 => {
+                    let cv = |c: char| u8::from_str_radix(&c.to_string().repeat(2), 16).ok();
+                    (cv(hex.chars().nth(0)?)?, cv(hex.chars().nth(1)?)?, cv(hex.chars().nth(2)?)?)
+                }
+                6 => {
+                    let cv = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).ok();
+                    (cv(0)?, cv(2)?, cv(4)?)
+                }
+                _ => return None,
+            };
+            return Some(Color { r, g, b });
+        }
+        let named = match s.as_str() {
+            "black" => (0, 0, 0),
+            "white" => (255, 255, 255),
+            "red" => (255, 0, 0),
+            "green" => (0, 128, 0),
+            "blue" => (0, 0, 255),
+            "gray" | "grey" => (128, 128, 128),
+            "silver" => (192, 192, 192),
+            "maroon" => (128, 0, 0),
+            "olive" => (128, 128, 0),
+            "lime" => (0, 255, 0),
+            "teal" => (0, 128, 128),
+            "navy" => (0, 0, 128),
+            "purple" => (128, 0, 128),
+            "orange" => (255, 165, 0),
+            _ => return None,
+        };
+        Some(Color { r: named.0, g: named.1, b: named.2 })
+    }
+
+    /// Parse one declaration's value into a width (if present) + color.
+    fn parse_border_value(value: &str) -> (Option<Scalar>, Option<Color>) {
+        let mut width = None;
+        let mut color = None;
+        for tok in value.split_whitespace() {
+            if tok.eq_ignore_ascii_case("none") || tok == "0" {
+                width = Some(Scalar::ZERO);
+                continue;
+            }
+            if matches!(
+                tok.to_ascii_lowercase().as_str(),
+                "solid" | "dashed" | "dotted" | "double" | "groove" | "ridge" | "inset" | "outset"
+                    | "hidden"
+            ) {
+                continue;
+            }
+            if let Some(s) = parse_length(tok) {
+                width = Some(s);
+                continue;
+            }
+            if let Some(c) = parse_color(tok) {
+                color = Some(c);
+            }
+        }
+        (width, color)
+    }
+
+    fn parse_decl(prop: &str, value: &str) -> Option<BorderDecl> {
+        let prop = prop.trim().to_ascii_lowercase();
+        let value = value.trim();
+        let (w, c) = parse_border_value(value);
+        match prop.as_str() {
+            "border" | "border-width" => Some(BorderDecl::Shorthand { width: w, color: c }),
+            "border-color" => {
+                if let Some(c) = c {
+                    Some(BorderDecl::Color(c))
+                } else {
+                    None
+                }
+            }
+            "border-top" | "border-top-width" => Some(BorderDecl::Side {
+                side: Side::Top,
+                width: w,
+                color: c,
+            }),
+            "border-right" | "border-right-width" => Some(BorderDecl::Side {
+                side: Side::Right,
+                width: w,
+                color: c,
+            }),
+            "border-bottom" | "border-bottom-width" => Some(BorderDecl::Side {
+                side: Side::Bottom,
+                width: w,
+                color: c,
+            }),
+            "border-left" | "border-left-width" => Some(BorderDecl::Side {
+                side: Side::Left,
+                width: w,
+                color: c,
+            }),
+            _ => None,
+        }
+    }
+
+    fn parse_rules(css: &str) -> Vec<Rule> {
+        let css = strip_comments(css);
+        let mut rules = Vec::new();
+        let mut order = 0u32;
+        let bytes = css.as_bytes();
+        let mut i = 0;
+        while let Some(rel) = css[i..].find('{') {
+            let brace = i + rel;
+            let prelude = css[i..brace].trim();
+            let Some(end) = matching_brace(bytes, brace) else {
+                break;
+            };
+            if prelude.starts_with('@') {
+                order += 1;
+                i = end + 1;
+                continue;
+            }
+            let body = &css[brace + 1..end];
+            let mut decls = Vec::new();
+            for decl in body.split(';') {
+                if let Some((prop, value)) = decl.split_once(':') {
+                    if let Some(d) = parse_decl(prop, value) {
+                        decls.push(d);
+                    }
+                }
+            }
+            if !decls.is_empty() {
+                let selectors: Vec<SimpleSelector> = prelude
+                    .split(',')
+                    .filter_map(|s| parse_simple(s.trim()))
+                    .collect();
+                if !selectors.is_empty() {
+                    rules.push(Rule { selectors, decls, order });
+                }
+            }
+            order += 1;
+            i = end + 1;
+        }
+        rules
+    }
+
+    /// Balanced-brace scan (mirrors `breaks`/`paged_props`).
+    fn matching_brace(bytes: &[u8], open: usize) -> Option<usize> {
+        let mut depth = 0usize;
+        for (off, &b) in bytes.iter().enumerate().skip(open) {
+            match b {
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(off);
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    pub fn apply_border_properties(dom: &Dom, css: &str, styles: &mut [ComputedStyle]) {
+        let rules = parse_rules(css);
+        #[derive(Clone, Copy, Default)]
+        struct Won {
+            top: Option<(u32, u32)>,
+            right: Option<(u32, u32)>,
+            bottom: Option<(u32, u32)>,
+            left: Option<(u32, u32)>,
+            color: Option<(u32, u32)>,
+        }
+        let mut won = vec![Won::default(); styles.len()];
+
+        for rule in &rules {
+            for sel in &rule.selectors {
+                let prio = (sel.specificity, rule.order);
+                for id in 0..dom.nodes.len() {
+                    if !sel.matches(dom, id) {
+                        continue;
+                    }
+                    for decl in &rule.decls {
+                        match decl {
+                            BorderDecl::Shorthand { width, color } => {
+                                let st = &mut styles[id];
+                                if let Some(w) = width {
+                                    if won[id].top.is_none_or(|p| prio >= p) {
+                                        st.border_top = *w;
+                                        won[id].top = Some(prio);
+                                    }
+                                    if won[id].right.is_none_or(|p| prio >= p) {
+                                        st.border_right = *w;
+                                        won[id].right = Some(prio);
+                                    }
+                                    if won[id].bottom.is_none_or(|p| prio >= p) {
+                                        st.border_bottom = *w;
+                                        won[id].bottom = Some(prio);
+                                    }
+                                    if won[id].left.is_none_or(|p| prio >= p) {
+                                        st.border_left = *w;
+                                        won[id].left = Some(prio);
+                                    }
+                                }
+                                if let Some(c) = color {
+                                    if won[id].color.is_none_or(|p| prio >= p) {
+                                        st.border_color = Some(*c);
+                                        won[id].color = Some(prio);
+                                    }
+                                }
+                            }
+                            BorderDecl::Side { side, width, color } => {
+                                let st = &mut styles[id];
+                                let (slot, flag) = match side {
+                                    Side::Top => (&mut st.border_top, &mut won[id].top),
+                                    Side::Right => (&mut st.border_right, &mut won[id].right),
+                                    Side::Bottom => (&mut st.border_bottom, &mut won[id].bottom),
+                                    Side::Left => (&mut st.border_left, &mut won[id].left),
+                                };
+                                if let Some(w) = width {
+                                    if flag.is_none_or(|p| prio >= p) {
+                                        *slot = *w;
+                                        *flag = Some(prio);
+                                    }
+                                }
+                                if let Some(c) = color {
+                                    if won[id].color.is_none_or(|p| prio >= p) {
+                                        st.border_color = Some(*c);
+                                        won[id].color = Some(prio);
+                                    }
+                                }
+                            }
+                            BorderDecl::Color(c) => {
+                                if won[id].color.is_none_or(|p| prio >= p) {
+                                    styles[id].border_color = Some(*c);
+                                    won[id].color = Some(prio);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

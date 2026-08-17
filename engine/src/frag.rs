@@ -105,8 +105,23 @@ pub enum FragmentContent {
     None,
     /// A block background fill (drawn before descendant text).
     Background(Color),
+    /// A rectangular border box (CORE-61 tables): the fragment's size is the
+    /// cell/row box; the emitter strokes each side whose style width > 0.
+    Border(BorderBox),
     /// A run of text drawn at the fragment's baseline.
     Text(TextRun),
+}
+
+/// Border rendering data for a table cell/row (border-collapse: collapse).
+#[derive(Clone, Debug)]
+pub struct BorderBox {
+    /// Widths on each side, points (0 = no border on that side).
+    pub top: Scalar,
+    pub right: Scalar,
+    pub bottom: Scalar,
+    pub left: Scalar,
+    /// Border color (shared across sides).
+    pub color: Color,
 }
 
 /// A laid-out run of text for a [`FragmentKind::Line`] fragment.
