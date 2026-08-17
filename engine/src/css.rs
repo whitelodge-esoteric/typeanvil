@@ -42,6 +42,7 @@ use style::values::computed::Color as ComputedColor;
 use style::values::computed::Length;
 use style::values::specified::box_::DisplayOutside;
 use style::values::specified::font::FONT_MEDIUM_PX;
+use style::values::specified::text::TextAlignKeyword;
 use url::Url;
 
 use crate::dom::{Dom, NodeId, NodeKind};
@@ -65,6 +66,44 @@ pub enum Display {
     Block,
     Inline,
     None,
+}
+
+/// The `text-align` computed value (css-text-3 §8). Read from stylo's
+/// inherited-text struct in [`cascade`] — unlike the css-break longhands,
+/// `text-align` IS compiled in the servo build, so it gets the full cascade
+/// (specificity, `!important`, inheritance) for free.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum TextAlign {
+    /// `start` — flush to the inline-start edge (left in LTR). The default.
+    #[default]
+    Start,
+    /// `left`.
+    Left,
+    /// `right`.
+    Right,
+    /// `center`.
+    Center,
+    /// `justify` — non-final lines fill the content width via the K-P glue
+    /// model (reaches layout as the `justify` flag of `break_paragraph`).
+    Justify,
+    /// `end` — flush to the inline-end edge (right in LTR).
+    End,
+}
+
+/// The `hyphens` computed value (css-text-3 §6). `hyphens` is
+/// `engine = "gecko"` in stylo's servo build, so — like `orphans`/`widows` —
+/// it is absent from `ComputedValues` and filled by the author-CSS pass
+/// (`breaks::apply_break_properties`), then inherited down the tree.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum Hyphens {
+    /// Hyphenation disabled: breaks only at UAX #14 opportunities.
+    None,
+    /// Manual hyphenation only (soft hyphens). Our breaker does not yet
+    /// honor `&shy;`, so this behaves like `none`. The CSS default.
+    #[default]
+    Manual,
+    /// Automatic Liang hyphenation (`hyphenate` in the K-P breaker).
+    Auto,
 }
 
 /// The value of a single `string-set` assignment.
@@ -126,6 +165,12 @@ pub struct ComputedStyle {
     /// Criterion #8 (TOC via `target-counter` + `leader`) requires generated
     /// content on ordinary elements, so `content` is carried here too.
     pub content: Vec<crate::paged::ContentPiece>,
+    /// `text-align` computed value (typography layer: justify must reach
+    /// layout). Read from stylo in [`convert`]; inherited.
+    pub text_align: TextAlign,
+    /// `hyphens` computed value (typography layer). Filled by the author-CSS
+    /// pass like the break longhands; inherited.
+    pub hyphens: Hyphens,
 }
 
 impl ComputedStyle {
@@ -150,6 +195,8 @@ impl ComputedStyle {
             break_inside: BreakInside::Auto,
             orphans: 2,
             widows: 2,
+            text_align: TextAlign::Start,
+            hyphens: Hyphens::Manual,
             page: None,
             string_set: Vec::new(),
             counter_reset: Vec::new(),
@@ -381,6 +428,19 @@ impl CascadeSession {
         let background = values.get_background();
         let margin = values.get_margin();
         let padding = values.get_padding();
+        let text = values.get_inherited_text();
+
+        // `text-align` compiles in the servo build (unlike the break
+        // longhands), so stylo's cascade computed it — including inheritance
+        // and the `start`/`end` logical keywords.
+        let text_align = match text.clone_text_align() {
+            TextAlignKeyword::Start => TextAlign::Start,
+            TextAlignKeyword::Left | TextAlignKeyword::MozLeft => TextAlign::Left,
+            TextAlignKeyword::Right | TextAlignKeyword::MozRight => TextAlign::Right,
+            TextAlignKeyword::Center | TextAlignKeyword::MozCenter => TextAlign::Center,
+            TextAlignKeyword::Justify => TextAlign::Justify,
+            TextAlignKeyword::End => TextAlign::End,
+        };
 
         let display = match box_.clone_display() {
             d if d.is_none() => Display::None,
@@ -429,15 +489,18 @@ impl CascadeSession {
             padding_bottom,
             padding_left,
             // stylo's servo build does not compile the css-break longhands
-            // (`break-*`, `orphans`, `widows` are `engine = "gecko"`), so they
-            // are absent from `ComputedValues`. They default here and are
-            // filled by `apply_break_properties` from a targeted author-CSS
-            // parse (see `cascade`). This is the documented deviation.
+            // (`break-*`, `orphans`, `widows`, `hyphens` are
+            // `engine = "gecko"`), so they are absent from `ComputedValues`.
+            // They default here and are filled by `apply_break_properties`
+            // from a targeted author-CSS parse (see `cascade`). This is the
+            // documented deviation. `text-align` comes from stylo above.
             break_before: BreakBetween::Auto,
             break_after: BreakBetween::Auto,
             break_inside: BreakInside::Auto,
             orphans: 2,
             widows: 2,
+            text_align,
+            hyphens: Hyphens::Manual,
             // Paged-media element props are likewise absent from the servo
             // stylo build; filled by `apply_paged_properties` (see `cascade`).
             page: None,
@@ -564,7 +627,7 @@ pub fn cascade(dom: &Dom, stylesheet: &Stylesheet) -> Vec<ComputedStyle> {
 /// more-specific matches win, mirroring the cascade; the legacy `page-break-*`
 /// aliases map onto the same fields.
 mod breaks {
-    use super::{BreakBetween, BreakInside, ComputedStyle};
+    use super::{BreakBetween, BreakInside, ComputedStyle, Hyphens};
     use crate::dom::{Dom, NodeId, NodeKind};
 
     /// A parsed simple selector: an optional tag plus required classes/id.
@@ -661,6 +724,7 @@ mod breaks {
         Inside(BreakInside),
         Orphans(u32),
         Widows(u32),
+        Hyphens(Hyphens),
     }
 
     fn parse_between(v: &str) -> Option<BreakBetween> {
@@ -694,6 +758,16 @@ mod breaks {
             "break-inside" | "page-break-inside" => parse_inside(value).map(BreakDecl::Inside),
             "orphans" => value.trim().parse::<u32>().ok().map(BreakDecl::Orphans),
             "widows" => value.trim().parse::<u32>().ok().map(BreakDecl::Widows),
+            "hyphens" => parse_hyphens(value).map(BreakDecl::Hyphens),
+            _ => None,
+        }
+    }
+
+    fn parse_hyphens(v: &str) -> Option<Hyphens> {
+        match v.trim().to_ascii_lowercase().as_str() {
+            "none" => Some(Hyphens::None),
+            "manual" => Some(Hyphens::Manual),
+            "auto" => Some(Hyphens::Auto),
             _ => None,
         }
     }
@@ -816,11 +890,14 @@ mod breaks {
             inside: Option<(u32, u32)>,
             orphans: Option<(u32, u32)>,
             widows: Option<(u32, u32)>,
+            hyphens: Option<(u32, u32)>,
         }
         let mut won = vec![Won::default(); styles.len()];
-        // Which nodes explicitly set orphans/widows (so inheritance skips them).
+        // Which nodes explicitly set orphans/widows/hyphens (so inheritance
+        // skips them).
         let mut set_orphans = vec![false; styles.len()];
         let mut set_widows = vec![false; styles.len()];
+        let mut set_hyphens = vec![false; styles.len()];
 
         for rule in &rules {
             for sel in &rule.selectors {
@@ -863,15 +940,22 @@ mod breaks {
                                     set_widows[id] = true;
                                 }
                             }
+                            BreakDecl::Hyphens(v) => {
+                                if won[id].hyphens.is_none_or(|w| prio >= w) {
+                                    styles[id].hyphens = v;
+                                    won[id].hyphens = Some(prio);
+                                    set_hyphens[id] = true;
+                                }
+                            }
                         }
                     }
                 }
             }
         }
 
-        // orphans/widows are inherited: propagate from parent in pre-order for
-        // any node that did not set them explicitly.
-        inherit(dom, dom.root, styles, &set_orphans, &set_widows);
+        // orphans/widows/hyphens are inherited: propagate from parent in
+        // pre-order for any node that did not set them explicitly.
+        inherit(dom, dom.root, styles, &set_orphans, &set_widows, &set_hyphens);
     }
 
     fn inherit(
@@ -880,6 +964,7 @@ mod breaks {
         styles: &mut [ComputedStyle],
         set_orphans: &[bool],
         set_widows: &[bool],
+        set_hyphens: &[bool],
     ) {
         if let Some(parent) = dom.nodes[id].parent {
             if !set_orphans[id] {
@@ -888,9 +973,19 @@ mod breaks {
             if !set_widows[id] {
                 styles[id].widows = styles[parent].widows;
             }
+            if !set_hyphens[id] {
+                styles[id].hyphens = styles[parent].hyphens;
+            }
         }
         for &child in &dom.nodes[id].children {
-            inherit(dom, child, styles, set_orphans, set_widows);
+            inherit(
+                dom,
+                child,
+                styles,
+                set_orphans,
+                set_widows,
+                set_hyphens,
+            );
         }
     }
 }

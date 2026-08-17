@@ -34,6 +34,13 @@ mime = "0.3"
 cssparser = "0.35"
 # PDF output (Typst's production backend).
 krilla = "0.8"
+# Text shaping (HarfBuzz port, pure Rust) — main-text glyph advances.
+harfrust = "0.13"
+# Knuth-Liang hyphenation patterns (zero-alloc, pure Rust, data-only).
+hypher = "0.1"
+# UAX #14 line-break opportunities (pure Rust). Deviation from the spec's
+# icu_segmenter: see typography.rs `line_break_opportunities` for rationale.
+unicode-linebreak = "0.1"
 # Errors.
 anyhow = "1"
 

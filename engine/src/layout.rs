@@ -33,7 +33,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::css::{cascade, ComputedStyle, Display, StringSetValue, Stylesheet};
+use crate::css::{cascade, ComputedStyle, Display, Hyphens, StringSetValue, Stylesheet, TextAlign};
 use crate::dom::{Dom, NodeId, NodeKind};
 use crate::frag::{
     BreakInside, BreakToken, ChildToken, Fragment, FragmentContent, Fragmentainer, FragmentKind,
@@ -44,6 +44,7 @@ use crate::paged::{
     parse_page_rules, resolve_page_spec, ContentPiece, MarginAlign, MarginBoxName, MarginRow,
     PageRule, PageSpec, RunningStrings,
 };
+use crate::typography::{break_paragraph, LineResult};
 
 /// Line-height multiple applied to font-size.
 const LINE_HEIGHT_FACTOR: f64 = 1.2;
@@ -418,6 +419,11 @@ impl<'a> Ctx<'a> {
                     font_size: style.font_size,
                     color: style.color,
                     font_family: style.font_family.clone(),
+                    // Simple text path: no shaping, no microtypography.
+                    glyphs: Vec::new(),
+                    expansion: 0.0,
+                    protrude_left: Scalar::ZERO,
+                    protrude_right: Scalar::ZERO,
                 };
                 children.push(Fragment::line(
                     Point::new(inner_left, y),
@@ -454,7 +460,7 @@ impl<'a> Ctx<'a> {
                 Item::Text(text) => {
                     let child_tok = self.child_incoming(token, i);
                     let lh = line_height(style);
-                    let lines = self.break_lines(text, inner_width, style);
+                    let lines = self.break_paragraph(text, inner_width, style);
                     // How many lines already consumed by earlier fragments.
                     let consumed_lines =
                         (child_tok.consumed_block_size.get() / lh.get()).round() as usize;
@@ -471,12 +477,18 @@ impl<'a> Ctx<'a> {
                             break;
                         }
                         let baseline = y + style.font_size;
+                        let lr = &lines[li];
+                        let x = self.aligned_x(inner_left, inner_width, lr.drawn_width(), style);
                         let run = TextRun {
-                            text: lines[li].clone(),
-                            baseline: Point::new(inner_left, baseline),
+                            text: lr.text.clone(),
+                            baseline: Point::new(x, baseline),
                             font_size: style.font_size,
                             color: style.color,
                             font_family: style.font_family.clone(),
+                            glyphs: lr.glyphs.clone(),
+                            expansion: lr.expansion,
+                            protrude_left: lr.protrude_left,
+                            protrude_right: lr.protrude_right,
                         };
                         children.push(Fragment::line(
                             Point::new(inner_left, y),
@@ -688,7 +700,9 @@ impl<'a> Ctx<'a> {
         for item in self.collect_items(id) {
             match item {
                 Item::Text(text) => {
-                    let lines = self.break_lines(&text, inner_width, style);
+                    // The SAME breaker layout uses, so measured heights match
+                    // laid-out heights (`break-inside: avoid` correctness).
+                    let lines = self.break_paragraph(&text, inner_width, style);
                     h = h + (style.font_size * LINE_HEIGHT_FACTOR) * (lines.len() as f64);
                 }
                 Item::Block(child) => {
@@ -733,41 +747,31 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    /// Greedy first-fit line breaking. Returns the lines (text only).
-    fn break_lines(&self, text: &str, max_width: Scalar, style: &ComputedStyle) -> Vec<String> {
-        let words: Vec<&str> = text.split_whitespace().collect();
-        if words.is_empty() {
-            return Vec::new();
-        }
-        let advance = style.font_size.get() * AVG_ADVANCE_EM;
-        let space_w = advance;
-        let mut lines: Vec<String> = Vec::new();
-        let mut line = String::new();
-        let mut line_w = 0.0f64;
-        for word in words {
-            let word_w = word.chars().count() as f64 * advance;
-            let added = if line.is_empty() {
-                word_w
-            } else {
-                line_w + space_w + word_w
-            };
-            if !line.is_empty() && added > max_width.get() {
-                lines.push(std::mem::take(&mut line));
-                line_w = 0.0;
-            }
-            if line.is_empty() {
-                line.push_str(word);
-                line_w = word_w;
-            } else {
-                line.push(' ');
-                line.push_str(word);
-                line_w += space_w + word_w;
-            }
-        }
-        if !line.is_empty() {
-            lines.push(line);
-        }
-        lines
+    /// Break a main-text run with the typography layer's Knuth-Plass breaker
+    /// (real shaped widths, glue, hyphenation, justification). The `hyphens`
+    /// and `text-align` computed values reach layout here: `hyphens: auto`
+    /// enables Liang hyphenation, `text-align: justify` distributes glue on
+    /// non-final lines. Generated content (TOC, margin boxes) keeps the
+    /// simple single-line path and does not go through this.
+    fn break_paragraph(&self, text: &str, max_width: Scalar, style: &ComputedStyle) -> Vec<LineResult> {
+        let hyphenate = style.hyphens == Hyphens::Auto;
+        let justify = style.text_align == TextAlign::Justify;
+        break_paragraph(text, max_width, style, hyphenate, justify)
+    }
+
+    /// The x origin for a line under `text-align`, given its drawn ink width.
+    /// `inner_left`/`inner_width` are the content box; the line hangs into
+    /// the margin by its left protrusion only when flush at the start edge.
+    /// Justified lines fill the width (offset zero), so this only matters for
+    /// the final (unjustified) line and non-justified alignment.
+    fn aligned_x(&self, inner_left: Scalar, inner_width: Scalar, drawn: Scalar, style: &ComputedStyle) -> Scalar {
+        let free = (inner_width.get() - drawn.get()).max(0.0);
+        let off = match style.text_align {
+            TextAlign::Start | TextAlign::Left | TextAlign::Justify => 0.0,
+            TextAlign::Center => free * 0.5,
+            TextAlign::Right | TextAlign::End => free,
+        };
+        inner_left + Scalar(off)
     }
 
     /// Resolve a generated-content piece list to a single line of text.
@@ -1048,6 +1052,11 @@ fn attach_margin_boxes(
             font_size,
             color: crate::css::Color::BLACK,
             font_family: "sans-serif".to_string(),
+            // Simple text path: margin boxes are one line, no shaping.
+            glyphs: Vec::new(),
+            expansion: 0.0,
+            protrude_left: Scalar::ZERO,
+            protrude_right: Scalar::ZERO,
         };
         let mut line = Fragment::line(Point::new(x, slot_y), (slot_w, lh), run);
         line.kind = FragmentKind::Line;

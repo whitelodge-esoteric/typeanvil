@@ -20,7 +20,7 @@ use krilla::geom::{Point, Rect};
 use krilla::num::NormalizedF32;
 use krilla::page::PageSettings;
 use krilla::paint::{Fill, FillRule};
-use krilla::text::{Font, TextDirection};
+use krilla::text::{Font, GlyphId, KrillaGlyph, TextDirection};
 use krilla::destination::XyzDestination;
 use krilla::outline::{Outline, OutlineNode};
 use krilla::{Document, SerializeSettings};
@@ -28,6 +28,7 @@ use krilla::{Document, SerializeSettings};
 use crate::css::Color;
 use crate::frag::{Fragment, FragmentContent};
 use crate::layout::Layout;
+use crate::typography::ShapedGlyph;
 
 /// A fixed macOS system font, embedded for deterministic output. Verified to
 /// exist on this machine. (A later issue will ship a bundled font / use
@@ -93,14 +94,32 @@ pub fn render(layout: &Layout) -> Result<Vec<u8>> {
 
         for t in &texts {
             surface.set_fill(Some(solid_fill(t.color)));
-            surface.draw_text(
-                Point::from_xy(t.x, t.y),
-                font.clone(),
-                t.font_size,
-                &t.text,
-                false,
-                TextDirection::Auto,
-            );
+            if t.glyphs.is_empty() {
+                // Simple text path (generated content, margin boxes): no
+                // shaping, no microtypography.
+                surface.draw_text(
+                    Point::from_xy(t.x, t.y),
+                    font.clone(),
+                    t.font_size,
+                    &t.text,
+                    false,
+                    TextDirection::Auto,
+                );
+            } else {
+                // Main text: shaped glyphs, with the typography layer's
+                // protrusion (hang into the margin) and per-line expansion
+                // (scale every advance by 1+expansion) applied at draw time.
+                let glyphs: Vec<KrillaGlyph> =
+                    to_krilla_glyphs(&t.glyphs, t.font_size, t.expansion, t.protrude_right);
+                surface.draw_glyphs(
+                    Point::from_xy(t.x - t.protrude_left, t.y),
+                    &glyphs,
+                    font.clone(),
+                    &t.text,
+                    t.font_size,
+                    false,
+                );
+            }
         }
 
         surface.finish();
@@ -165,13 +184,58 @@ fn build_outline(layout: &Layout) -> Option<Outline> {
     Some(outline)
 }
 
+/// Map shaped glyphs (advances in points at the run's font size) to krilla's
+/// normalized-glyph representation. The per-line expansion factor scales every
+/// advance by `1 + expansion` (font expansion, spec Behavior §8); krilla's
+/// `draw_glyphs` multiplies by the font size itself, so we divide by it.
+fn to_krilla_glyphs(
+    glyphs: &[ShapedGlyph],
+    font_size: f32,
+    expansion: f32,
+    protrude_right: f32,
+) -> Vec<KrillaGlyph> {
+    let scale = (1.0 + expansion) / font_size;
+    let mut out: Vec<KrillaGlyph> = glyphs
+        .iter()
+        .map(|g| {
+            KrillaGlyph::new(
+                GlyphId::new(g.id),
+                g.x_advance.to_f32() * scale,
+                g.x_offset.to_f32() / font_size,
+                0.0,
+                0.0,
+                // `ShapedGlyph` carries no cluster offsets (spec contract), so
+                // every glyph maps to an empty range — valid (char-boundary)
+                // and panic-free; krilla only slices it for .notdef
+                // validation and copy-paste mapping.
+                0..0,
+                None,
+            )
+        })
+        .collect();
+    // Optical right hang: the last glyph's advance grows by the protrusion so
+    // the punctuation's drawn ink crosses the content edge (draw-time only).
+    if let Some(last) = out.last_mut() {
+        let adv = last.x_advance;
+        last.x_advance = adv + protrude_right / font_size;
+    }
+    out
+}
 /// One text draw call, resolved to absolute page coordinates.
+///
+/// Main-text lines carry their shaped glyphs plus the typography layer's
+/// microtypography (protrusion offsets, per-line expansion); generated
+/// content and margin boxes carry none and draw via `draw_text`.
 struct TextItem {
     x: f32,
     y: f32,
     font_size: f32,
     color: Color,
     text: String,
+    glyphs: Vec<ShapedGlyph>,
+    expansion: f32,
+    protrude_left: f32,
+    protrude_right: f32,
 }
 
 /// Pre-order walk accumulating absolute offsets from parent-relative fragment
@@ -205,6 +269,10 @@ fn collect(
                 font_size: run.font_size.to_f32(),
                 color: run.color,
                 text: run.text.clone(),
+                glyphs: run.glyphs.clone(),
+                expansion: run.expansion as f32,
+                protrude_left: run.protrude_left.to_f32(),
+                protrude_right: run.protrude_right.to_f32(),
             });
         }
         FragmentContent::None => {}

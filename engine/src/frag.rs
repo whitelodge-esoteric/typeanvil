@@ -27,6 +27,7 @@
 use crate::css::Color;
 use crate::dom::NodeId;
 use crate::geom::{Point, Scalar};
+use crate::typography::ShapedGlyph;
 
 /// How a box may break relative to a sibling boundary: the computed value of
 /// `break-before` / `break-after` (and the legacy `page-break-*` aliases).
@@ -124,6 +125,18 @@ pub struct TextRun {
     /// currently embeds a single font).
     #[allow(dead_code)]
     pub font_family: String,
+    /// The shaped glyphs of the line (typography layer). Empty for the simple
+    /// text path — generated content and margin boxes draw via `draw_text`.
+    pub glyphs: Vec<ShapedGlyph>,
+    /// Per-line glyph-advance scale in [-0.02, 0.02] (font expansion),
+    /// applied to every glyph advance at draw time.
+    pub expansion: f64,
+    /// Optical left hang of the first glyph (punctuation), in points.
+    /// Draw-time only; never affects line breaking or measured width.
+    pub protrude_left: Scalar,
+    /// Optical right hang of the last glyph (punctuation), in points.
+    /// Draw-time only; never affects line breaking or measured width.
+    pub protrude_right: Scalar,
 }
 
 /// An immutable layout-output node.
