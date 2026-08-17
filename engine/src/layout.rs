@@ -36,14 +36,15 @@ use std::collections::BTreeMap;
 use crate::css::{cascade, ComputedStyle, Display, Hyphens, StringSetValue, Stylesheet, TextAlign};
 use crate::dom::{Dom, NodeId, NodeKind};
 use crate::frag::{
-    BreakInside, BreakToken, ChildToken, Fragment, FragmentContent, Fragmentainer, FragmentKind,
-    TextRun,
+    BorderBox, BreakInside, BreakToken, ChildToken, Fragment, FragmentContent, Fragmentainer,
+    FragmentKind, TextRun,
 };
 use crate::geom::{PageGeometry, Point, Scalar};
 use crate::paged::{
     parse_page_rules, resolve_page_spec, ContentPiece, MarginAlign, MarginBoxName, MarginRow,
     PageRule, PageSpec, RunningStrings,
 };
+use crate::table::{measure_columns, measure_rows};
 use crate::typography::{break_paragraph, LineResult};
 
 /// Line-height multiple applied to font-size.
@@ -122,6 +123,34 @@ impl Flow {
     fn page_number(&self) -> i32 {
         self.page_base + self.current_index as i32
     }
+}
+
+#[derive(Clone, Debug, Default)]
+struct TableContinuation {
+    row_index: usize,
+    row_offset: Scalar,
+}
+
+#[derive(Clone, Debug)]
+struct TableRowState {
+    row_id: NodeId,
+    row_height: Scalar,
+    cell_heights: Vec<Scalar>,
+    cells: Vec<NodeId>,
+}
+
+#[derive(Clone, Debug)]
+struct TableGroupState {
+    group_id: NodeId,
+    rows: Vec<TableRowState>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct TableState {
+    header: Option<TableGroupState>,
+    body: Vec<TableGroupState>,
+    footer: Option<TableGroupState>,
+    columns: Vec<Scalar>,
 }
 
 /// Immutable layout inputs, threaded by shared reference.
@@ -272,7 +301,7 @@ impl<'a> Ctx<'a> {
         // The root is laid out like any block, positioned at the content-box
         // origin. `bottom_limit` is the absolute y of the content-box bottom.
         let bottom_limit = content_top + self.page_height;
-        self.layout_block(
+        self.layout_box(
             id,
             self.content_x,
             self.content_width,
@@ -292,7 +321,7 @@ impl<'a> Ctx<'a> {
     /// - `bottom_limit`: y beyond which content does not fit (the fragmentainer
     ///   content bottom).
     /// - `token`: incoming continuation (break-before = start fresh).
-    fn layout_block(
+    fn layout_box(
         &self,
         id: NodeId,
         origin_x: Scalar,
@@ -312,6 +341,39 @@ impl<'a> Ctx<'a> {
                 empty: true,
             };
         }
+
+        if matches!(
+            style.display,
+            Display::Table | Display::TableRowGroup | Display::TableHeaderGroup | Display::TableFooterGroup
+        ) {
+            return self.layout_table_like(
+                id,
+                origin_x,
+                avail_width,
+                top,
+                bottom_limit,
+                page_has_content,
+                token,
+                flow,
+            );
+        }
+        if matches!(style.display, Display::TableRow) {
+            return self.layout_table_like(
+                id,
+                origin_x,
+                avail_width,
+                top,
+                bottom_limit,
+                page_has_content,
+                token,
+                flow,
+            );
+        }
+        // NOTE: TableCell deliberately does NOT dispatch here — layout_table_cell
+        // delegates back into layout_box to lay out the cell's content as a
+        // block; routing it through layout_table_like again would recurse forever.
+        // TableRowGroup/HeaderGroup/FooterGroup are handled above (they are
+        // laid out by layout_table_group, which calls layout_table_row directly).
 
         let fresh = token.is_break_before();
 
@@ -542,7 +604,7 @@ impl<'a> Ctx<'a> {
                 }
                 Item::Block(child) => {
                     let child_tok = self.child_incoming(token, i);
-                    let res = self.layout_block(
+                    let res = self.layout_box(
                         *child,
                         inner_left,
                         inner_width,
@@ -666,6 +728,542 @@ impl<'a> Ctx<'a> {
         }
     }
 
+    fn layout_table_like(
+        &self,
+        id: NodeId,
+        origin_x: Scalar,
+        avail_width: Scalar,
+        top: Scalar,
+        bottom_limit: Scalar,
+        page_has_content: bool,
+        token: &BreakToken,
+        flow: &mut Flow,
+    ) -> BlockResult {
+        match self.styles[id].display {
+            Display::Table => self.layout_table_block(
+                id,
+                origin_x,
+                avail_width,
+                top,
+                bottom_limit,
+                page_has_content,
+                token,
+                flow,
+            ),
+            Display::TableRowGroup | Display::TableHeaderGroup | Display::TableFooterGroup => {
+                self.layout_table_group(
+                    id,
+                    origin_x,
+                    avail_width,
+                    top,
+                    bottom_limit,
+                    page_has_content,
+                    token,
+                    flow,
+                )
+            }
+            Display::TableRow => self.layout_table_row(
+                id,
+                origin_x,
+                avail_width,
+                top,
+                bottom_limit,
+                page_has_content,
+                token,
+                flow,
+            ),
+            Display::TableCell => self.layout_table_cell(
+                id,
+                origin_x,
+                avail_width,
+                top,
+                bottom_limit,
+                page_has_content,
+                token,
+                flow,
+            ),
+            _ => self.layout_box(
+                id,
+                origin_x,
+                avail_width,
+                top,
+                bottom_limit,
+                page_has_content,
+                token,
+                flow,
+            ),
+        }
+    }
+
+    fn layout_table_block(
+        &self,
+        id: NodeId,
+        origin_x: Scalar,
+        avail_width: Scalar,
+        top: Scalar,
+        bottom_limit: Scalar,
+        page_has_content: bool,
+        token: &BreakToken,
+        flow: &mut Flow,
+    ) -> BlockResult {
+        let fresh = token.is_break_before();
+        // Resume bookkeeping (mirrors layout_box): child_tokens are positional
+        // per child index; the first unfinished child is where we restart.
+        if !fresh && token.seen_all_children && token.child_tokens.is_empty() {
+            return BlockResult {
+                fragment: Fragment::block(Point::new(origin_x, top), (avail_width, Scalar::ZERO)),
+                used: Scalar::ZERO,
+                outgoing: None,
+                empty: true,
+            };
+        }
+        let children: Vec<NodeId> = self
+            .dom
+            .nodes[id]
+            .children
+            .iter()
+            .copied()
+            .filter(|c| matches!(self.dom.nodes[*c].kind, NodeKind::Element(_)))
+            .collect();
+        let start_index = if fresh {
+            0
+        } else {
+            token
+                .child_tokens
+                .first()
+                .map(|c| c.index)
+                .unwrap_or(children.len())
+        };
+
+        let mut y = top;
+        let mut frag_children = Vec::new();
+        let mut outgoing_children = Vec::new();
+        let mut seen_all = true;
+        let mut placed = page_has_content;
+
+        // Repeating header (spec rule 7): on continuation fragments the
+        // table-header-group re-lays-out at the top of the page even though
+        // its child index is before the resume point. (A header is small;
+        // if it itself overflows we let it fragment like any box.)
+        if !fresh {
+            for (i, child) in children.iter().enumerate() {
+                if self.styles[*child].display != Display::TableHeaderGroup {
+                    continue;
+                }
+                let child_tok = self.child_incoming(token, i);
+                let res = self.layout_table_group(
+                    *child,
+                    origin_x,
+                    avail_width,
+                    y,
+                    bottom_limit,
+                    placed,
+                    &child_tok,
+                    flow,
+                );
+                if !res.empty {
+                    y += res.used;
+                    placed = true;
+                    frag_children.push(res.fragment);
+                }
+                if let Some(tok) = res.outgoing {
+                    seen_all = false;
+                    outgoing_children.push(ChildToken { index: i, token: tok });
+                }
+            }
+        }
+
+        for i in start_index..children.len() {
+            let child = children[i];
+            // Skip non-table-family children entirely (they are not part of
+            // the table grid; anonymous-box wrapping is a later pass).
+            let cd = self.styles[child].display;
+            if !matches!(
+                cd,
+                Display::TableHeaderGroup
+                    | Display::TableRowGroup
+                    | Display::TableFooterGroup
+                    | Display::TableRow
+            ) {
+                continue;
+            }
+            let child_tok = self.child_incoming(token, i);
+            let res = match cd {
+                Display::TableHeaderGroup | Display::TableRowGroup | Display::TableFooterGroup => {
+                    self.layout_table_group(
+                        child,
+                        origin_x,
+                        avail_width,
+                        y,
+                        bottom_limit,
+                        placed,
+                        &child_tok,
+                        flow,
+                    )
+                }
+                Display::TableRow => self.layout_table_row(
+                    child,
+                    origin_x,
+                    avail_width,
+                    y,
+                    bottom_limit,
+                    placed,
+                    &child_tok,
+                    flow,
+                ),
+                _ => continue,
+            };
+            if !res.empty {
+                y += res.used;
+                placed = true;
+                frag_children.push(res.fragment);
+            }
+            if let Some(tok) = res.outgoing {
+                seen_all = false;
+                outgoing_children.push(ChildToken { index: i, token: tok });
+                break;
+            }
+        }
+
+        // Rebase children to be parent-relative.
+        let origin = Point::new(origin_x, top);
+        for child in &mut frag_children {
+            child.offset = Point::new(child.offset.x - origin.x, child.offset.y - origin.y);
+            if let FragmentContent::Text(run) = &mut child.content {
+                run.baseline = Point::new(run.baseline.x - origin.x, run.baseline.y - origin.y);
+            }
+        }
+        let height = y - top;
+        let mut fragment = Fragment::block(origin, (avail_width, height));
+        fragment.children = frag_children;
+        fragment.source = Some(id);
+        let outgoing = if !seen_all {
+            let consumed = token.consumed_block_size + height;
+            let tok = BreakToken {
+                consumed_block_size: consumed,
+                seen_all_children: seen_all,
+                child_tokens: outgoing_children,
+                break_before: false,
+            };
+            fragment.break_token = Some(tok.clone());
+            Some(tok)
+        } else {
+            None
+        };
+        let empty = height.get() <= 0.0 && outgoing.is_none();
+        BlockResult {
+            fragment,
+            used: height,
+            outgoing,
+            empty,
+        }
+    }
+
+    fn layout_table_group(
+        &self,
+        id: NodeId,
+        origin_x: Scalar,
+        avail_width: Scalar,
+        top: Scalar,
+        bottom_limit: Scalar,
+        page_has_content: bool,
+        token: &BreakToken,
+        flow: &mut Flow,
+    ) -> BlockResult {
+        let fresh = token.is_break_before();
+        // Resume bookkeeping (mirrors layout_box / layout_table_block):
+        // child_tokens are positional per row index.
+        if !fresh && token.seen_all_children && token.child_tokens.is_empty() {
+            return BlockResult {
+                fragment: Fragment::block(Point::new(origin_x, top), (avail_width, Scalar::ZERO)),
+                used: Scalar::ZERO,
+                outgoing: None,
+                empty: true,
+            };
+        }
+        let rows: Vec<NodeId> = self
+            .dom
+            .nodes[id]
+            .children
+            .iter()
+            .copied()
+            .filter(|c| {
+                matches!(self.dom.nodes[*c].kind, NodeKind::Element(_))
+                    && self.styles[*c].display == Display::TableRow
+            })
+            .collect();
+        let start_index = if fresh {
+            0
+        } else {
+            token
+                .child_tokens
+                .first()
+                .map(|c| c.index)
+                .unwrap_or(rows.len())
+        };
+
+        let mut y = top;
+        let mut frag_children = Vec::new();
+        let mut outgoing_children = Vec::new();
+        let mut seen_all = true;
+        let mut placed = page_has_content;
+
+        for i in start_index..rows.len() {
+            let child_tok = self.child_incoming(token, i);
+            let res = self.layout_table_row(
+                rows[i],
+                origin_x,
+                avail_width,
+                y,
+                bottom_limit,
+                placed,
+                &child_tok,
+                flow,
+            );
+            if !res.empty {
+                y += res.used;
+                placed = true;
+                frag_children.push(res.fragment);
+            }
+            if let Some(tok) = res.outgoing {
+                seen_all = false;
+                outgoing_children.push(ChildToken { index: i, token: tok });
+                break;
+            }
+        }
+
+        let origin = Point::new(origin_x, top);
+        for child in &mut frag_children {
+            child.offset = Point::new(child.offset.x - origin.x, child.offset.y - origin.y);
+            if let FragmentContent::Text(run) = &mut child.content {
+                run.baseline = Point::new(run.baseline.x - origin.x, run.baseline.y - origin.y);
+            }
+        }
+        let height = y - top;
+        let mut fragment = Fragment::block(origin, (avail_width, height));
+        fragment.children = frag_children;
+        fragment.source = Some(id);
+        let outgoing = if !seen_all {
+            let consumed = token.consumed_block_size + height;
+            let tok = BreakToken {
+                consumed_block_size: consumed,
+                seen_all_children: seen_all,
+                child_tokens: outgoing_children,
+                break_before: false,
+            };
+            fragment.break_token = Some(tok.clone());
+            Some(tok)
+        } else {
+            None
+        };
+        let empty = height.get() <= 0.0 && outgoing.is_none();
+        BlockResult {
+            fragment,
+            used: height,
+            outgoing,
+            empty,
+        }
+    }
+
+    fn layout_table_row(
+        &self,
+        id: NodeId,
+        origin_x: Scalar,
+        avail_width: Scalar,
+        top: Scalar,
+        bottom_limit: Scalar,
+        page_has_content: bool,
+        token: &BreakToken,
+        flow: &mut Flow,
+    ) -> BlockResult {
+        let columns = measure_columns(self.dom, self.styles, self.dom.nodes[id].parent.unwrap_or(id), avail_width);
+        let row_ids = [id];
+        let (row_heights, _) = measure_rows(self.dom, self.styles, &row_ids, &columns, avail_width);
+        let row_height = row_heights.first().copied().unwrap_or(Scalar::ZERO);
+
+        if top + row_height > bottom_limit && page_has_content && row_height.get() <= self.page_height.get() {
+            return BlockResult {
+                fragment: Fragment::block(Point::new(origin_x, top), (avail_width, Scalar::ZERO)),
+                used: Scalar::ZERO,
+                outgoing: Some(BreakToken::break_before()),
+                empty: true,
+            };
+        }
+
+        let mut x = origin_x;
+        let mut children = Vec::new();
+        // Cell ordinal, NOT the raw child index: DOM children include whitespace
+        // text nodes between cells, so enumerate() would misalign columns.
+        let mut col = 0usize;
+        for &cell in self.dom.nodes[id].children.iter() {
+            if let NodeKind::Element(_) = &self.dom.nodes[cell].kind {
+                if self.styles[cell].display != Display::TableCell {
+                    continue;
+                }
+                let col_w = columns.widths.get(col).copied().unwrap_or(Scalar::ZERO);
+                let res = self.layout_table_cell(
+                    cell,
+                    x,
+                    col_w,
+                    top,
+                    bottom_limit,
+                    page_has_content,
+                    token,
+                    flow,
+                );
+                if !res.empty {
+                    children.push(res.fragment);
+                }
+                x += col_w;
+                col += 1;
+            }
+        }
+
+        let origin = Point::new(origin_x, top);
+        for child in &mut children {
+            child.offset = Point::new(child.offset.x - origin.x, child.offset.y - origin.y);
+            if let FragmentContent::Text(run) = &mut child.content {
+                run.baseline = Point::new(run.baseline.x - origin.x, run.baseline.y - origin.y);
+            }
+        }
+        let mut fragment = Fragment::block(origin, (avail_width, row_height));
+        fragment.children = children;
+        fragment.source = Some(id);
+        BlockResult {
+            fragment,
+            used: row_height,
+            outgoing: None,
+            empty: row_height.get() <= 0.0,
+        }
+    }
+
+    fn collect_table_state(&self, table_id: NodeId, avail_width: Scalar) -> TableState {
+        let columns = measure_columns(self.dom, self.styles, table_id, avail_width);
+        let mut header: Option<TableGroupState> = None;
+        let mut footer: Option<TableGroupState> = None;
+        let mut body: Vec<TableGroupState> = Vec::new();
+
+        for &child in &self.dom.nodes[table_id].children {
+            if let NodeKind::Element(_) = &self.dom.nodes[child].kind {
+                match self.styles[child].display {
+                    Display::TableHeaderGroup => {
+                        header = Some(self.collect_table_group(child, &columns, avail_width));
+                    }
+                    Display::TableFooterGroup => {
+                        footer = Some(self.collect_table_group(child, &columns, avail_width));
+                    }
+                    Display::TableRowGroup => {
+                        body.push(self.collect_table_group(child, &columns, avail_width));
+                    }
+                    Display::TableRow => {
+                        body.push(self.collect_table_group(child, &columns, avail_width));
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        TableState {
+            header,
+            body,
+            footer,
+            columns: columns.widths,
+        }
+    }
+
+    fn collect_table_group(
+        &self,
+        group_id: NodeId,
+        columns: &crate::table::ColumnWidths,
+        avail_width: Scalar,
+    ) -> TableGroupState {
+        let rows: Vec<NodeId> = self
+            .dom
+            .nodes[group_id]
+            .children
+            .iter()
+            .copied()
+            .filter(|id| match &self.dom.nodes[*id].kind {
+                NodeKind::Element(_) => self.styles[*id].display == Display::TableRow,
+                _ => false,
+            })
+            .collect();
+        let (row_heights, cell_heights) = measure_rows(self.dom, self.styles, &rows, columns, avail_width);
+        let mut out_rows = Vec::new();
+        for (idx, row_id) in rows.iter().enumerate() {
+            let cells: Vec<NodeId> = self
+                .dom
+                .nodes[*row_id]
+                .children
+                .iter()
+                .copied()
+                .filter(|id| match &self.dom.nodes[*id].kind {
+                    NodeKind::Element(_) => self.styles[*id].display == Display::TableCell,
+                    _ => false,
+                })
+                .collect();
+            out_rows.push(TableRowState {
+                row_id: *row_id,
+                row_height: row_heights.get(idx).copied().unwrap_or(Scalar::ZERO),
+                cell_heights: cell_heights.get(idx).cloned().unwrap_or_default(),
+                cells,
+            });
+        }
+        TableGroupState {
+            group_id,
+            rows: out_rows,
+        }
+    }
+
+    fn table_group_height(group: &TableGroupState) -> Scalar {
+        group
+            .rows
+            .iter()
+            .fold(Scalar::ZERO, |acc, row| acc + row.row_height)
+    }
+
+    fn layout_table_cell(
+        &self,
+        id: NodeId,
+        origin_x: Scalar,
+        avail_width: Scalar,
+        top: Scalar,
+        bottom_limit: Scalar,
+        page_has_content: bool,
+        token: &BreakToken,
+        flow: &mut Flow,
+    ) -> BlockResult {
+        let mut res = self.layout_box(
+            id,
+            origin_x,
+            avail_width,
+            top,
+            bottom_limit,
+            page_has_content,
+            token,
+            flow,
+        );
+        // Attach the cell's border box (border-collapse: collapse — the cell's
+        // four sides). The emitter strokes each side whose width > 0.
+        let st = &self.styles[id];
+        if st.border_top.get() > 0.0
+            || st.border_right.get() > 0.0
+            || st.border_bottom.get() > 0.0
+            || st.border_left.get() > 0.0
+        {
+            if let Some(color) = st.border_color {
+                res.fragment.content = FragmentContent::Border(BorderBox {
+                    top: st.border_top,
+                    right: st.border_right,
+                    bottom: st.border_bottom,
+                    left: st.border_left,
+                    color,
+                });
+            }
+        }
+        res
+    }
+
     /// The incoming token for child `index` of a box: its nested continuation
     /// if present, else a start-fresh (break-before) token.
     fn child_incoming(&self, parent: &BreakToken, index: usize) -> BreakToken {
@@ -730,7 +1328,21 @@ impl<'a> Ctx<'a> {
             match &self.dom.nodes[child].kind {
                 NodeKind::Text(t) => pending.push_str(t),
                 NodeKind::Element(_) => {
-                    if self.styles[child].display == Display::Block {
+                    // Block-level children (including the table family:
+                    // table, row groups, rows, cells) start a new item so the
+                    // table layout path is reached; everything else is inline
+                    // and folds its text into the current run.
+                    if self.styles[child].display == Display::Block
+                        || matches!(
+                            self.styles[child].display,
+                            Display::Table
+                                | Display::TableRowGroup
+                                | Display::TableHeaderGroup
+                                | Display::TableFooterGroup
+                                | Display::TableRow
+                                | Display::TableCell
+                        )
+                    {
                         if !pending.trim().is_empty() {
                             items.push(Item::Text(std::mem::take(pending)));
                         } else {

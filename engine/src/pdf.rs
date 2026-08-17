@@ -78,8 +78,16 @@ pub fn render(layout: &Layout) -> Result<Vec<u8>> {
 
         // Two passes over the fragment tree so backgrounds sit under text.
         let mut backgrounds: Vec<(f32, f32, f32, f32, Color)> = Vec::new();
+        let mut borders: Vec<(f32, f32, f32, f32, f32, f32, f32, f32, Color)> = Vec::new();
         let mut texts: Vec<TextItem> = Vec::new();
-        collect(&page.root, 0.0, 0.0, &mut backgrounds, &mut texts);
+        collect(
+            &page.root,
+            0.0,
+            0.0,
+            &mut backgrounds,
+            &mut borders,
+            &mut texts,
+        );
 
         for (x, y, w, h, color) in &backgrounds {
             let rect = Rect::from_xywh(*x, *y, *w, *h)
@@ -89,6 +97,37 @@ pub fn render(layout: &Layout) -> Result<Vec<u8>> {
             if let Some(path) = pb.finish() {
                 surface.set_fill(Some(solid_fill(*color)));
                 surface.draw_path(&path);
+            }
+        }
+
+        // Borders after backgrounds, before text: stroke each side whose
+        // width > 0 as a thin filled rect (deterministic, no stroke state).
+        for (x, y, w, h, t, r, b, l, color) in &borders {
+            let fill = solid_fill(*color);
+            let mut side = |px: f32, py: f32, pw: f32, ph: f32| {
+                if pw <= 0.0 || ph <= 0.0 {
+                    return;
+                }
+                if let Some(rect) = Rect::from_xywh(px, py, pw, ph) {
+                    let mut pb = krilla::geom::PathBuilder::new();
+                    pb.push_rect(rect);
+                    if let Some(path) = pb.finish() {
+                        surface.set_fill(Some(fill.clone()));
+                        surface.draw_path(&path);
+                    }
+                }
+            };
+            if *t > 0.0 {
+                side(*x, *y, *w, *t);
+            }
+            if *b > 0.0 {
+                side(*x, *y + h - b, *w, *b);
+            }
+            if *l > 0.0 {
+                side(*x, *y, *l, *h);
+            }
+            if *r > 0.0 {
+                side(*x + w - r, *y, *r, *h);
             }
         }
 
@@ -246,6 +285,7 @@ fn collect(
     parent_x: f32,
     parent_y: f32,
     backgrounds: &mut Vec<(f32, f32, f32, f32, Color)>,
+    borders: &mut Vec<(f32, f32, f32, f32, f32, f32, f32, f32, Color)>,
     texts: &mut Vec<TextItem>,
 ) {
     let abs_x = parent_x + frag.offset.x.to_f32();
@@ -259,6 +299,19 @@ fn collect(
                 frag.size.0.to_f32(),
                 frag.size.1.to_f32(),
                 *color,
+            ));
+        }
+        FragmentContent::Border(b) => {
+            borders.push((
+                abs_x,
+                abs_y,
+                frag.size.0.to_f32(),
+                frag.size.1.to_f32(),
+                b.top.to_f32(),
+                b.right.to_f32(),
+                b.bottom.to_f32(),
+                b.left.to_f32(),
+                b.color,
             ));
         }
         FragmentContent::Text(run) => {
@@ -279,6 +332,6 @@ fn collect(
     }
 
     for child in &frag.children {
-        collect(child, abs_x, abs_y, backgrounds, texts);
+        collect(child, abs_x, abs_y, backgrounds, borders, texts);
     }
 }

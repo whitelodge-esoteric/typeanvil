@@ -11,6 +11,7 @@ pub mod frag;
 pub mod geom;
 pub mod layout;
 pub mod paged;
+pub mod table;
 pub mod pdf;
 pub mod stylo_dom;
 pub mod typography;
