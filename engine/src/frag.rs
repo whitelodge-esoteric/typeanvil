@@ -25,6 +25,7 @@
 //! be repositioned without relayout.
 
 use crate::css::Color;
+use crate::dom::NodeId;
 use crate::geom::{Point, Scalar};
 
 /// How a box may break relative to a sibling boundary: the computed value of
@@ -144,10 +145,15 @@ pub struct Fragment {
     /// The outgoing continuation. `Some` iff this fragment breaks inside — i.e.
     /// more of the corresponding box remains for a later fragmentainer.
     pub break_token: Option<BreakToken>,
+    /// The DOM node that produced this fragment, if any. `None` for
+    /// fragmentainers, anonymous boxes, and margin boxes. Paged-media features
+    /// (`target-counter`, PDF bookmarks) use this to map an element to the page
+    /// its box landed on.
+    pub source: Option<NodeId>,
 }
 
 impl Fragment {
-    /// A block fragment with no children yet.
+    /// A block fragment with no children yet and no source box.
     pub fn block(offset: Point, size: (Scalar, Scalar)) -> Fragment {
         Fragment {
             kind: FragmentKind::Block,
@@ -156,6 +162,7 @@ impl Fragment {
             children: Vec::new(),
             content: FragmentContent::None,
             break_token: None,
+            source: None,
         }
     }
 
@@ -168,6 +175,7 @@ impl Fragment {
             content: FragmentContent::Text(run),
             children: Vec::new(),
             break_token: None,
+            source: None,
         }
     }
 }
@@ -244,6 +252,7 @@ impl Fragmentainer {
                 children: Vec::new(),
                 content: FragmentContent::None,
                 break_token: None,
+                source: None,
             },
         }
     }

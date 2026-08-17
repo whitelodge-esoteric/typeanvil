@@ -16,6 +16,20 @@ pub struct Element {
     pub tag: String,
     pub id: Option<String>,
     pub classes: Vec<String>,
+    /// All attributes in source order (`id`/`class` included), so paged-media
+    /// features like `target-counter(attr(href), page)` can read arbitrary
+    /// attributes deterministically.
+    pub attrs: Vec<(String, String)>,
+}
+
+impl Element {
+    /// The value of the named attribute, if present.
+    pub fn attr(&self, name: &str) -> Option<&str> {
+        self.attrs
+            .iter()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v.as_str())
+    }
 }
 
 /// The kind of a DOM node we care about for the skeleton.
@@ -80,19 +94,26 @@ impl Dom {
                 let tag = name.local.to_string();
                 let mut id = None;
                 let mut classes = Vec::new();
+                let mut all_attrs = Vec::new();
                 for attr in attrs.borrow().iter() {
                     let key = attr.name.local.as_ref();
                     let val = attr.value.to_string();
                     match key {
-                        "id" => id = Some(val),
+                        "id" => id = Some(val.clone()),
                         "class" => {
                             classes = val.split_whitespace().map(|s| s.to_string()).collect();
                         }
                         _ => {}
                     }
+                    all_attrs.push((key.to_string(), val));
                 }
                 let node = self.push(
-                    NodeKind::Element(Element { tag, id, classes }),
+                    NodeKind::Element(Element {
+                        tag,
+                        id,
+                        classes,
+                        attrs: all_attrs,
+                    }),
                     Some(parent),
                 );
                 self.nodes[parent].children.push(node);

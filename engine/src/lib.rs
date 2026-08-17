@@ -10,5 +10,6 @@ pub mod dom;
 pub mod frag;
 pub mod geom;
 pub mod layout;
+pub mod paged;
 pub mod pdf;
 pub mod stylo_dom;

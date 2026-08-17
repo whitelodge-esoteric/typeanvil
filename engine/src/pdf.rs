@@ -21,6 +21,8 @@ use krilla::num::NormalizedF32;
 use krilla::page::PageSettings;
 use krilla::paint::{Fill, FillRule};
 use krilla::text::{Font, TextDirection};
+use krilla::destination::XyzDestination;
+use krilla::outline::{Outline, OutlineNode};
 use krilla::{Document, SerializeSettings};
 
 use crate::css::Color;
@@ -63,10 +65,11 @@ pub fn render(layout: &Layout) -> Result<Vec<u8>> {
     };
     let mut document = Document::new_with(settings);
 
-    let page_w = layout.geometry.width.to_f32();
-    let page_h = layout.geometry.height.to_f32();
-
     for page in &layout.pages {
+        // Each fragmentainer carries its own resolved page size (an `@page`
+        // rule may override the CLI default per page).
+        let page_w = page.root.size.0.to_f32();
+        let page_h = page.root.size.1.to_f32();
         let settings = PageSettings::from_wh(page_w, page_h)
             .ok_or_else(|| anyhow!("invalid page size {page_w}x{page_h}"))?;
         let mut pdf_page = document.start_page_with(settings);
@@ -104,9 +107,62 @@ pub fn render(layout: &Layout) -> Result<Vec<u8>> {
         pdf_page.finish();
     }
 
+    // PDF bookmarks: nest the DOM-order headings by level and emit them.
+    if let Some(outline) = build_outline(layout) {
+        document.set_outline(outline);
+    }
+
     document
         .finish()
         .map_err(|e| anyhow!("krilla export failed: {e:?}"))
+}
+
+/// Build a krilla [`Outline`] from the heading structure, nesting entries by
+/// level (an `h2` after an `h1` becomes the `h1`'s child, etc.). Deeper-than-6
+/// levels cannot occur (only `h1`–`h6` are collected). Returns `None` when the
+/// document has no headings.
+fn build_outline(layout: &Layout) -> Option<Outline> {
+    if layout.headings.is_empty() {
+        return None;
+    }
+    // A stack of (level, node) being built. We attach a finished node to its
+    // parent (the nearest shallower entry) when the next heading is not deeper.
+    let mut roots: Vec<OutlineNode> = Vec::new();
+    // Stack holds indices into a side vec of nodes plus their level. We build
+    // recursively via an explicit stack of (level, OutlineNode).
+    let mut stack: Vec<(u8, OutlineNode)> = Vec::new();
+
+    for h in &layout.headings {
+        let dest = XyzDestination::new(h.page_index, Point::from_xy(0.0, 0.0));
+        let node = OutlineNode::new(h.title.clone(), dest);
+        // Pop deeper-or-equal entries off the stack, attaching each to the one
+        // below it (or to roots).
+        while let Some((lvl, _)) = stack.last() {
+            if *lvl >= h.level {
+                let (_, finished) = stack.pop().unwrap();
+                match stack.last_mut() {
+                    Some((_, parent)) => parent.push_child(finished),
+                    None => roots.push(finished),
+                }
+            } else {
+                break;
+            }
+        }
+        stack.push((h.level, node));
+    }
+    // Drain the remaining stack bottom-up.
+    while let Some((_, finished)) = stack.pop() {
+        match stack.last_mut() {
+            Some((_, parent)) => parent.push_child(finished),
+            None => roots.push(finished),
+        }
+    }
+
+    let mut outline = Outline::new();
+    for r in roots {
+        outline.push_child(r);
+    }
+    Some(outline)
 }
 
 /// One text draw call, resolved to absolute page coordinates.

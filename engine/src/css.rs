@@ -67,6 +67,16 @@ pub enum Display {
     None,
 }
 
+/// The value of a single `string-set` assignment.
+///
+/// Only `content()` (the element's own text content) is modeled; `attr()` and
+/// literal forms parse but resolve as content for now (spec §Interfaces).
+#[derive(Clone, Debug, PartialEq)]
+pub enum StringSetValue {
+    /// `content()` / `content(text)` — the element's text content.
+    Content,
+}
+
 /// Break behavior at a box's leading/trailing boundary: the computed value of
 /// `break-before` / `break-after`. Re-exported from [`crate::frag`] so the
 /// cascade output contract carries it directly.
@@ -99,6 +109,23 @@ pub struct ComputedStyle {
     pub orphans: u32,
     /// `widows`: minimum lines carried to the top of the next fragmentainer.
     pub widows: u32,
+    /// The `page` property: the named page this box switches to (paged-media).
+    pub page: Option<String>,
+    /// `string-set` declarations: `(string name, value)` pairs.
+    pub string_set: Vec<(String, StringSetValue)>,
+    /// `counter-reset` declarations: `(counter name, value)` pairs.
+    pub counter_reset: Vec<(String, i32)>,
+    /// `counter-increment` declarations: `(counter name, delta)` pairs.
+    pub counter_increment: Vec<(String, i32)>,
+    /// The `content` property, as an ordered generated-content piece list
+    /// (empty when unset). Used by the TOC:
+    /// `content: leader('.') target-counter(attr(href), page)`.
+    ///
+    /// Deviation from the spec's Interfaces sketch: the spec lists only
+    /// `page`/`string_set`/`counter_*` on `ComputedStyle`, but Acceptance
+    /// Criterion #8 (TOC via `target-counter` + `leader`) requires generated
+    /// content on ordinary elements, so `content` is carried here too.
+    pub content: Vec<crate::paged::ContentPiece>,
 }
 
 impl ComputedStyle {
@@ -123,6 +150,11 @@ impl ComputedStyle {
             break_inside: BreakInside::Auto,
             orphans: 2,
             widows: 2,
+            page: None,
+            string_set: Vec::new(),
+            counter_reset: Vec::new(),
+            counter_increment: Vec::new(),
+            content: Vec::new(),
         }
     }
 
@@ -406,6 +438,13 @@ impl CascadeSession {
             break_inside: BreakInside::Auto,
             orphans: 2,
             widows: 2,
+            // Paged-media element props are likewise absent from the servo
+            // stylo build; filled by `apply_paged_properties` (see `cascade`).
+            page: None,
+            string_set: Vec::new(),
+            counter_reset: Vec::new(),
+            counter_increment: Vec::new(),
+            content: Vec::new(),
         }
     }
 }
@@ -507,6 +546,9 @@ pub fn cascade(dom: &Dom, stylesheet: &Stylesheet) -> Vec<ComputedStyle> {
     );
     // Second pass: fill the css-break longhands stylo's servo build omits.
     breaks::apply_break_properties(dom, stylesheet.source(), &mut styles);
+    // Third pass: fill paged-media properties (page / string-set / counters /
+    // content) — likewise absent from the servo stylo build.
+    paged_props::apply_paged_properties(dom, stylesheet.source(), &mut styles);
     styles
 }
 
@@ -526,17 +568,17 @@ mod breaks {
     use crate::dom::{Dom, NodeId, NodeKind};
 
     /// A parsed simple selector: an optional tag plus required classes/id.
-    struct SimpleSelector {
-        tag: Option<String>,
-        id: Option<String>,
-        classes: Vec<String>,
+    pub(super) struct SimpleSelector {
+        pub(super) tag: Option<String>,
+        pub(super) id: Option<String>,
+        pub(super) classes: Vec<String>,
         /// Higher wins ties; approximates specificity (id=100, class=10,
         /// tag=1) then declaration order.
-        specificity: u32,
+        pub(super) specificity: u32,
     }
 
     impl SimpleSelector {
-        fn matches(&self, dom: &Dom, id: NodeId) -> bool {
+        pub(super) fn matches(&self, dom: &Dom, id: NodeId) -> bool {
             let NodeKind::Element(el) = &dom.nodes[id].kind else {
                 return false;
             };
@@ -556,7 +598,7 @@ mod breaks {
 
     /// Parse one compound simple selector like `section.note#x`. Returns `None`
     /// for anything with a combinator or pseudo we do not support.
-    fn parse_simple(sel: &str) -> Option<SimpleSelector> {
+    pub(super) fn parse_simple(sel: &str) -> Option<SimpleSelector> {
         let sel = sel.trim();
         if sel.is_empty() || sel.contains([' ', '>', '+', '~', ':', '[', '*']) {
             return None;
@@ -664,7 +706,7 @@ mod breaks {
     }
 
     /// Strip `/* ... */` comments so they never leak into selectors/values.
-    fn strip_comments(css: &str) -> String {
+    pub(super) fn strip_comments(css: &str) -> String {
         let mut out = String::with_capacity(css.len());
         let bytes = css.as_bytes();
         let mut i = 0;
@@ -685,24 +727,34 @@ mod breaks {
 
     /// Parse only the break rules out of a stylesheet. Blocks whose selector or
     /// declarations we do not understand are skipped without failing.
+    ///
+    /// Balanced-brace matching (not naive `find('}')`): a stylesheet that
+    /// contains `@page { ... @top-center { content: ... } }` has nested braces,
+    /// and a naive first-`}` scan would consume only the inner one, leaving a
+    /// stray ` }` that mangles the following rule's selector. This mirrors the
+    /// `paged_props` scanner.
     fn parse_rules(css: &str) -> Vec<Rule> {
         let css = strip_comments(css);
         let mut rules = Vec::new();
         let mut order = 0u32;
-        let mut rest = css.as_str();
-        while let Some(brace) = rest.find('{') {
-            let prelude = &rest[..brace];
-            let after = &rest[brace + 1..];
-            let Some(end) = after.find('}') else { break };
-            let body = &after[..end];
-            rest = &after[end + 1..];
+        let bytes = css.as_bytes();
+        let mut i = 0;
+        while let Some(brace_rel) = css[i..].find('{') {
+            let brace = i + brace_rel;
+            let prelude = css[i..brace].trim();
+            let Some(end) = matching_brace(bytes, brace) else {
+                break;
+            };
 
-            // Skip at-rules (e.g. @page, @media) — prelude starts with '@'.
-            if prelude.trim_start().starts_with('@') {
+            // Skip at-rules (e.g. @page, @media) whole — balanced braces
+            // include margin-box blocks.
+            if prelude.starts_with('@') {
                 order += 1;
+                i = end + 1;
                 continue;
             }
 
+            let body = &css[brace + 1..end];
             let mut decls = Vec::new();
             for decl in body.split(';') {
                 let Some((prop, value)) = decl.split_once(':') else {
@@ -712,22 +764,42 @@ mod breaks {
                     decls.push(d);
                 }
             }
-            if decls.is_empty() {
-                order += 1;
-                continue;
-            }
-            let selectors: Vec<SimpleSelector> =
-                prelude.split(',').filter_map(parse_simple).collect();
-            if !selectors.is_empty() {
-                rules.push(Rule {
-                    selectors,
-                    decls,
-                    order,
-                });
+            if !decls.is_empty() {
+                let selectors: Vec<SimpleSelector> =
+                    prelude.split(',').filter_map(parse_simple).collect();
+                if !selectors.is_empty() {
+                    rules.push(Rule {
+                        selectors,
+                        decls,
+                        order,
+                    });
+                }
             }
             order += 1;
+            i = end + 1;
         }
         rules
+    }
+
+    /// Find the index of the brace matching `open` (which must be `{`),
+    /// counting nesting depth.
+    fn matching_brace(bytes: &[u8], open: usize) -> Option<usize> {
+        let mut depth = 0;
+        let mut i = open;
+        while i < bytes.len() {
+            match bytes[i] {
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(i);
+                    }
+                }
+                _ => {}
+            }
+            i += 1;
+        }
+        None
     }
 
     /// Apply parsed break rules onto the cascaded styles, then inherit the
@@ -819,6 +891,226 @@ mod breaks {
         }
         for &child in &dom.nodes[id].children {
             inherit(dom, child, styles, set_orphans, set_widows);
+        }
+    }
+}
+
+/// Author-CSS parse for the paged-media *element* properties stylo's servo
+/// build omits: `page`, `string-set`, `counter-reset`, `counter-increment`,
+/// and `content`. Mirrors [`breaks`]: a small deterministic pass over the same
+/// stylesheet text, reusing that module's selector matcher. `@page` at-rules
+/// are parsed separately (see [`crate::paged`]); this pass skips them.
+mod paged_props {
+    use super::breaks::{parse_simple, strip_comments, SimpleSelector};
+    use super::{ComputedStyle, StringSetValue};
+    use crate::dom::{Dom, NodeKind};
+    use crate::paged::{parse_content, ContentPiece};
+
+    /// One paged-media declaration keyed to a field.
+    enum PagedDecl {
+        Page(Option<String>),
+        StringSet(Vec<(String, StringSetValue)>),
+        CounterReset(Vec<(String, i32)>),
+        CounterIncrement(Vec<(String, i32)>),
+        Content(Vec<ContentPiece>),
+    }
+
+    /// Parse `string-set: name content();` (comma-separated pairs).
+    fn parse_string_set(value: &str) -> Vec<(String, StringSetValue)> {
+        let mut out = Vec::new();
+        for pair in value.split(',') {
+            let mut it = pair.split_whitespace();
+            let Some(name) = it.next() else { continue };
+            // The remainder is the value expression; only content() is modeled.
+            let rest: String = it.collect::<Vec<_>>().join(" ");
+            let lower = rest.to_ascii_lowercase();
+            if lower.starts_with("content") || lower.starts_with("attr") {
+                out.push((name.to_string(), StringSetValue::Content));
+            }
+        }
+        out
+    }
+
+    /// Parse `counter-reset` / `counter-increment`: `name [int]` groups, with a
+    /// default of `0` (reset) or `1` (increment) when the int is omitted.
+    fn parse_counters(value: &str, default: i32) -> Vec<(String, i32)> {
+        let mut out = Vec::new();
+        let toks: Vec<&str> = value.split_whitespace().collect();
+        let mut i = 0;
+        while i < toks.len() {
+            let name = toks[i].to_string();
+            i += 1;
+            let n = if i < toks.len() {
+                match toks[i].parse::<i32>() {
+                    Ok(v) => {
+                        i += 1;
+                        v
+                    }
+                    Err(_) => default,
+                }
+            } else {
+                default
+            };
+            out.push((name, n));
+        }
+        out
+    }
+
+    fn parse_decl(prop: &str, value: &str) -> Option<PagedDecl> {
+        let prop = prop.trim().to_ascii_lowercase();
+        let value = value.trim();
+        match prop.as_str() {
+            "page" => {
+                let v = value.trim();
+                if v.eq_ignore_ascii_case("auto") || v.is_empty() {
+                    Some(PagedDecl::Page(None))
+                } else {
+                    Some(PagedDecl::Page(Some(v.to_string())))
+                }
+            }
+            "string-set" => Some(PagedDecl::StringSet(parse_string_set(value))),
+            "counter-reset" => Some(PagedDecl::CounterReset(parse_counters(value, 0))),
+            "counter-increment" => Some(PagedDecl::CounterIncrement(parse_counters(value, 1))),
+            "content" => Some(PagedDecl::Content(parse_content(value))),
+            _ => None,
+        }
+    }
+
+    struct Rule {
+        selectors: Vec<SimpleSelector>,
+        decls: Vec<PagedDecl>,
+        order: u32,
+    }
+
+    /// Parse only the paged-media element rules; `@page` and other at-rules are
+    /// skipped (their braces are balanced-matched so nested margin boxes do not
+    /// confuse the scanner).
+    fn parse_rules(css: &str) -> Vec<Rule> {
+        let css = strip_comments(css);
+        let mut rules = Vec::new();
+        let mut order = 0u32;
+        let bytes = css.as_bytes();
+        let mut i = 0;
+        while let Some(brace_rel) = css[i..].find('{') {
+            let brace = i + brace_rel;
+            let prelude = css[i..brace].trim();
+            let Some(end) = matching_brace(bytes, brace) else {
+                break;
+            };
+
+            if prelude.starts_with('@') {
+                // Skip at-rules whole (balanced braces include margin boxes).
+                order += 1;
+                i = end + 1;
+                continue;
+            }
+
+            let body = &css[brace + 1..end];
+            let mut decls = Vec::new();
+            for decl in body.split(';') {
+                if let Some((prop, value)) = decl.split_once(':') {
+                    if let Some(d) = parse_decl(prop, value) {
+                        decls.push(d);
+                    }
+                }
+            }
+            if !decls.is_empty() {
+                let selectors: Vec<SimpleSelector> =
+                    prelude.split(',').filter_map(parse_simple).collect();
+                if !selectors.is_empty() {
+                    rules.push(Rule {
+                        selectors,
+                        decls,
+                        order,
+                    });
+                }
+            }
+            order += 1;
+            i = end + 1;
+        }
+        rules
+    }
+
+    fn matching_brace(bytes: &[u8], open: usize) -> Option<usize> {
+        let mut depth = 0;
+        let mut i = open;
+        while i < bytes.len() {
+            match bytes[i] {
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(i);
+                    }
+                }
+                _ => {}
+            }
+            i += 1;
+        }
+        None
+    }
+
+    /// Apply paged-media element rules onto the cascaded styles. Later /
+    /// more-specific matches win (same priority model as [`breaks`]).
+    pub fn apply_paged_properties(dom: &Dom, css: &str, styles: &mut [ComputedStyle]) {
+        let rules = parse_rules(css);
+
+        #[derive(Clone, Copy, Default)]
+        struct Won {
+            page: Option<(u32, u32)>,
+            string_set: Option<(u32, u32)>,
+            counter_reset: Option<(u32, u32)>,
+            counter_increment: Option<(u32, u32)>,
+            content: Option<(u32, u32)>,
+        }
+        let mut won = vec![Won::default(); styles.len()];
+
+        for rule in &rules {
+            for sel in &rule.selectors {
+                let prio = (sel.specificity, rule.order);
+                for id in 0..dom.nodes.len() {
+                    if !matches!(dom.nodes[id].kind, NodeKind::Element(_)) {
+                        continue;
+                    }
+                    if !sel.matches(dom, id) {
+                        continue;
+                    }
+                    for decl in &rule.decls {
+                        match decl {
+                            PagedDecl::Page(v) => {
+                                if won[id].page.is_none_or(|w| prio >= w) {
+                                    styles[id].page = v.clone();
+                                    won[id].page = Some(prio);
+                                }
+                            }
+                            PagedDecl::StringSet(v) => {
+                                if won[id].string_set.is_none_or(|w| prio >= w) {
+                                    styles[id].string_set = v.clone();
+                                    won[id].string_set = Some(prio);
+                                }
+                            }
+                            PagedDecl::CounterReset(v) => {
+                                if won[id].counter_reset.is_none_or(|w| prio >= w) {
+                                    styles[id].counter_reset = v.clone();
+                                    won[id].counter_reset = Some(prio);
+                                }
+                            }
+                            PagedDecl::CounterIncrement(v) => {
+                                if won[id].counter_increment.is_none_or(|w| prio >= w) {
+                                    styles[id].counter_increment = v.clone();
+                                    won[id].counter_increment = Some(prio);
+                                }
+                            }
+                            PagedDecl::Content(v) => {
+                                if won[id].content.is_none_or(|w| prio >= w) {
+                                    styles[id].content = v.clone();
+                                    won[id].content = Some(prio);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
