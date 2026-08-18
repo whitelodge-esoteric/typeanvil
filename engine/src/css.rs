@@ -37,7 +37,7 @@ use style::servo::media_features::PointerCapabilities;
 use style::shared_lock::{SharedRwLock, StylesheetGuards};
 use style::stylist::{RuleInclusion, Stylist};
 use style::stylesheets::{AllowImportRules, Origin, Stylesheet as StylesheetFromStylo, UrlExtraData};
-use style::values::computed::font::{FontFamily, SingleFontFamily};
+use style::values::computed::font::{FontFamily, LineHeight, SingleFontFamily};
 use style::values::computed::Color as ComputedColor;
 use style::values::computed::Length;
 use style::values::specified::box_::{DisplayInside, DisplayOutside};
@@ -60,6 +60,8 @@ pub struct Color {
 impl Color {
     pub const BLACK: Color = Color { r: 0, g: 0, b: 0 };
 }
+/// The CSS `normal` line-height factor (font-size multiple).
+pub const NORMAL_LINE_HEIGHT_FACTOR: f64 = 1.2;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Display {
@@ -143,6 +145,8 @@ pub struct ComputedStyle {
     /// color). `None` means the border is transparent / not painted.
     pub border_color: Option<Color>,
     pub font_size: Scalar,
+    /// The resolved line box height in points (`line-height` property).
+    pub line_height: Scalar,
     pub font_family: String,
     pub display: Display,
     pub margin_top: Scalar,
@@ -200,6 +204,7 @@ impl ComputedStyle {
             border_left: Scalar::ZERO,
             border_color: None,
             font_size: px_to_pt(16.0),
+            line_height: px_to_pt(16.0) * NORMAL_LINE_HEIGHT_FACTOR,
             font_family: "sans-serif".to_string(),
             display: Display::Inline,
             margin_top: Scalar::ZERO,
@@ -517,6 +522,11 @@ impl CascadeSession {
         let font_size = px_to_pt(font.clone_font_size().computed_size().px() as f64);
         let font_family = first_family_name(font.clone_font_family())
             .unwrap_or_else(|| "sans-serif".to_string());
+        let line_height = match font.clone_line_height() {
+            LineHeight::Normal => font_size * NORMAL_LINE_HEIGHT_FACTOR,
+            LineHeight::Number(n) => font_size * n.0 as f64,
+            LineHeight::Length(l) => px_to_pt(l.px() as f64),
+        };
 
         let margin_top = lp_or_auto_to_pt(&margin.clone_margin_top());
         let margin_right = lp_or_auto_to_pt(&margin.clone_margin_right());
@@ -539,6 +549,7 @@ impl CascadeSession {
             border_left: Scalar::ZERO,
             border_color: None,
             font_size,
+            line_height,
             font_family,
             display,
             margin_top,
