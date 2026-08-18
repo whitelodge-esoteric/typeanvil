@@ -1,0 +1,80 @@
+[
+  {
+    "name": "Invoice",
+    "file": "invoice.html",
+    "wedge_features": ["tables-fragmentation", "paged-media-css"],
+    "known_limitations": [
+      "border-collapse: separate + border-spacing unsupported (collapse only)",
+      "table width property not honored (columns scale from content)"
+    ],
+    "expected_deltas": [
+      "Prince may resolve a different system font for the sans-serif stack",
+      "Prince's default table-cell padding may differ from TypeAnvil's explicit padding"
+    ]
+  },
+  {
+    "name": "Quarterly Report",
+    "file": "report.html",
+    "wedge_features": ["paged-media-css", "fragmentation-core", "tables-fragmentation"],
+    "known_limitations": [
+      "counter(pages) total-page counter unsupported (only counter(page))",
+      "string-set limited to the content() of h1"
+    ],
+    "expected_deltas": [
+      "TOC dotted leaders may use slightly different dot spacing",
+      "Running-header font metrics may differ between engines",
+      "Prince may hyphenate differently in table cells"
+    ]
+  },
+  {
+    "name": "Academic Paper",
+    "file": "paper.html",
+    "wedge_features": ["typography-layer", "fragmentation-core"],
+    "known_limitations": [
+      "footnotes unsupported (known gap; the fixture omits footnote calls intentionally)",
+      "CSS float placement unsupported (known gap; no floats used)"
+    ],
+    "expected_deltas": [
+      "Hyphenation points may differ (different hyphenation dictionaries)",
+      "Justification glue distribution may differ slightly at identical widths"
+    ]
+  },
+  {
+    "name": "Letterhead",
+    "file": "letterhead.html",
+    "wedge_features": ["paged-media-css", "fragmentation-core"],
+    "known_limitations": [
+      "counter(pages) total-page counter unsupported (footer uses page only on letter pages; cover has none)"
+    ],
+    "expected_deltas": [
+      "Named-page margin-box fonts may differ between engines",
+      "Prince may apply default margins to @page cover differently"
+    ]
+  },
+  {
+    "name": "Inventory Ledger — Table Fragmentation Stress",
+    "file": "table-stress.html",
+    "wedge_features": ["tables-fragmentation", "fragmentation-core", "paged-media-css"],
+    "known_limitations": [
+      "border-collapse: separate + border-spacing unsupported (collapse only)",
+      "rowspan/colspan unsupported (no spanning used)"
+    ],
+    "expected_deltas": [
+      "Row/column measure differs from Prince's table algorithm (columns scale from content, not fixed widths)",
+      "Page-break positions may differ where a row's height differs between engines"
+    ]
+  },
+  {
+    "name": "Prose Showcase",
+    "file": "prose.html",
+    "wedge_features": ["typography-layer", "fragmentation-core"],
+    "known_limitations": [
+      "none for the demonstrated features"
+    ],
+    "expected_deltas": [
+      "Hyphenation points may differ (different hyphenation dictionaries)",
+      "Font metrics differences shift exact break positions",
+      "Prince does not implement Knuth-Plass protrusion to the same spec"
+    ]
+  }
+]

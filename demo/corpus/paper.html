@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>On the Texture of Justified Text — A Field Study</title>
+<style>
+  /* Geometry via CLI flags only (demo spec). */
+  @page {
+    margin: 0.5in;
+    @top-center { content: "On the Texture of Justified Text"; }
+    @bottom-center { content: counter(page); }
+  }
+  body { font-family: sans-serif; font-size: 10pt; line-height: 1.4; color: #111; }
+  h1 { font-size: 15pt; margin: 0 0 6pt 0; }
+  h2 { font-size: 11pt; margin: 10pt 0 3pt 0; }
+  p { text-align: justify; hyphens: auto; margin: 0 0 7pt 0; }
+  .abstract { font-style: italic; color: #333; }
+  blockquote { margin: 6pt 18pt; font-style: italic; }
+  .fn-note { font-size: 8pt; color: #666; margin-top: 10pt; }
+</style>
+</head>
+<body>
+  <h1>On the Texture of Justified Text: A Field Study</h1>
+
+  <p class="abstract">Abstract — Justified text is the default expectation of
+  professional typesetting, yet its quality is decided by machinery most
+  readers never see: the line-breaking algorithm, the glue model, and the
+  optical adjustments applied at the margins. This paper reports a controlled
+  comparison of the visual texture produced by a total-fit line breaker
+  against a greedy first-fit baseline, using the same input corpus and the
+  same page geometry.</p>
+
+  <h2>1. Introduction</h2>
+  <p>Good typesetting is invisible: the reader sees words, not the machinery
+  that spaced them. This document exercises the passes that earn that
+  invisibility — real shaping, total-fit line breaking, justified glue,
+  hyphenation, and the optical niceties of protrusion and expansion. Compare
+  the texture of these paragraphs against a first-fit engine: the spaces are
+  uniform, no river runs down the column, and punctuation hangs neatly into
+  the margins instead of being trapped inside the box, as if the typesetter
+  had set the page by hand, line by line, the way a careful printer would.</p>
+
+  <h2>2. The Line-Breaking Problem</h2>
+  <p>Consider how a justified line is made: every inter-word space carries a
+  natural width plus a little stretch and a little shrink, and the line's
+  excess or deficit is distributed across those spaces in proportion — never
+  one giant gap at the end of the line, never a crammed seam between two
+  words. When the spaces run out of room, the engine may expand the glyphs
+  themselves, by a hair, within two percent; you cannot see it, but the line
+  now reaches the margin exactly, and the next line begins where the last one
+  ended, and the column edge is straight as a ruled line, on the left and on
+  the right, on every page, from the first paragraph to the last.</p>
+  <blockquote>The quality of a paragraph is not the quality of its worst line;
+  it is the sum of every line's badness, and a good breaker trades a loose
+  line here for a tight one there.</blockquote>
+  <p>Punctuation is where the difference shows: a period at the end of a
+  justified line is a tiny mark with a great deal of white around it, so it
+  hangs slightly into the margin — a comma, a semicolon, a colon, a question
+  mark, an exclamation point, each hangs by its own measure, determined once,
+  applied everywhere. Open a book from a real press and hold a ruler to the
+  right edge of the text block: the letters align, but the punctuation drifts
+  past them, by a hair; that is protrusion, and now we do it too. Quotes at
+  the start of a line hang the other way, into the left margin, so the
+  opening mark never pushes the first letter off the grid. It is a small
+  thing, but a page full of small things is a page that feels set, not
+  dumped.</p>
+
+  <h2>3. Method</h2>
+  <p>The whole craft rests on measurement: every word is shaped against the
+  actual font before a single line is chosen, so the advances that decide
+  where a line breaks are the advances the reader will see. A capital W is
+  wide and an i is narrow, and the engine knows both, exactly, to a fraction
+  of a point; it does not guess by counting letters. The lines below are
+  broken by a dynamic program that considers the whole paragraph at once,
+  trading a loose line here for a tight one there, so that the total cost
+  across the paragraph — the sum of the spacing badness of every line, plus a
+  penalty for each hyphen — is as small as the paragraph allows. That is the
+  difference between filling a box and setting a paragraph, and it is why the
+  texture of these words is even, from the top of the page to the bottom.</p>
+  <p>Hyphenation follows the Liang algorithm over a pattern dictionary, so a
+  long word like pneumonoultramicroscopicsilicovolcanoconiosis breaks at
+  sanctioned points rather than wherever the margin happens to fall. Each
+  hyphenated break costs a small penalty in the line-breaking objective, so
+  the engine hyphenates only when a clean break would leave a noticeably
+  loose line. The result is a page where hyphenation is present but
+  unobtrusive, and where rivers — the diagonal streaks of white that form
+  when inter-word spaces align across consecutive lines — are suppressed by
+  the same objective that controls spacing.</p>
+
+  <h2>4. Results and Discussion</h2>
+  <p>The field study confirms the central claim: a total-fit line breaker
+  with a real glue model produces measurably more even inter-word spacing
+  than a greedy baseline, and the effect is visible to the naked eye on a
+  full column of text. The protrusion of punctuation into the margins, the
+  two-percent ceiling on glyph expansion, and the penalty-weighted use of
+  hyphenation together yield a page that reads as set rather than dumped.
+  Readers familiar with fine print will notice the difference immediately;
+  readers who do not will simply find the document easier to read.</p>
+  <p>The limitation of this study is its corpus: prose in a single language,
+  set in a single size, on a single page geometry. Future work will extend
+  the comparison to tabular matter, multi-column layouts, and scripts with
+  different shaping requirements. The engine under test ships the features
+  demonstrated here — shaping, justification, hyphenation, protrusion, and
+  expansion — and the reader is invited to hold this page up against any
+  output from a mainstream word processor to see the gap for themselves.</p>
+
+  <div class="fn-note">Footnote support is a known gap in the current engine;
+  this academic-style fixture demonstrates the typography layer (justified,
+  hyphenated prose) that ships today, and omits footnote calls intentionally.</div>
+</body>
+</html>

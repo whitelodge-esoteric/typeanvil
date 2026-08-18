@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Prose Showcase — Justified &amp; Hyphenated</title>
+<style>
+  /* Geometry via CLI flags only (demo spec). */
+  @page {
+    margin: 0.5in;
+    @top-center { content: "Prose Showcase — Knuth-Plass Justification"; }
+    @bottom-right { content: "Page " counter(page); }
+  }
+  body { font-family: sans-serif; font-size: 10pt; line-height: 1.4; color: #111; }
+  h1 { font-size: 15pt; margin: 0 0 6pt 0; }
+  h2 { font-size: 11pt; margin: 10pt 0 3pt 0; }
+  p { text-align: justify; hyphens: auto; margin: 0 0 7pt 0; }
+  .no-hyph { hyphens: none; }
+  blockquote { margin: 6pt 18pt; font-style: italic; }
+  .note { font-size: 8pt; color: #666; margin-top: 10pt; }
+</style>
+</head>
+<body>
+
+<h1>Prose Showcase: what an engine owes a sentence</h1>
+
+<p>Good typesetting is invisible: the reader sees words, not the machinery
+that spaced them. This page exercises the passes that earn that invisibility
+— real shaping, total-fit line breaking, justified glue, hyphenation, and the
+optical niceties of protrusion and expansion. Compare the texture of these
+paragraphs against a first-fit engine: the spaces are uniform, no river runs
+down the column, and punctuation hangs neatly into the margins instead of
+being trapped inside the box, as if the typesetter had set the page by hand,
+line by line, the way a careful printer would.</p>
+
+<h2>How a justified line is made</h2>
+<p>Consider how a justified line is made: every inter-word space carries a
+natural width plus a little stretch and a little shrink, and the line's
+excess or deficit is distributed across those spaces in proportion — never
+one giant gap at the end of the line, never a crammed seam between two
+words. When the spaces run out of room, the engine may expand the glyphs
+themselves, by a hair, within two percent; you cannot see it, but the line
+now reaches the margin exactly, and the next line begins where the last one
+ended, and the column edge is straight as a ruled line, on the left and on
+the right, on every page, from the first paragraph to the last.</p>
+
+<blockquote>Not every paragraph wants justification. A block quotation often
+reads better set ragged, its right edge free, its line breaks chosen by the
+words themselves rather than by the margin. This engine honors the choice:
+justify where the style says justify, and leave the ragged edge alone where
+it says not to.</blockquote>
+
+<p>Punctuation is where the difference shows: a period at the end of a
+justified line is a tiny mark with a great deal of white around it, so it
+hangs slightly into the margin — a comma, a semicolon, a colon, a question
+mark, an exclamation point, each hangs by its own measure, determined once,
+applied everywhere. Open a book from a real press and hold a ruler to the
+right edge of the text block: the letters align, but the punctuation drifts
+past them, by a hair; that is protrusion, and now we do it too. Quotes at
+the start of a line hang the other way, into the left margin, so the opening
+mark never pushes the first letter off the grid. It is a small thing, but a
+page full of small things is a page that feels set, not dumped.</p>
+
+<h2>Measurement and hyphenation</h2>
+<p>The whole craft rests on measurement: every word is shaped against the
+actual font before a single line is chosen, so the advances that decide where
+a line breaks are the advances the reader will see. A capital W is wide and
+an i is narrow, and the engine knows both, exactly, to a fraction of a
+point; it does not guess by counting letters. The lines below are broken by
+a dynamic program that considers the whole paragraph at once, trading a
+loose line here for a tight one there, so that the total cost across the
+paragraph — the sum of the spacing badness of every line, plus a penalty for
+each hyphen — is as small as the paragraph allows. That is the difference
+between filling a box and setting a paragraph, and it is why the texture of
+these words is even, from the top of the page to the bottom.</p>
+
+<p>Hyphenation follows the Liang algorithm over a pattern dictionary, so a
+long word like pneumonoultramicroscopicsilicovolcanoconiosis breaks at
+sanctioned points rather than wherever the margin happens to fall. Each
+hyphenated break costs a small penalty in the line-breaking objective, so
+the engine hyphenates only when a clean break would leave a noticeably loose
+line. The result is a page where hyphenation is present but unobtrusive, and
+where rivers — the diagonal streaks of white that form when inter-word
+spaces align across consecutive lines — are suppressed by the same objective
+that controls spacing.</p>
+
+<p class="no-hyph">This paragraph is set with hyphenation disabled, as a
+control: the same prose, the same justification, but the line breaker must
+choose its break points from spaces alone. Compare it with the paragraphs
+above — the texture is still even, but the breaks fall where words end
+rather than where the patterns allow, and a few lines are noticeably looser
+as a result. That difference, precisely, is what the hyphenation pass buys
+the reader: not fewer hyphens, but better spacing.</p>
+
+<h2>Conclusion</h2>
+<p>The showcase closes with a summary claim: total-fit line breaking, a real
+glue model, protrusion, expansion, and hyphenation together produce a page
+that reads as set rather than dumped. Readers familiar with fine print will
+notice the difference immediately; readers who do not will simply find the
+document easier to read. Hold this page up against any output from a
+mainstream word processor to see the gap for yourself.</p>
+
+<div class="note">This fixture is the differentiator: Knuth-Plass
+justification with glue, protrusion, expansion, and Liang hyphenation —
+features a greedy first-fit engine simply does not have.</div>
+</body>
+</html>
