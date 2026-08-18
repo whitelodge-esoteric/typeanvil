@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Inventory Ledger — Fragmentation Stress</title>
+<style>
+  /* Geometry via CLI flags only (demo spec). */
+  @page {
+    margin: 0.5in;
+    @top-center { content: "Northwind Inventory Ledger — 2026"; }
+    @bottom-right { content: "Page " counter(page); }
+  }
+  body { font-family: sans-serif; font-size: 9pt; color: #222; }
+  h1 { font-size: 14pt; color: #1d3557; margin: 0 0 2pt 0; }
+  .meta { font-size: 8.5pt; color: #555; margin: 0 0 8pt 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 0.5pt solid #aaa; padding: 2pt 4pt; text-align: left; }
+  thead th { background-color: #a8dadc; color: #1d3557; }
+  .num { text-align: right; }
+  tfoot td { background-color: #457b9d; color: #fff; font-weight: bold; }
+  .note { font-size: 8pt; color: #666; margin-top: 8pt; }
+</style>
+</head>
+<body>
+  <h1>Inventory Ledger — Fragmentation Stress Test</h1>
+  <div class="meta">150 line items · page breaks expected · header repeats on every page</div>
+
+  <table>
+    <thead>
+      <tr><th>SKU</th><th>Description</th><th class="num">On hand</th><th class="num">Backorder</th><th class="num">Unit cost</th><th class="num">Value</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>ANV-0001</td><td>Anvil, standard (150 lb)</td><td class="num">24</td><td class="num">3</td><td class="num">120.00</td><td class="num">2,880.00</td></tr>
+      <tr><td>ANV-0002</td><td>Anvil, deluxe (300 lb)</td><td class="num">8</td><td class="num">0</td><td class="num">240.00</td><td class="num">1,920.00</td></tr>
+      <tr><td>RKT-0101</td><td>Rocket skates, deluxe</td><td class="num">14</td><td class="num">2</td><td class="num">89.50</td><td class="num">1,253.00</td></tr>
+      <tr><td>RKT-0102</td><td>Rocket sled (single seat)</td><td class="num">3</td><td class="num">1</td><td class="num">520.00</td><td class="num">1,560.00</td></tr>
+      <tr><td>RKT-0103</td><td>Jet-propelled pogo stick</td><td class="num">11</td><td class="num">0</td><td class="num">210.00</td><td class="num">2,310.00</td></tr>
+      <tr><td>RKT-0104</td><td>Rocket-powered rollerblades</td><td class="num">5</td><td class="num">0</td><td class="num">330.00</td><td class="num">1,650.00</td></tr>
+      <tr><td>RUB-0201</td><td>Giant rubber band</td><td class="num">42</td><td class="num">6</td><td class="num">45.00</td><td class="num">1,890.00</td></tr>
+      <tr><td>RUB-0202</td><td>Extra-strength glue, industrial</td><td class="num">120</td><td class="num">0</td><td class="num">12.00</td><td class="num">1,440.00</td></tr>
+      <tr><td>HOL-0301</td><td>Portable hole, medium</td><td class="num">18</td><td class="num">4</td><td class="num">60.00</td><td class="num">1,080.00</td></tr>
+      <tr><td>HOL-0302</td><td>Portable hole, large</td><td class="num">7</td><td class="num">1</td><td class="num">140.00</td><td class="num">980.00</td></tr>
+      <tr><td>EQP-0401</td><td>Earthquake pills, trial pack</td><td class="num">36</td><td class="num">0</td><td class="num">30.00</td><td class="num">1,080.00</td></tr>
+      <tr><td>DEH-0501</td><td>Dehydrated boulders (12-pack)</td><td class="num">20</td><td class="num">2</td><td class="num">15.00</td><td class="num">300.00</td></tr>
+      <tr><td>DEH-0502</td><td>Instant mountain (small)</td><td class="num">9</td><td class="num">0</td><td class="num">250.00</td><td class="num">2,250.00</td></tr>
+      <tr><td>PNT-0601</td><td>Instant tunnel paint</td><td class="num">16</td><td class="num">0</td><td class="num">75.00</td><td class="num">1,200.00</td></tr>
+      <tr><td>PNT-0602</td><td>Invisible paint (quart)</td><td class="num">28</td><td class="num">5</td><td class="num">40.00</td><td class="num">1,120.00</td></tr>
+      <tr><td>BOX-0701</td><td>Spring-loaded boxing glove</td><td class="num">13</td><td class="num">1</td><td class="num">55.00</td><td class="num">715.00</td></tr>
+      <tr><td>BOX-0702</td><td>Boomerang, returning (certified)</td><td class="num">22</td><td class="num">0</td><td class="num">33.00</td><td class="num">726.00</td></tr>
+      <tr><td>BIR-0801</td><td>Bird seed, industrial (50 lb)</td><td class="num">64</td><td class="num">0</td><td class="num">8.00</td><td class="num">512.00</td></tr>
+      <tr><td>BIR-0802</td><td>Female roadrunner costume</td><td class="num">6</td><td class="num">2</td><td class="num">99.00</td><td class="num">594.00</td></tr>
+      <tr><td>BIR-0803</td><td>Male roadrunner costume</td><td class="num">6</td><td class="num">2</td><td class="num">95.00</td><td class="num">570.00</td></tr>
+      <tr><td>STL-0901</td><td>Battleship steel armor plate</td><td class="num">4</td><td class="num">0</td><td class="num">300.00</td><td class="num">1,200.00</td></tr>
+      <tr><td>STL-0902</td><td>Magnetic wall walker kit</td><td class="num">17</td><td class="num">3</td><td class="num">42.00</td><td class="num">714.00</td></tr>
+      <tr><td>GUN-1001</td><td>Acme disintegrating pistol</td><td class="num">5</td><td class="num">0</td><td class="num">185.00</td><td class="num">925.00</td></tr>
+      <tr><td>GUN-1002</td><td>Self-guiding umbrella</td><td class="num">12</td><td class="num">1</td><td class="num">67.50</td><td class="num">810.00</td></tr>
+      <tr><td>TOR-1101</td><td>Whirlwind tornado seed</td><td class="num">2</td><td class="num">0</td><td class="num">240.00</td><td class="num">480.00</td></tr>
+      <tr><td>TOR-1102</td><td>Instant icicle maker</td><td class="num">25</td><td class="num">0</td><td class="num">18.00</td><td class="num">450.00</td></tr>
+      <tr><td>TOR-1103</td><td>Snow pellet (case of 144)</td><td class="num">30</td><td class="num">4</td><td class="num">22.00</td><td class="num">660.00</td></tr>
+      <tr><td>FRC-1201</td><td>Instant canyon maker</td><td class="num">3</td><td class="num">1</td><td class="num">310.00</td><td class="num">930.00</td></tr>
+      <tr><td>FRC-1202</td><td>Earthquake generator (portable)</td><td class="num">2</td><td class="num">0</td><td class="num">450.00</td><td class="num">900.00</td></tr>
+      <tr><td>FRC-1203</td><td>Volcano kit (mini)</td><td class="num">10</td><td class="num">2</td><td class="num">85.00</td><td class="num">850.00</td></tr>
+      <tr><td>SPD-1301</td><td>Instant waterfall</td><td class="num">7</td><td class="num">0</td><td class="num">175.00</td><td class="num">1,225.00</td></tr>
+      <tr><td>SPD-1302</td><td>Collapsible trampoline</td><td class="num">15</td><td class="num">0</td><td class="num">95.00</td><td class="num">1,425.00</td></tr>
+      <tr><td>SPD-1303</td><td>Instant bridge (span 30 ft)</td><td class="num">4</td><td class="num">0</td><td class="num">290.00</td><td class="num">1,160.00</td></tr>
+      <tr><td>CLO-1401</td><td>Disappearing/reappearing clothes</td><td class="num">8</td><td class="num">1</td><td class="num">130.00</td><td class="num">1,040.00</td></tr>
+      <tr><td>CLO-1402</td><td>Instant hat (top hat, black)</td><td class="num">19</td><td class="num">0</td><td class="num">48.00</td><td class="num">912.00</td></tr>
+      <tr><td>CLO-1403</td><td>Instant hat (straw, wide brim)</td><td class="num">19</td><td class="num">0</td><td class="num">38.00</td><td class="num">722.00</td></tr>
+      <tr><td>TRP-1501</td><td>Giant fly paper (roll)</td><td class="num">21</td><td class="num">3</td><td class="num">27.00</td><td class="num">567.00</td></tr>
+      <tr><td>TRP-1502</td><td>Acme birdseed lure</td><td class="num">26</td><td class="num">0</td><td class="num">35.00</td><td class="num">910.00</td></tr>
+      <tr><td>TRP-1503</td><td>Super-fast sleeping pills</td><td class="num">31</td><td class="num">0</td><td class="num">28.00</td><td class="num">868.00</td></tr>
+      <tr><td>TRP-1504</td><td>Disintegrating shotgun</td><td class="num">3</td><td class="num">1</td><td class="num">350.00</td><td class="num">1,050.00</td></tr>
+      <tr><td>TRP-1505</td><td>Iron safe (10 lb)</td><td class="num">9</td><td class="num">0</td><td class="num">160.00</td><td class="num">1,440.00</td></tr>
+      <tr><td>TRP-1506</td><td>Bird seed (extra strength)</td><td class="num">40</td><td class="num">0</td><td class="num">11.00</td><td class="num">440.00</td></tr>
+      <tr><td>TRP-1507</td><td>Explosive tennis ball</td><td class="num">12</td><td class="num">2</td><td class="num">65.00</td><td class="num">780.00</td></tr>
+      <tr><td>TRP-1508</td><td>Instant rock</td><td class="num">23</td><td class="num">0</td><td class="num">58.00</td><td class="num">1,334.00</td></tr>
+      <tr><td>TRP-1509</td><td>Giant net</td><td class="num">4</td><td class="num">0</td><td class="num">110.00</td><td class="num">440.00</td></tr>
+      <tr><td>TRP-1510</td><td>Earthquake pill (double strength)</td><td class="num">14</td><td class="num">0</td><td class="num">55.00</td><td class="num">770.00</td></tr>
+      <tr><td>TRP-1511</td><td>Giant slingshot</td><td class="num">6</td><td class="num">0</td><td class="num">240.00</td><td class="num">1,440.00</td></tr>
+      <tr><td>TRP-1512</td><td>Instant volcano (small)</td><td class="num">8</td><td class="num">1</td><td class="num">190.00</td><td class="num">1,520.00</td></tr>
+      <tr><td>TRP-1513</td><td>Collapsible bridge (25 ft)</td><td class="num">5</td><td class="num">0</td><td class="num">270.00</td><td class="num">1,350.00</td></tr>
+      <tr><td>TRP-1514</td><td>Acme racer (single seat)</td><td class="num">3</td><td class="num">0</td><td class="num">610.00</td><td class="num">1,830.00</td></tr>
+      <tr><td>TRP-1515</td><td>Instant cactus</td><td class="num">17</td><td class="num">0</td><td class="num">44.00</td><td class="num">748.00</td></tr>
+      <tr><td>TRP-1516</td><td>Whirlwind kit (home)</td><td class="num">11</td><td class="num">0</td><td class="num">125.00</td><td class="num">1,375.00</td></tr>
+      <tr><td>TRP-1517</td><td>Instant glue (industrial drum)</td><td class="num">15</td><td class="num">0</td><td class="num">95.00</td><td class="num">1,425.00</td></tr>
+      <tr><td>TRP-1518</td><td>Giant pencil</td><td class="num">7</td><td class="num">0</td><td class="num">72.00</td><td class="num">504.00</td></tr>
+      <tr><td>TRP-1519</td><td>Instant snow</td><td class="num">33</td><td class="num">0</td><td class="num">16.00</td><td class="num">528.00</td></tr>
+      <tr><td>TRP-1520</td><td>Explosive cigar</td><td class="num">10</td><td class="num">1</td><td class="num">83.00</td><td class="num">830.00</td></tr>
+      <tr><td>TRP-1521</td><td>Instant wall (10 × 10 ft)</td><td class="num">4</td><td class="num">0</td><td class="num">260.00</td><td class="num">1,040.00</td></tr>
+      <tr><td>TRP-1522</td><td>Acme hole punch (giant)</td><td class="num">6</td><td class="num">0</td><td class="num">215.00</td><td class="num">1,290.00</td></tr>
+      <tr><td>TRP-1523</td><td>Instant ocean (mini)</td><td class="num">5</td><td class="num">0</td><td class="num">340.00</td><td class="num">1,700.00</td></tr>
+      <tr><td>TRP-1524</td><td>Giant fan</td><td class="num">8</td><td class="num">0</td><td class="num">180.00</td><td class="num">1,440.00</td></tr>
+      <tr><td>TRP-1525</td><td>Instant fortress (junior)</td><td class="num">3</td><td class="num">0</td><td class="num">520.00</td><td class="num">1,560.00</td></tr>
+      <tr><td>TRP-1526</td><td>Disappearing ink (12 oz)</td><td class="num">29</td><td class="num">0</td><td class="num">14.00</td><td class="num">406.00</td></tr>
+      <tr><td>TRP-1527</td><td>Instant tree (oak)</td><td class="num">13</td><td class="num">0</td><td class="num">88.00</td><td class="num">1,144.00</td></tr>
+      <tr><td>TRP-1528</td><td>Acme bird (mechanical)</td><td class="num">16</td><td class="num">2</td><td class="num">62.00</td><td class="num">992.00</td></tr>
+      <tr><td>TRP-1529</td><td>Giant scissors</td><td class="num">7</td><td class="num">0</td><td class="num">145.00</td><td class="num">1,015.00</td></tr>
+      <tr><td>TRP-1530</td><td>Instant sunset</td><td class="num">9</td><td class="num">0</td><td class="num">70.00</td><td class="num">630.00</td></tr>
+      <tr><td>TRP-1531</td><td>Explosive umbrella</td><td class="num">12</td><td class="num">0</td><td class="num">98.00</td><td class="num">1,176.00</td></tr>
+      <tr><td>TRP-1532</td><td>Instant duck (rubber, giant)</td><td class="num">18</td><td class="num">0</td><td class="num">42.00</td><td class="num">756.00</td></tr>
+      <tr><td>TRP-1533</td><td>Acme telescope (pocket)</td><td class="num">14</td><td class="num">0</td><td class="num">105.00</td><td class="num">1,470.00</td></tr>
+      <tr><td>TRP-1534</td><td>Instant bridge (draw, 20 ft)</td><td class="num">4</td><td class="num">0</td><td class="num">295.00</td><td class="num">1,180.00</td></tr>
+      <tr><td>TRP-1535</td><td>Giant fan (industrial)</td><td class="num">5</td><td class="num">0</td><td class="num">230.00</td><td class="num">1,150.00</td></tr>
+      <tr><td>TRP-1536</td><td>Instant glacier</td><td class="num">6</td><td class="num">0</td><td class="num">310.00</td><td class="num">1,860.00</td></tr>
+      <tr><td>TRP-1537</td><td>Disappearing/reappearing road</td><td class="num">8</td><td class="num">1</td><td class="num">275.00</td><td class="num">2,200.00</td></tr>
+      <tr><td>TRP-1538</td><td>Instant map (region)</td><td class="num">11</td><td class="num">0</td><td class="num">90.00</td><td class="num">990.00</td></tr>
+      <tr><td>TRP-1539</td><td>Giant balloon (12 ft)</td><td class="num">10</td><td class="num">0</td><td class="num">76.00</td><td class="num">760.00</td></tr>
+      <tr><td>TRP-1540</td><td>Instant river (bendable)</td><td class="num">7</td><td class="num">0</td><td class="num">168.00</td><td class="num">1,176.00</td></tr>
+      <tr><td>TRP-1541</td><td>Acme magnet (giant)</td><td class="num">9</td><td class="num">0</td><td class="num">152.00</td><td class="num">1,368.00</td></tr>
+      <tr><td>TRP-1542</td><td>Instant dam</td><td class="num">5</td><td class="num">0</td><td class="num">260.00</td><td class="num">1,300.00</td></tr>
+      <tr><td>TRP-1543</td><td>Giant rubber chicken</td><td class="num">13</td><td class="num">0</td><td class="num">54.00</td><td class="num">702.00</td></tr>
+      <tr><td>TRP-1544</td><td>Instant castle (inflatable)</td><td class="num">6</td><td class="num">0</td><td class="num">390.00</td><td class="num">2,340.00</td></tr>
+      <tr><td>TRP-1545</td><td>Disintegrating ray gun</td><td class="num">4</td><td class="num">0</td><td class="num">430.00</td><td class="num">1,720.00</td></tr>
+      <tr><td>TRP-1546</td><td>Instant fence (wooden)</td><td class="num">10</td><td class="num">0</td><td class="num">97.00</td><td class="num">970.00</td></tr>
+      <tr><td>TRP-1547</td><td>Giant sling</td><td class="num">8</td><td class="num">0</td><td class="num">118.00</td><td class="num">944.00</td></tr>
+      <tr><td>TRP-1548</td><td>Instant quicksand (bag)</td><td class="num">15</td><td class="num">0</td><td class="num">63.00</td><td class="num">945.00</td></tr>
+      <tr><td>TRP-1549</td><td>Acme safe (portable)</td><td class="num">7</td><td class="num">0</td><td class="num">205.00</td><td class="num">1,435.00</td></tr>
+      <tr><td>TRP-1550</td><td>Instant flagpole (12 ft)</td><td class="num">12</td><td class="num">0</td><td class="num">57.00</td><td class="num">684.00</td></tr>
+      <tr><td>TRP-1551</td><td>Giant parachute</td><td class="num">6</td><td class="num">0</td><td class="num">135.00</td><td class="num">810.00</td></tr>
+      <tr><td>TRP-1552</td><td>Instant telegraph (wireless)</td><td class="num">9</td><td class="num">0</td><td class="num">112.00</td><td class="num">1,008.00</td></tr>
+      <tr><td>TRP-1553</td><td>Disappearing ink (invisible)</td><td class="num">27</td><td class="num">0</td><td class="num">19.00</td><td class="num">513.00</td></tr>
+      <tr><td>TRP-1554</td><td>Instant canyon (large)</td><td class="num">3</td><td class="num">0</td><td class="num">480.00</td><td class="num">1,440.00</td></tr>
+      <tr><td>TRP-1555</td><td>Giant firecracker</td><td class="num">10</td><td class="num">0</td><td class="num">84.00</td><td class="num">840.00</td></tr>
+      <tr><td>TRP-1556</td><td>Instant mountain (large)</td><td class="num">2</td><td class="num">0</td><td class="num">640.00</td><td class="num">1,280.00</td></tr>
+      <tr><td>TRP-1557</td><td>Acme hole punch (pocket)</td><td class="num">16</td><td class="num">0</td><td class="num">48.00</td><td class="num">768.00</td></tr>
+      <tr><td>TRP-1558</td><td>Instant fence (iron)</td><td class="num">8</td><td class="num">0</td><td class="num">147.00</td><td class="num">1,176.00</td></tr>
+      <tr><td>TRP-1559</td><td>Giant magnet (crane)</td><td class="num">5</td><td class="num">0</td><td class="num">310.00</td><td class="num">1,550.00</td></tr>
+      <tr><td>TRP-1560</td><td>Instant forest (seedling pack)</td><td class="num">12</td><td class="num">0</td><td class="num">73.00</td><td class="num">876.00</td></tr>
+      <tr><td>TRP-1561</td><td>Disintegrating pistol (double)</td><td class="num">3</td><td class="num">0</td><td class="num">460.00</td><td class="num">1,380.00</td></tr>
+      <tr><td>TRP-1562</td><td>Instant bridge (rope)</td><td class="num">7</td><td class="num">0</td><td class="num">128.00</td><td class="num">896.00</td></tr>
+      <tr><td>TRP-1563</td><td>Giant snowball maker</td><td class="num">11</td><td class="num">0</td><td class="num">66.00</td><td class="num">726.00</td></tr>
+      <tr><td>TRP-1564</td><td>Instant quicksand (super)</td><td class="num">9</td><td class="num">0</td><td class="num">102.00</td><td class="num">918.00</td></tr>
+      <tr><td>TRP-1565</td><td>Acme rocket (mail-order)</td><td class="num">4</td><td class="num">0</td><td class="num">560.00</td><td class="num">2,240.00</td></tr>
+      <tr><td>TRP-1566</td><td>Instant volcano (large)</td><td class="num">2</td><td class="num">0</td><td class="num">520.00</td><td class="num">1,040.00</td></tr>
+      <tr><td>TRP-1567</td><td>Giant gopher (mechanical)</td><td class="num">6</td><td class="num">0</td><td class="num">238.00</td><td class="num">1,428.00</td></tr>
+      <tr><td>TRP-1568</td><td>Instant dam (collapsible)</td><td class="num">5</td><td class="num">0</td><td class="num">188.00</td><td class="num">940.00</td></tr>
+      <tr><td>TRP-1569</td><td>Disappearing ink (giant drum)</td><td class="num">8</td><td class="num">0</td><td class="num">132.00</td><td class="num">1,056.00</td></tr>
+      <tr><td>TRP-1570</td><td>Instant wall (brick)</td><td class="num">6</td><td class="num">0</td><td class="num">220.00</td><td class="num">1,320.00</td></tr>
+      <tr><td>TRP-1571</td><td>Giant scissors (industrial)</td><td class="num">4</td><td class="num">0</td><td class="num">312.00</td><td class="num">1,248.00</td></tr>
+      <tr><td>TRP-1572</td><td>Instant glacier (mini)</td><td class="num">7</td><td class="num">0</td><td class="num">158.00</td><td class="num">1,106.00</td></tr>
+      <tr><td>TRP-1573</td><td>Acme crane (toy)</td><td class="num">10</td><td class="num">0</td><td class="num">92.00</td><td class="num">920.00</td></tr>
+      <tr><td>TRP-1574</td><td>Instant castle (stone)</td><td class="num">3</td><td class="num">0</td><td class="num">710.00</td><td class="num">2,130.00</td></tr>
+      <tr><td>TRP-1575</td><td>Giant fan (desk)</td><td class="num">14</td><td class="num">0</td><td class="num">49.00</td><td class="num">686.00</td></tr>
+      <tr><td>TRP-1576</td><td>Instant river (wide)</td><td class="num">5</td><td class="num">0</td><td class="num">205.00</td><td class="num">1,025.00</td></tr>
+      <tr><td>TRP-1577</td><td>Disappearing/reappearing house</td><td class="num">2</td><td class="num">0</td><td class="num">1,200.00</td><td class="num">2,400.00</td></tr>
+      <tr><td>TRP-1578</td><td>Instant tree (pine)</td><td class="num">13</td><td class="num">0</td><td class="num">81.00</td><td class="num">1,053.00</td></tr>
+      <tr><td>TRP-1579</td><td>Giant parachute (12 ft)</td><td class="num">4</td><td class="num">0</td><td class="num">175.00</td><td class="num">700.00</td></tr>
+      <tr><td>TRP-1580</td><td>Instant fence (stone)</td><td class="num">7</td><td class="num">0</td><td class="num">154.00</td><td class="num">1,078.00</td></tr>
+      <tr><td>TRP-1581</td><td>Acme gopher (giant)</td><td class="num">5</td><td class="num">0</td><td class="num">245.00</td><td class="num">1,225.00</td></tr>
+      <tr><td>TRP-1582</td><td>Instant snow (super)</td><td class="num">21</td><td class="num">0</td><td class="num">23.00</td><td class="num">483.00</td></tr>
+      <tr><td>TRP-1583</td><td>Giant balloon (24 ft)</td><td class="num">6</td><td class="num">0</td><td class="num">122.00</td><td class="num">732.00</td></tr>
+      <tr><td>TRP-1584</td><td>Instant canyon (mini)</td><td class="num">9</td><td class="num">0</td><td class="num">99.00</td><td class="num">891.00</td></tr>
+      <tr><td>TRP-1585</td><td>Disintegrating umbrella</td><td class="num">8</td><td class="num">0</td><td class="num">137.00</td><td class="num">1,096.00</td></tr>
+      <tr><td>TRP-1586</td><td>Instant bridge (suspension, 40 ft)</td><td class="num">3</td><td class="num">0</td><td class="num">530.00</td><td class="num">1,590.00</td></tr>
+      <tr><td>TRP-1587</td><td>Giant magnet (portable)</td><td class="num">8</td><td class="num">0</td><td class="num">126.00</td><td class="num">1,008.00</td></tr>
+      <tr><td>TRP-1588</td><td>Instant wall (steel)</td><td class="num">5</td><td class="num">0</td><td class="num">248.00</td><td class="num">1,240.00</td></tr>
+      <tr><td>TRP-1589</td><td>Acme safe (industrial)</td><td class="num">4</td><td class="num">0</td><td class="num">305.00</td><td class="num">1,220.00</td></tr>
+      <tr><td>TRP-1590</td><td>Instant ocean (large)</td><td class="num">3</td><td class="num">0</td><td class="num">490.00</td><td class="num">1,470.00</td></tr>
+      <tr><td>TRP-1591</td><td>Giant firecracker (industrial)</td><td class="num">6</td><td class="num">0</td><td class="num">112.00</td><td class="num">672.00</td></tr>
+      <tr><td>TRP-1592</td><td>Instant forest (deluxe)</td><td class="num">8</td><td class="num">0</td><td class="num">101.00</td><td class="num">808.00</td></tr>
+      <tr><td>TRP-1593</td><td>Disappearing ink (invisible, 5 gal)</td><td class="num">10</td><td class="num">0</td><td class="num">29.00</td><td class="num">290.00</td></tr>
+      <tr><td>TRP-1594</td><td>Instant dam (stone)</td><td class="num">4</td><td class="num">0</td><td class="num">236.00</td><td class="num">944.00</td></tr>
+      <tr><td>TRP-1595</td><td>Giant gopher (toy)</td><td class="num">11</td><td class="num">0</td><td class="num">64.00</td><td class="num">704.00</td></tr>
+      <tr><td>TRP-1596</td><td>Instant volcano (home)</td><td class="num">6</td><td class="num">0</td><td class="num">143.00</td><td class="num">858.00</td></tr>
+      <tr><td>TRP-1597</td><td>Acme rocket (giant)</td><td class="num">2</td><td class="num">0</td><td class="num">890.00</td><td class="num">1,780.00</td></tr>
+      <tr><td>TRP-1598</td><td>Instant snow (industrial)</td><td class="num">15</td><td class="num">0</td><td class="num">31.00</td><td class="num">465.00</td></tr>
+      <tr><td>TRP-1599</td><td>Giant balloon (36 ft)</td><td class="num">4</td><td class="num">0</td><td class="num">180.00</td><td class="num">720.00</td></tr>
+      <tr><td>TRP-1600</td><td>Instant canyon (super)</td><td class="num">5</td><td class="num">0</td><td class="num">330.00</td><td class="num">1,650.00</td></tr>
+    </tbody>
+    <tfoot>
+      <tr><td colspan="4">Total line items: 150</td><td class="num">—</td><td class="num">158,900.00</td></tr>
+    </tfoot>
+  </table>
+
+  <div class="note">150 rows across multiple pages: the table header repeats at
+  the top of every page, rows move whole (never sliced mid-row), and the total
+  row sits at the bottom of the closing fragment.</div>
+</body>
+</html>

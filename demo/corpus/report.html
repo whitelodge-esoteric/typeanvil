@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Q3 2026 Quarterly Report — Northwind</title>
+<style>
+  /* Geometry via CLI flags only (demo spec). Margins + margin boxes OK. */
+  @page {
+    margin: 0.5in;
+    @top-left { content: string(chapter); }
+    @top-right { content: "Northwind Systems — Q3 2026"; }
+    @bottom-center { content: counter(page); }
+  }
+  body { font-family: sans-serif; font-size: 10pt; color: #222; line-height: 1.35; }
+  h1 { color: #1d3557; font-size: 16pt; string-set: chapter content(); margin: 0 0 4pt 0; }
+  h2 { color: #457b9d; font-size: 12pt; margin: 8pt 0 3pt 0; }
+  p { margin: 0 0 5pt 0; }
+  .chapter { display: block; break-before: page; }
+  .toc { display: block; }
+  .toc h1 { string-set: chapter content(); }
+  .toc a { display: block; color: #222; text-decoration: none; }
+  .e1 { content: "1  Foundations " leader('.') target-counter(attr(href), page); }
+  .e2 { content: "2  Methods " leader('.') target-counter(attr(href), page); }
+  .e3 { content: "3  Results " leader('.') target-counter(attr(href), page); }
+  .e4 { content: "4  Discussion " leader('.') target-counter(attr(href), page); }
+  table { border-collapse: collapse; width: 100%; margin: 4pt 0; }
+  th, td { border: 0.5pt solid #bbb; padding: 2pt 4pt; font-size: 9pt; text-align: left; }
+  thead th { background-color: #e9f0f5; }
+  .num { text-align: right; }
+</style>
+</head>
+<body>
+  <div class="toc">
+    <h1>Table of Contents</h1>
+    <a class="e1" href="#ch1">Foundations</a>
+    <a class="e2" href="#ch2">Methods</a>
+    <a class="e3" href="#ch3">Results</a>
+    <a class="e4" href="#ch4">Discussion</a>
+  </div>
+
+  <div class="chapter">
+    <h1 id="ch1">Foundations</h1>
+    <h2>Background</h2>
+    <p>This report examines the load-bearing assumptions behind the Northwind
+    platform and the evidence gathered over the third quarter. The foundations
+    chapter sets out the terminology and the measurement conventions used
+    throughout, so that every subsequent figure is comparable.</p>
+    <p>Each chapter begins on its own page. Running headers carry the current
+    chapter name into the top margin, page numbers sit centered at the bottom,
+    and the table of contents at the front resolves each entry to the page
+    where its chapter begins, with dotted leaders filling the space between
+    the title and the number.</p>
+    <h2>Scope</h2>
+    <p>The scope is deliberately narrow: only the paged-media behaviors a
+    typesetting engine must reproduce to render a professional report are
+    considered. Everything else is out of band for this quarter.</p>
+  </div>
+
+  <div class="chapter">
+    <h1 id="ch2">Methods</h1>
+    <h2>Procedure</h2>
+    <p>The procedure followed a fixed protocol applied identically across all
+    trials. Determinism was verified by re-running each case and comparing the
+    byte output, which must be identical for the run to count.</p>
+    <p>Instrumentation was kept minimal to avoid perturbing the measured
+    quantities, and every derived figure is traceable to a raw observation
+    recorded at ingest time.</p>
+    <h2>Materials</h2>
+    <p>Materials were sourced from a single deterministic generator so that
+    the inputs themselves never varied between runs of the experiment, making
+    the reported numbers directly comparable across quarters.</p>
+  </div>
+
+  <div class="chapter">
+    <h1 id="ch3">Results</h1>
+    <h2>Headline metrics</h2>
+    <table>
+      <thead>
+        <tr><th>Metric</th><th class="num">Q2</th><th class="num">Q3</th><th class="num">Δ</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Revenue (kUSD)</td><td class="num">1,204</td><td class="num">1,388</td><td class="num">+15.3%</td></tr>
+        <tr><td>Gross margin</td><td class="num">61.2%</td><td class="num">63.8%</td><td class="num">+2.6pp</td></tr>
+        <tr><td>Active accounts</td><td class="num">312</td><td class="num">341</td><td class="num">+9.3%</td></tr>
+        <tr><td>Churn (annualized)</td><td class="num">4.1%</td><td class="num">3.2%</td><td class="num">−0.9pp</td></tr>
+        <tr><td>P50 render time (ms)</td><td class="num">2,140</td><td class="num">1,180</td><td class="num">−44.9%</td></tr>
+      </tbody>
+    </table>
+    <h2>Findings</h2>
+    <p>The findings confirm the central hypothesis: running headers, page
+    numbers, and cross-referenced page numbers can all be produced in a single
+    bounded set of layout passes without sacrificing determinism, and the
+    improvement in render time came from the fragmentation core, not from
+    faster I/O.</p>
+    <p>The table of contents at the front of this document resolves each entry
+    to the page where its chapter begins, with dotted leaders filling the space
+    between the title and the number.</p>
+    <h2>Discussion</h2>
+    <p>Future work will extend the running-content model to cloned elements
+    and to named counter styles, neither of which was required for this
+    quarter's report.</p>
+  </div>
+
+  <div class="chapter">
+    <h1 id="ch4">Discussion</h1>
+    <h2>Interpretation</h2>
+    <p>The results are consistent with the plan: fragmentation-first layout
+    pays for itself once documents exceed a single page. The table above
+    fragments cleanly across page boundaries when it must, and its header
+    repeats on each page, exactly as a printed financial report requires.</p>
+    <p>We close the quarter on track against the roadmap, with the engine now
+    producing professional documents end to end: cover, contents, chapters,
+    running content, and cross-referenced page numbers.</p>
+  </div>
+</body>
+</html>

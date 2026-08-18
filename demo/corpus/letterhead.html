@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Northwind Systems — Letterhead</title>
+<style>
+  /* Geometry via CLI flags only (demo spec). */
+  @page {
+    margin: 0.75in;
+    @top-left { content: "Northwind Systems"; }
+    @top-right { content: "www.northwind.example"; }
+    @bottom-center { content: "Page " counter(page) " of " counter(pages); }
+  }
+  @page cover {
+    margin: 0.75in;
+    @top-left { content: none; }
+    @top-right { content: none; }
+    @bottom-center { content: none; }
+  }
+  body { font-family: sans-serif; font-size: 10pt; color: #222; line-height: 1.4; }
+  .cover { page: cover; break-after: page; }
+  .brand { font-size: 20pt; font-weight: bold; color: #1d3557; margin-bottom: 4pt; }
+  .tagline { color: #457b9d; font-size: 10pt; margin-bottom: 18pt; }
+  .body { page: auto; }
+  h1 { font-size: 14pt; color: #1d3557; margin: 0 0 6pt 0; }
+  p { margin: 0 0 6pt 0; text-align: justify; hyphens: auto; }
+  .sig { margin-top: 14pt; font-size: 10pt; }
+  .sig .name { font-weight: bold; }
+  .footer-note { margin-top: 16pt; font-size: 8pt; color: #666; }
+</style>
+</head>
+<body>
+  <div class="cover">
+    <div class="brand">Northwind Systems</div>
+    <div class="tagline">Paged-media typesetting, done properly.</div>
+    <p>This letterhead demonstrates named pages and page-margin boxes: the
+    cover page carries no running content, while the letter pages that follow
+    show the company name top-left, the domain top-right, and a
+    page-number-of-total footer centered at the bottom. The cover uses the
+    <code>page: cover</code> property to select a distinct <code>@page
+    cover</code> rule whose margin boxes are empty.</p>
+    <p>Switching between named pages is a single property — no duplicated
+    markup, no manual page breaks. The engine resolves the named page from
+    the element's computed <code>page</code> value and applies the matching
+    rule's size, margins, and margin-box content to the fragmentainer that
+    begins there.</p>
+  </div>
+
+  <div class="body">
+    <h1>Re: proposal for the typesetting evaluation</h1>
+    <p>Dear Evaluator,</p>
+    <p>Thank you for the opportunity to submit Northwind Systems for the
+    evaluation of paged-media typesetting engines. We believe the documents
+    in this corpus demonstrate precisely the wedge that matters for
+    professional publishing: real page geometry, running content, numbered
+    pages, cross-referenced tables of contents, and text that is justified
+    and hyphenated to a quality standard readers recognize from fine print.</p>
+    <p>This letter itself is a demonstration. The cover page you see before
+    this one is a named page with its own rule; the letter pages carry
+    running headers and a page-number-of-total footer. Every element on this
+    page — the alignment, the justified prose, the hanging punctuation — is
+    produced by the typesetting engine under evaluation, not by a word
+    processor pretending to be one.</p>
+    <p>We would welcome a side-by-side comparison of our output against the
+    incumbent on any document in the corpus. The fixtures were chosen to
+    exercise the features that matter most to publishers: fragmentation
+    without slicing, tables that repeat their headers across pages, running
+    strings and counters, and typography that does not embarrass the prose.</p>
+    <p>Please do not hesitate to reach out with any questions, or to request
+    additional fixture documents exercising features not yet covered here.</p>
+    <div class="sig">
+      <div class="name">E. Boston</div>
+      <div>Director of Engineering, Northwind Systems</div>
+    </div>
+    <div class="footer-note">Named pages and margin boxes are shipped features;
+    the letterhead demonstrates them on a real two-part document (cover +
+    letter body).</div>
+  </div>
+</body>
+</html>
