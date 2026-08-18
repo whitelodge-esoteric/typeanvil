@@ -195,6 +195,6 @@ fn measure_text_height(text: &str, style: &ComputedStyle, max_width: Scalar) -> 
     let hyphenate = style.hyphens == Hyphens::Auto;
     let justify = style.text_align == TextAlign::Justify;
     let lines = break_paragraph(text, max_width, style, hyphenate, justify);
-    let line_height = style.font_size * 1.2;
+    let line_height = style.line_height;
     line_height * (lines.len() as f64)
 }

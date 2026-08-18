@@ -33,7 +33,10 @@
 
 use std::collections::BTreeMap;
 
-use crate::css::{cascade, ComputedStyle, Display, Hyphens, StringSetValue, Stylesheet, TextAlign};
+use crate::css::{
+    cascade, ComputedStyle, Display, Hyphens, StringSetValue, Stylesheet, TextAlign,
+    NORMAL_LINE_HEIGHT_FACTOR,
+};
 use crate::dom::{Dom, NodeId, NodeKind};
 use crate::frag::{
     BorderBox, BreakInside, BreakToken, ChildToken, Fragment, FragmentContent, Fragmentainer,
@@ -47,8 +50,6 @@ use crate::paged::{
 use crate::table::{measure_columns, measure_rows};
 use crate::typography::{break_paragraph, LineResult};
 
-/// Line-height multiple applied to font-size.
-const LINE_HEIGHT_FACTOR: f64 = 1.2;
 /// Approximate average glyph advance as a fraction of the em (font-size).
 const AVG_ADVANCE_EM: f64 = 0.5;
 /// Safety cap: a runaway that emits more pages than this is a bug, not a
@@ -463,7 +464,7 @@ impl<'a> Ctx<'a> {
                 .unwrap_or(items.len())
         };
 
-        let line_height = |s: &ComputedStyle| s.font_size * LINE_HEIGHT_FACTOR;
+        let line_height = |s: &ComputedStyle| s.line_height;
 
         // Generated content (`content` property, e.g. a TOC entry) is emitted
         // as one line at the start of the box, when the box starts fresh. Its
@@ -1301,7 +1302,7 @@ impl<'a> Ctx<'a> {
                     // The SAME breaker layout uses, so measured heights match
                     // laid-out heights (`break-inside: avoid` correctness).
                     let lines = self.break_paragraph(&text, inner_width, style);
-                    h = h + (style.font_size * LINE_HEIGHT_FACTOR) * (lines.len() as f64);
+                    h = h + style.line_height * (lines.len() as f64);
                 }
                 Item::Block(child) => {
                     h = h + self.measure_block(child, inner_width);
@@ -1643,7 +1644,7 @@ fn attach_margin_boxes(
     let content = geo.content_rect();
     // A fixed margin-box font size (points). Margin boxes are one line.
     let font_size = Scalar(10.0);
-    let lh = font_size * LINE_HEIGHT_FACTOR;
+    let lh = font_size * NORMAL_LINE_HEIGHT_FACTOR;
 
     for (name, pieces) in &spec.margin_boxes {
         let text = render_margin_content(pieces, flow);
