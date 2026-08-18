@@ -15,3 +15,10 @@ docsite/node_modules/
 docsite/build/
 docsite/.docusaurus/
 docsite/.cache/
+# CocoIndex Code (ccc)
+/.cocoindex_code/
+
+# Generated demo output (gallery + scoreboard are artifacts of build-demo.sh;
+# the first baseline run is committed by CORE-72 explicitly).
+demo/out/
+demo/out.baseline/
