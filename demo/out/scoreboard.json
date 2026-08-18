@@ -1,0 +1,313 @@
+{
+  "generated": "2026-08-18T19:58:51Z",
+  "typeanvil_version": "daff6e0",
+  "prince_version": "Prince 16.2",
+  "docs": [
+    {
+      "name": "Invoice",
+      "file": "invoice.html",
+      "typeanvil_pages": 4,
+      "prince_pages": 5,
+      "page_count_mismatch": true,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 27.436342592592595
+        },
+        {
+          "page": 2,
+          "diff_percent": 28.971354166666668
+        },
+        {
+          "page": 3,
+          "diff_percent": 28.898292824074073
+        },
+        {
+          "page": 4,
+          "diff_percent": 29.759837962962965
+        }
+      ],
+      "overall_diff_percent": 28.766456886574076,
+      "render_error": null
+    },
+    {
+      "name": "Letterhead",
+      "file": "letterhead.html",
+      "typeanvil_pages": 8,
+      "prince_pages": 8,
+      "page_count_mismatch": false,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 14.535590277777777
+        },
+        {
+          "page": 2,
+          "diff_percent": 20.266203703703702
+        },
+        {
+          "page": 3,
+          "diff_percent": 6.6095196759259265
+        },
+        {
+          "page": 4,
+          "diff_percent": 16.21600115740741
+        },
+        {
+          "page": 5,
+          "diff_percent": 21.241319444444446
+        },
+        {
+          "page": 6,
+          "diff_percent": 20.41015625
+        },
+        {
+          "page": 7,
+          "diff_percent": 16.333912037037038
+        },
+        {
+          "page": 8,
+          "diff_percent": 10.85792824074074
+        }
+      ],
+      "overall_diff_percent": 15.80882884837963,
+      "render_error": null
+    },
+    {
+      "name": "Academic Paper",
+      "file": "paper.html",
+      "typeanvil_pages": 9,
+      "prince_pages": 10,
+      "page_count_mismatch": true,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 27.010995370370374
+        },
+        {
+          "page": 2,
+          "diff_percent": 28.54962384259259
+        },
+        {
+          "page": 3,
+          "diff_percent": 28.909866898148145
+        },
+        {
+          "page": 4,
+          "diff_percent": 27.20341435185185
+        },
+        {
+          "page": 5,
+          "diff_percent": 29.476273148148145
+        },
+        {
+          "page": 6,
+          "diff_percent": 30.443431712962965
+        },
+        {
+          "page": 7,
+          "diff_percent": 31.59866898148148
+        },
+        {
+          "page": 8,
+          "diff_percent": 30.209056712962962
+        },
+        {
+          "page": 9,
+          "diff_percent": 25.674913194444443
+        }
+      ],
+      "overall_diff_percent": 28.78624935699588,
+      "render_error": null
+    },
+    {
+      "name": "Prose Showcase",
+      "file": "prose.html",
+      "typeanvil_pages": 9,
+      "prince_pages": 10,
+      "page_count_mismatch": true,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 27.84722222222222
+        },
+        {
+          "page": 2,
+          "diff_percent": 29.70847800925926
+        },
+        {
+          "page": 3,
+          "diff_percent": 27.939814814814817
+        },
+        {
+          "page": 4,
+          "diff_percent": 29.72873263888889
+        },
+        {
+          "page": 5,
+          "diff_percent": 29.288194444444443
+        },
+        {
+          "page": 6,
+          "diff_percent": 31.647135416666668
+        },
+        {
+          "page": 7,
+          "diff_percent": 31.127748842592595
+        },
+        {
+          "page": 8,
+          "diff_percent": 26.42288773148148
+        },
+        {
+          "page": 9,
+          "diff_percent": 18.309461805555554
+        }
+      ],
+      "overall_diff_percent": 28.002186213991763,
+      "render_error": null
+    },
+    {
+      "name": "Quarterly Report",
+      "file": "report.html",
+      "typeanvil_pages": 10,
+      "prince_pages": 10,
+      "page_count_mismatch": false,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 9.51099537037037
+        },
+        {
+          "page": 2,
+          "diff_percent": 23.002748842592595
+        },
+        {
+          "page": 3,
+          "diff_percent": 24.189814814814813
+        },
+        {
+          "page": 4,
+          "diff_percent": 21.040219907407405
+        },
+        {
+          "page": 5,
+          "diff_percent": 13.55685763888889
+        },
+        {
+          "page": 6,
+          "diff_percent": 21.11617476851852
+        },
+        {
+          "page": 7,
+          "diff_percent": 29.739583333333336
+        },
+        {
+          "page": 8,
+          "diff_percent": 15.726996527777779
+        },
+        {
+          "page": 9,
+          "diff_percent": 21.85112847222222
+        },
+        {
+          "page": 10,
+          "diff_percent": 7.382812499999999
+        }
+      ],
+      "overall_diff_percent": 18.71173321759259,
+      "render_error": null
+    },
+    {
+      "name": "Inventory Ledger — Table Fragmentation Stress",
+      "file": "table-stress.html",
+      "typeanvil_pages": 20,
+      "prince_pages": 41,
+      "page_count_mismatch": true,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 35.62355324074074
+        },
+        {
+          "page": 2,
+          "diff_percent": 35.49406828703704
+        },
+        {
+          "page": 3,
+          "diff_percent": 33.556857638888886
+        },
+        {
+          "page": 4,
+          "diff_percent": 35.66984953703704
+        },
+        {
+          "page": 5,
+          "diff_percent": 34.249855324074076
+        },
+        {
+          "page": 6,
+          "diff_percent": 33.70804398148148
+        },
+        {
+          "page": 7,
+          "diff_percent": 31.707899305555554
+        },
+        {
+          "page": 8,
+          "diff_percent": 34.594907407407405
+        },
+        {
+          "page": 9,
+          "diff_percent": 35.684317129629626
+        },
+        {
+          "page": 10,
+          "diff_percent": 34.21730324074074
+        },
+        {
+          "page": 11,
+          "diff_percent": 34.464699074074076
+        },
+        {
+          "page": 12,
+          "diff_percent": 34.926938657407405
+        },
+        {
+          "page": 13,
+          "diff_percent": 34.49435763888889
+        },
+        {
+          "page": 14,
+          "diff_percent": 35.714699074074076
+        },
+        {
+          "page": 15,
+          "diff_percent": 35.10706018518518
+        },
+        {
+          "page": 16,
+          "diff_percent": 34.06539351851852
+        },
+        {
+          "page": 17,
+          "diff_percent": 34.00535300925926
+        },
+        {
+          "page": 18,
+          "diff_percent": 32.760416666666664
+        },
+        {
+          "page": 19,
+          "diff_percent": 34.410445601851855
+        },
+        {
+          "page": 20,
+          "diff_percent": 25.496961805555557
+        }
+      ],
+      "overall_diff_percent": 33.997649016203695,
+      "render_error": null
+    }
+  ]
+}
