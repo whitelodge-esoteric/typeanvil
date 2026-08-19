@@ -3,8 +3,8 @@
 //! This module replaces the skeleton's greedy first-fit breaker and its
 //! 0.5-em-per-char width approximation with a real pipeline:
 //!
-//! - **Shaping** (HarfRust 0.13): each word is shaped against the embedded font
-//!   at its font size, producing per-glyph ids and advances in points.
+//! - **Shaping** (HarfRust 0.13): each word is shaped against the embedded
+//!   font face at its font size, producing per-glyph ids and advances in points.
 //! - **Break opportunities** (UAX #14 via `unicode-linebreak` 0.1.5): candidate
 //!   break points between words. The spec's Interfaces name `icu_segmenter` but
 //!   allow a pure-Rust UAX #14 fallback behind one function
@@ -40,34 +40,71 @@ use hypher::Lang;
 use unicode_linebreak::{linebreaks, BreakOpportunity as UaxBreak};
 
 use crate::css::ComputedStyle;
+use crate::fonts::{face_path, FontFace};
 use crate::geom::Scalar;
 
 /// The K-P hyphen penalty (Typst's default, from Knuth-Plass §hyphenation).
 const HYPHEN_PENALTY: f64 = 135.0;
 
-/// The embedded font path (same as the PDF backend). A later issue bundles a
-/// portable font; for now shaping and drawing share these exact bytes so
-/// measured widths match drawn widths.
-const FONT_PATH: &str = "/System/Library/Fonts/Supplemental/Arial.ttf";
+/// The embedded font bytes, loaded once per face. `'static` so a [`FontRef`]
+/// can borrow them for the whole process. The initializer is fixed, hence
+/// `LazyLock`.
+static FACE_BYTES: [LazyLock<Vec<u8>>; 4] = [
+    LazyLock::new(|| {
+        std::fs::read(face_path(FontFace::Regular))
+            .expect("reading embedded font for shaping")
+    }),
+    LazyLock::new(|| {
+        std::fs::read(face_path(FontFace::Bold)).expect("reading embedded font for shaping")
+    }),
+    LazyLock::new(|| {
+        std::fs::read(face_path(FontFace::Italic))
+            .expect("reading embedded font for shaping")
+    }),
+    LazyLock::new(|| {
+        std::fs::read(face_path(FontFace::BoldItalic))
+            .expect("reading embedded font for shaping")
+    }),
+];
 
-/// The embedded font bytes, loaded once. `'static` so a [`FontRef`] can borrow
-/// them for the whole process. The initializer is fixed, hence `LazyLock`.
-static FONT_BYTES: LazyLock<Vec<u8>> =
-    LazyLock::new(|| std::fs::read(FONT_PATH).expect("reading embedded font for shaping"));
+/// Cached shaper data (OpenType tables) per face, built once. Borrows the
+/// corresponding entry in [`FACE_BYTES`]; both live for the process, so
+/// shaping never re-reads or re-parses the font.
+static FACE_SHAPERS: [LazyLock<(FontRef<'static>, ShaperData)>; 4] = [
+    LazyLock::new(|| {
+        let bytes = &FACE_BYTES[FontFace::Regular as usize];
+        let font = FontRef::new(bytes).expect("parsing embedded font for shaping");
+        let data = ShaperData::new(&font);
+        (font, data)
+    }),
+    LazyLock::new(|| {
+        let bytes = &FACE_BYTES[FontFace::Bold as usize];
+        let font = FontRef::new(bytes).expect("parsing embedded font for shaping");
+        let data = ShaperData::new(&font);
+        (font, data)
+    }),
+    LazyLock::new(|| {
+        let bytes = &FACE_BYTES[FontFace::Italic as usize];
+        let font = FontRef::new(bytes).expect("parsing embedded font for shaping");
+        let data = ShaperData::new(&font);
+        (font, data)
+    }),
+    LazyLock::new(|| {
+        let bytes = &FACE_BYTES[FontFace::BoldItalic as usize];
+        let font = FontRef::new(bytes).expect("parsing embedded font for shaping");
+        let data = ShaperData::new(&font);
+        (font, data)
+    }),
+];
 
-/// Cached shaper data (OpenType tables) for the embedded font, built once.
-/// Borrows [`FONT_BYTES`]; both live for the process, so shaping never re-reads
-/// or re-parses the font.
-static SHAPER: LazyLock<(FontRef<'static>, ShaperData)> = LazyLock::new(|| {
-    let font = FontRef::new(&FONT_BYTES).expect("parsing embedded font for shaping");
-    let data = ShaperData::new(&font);
-    (font, data)
-});
+fn face_shaper(face: FontFace) -> &'static (FontRef<'static>, ShaperData) {
+    &FACE_SHAPERS[face as usize]
+}
 
 /// One shaped glyph.
 #[derive(Clone, Debug)]
 pub struct ShapedGlyph {
-    /// Glyph id in the embedded font.
+    /// Glyph id in the selected face.
     pub id: u32,
     /// Advance in points at the run's font size.
     pub x_advance: Scalar,
@@ -142,12 +179,12 @@ pub struct LineResult {
     pub protrude_right: Scalar,
 }
 
-/// Shape a single word against the embedded font at `font_size`.
+/// Shape a single word against the selected face at `font_size`.
 ///
 /// Returns a [`ShapeRun`] whose glyph advances are in points. Missing glyphs
 /// resolve to the font's `.notdef` deterministically (no crash).
-pub fn shape_word(word: &str, font_size: Scalar) -> ShapeRun {
-    let (font, data) = &*SHAPER;
+pub fn shape_word(word: &str, font_size: Scalar, face: FontFace) -> ShapeRun {
+    let (font, data) = face_shaper(face);
     let shaper = data.shaper(font).build();
     let upem = shaper.units_per_em() as f64;
     let scale = font_size.get() / upem;
@@ -243,11 +280,11 @@ enum Item {
     },
 }
 
-/// Space glue for the embedded font at `font_size`: natural width is the space
+/// Space glue for the selected face at `font_size`: natural width is the space
 /// glyph advance; stretch/shrink are the classic TeX fractions of the space
 /// (1/2 stretch, 1/3 shrink) for a comfortable justified texture.
-fn space_glue(font_size: Scalar) -> Glue {
-    let space = shape_word(" ", font_size).width;
+fn space_glue(font_size: Scalar, face: FontFace) -> Glue {
+    let space = shape_word(" ", font_size, face).width;
     Glue {
         width: space,
         stretch: space * 0.5,
@@ -258,9 +295,9 @@ fn space_glue(font_size: Scalar) -> Glue {
 /// Tokenize a paragraph into the K-P item stream. Words are shaped; spaces
 /// become glue; `hyphenate` adds intra-word hyphen penalties from `hypher`.
 /// UAX #14 boundaries confirm where inter-word breaks are legal.
-fn build_items(text: &str, font_size: Scalar, hyphenate: bool) -> Vec<Item> {
-    let glue = space_glue(font_size);
-    let hyphen_run = shape_word("-", font_size);
+fn build_items(text: &str, font_size: Scalar, face: FontFace, hyphenate: bool) -> Vec<Item> {
+    let glue = space_glue(font_size, face);
+    let hyphen_run = shape_word("-", font_size, face);
     let mut items: Vec<Item> = Vec::new();
     let words: Vec<&str> = text.split_whitespace().collect();
     for (wi, word) in words.iter().enumerate() {
@@ -268,7 +305,7 @@ fn build_items(text: &str, font_size: Scalar, hyphenate: bool) -> Vec<Item> {
             // Inter-word glue is a legal (zero-penalty) breakpoint.
             items.push(Item::Glue(glue));
         }
-        push_word(&mut items, word, font_size, hyphenate, &hyphen_run);
+        push_word(&mut items, word, font_size, hyphenate, &hyphen_run, face);
     }
     items
 }
@@ -283,20 +320,22 @@ fn push_word(
     font_size: Scalar,
     hyphenate: bool,
     hyphen_run: &ShapeRun,
+    face: FontFace,
 ) {
     if !hyphenate || word.chars().count() < 5 {
-        items.push(Item::Box(shape_word(word, font_size)));
+        items.push(Item::Box(shape_word(word, font_size, face)));
         return;
     }
     // hypher hyphenates only the alphabetic core; shape each syllable as a box
     // and place a hyphen penalty between consecutive syllables.
     let syllables: Vec<&str> = hypher::hyphenate(word, Lang::English).collect();
     if syllables.len() <= 1 {
-        items.push(Item::Box(shape_word(word, font_size)));
+        items.push(Item::Box(shape_word(word, font_size, face)));
         return;
     }
     for (si, syl) in syllables.iter().enumerate() {
         if si > 0 {
+            // Candidate break with a hyphen glyph.
             items.push(Item::Penalty {
                 penalty: HYPHEN_PENALTY,
                 width: hyphen_run.width,
@@ -304,7 +343,7 @@ fn push_word(
                 forced: false,
             });
         }
-        items.push(Item::Box(shape_word(syl, font_size)));
+        items.push(Item::Box(shape_word(syl, font_size, face)));
     }
 }
 
@@ -640,13 +679,14 @@ pub fn break_paragraph(
         return Vec::new();
     }
     let font_size = style.font_size;
-    let items = build_items(text, font_size, hyphenate);
+    let face = crate::fonts::face_for(style.font_weight, style.font_style);
+    let items = build_items(text, font_size, face, hyphenate);
     if items.is_empty() {
         return Vec::new();
     }
     let breaks = knuth_plass(&items, max_width.get(), justify);
     // The inter-word space glyph, shaped once per paragraph.
-    let space_run = shape_word(" ", font_size);
+    let space_run = shape_word(" ", font_size, face);
     let mut lines = Vec::with_capacity(breaks.len());
     let mut start = 0usize;
     for (bi, &end) in breaks.iter().enumerate() {

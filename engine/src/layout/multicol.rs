@@ -570,7 +570,7 @@ impl<'a> Ctx<'a> {
                             baseline: Point::new(lx, baseline),
                             font_size: style.font_size,
                             color: style.color,
-                            font_family: style.font_family.clone(),
+                            font_face: crate::fonts::face_for(style.font_weight, style.font_style),
                             glyphs: lr.glyphs.clone(),
                             expansion: lr.expansion,
                             protrude_left: lr.protrude_left,

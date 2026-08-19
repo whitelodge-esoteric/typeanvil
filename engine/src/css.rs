@@ -41,6 +41,7 @@ use style::properties::generated::longhands::column_span::computed_value::T as S
 use style::values::computed::box_::Float as StyloFloat;
 use style::values::computed::column::ColumnCount as StyloColumnCount;
 use style::values::computed::font::{FontFamily, LineHeight, SingleFontFamily};
+use style::values::computed::font::FontStyle as StyloFontStyle;
 use style::values::computed::length::{
     NonNegativeLengthOrAuto as StyloColumnWidth, NonNegativeLengthPercentageOrNormal as StyloColumnGap,
 };
@@ -148,6 +149,13 @@ pub enum Hyphens {
     Auto,
 }
 
+/// The computed `font-style` value (css-fonts-4 §3). Oblique folds into italic.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FontStyle {
+    Normal,
+    Italic,
+}
+
 /// The value of a single `string-set` assignment.
 ///
 /// Only `content()` (the element's own text content) is modeled; `attr()` and
@@ -181,6 +189,10 @@ pub struct ComputedStyle {
     pub font_size: Scalar,
     /// The resolved line box height in points (`line-height` property).
     pub line_height: Scalar,
+    /// The computed numeric `font-weight` (400 = normal, 700 = bold).
+    pub font_weight: f32,
+    /// The computed `font-style` (oblique folded into italic).
+    pub font_style: FontStyle,
     pub font_family: String,
     pub display: Display,
     /// The computed `float` value (css-box-3 §2). `Left`/`Right` take the
@@ -264,6 +276,8 @@ impl ComputedStyle {
             border_color: None,
             font_size: px_to_pt(16.0),
             line_height: px_to_pt(16.0) * NORMAL_LINE_HEIGHT_FACTOR,
+            font_weight: 400.0,
+            font_style: FontStyle::Normal,
             font_family: "sans-serif".to_string(),
             display: Display::Inline,
             float: Float::None,
@@ -650,6 +664,11 @@ impl CascadeSession {
         };
 
         let font_size = px_to_pt(font.clone_font_size().computed_size().px() as f64);
+        let font_weight = font.clone_font_weight().value();
+        let font_style = match font.clone_font_style() {
+            s if s == StyloFontStyle::NORMAL => FontStyle::Normal,
+            _ => FontStyle::Italic,
+        };
         // column-gap resolves `normal` to 1em against the font size.
         let column_gap = match position.clone_column_gap() {
             StyloColumnGap::Normal => font_size,
@@ -691,6 +710,8 @@ impl CascadeSession {
             line_height,
             font_family,
             display,
+            font_weight,
+            font_style,
             float,
             width,
             position: position_prop,

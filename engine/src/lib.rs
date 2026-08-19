@@ -8,6 +8,7 @@
 pub mod css;
 pub mod dom;
 pub mod frag;
+pub mod fonts;
 pub mod geom;
 pub mod layout;
 pub mod paged;
