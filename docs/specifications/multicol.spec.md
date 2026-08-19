@@ -183,7 +183,12 @@ Each criterion maps to a test in `engine/tests/multicol.rs` (helpers mirror
    every enclosing context).
 5. **Fragment across pages.** Given a multicol container taller than a page,
    the remaining content resumes on the next page as a fresh balanced set of
-   columns; no column slices a line.
+   columns; no column slices a line. Partial fills anchor columns at the
+   container's current content cursor, so content taller than the page
+   (e.g. a long table) progresses instead of re-laying its first row forever
+   (CORE-78 regression `table_fragments_inside_multicol`: a 12-row
+   `break-inside: avoid` table in `column-count: 2` renders 2-3 pages and
+   terminates).
 6. **Breaks inside columns.** Given `break-inside: avoid` on a box inside a
    column, the box moves to the next column as a unit.
 7. **css-multicol WPT subset.** A growing subset of css-multicol print-reftests
@@ -203,6 +208,11 @@ Each criterion maps to a test in `engine/tests/multicol.rs` (helpers mirror
   spanner spans an empty flow.
 - Content shorter than one column with `column-count: 3`: one column with
   content, two empty (balanced).
+- A set whose balanced estimate over-ran the page but whose content actually
+  finished inside the page's columns is DONE: the container advances past
+  the laid columns instead of fragmenting with an empty resume token (a
+  trailing blank page) or re-laying the same set with no cursor advance
+  (infinite pagination).
 
 ## References
 
@@ -214,6 +224,7 @@ Each criterion maps to a test in `engine/tests/multicol.rs` (helpers mirror
 - Page geometry / margins: `paged-media-css.spec.md`
 - Research brief: `docs/research/layoutng-fragmentation/typeanvil-layoutng-fragmentation-brief.md`
 - Parent epic: Linear CORE-54.
+- Table × multicol infinite-pagination bug and fix: Linear CORE-78.
 - stylo 0.20.0 `properties/longhands.toml` (verified 2026-08-18):
   `column-count`/`column-width`/`column-span` compiled but pref-gated
   (`layout.columns.enabled`); `column-gap`/`row-gap`/`column-rule-*` compiled;

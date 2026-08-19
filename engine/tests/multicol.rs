@@ -364,3 +364,78 @@ fn assert_close(got: f64, want: f64, msg: &str) {
         "{msg}: got {got}, want {want}"
     );
 }
+
+// --- CORE-78 regression: table × multicol ---------------------------------
+
+fn row_id_by_text(dom: &Dom, needle: &str) -> NodeId {
+    dom.nodes
+        .iter()
+        .enumerate()
+        .find_map(|(i, n)| match &n.kind {
+            NodeKind::Element(el)
+                if el.tag == "tr" && dom.text_content(i as NodeId).contains(needle) =>
+            {
+                Some(i as NodeId)
+            }
+            _ => None,
+        })
+        .expect("row element exists")
+}
+
+/// A table tall enough to fragment inside columns paginates to a small
+/// number of pages instead of looping to MAX_PAGES (CORE-78).
+///
+/// Regression: `fill_columns_partial` anchored its columns at the page
+/// bottom (`set_top = bottom_limit`), so the first table row could never
+/// fit (`top == bottom_limit` → always deferred with a break-before token)
+/// and the resume token re-created the same state every page. The rows are
+/// NOT lost in the token chain — the geometry just never advances. Columns
+/// must start at the container's real content cursor.
+#[test]
+fn table_fragments_inside_multicol() {
+    let mut html = String::from(
+        r#"<html><head><style>
+        body { font-size: 10pt; line-height: 1.2; }
+        .two-col { column-count: 2; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #999; padding: 3pt 5pt; }
+        thead { display: table-header-group; }
+        tr { break-inside: avoid; }
+    </style></head>
+    <body><div class="two-col">
+      <p>Intro before the table.</p>
+      <table><thead><tr><th>A</th><th>B</th></tr></thead><tbody>"#,
+    );
+    for i in 1..=12 {
+        html.push_str(&format!("<tr><td>r{i}</td><td>x{i}</td></tr>"));
+    }
+    html.push_str("</tbody></table></div></body></html>");
+
+    // Pre-fix this call ran to MAX_PAGES (100k); the assert below is the
+    // guard. 5x3in page, 0.5in margins, two ~144pt columns: the 12 rows
+    // span 1-2 pages.
+    let layout = lay(&html);
+    assert!(
+        (1..=3).contains(&layout.pages.len()),
+        "expected 1-3 pages, got {}",
+        layout.pages.len()
+    );
+
+    // The table actually progressed: row 1 is laid on page 1 and the LAST
+    // row (r12) is laid somewhere. Pre-fix, only row 0 of the tbody was
+    // deferred and re-created forever — r12 never appeared.
+    let dom = dom_of(&html);
+    let first_row = row_id_by_text(&dom, "r1");
+    let last_row = row_id_by_text(&dom, "r12");
+    assert_ne!(first_row, last_row, "row ids distinct");
+
+    let mut first_frags = Vec::new();
+    find_source(&layout.pages[0].root, first_row, &mut first_frags);
+    assert!(!first_frags.is_empty(), "first row laid on page 1");
+
+    let mut last_frags = Vec::new();
+    for page in &layout.pages {
+        find_source(&page.root, last_row, &mut last_frags);
+    }
+    assert!(!last_frags.is_empty(), "last row laid (progress, no row-0 loop)");
+}
