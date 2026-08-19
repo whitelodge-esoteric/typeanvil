@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-18
-updated: 2026-08-18
+updated: 2026-08-19
 sidebar_position: 8
 tags: [engine, layout, css-multicol, fragmentation]
 spec_id: multicol
@@ -58,8 +58,6 @@ fitness target.
 - **Balanced columns**: measure passes distribute content so column heights
   are as equal as possible; the number of passes is bounded (constant per
   layout).
-- Column gap + column rules painted between columns (`column-gap`,
-  `column-rule-*`).
 - **Spanners** (`column-span: all`): content before a spanner occupies
   columns, the spanner spans the full content width, content after resumes in
   fresh columns.
@@ -67,8 +65,8 @@ fitness target.
   enclosing fragmentainer context (natural consequence of nested
   fragmentainers in the tree).
 - Multicol container fragmentation: when the container itself breaks across
-  pages, columns distribute across pages and resume via break tokens (no
-  slicing).
+  pages, the remaining content resumes on the next page as a fresh balanced
+  set (sequential-sets semantics), never slicing a line.
 - Determinism: geometry resolved deterministically; measure passes bounded.
 
 **Non-Goals** (deferred; scope stays honest)
@@ -77,6 +75,8 @@ fitness target.
 - `columns` shorthand beyond what stylo computes from the two longhands.
 - Floats (CORE-62), abspos (CORE-64), or flex (CORE-65) inside multicol — the
   interaction specs land after the individual features.
+- **Column rules** (`column-rule-*`): the longhands compute cleanly but rule
+  painting in the gap is deferred; the gap renders as background this pass.
 - Vertical writing modes; `column-span` values other than `none | all`;
   regions or multicol-in-margin-boxes.
 
@@ -100,21 +100,21 @@ The engine shall:
    content heights differ by at most one line box; the number of passes is
    constant (not proportional to content); a single pass when content is
    shorter than one column.
-5. Paint `column-rule-*` (width/style/color) in the gap between columns.
-6. **Honor spanners**: an element with `column-span: all` interrupts the
+5. **Honor spanners**: an element with `column-span: all` interrupts the
    column flow — preceding content finishes its columns, the spanner spans
    the full content width, following content starts a new set of balanced
    columns.
-7. **Nest multicol**: an inner multicol's columns are constrained by the
+6. **Nest multicol**: an inner multicol's columns are constrained by the
    enclosing column's measure; its fragmentainers nest inside the outer
    fragmentainer chain.
-8. **Fragment multicol containers**: when the container breaks across pages,
-   its columns distribute across pages; break tokens resume the container and
-   its in-flight column; a column never slices a monolithic line.
-9. Reuse the CORE-51 rules inside columns: `break-inside: avoid`, widows,
+7. **Fragment multicol containers**: when the container breaks across pages,
+   the remaining content resumes on the next page as a fresh balanced set of
+   columns (the container's break token carries the consumed children's
+   tokens); a column never slices a line.
+8. Reuse the CORE-51 rules inside columns: `break-inside: avoid`, widows,
    orphans, and forced breaks apply per column fragmentainer.
-10. Stay deterministic: column geometry is a pure function of measure; measure
-    passes are bounded and deterministic.
+9. Stay deterministic: column geometry is a pure function of measure; measure
+   passes are bounded and deterministic.
 
 ## Interfaces
 
@@ -128,14 +128,22 @@ The engine shall:
   pub column_width: Option<Scalar>, // `auto` → None (pt)
   pub column_span: ColumnSpan,     // None | All (stylo)
   pub column_gap: Scalar,          // default 1em resolved against font-size
-  pub column_rule: Option<ColumnRule>, // width/style/color; None when unset
   ```
 
-- Enable the `layout.columns.enabled` pref in the stylo runtime pref
-  plumbing (same mechanism the engine uses for any servo-gated longhand;
-  verify the exact pref-check path at implementation).
+- The fields are read from stylo's **Column** style struct
+  (`values.get_column()`): `clone_column_count()`,
+  `clone_column_width()`, `clone_column_span()`, `clone_column_gap()` —
+  all compiled in the servo build (verified 2026-08-19).
+
 - `ComputedStyle::initial()`: `column_count: None`, `column_width: None`,
-  `column_span: None`, `column_gap: font_size`, `column_rule: None`.
+  `column_span: ColumnSpan::None`, `column_gap: font_size`.
+
+- **Pref gate**: `column-count`/`column-width`/`column-span` are gated at
+  parse time by `static_prefs::pref!("layout.columns.enabled")`. The engine
+  depends on `static_prefs` (package `stylo_static_prefs`, the same crate
+  stylo uses; the pref table ships in its `preferences.toml`) and calls
+  `static_prefs::set_pref!("layout.columns.enabled", true)` before any
+  cascade or stylesheet parse (verified 2026-08-19).
 
 ### `engine/src/layout.rs` / new `engine/src/multicol.rs`
 
@@ -174,8 +182,8 @@ Each criterion maps to a test in `engine/tests/multicol.rs` (helpers mirror
    container's width equals the outer column's content width (constrained by
    every enclosing context).
 5. **Fragment across pages.** Given a multicol container taller than a page,
-   columns distribute across the page boundary and resume via break tokens;
-   no column slices a line.
+   the remaining content resumes on the next page as a fresh balanced set of
+   columns; no column slices a line.
 6. **Breaks inside columns.** Given `break-inside: avoid` on a box inside a
    column, the box moves to the next column as a unit.
 7. **css-multicol WPT subset.** A growing subset of css-multicol print-reftests
