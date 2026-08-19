@@ -15,6 +15,9 @@ html5ever = "0.39"
 markup5ever_rcdom = "0.39"
 # CSS engine (Servo stylo). `dom` is the stylo_dom companion crate.
 stylo = { version = "0.20", default-features = false, features = ["servo"] }
+# Runtime pref table for stylo's servo-gated longhands (CORE-63): enables
+# `layout.columns.enabled` before any cascade.
+static_prefs = { package = "stylo_static_prefs", version = "0.20" }
 dom = { package = "stylo_dom", version = "0.20" }
 selectors = "0.40"
 servo_arc = "0.4"
