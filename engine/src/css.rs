@@ -39,8 +39,9 @@ use style::stylist::{RuleInclusion, Stylist};
 use style::stylesheets::{AllowImportRules, Origin, Stylesheet as StylesheetFromStylo, UrlExtraData};
 use style::values::computed::box_::Float as StyloFloat;
 use style::values::computed::font::{FontFamily, LineHeight, SingleFontFamily};
+use style::values::computed::position::{Inset as StyloInset, ZIndex as StyloZIndex};
 use style::values::computed::Color as ComputedColor;
-use style::values::computed::{Length, Size as StyloSize};
+use style::values::computed::{Length, PositionProperty, Size as StyloSize};
 use style::values::specified::box_::{DisplayInside, DisplayOutside};
 use style::values::specified::font::FONT_MEDIUM_PX;
 use style::values::specified::text::TextAlignKeyword;
@@ -83,6 +84,17 @@ pub enum Float {
     None,
     Left,
     Right,
+}
+
+/// The computed `position` value (css-position-3 §3). `Sticky` maps to
+/// `Relative` until sticky semantics land.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum Position {
+    #[default]
+    Static,
+    Relative,
+    Absolute,
+    Fixed,
 }
 
 /// The `text-align` computed value (css-text-3 §8). Read from stylo's
@@ -163,8 +175,18 @@ pub struct ComputedStyle {
     /// in-flow text around it.
     pub float: Float,
     /// The computed `width` property, `None` = `auto` (shrink-to-fit for
-    /// floats). Points.
+    /// floats and abspos). Points.
     pub width: Option<Scalar>,
+    /// The computed `position` value. `Absolute`/`Fixed` take the element out
+    /// of flow; the fragment attaches to the fragmentainer.
+    pub position: Position,
+    /// Non-`auto` insets (css-position-3 §9), resolved to pt. Points.
+    pub inset_top: Option<Scalar>,
+    pub inset_right: Option<Scalar>,
+    pub inset_bottom: Option<Scalar>,
+    pub inset_left: Option<Scalar>,
+    /// `z-index`, `None` = `auto` (paint in tree order).
+    pub z_index: Option<i32>,
     pub margin_top: Scalar,
     pub margin_right: Scalar,
     pub margin_bottom: Scalar,
@@ -225,6 +247,12 @@ impl ComputedStyle {
             display: Display::Inline,
             float: Float::None,
             width: None,
+            position: Position::Static,
+            inset_top: None,
+            inset_right: None,
+            inset_bottom: None,
+            inset_left: None,
+            z_index: None,
             margin_top: Scalar::ZERO,
             margin_right: Scalar::ZERO,
             margin_bottom: Scalar::ZERO,
@@ -540,6 +568,30 @@ impl CascadeSession {
             }
             _ => None,
         };
+        // `position` and the insets/z-index live on stylo's *position* struct
+        // (the same one that carries `width`) — the CORE-62 `clone_width`
+        // lesson; only the `position` longhand itself is a box property.
+        let position_prop = match box_.clone_position() {
+            PositionProperty::Static => Position::Static,
+            PositionProperty::Relative | PositionProperty::Sticky => Position::Relative,
+            PositionProperty::Absolute => Position::Absolute,
+            PositionProperty::Fixed => Position::Fixed,
+        };
+        let inset = |v: StyloInset| match v {
+            StyloInset::Auto => None,
+            StyloInset::LengthPercentage(lp) => {
+                lp.to_length().map(|len| px_to_pt(len.px() as f64))
+            }
+            _ => None,
+        };
+        let inset_top = inset(position.clone_top());
+        let inset_right = inset(position.clone_right());
+        let inset_bottom = inset(position.clone_bottom());
+        let inset_left = inset(position.clone_left());
+        let z_index = match position.clone_z_index() {
+            StyloZIndex::Auto => None,
+            StyloZIndex::Integer(n) => Some(n),
+        };
 
         // `color` is the computed `color` property, always an absolute color
         // once resolved (currentcolor etc. are resolved by the cascade).
@@ -589,6 +641,12 @@ impl CascadeSession {
             display,
             float,
             width,
+            position: position_prop,
+            inset_top,
+            inset_right,
+            inset_bottom,
+            inset_left,
+            z_index,
             margin_top,
             margin_right,
             margin_bottom,

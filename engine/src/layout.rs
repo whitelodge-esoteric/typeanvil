@@ -34,8 +34,8 @@
 use std::collections::BTreeMap;
 
 use crate::css::{
-    cascade, ComputedStyle, Display, Float, Hyphens, StringSetValue, Stylesheet, TextAlign,
-    NORMAL_LINE_HEIGHT_FACTOR,
+    cascade, ComputedStyle, Display, Float, Hyphens, Position, StringSetValue, Stylesheet,
+    TextAlign, NORMAL_LINE_HEIGHT_FACTOR,
 };
 use crate::dom::{Dom, NodeId, NodeKind};
 use crate::frag::{
@@ -126,6 +126,15 @@ struct Flow {
     /// that suspended at the page boundary). Seeded into the next page's
     /// active set so text wraps around the continuation.
     pending_floats: Vec<PlacedFloat>,
+    /// The nearest positioned ancestor's padding-box origin + content width on
+    /// the current page — the containing block for abspos descendants. `None`
+    /// = the initial containing block (the page content box).
+    abspos_cb: Option<(Point, Scalar)>,
+    /// Out-of-flow fragments placed on the current page, with page-absolute
+    /// offsets and their `z-index` (`None` = auto). Drained into the
+    /// fragmentainer root's children after each page (css-break-3: the
+    /// fragmentainer is their parent, not the CSS containing block).
+    abspos: Vec<(Option<i32>, Fragment)>,
 }
 
 /// A placed float box: its rectangle in the fragmentainer and its side.
@@ -259,6 +268,8 @@ fn paginate(
         current_index: 0,
         active_floats: Vec::new(),
         pending_floats: Vec::new(),
+        abspos_cb: None,
+        abspos: Vec::new(),
     };
     // The named page in effect, carried across pages until an element switches
     // it (spec §4).
@@ -269,8 +280,10 @@ fn paginate(
         flow.current_index = page_index;
         // Each fragmentainer starts with only the carry-over floats: floats
         // that suspended at the previous page boundary resume at the content
-        // top and keep intruding on this page's text.
+        // top and keep intruding on this page's text. The abspos containing
+        // block resets too (origins are page-absolute).
         flow.active_floats = flow.pending_floats.clone();
+        flow.abspos_cb = None;
 
         // Resolve the named page in effect for this page: a `page:<name>` box
         // that starts fresh at the top of this page switches the context.
@@ -300,6 +313,19 @@ fn paginate(
         // Margin boxes resolve against the running-string / counter state now
         // in effect at the end of this page's flow (spec §6, §7).
         attach_margin_boxes(&mut fragmentainer, &spec, &geo, &flow, styles, dom, target_pages);
+
+        // Out-of-flow fragments attach to the page root (css-break-3: the
+        // fragmentainer is their parent, not the CSS containing block).
+        // Stable sort by z-index (None/auto first = painted below); ties keep
+        // document order. Offsets are adjusted into the root's coordinate
+        // space (the root is the body fragment at the content origin).
+        if !flow.abspos.is_empty() {
+            flow.abspos.sort_by_key(|(z, _)| *z);
+            for (_, mut frag) in std::mem::take(&mut flow.abspos) {
+                frag.offset = Point::new(frag.offset.x - content.x, frag.offset.y - content.y);
+                fragmentainer.root.children.push(frag);
+            }
+        }
 
         pages.push(fragmentainer);
         incoming = res.outgoing;
@@ -489,6 +515,17 @@ impl<'a> Ctx<'a> {
                 outgoing: None,
                 empty: true,
             };
+        }
+
+        // A positioned box becomes the containing block for its abspos
+        // descendants (its padding box on this page). Save/restore so this
+        // box's SIBLINGS resolve against the OUTER block.
+        let saved_abspos_cb = flow.abspos_cb;
+        if matches!(
+            style.position,
+            Position::Relative | Position::Absolute | Position::Fixed
+        ) {
+            flow.abspos_cb = Some((Point::new(inner_left, box_top), inner_width));
         }
 
         let start_index = if fresh {
@@ -783,6 +820,59 @@ impl<'a> Ctx<'a> {
                 Item::Block(child) => {
                     let child_tok = self.child_incoming(token, i);
                     let cstyle = &self.styles[*child];
+                    if matches!(cstyle.position, Position::Absolute | Position::Fixed) {
+                        // ---- out-of-flow branch ----
+                        // The box is taken out of flow: no cursor advance, no
+                        // in-flow height, and its fragment attaches to the
+                        // fragmentainer root (css-break-3), not to this box's
+                        // subtree. `position: fixed` resolves against the page
+                        // content box; `absolute` against the nearest
+                        // positioned ancestor's padding box (or the page).
+                        let page_cb = (Point::new(self.content_x, self.content_y), self.content_width);
+                        let (cb_origin, cb_width) = match cstyle.position {
+                            Position::Fixed => page_cb,
+                            _ => flow.abspos_cb.unwrap_or(page_cb),
+                        };
+                        let (fw, fh) = self.measure_float(*child, cb_width);
+                        // Insets position the margin box against the
+                        // containing block's padding edges (css-position-3).
+                        // `bottom` resolves against the fragmentainer content
+                        // height (the containing block's own height is not
+                        // known mid-layout); `auto` insets sit at the padding
+                        // box origin (basic static position).
+                        let x = match cstyle.inset_left {
+                            Some(l) => cb_origin.x + l,
+                            None => match cstyle.inset_right {
+                                Some(r) => cb_origin.x + cb_width - fw - r,
+                                None => cb_origin.x,
+                            },
+                        };
+                        let y = match cstyle.inset_top {
+                            Some(t) => cb_origin.y + t,
+                            None => match cstyle.inset_bottom {
+                                Some(b) => cb_origin.y + self.page_height - fh - b,
+                                None => cb_origin.y,
+                            },
+                        };
+                        // Monolithic placement (spec Behavior 9): the box lays
+                        // its full content once — no page-bottom break, no
+                        // resume token — even when taller than the page.
+                        let res = self.layout_box(
+                            *child,
+                            x,
+                            fw,
+                            y,
+                            Scalar(f64::MAX),
+                            placed,
+                            &child_tok,
+                            flow,
+                        );
+                        flow.abspos.push((cstyle.z_index, res.fragment));
+                        // Advance the ITEM index explicitly (`continue` skips
+                        // the trailing `i += 1` — the CORE-62 lesson).
+                        i += 1;
+                        continue;
+                    }
                     if cstyle.float != Float::None {
                         if child_tok.is_break_before() {
                             // ---- float first placement ----
@@ -986,6 +1076,8 @@ impl<'a> Ctx<'a> {
             }
             i += 1;
         }
+
+        flow.abspos_cb = saved_abspos_cb;
 
         // Padding-bottom / margin-bottom only apply when the box finished.
         let padding_bottom = if broke { Scalar::ZERO } else { style.padding_bottom };
@@ -1627,7 +1719,14 @@ impl<'a> Ctx<'a> {
                 Item::Block(child) => {
                     // A float does not add in-flow height: its own fragment
                     // carries it, and text wraps around it rather than below.
-                    if self.styles[child].float != Float::None {
+                    // An abspos box is likewise out of flow (no in-flow
+                    // height, fragment attaches to the fragmentainer root).
+                    if self.styles[child].float != Float::None
+                        || matches!(
+                            self.styles[child].position,
+                            Position::Absolute | Position::Fixed
+                        )
+                    {
                         continue;
                     }
                     h = h + self.measure_block(child, inner_width);
