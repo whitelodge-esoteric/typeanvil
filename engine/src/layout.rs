@@ -34,7 +34,7 @@
 use std::collections::BTreeMap;
 
 use crate::css::{
-    cascade, ComputedStyle, Display, Hyphens, StringSetValue, Stylesheet, TextAlign,
+    cascade, ComputedStyle, Display, Float, Hyphens, StringSetValue, Stylesheet, TextAlign,
     NORMAL_LINE_HEIGHT_FACTOR,
 };
 use crate::dom::{Dom, NodeId, NodeKind};
@@ -118,6 +118,34 @@ struct Flow {
     page_base: i32,
     /// The fragmentainer index currently being laid out (for counter reads).
     current_index: usize,
+    /// Floats active on the CURRENT page (intrusions for text wrapping).
+    /// Reset at the start of each fragmentainer to a clone of
+    /// [`Flow::pending_floats`]; floats placed during the page are appended.
+    active_floats: Vec<PlacedFloat>,
+    /// Floats whose content continues into the NEXT fragmentainer (a float
+    /// that suspended at the page boundary). Seeded into the next page's
+    /// active set so text wraps around the continuation.
+    pending_floats: Vec<PlacedFloat>,
+}
+
+/// A placed float box: its rectangle in the fragmentainer and its side.
+/// `y + height` is the float's bottom; lines below it stop being intruded.
+/// `id` is the float's DOM node, used to match a resumed float to its
+/// carry-over rectangle on the next fragmentainer.
+#[derive(Clone, Copy, Debug)]
+struct PlacedFloat {
+    id: NodeId,
+    x: Scalar,
+    y: Scalar,
+    width: Scalar,
+    height: Scalar,
+    side: Float,
+}
+
+impl PlacedFloat {
+    fn bottom(&self) -> Scalar {
+        self.y + self.height
+    }
 }
 
 impl Flow {
@@ -161,6 +189,9 @@ struct Ctx<'a> {
     /// Content-box left edge and width for the page currently being laid out.
     content_x: Scalar,
     content_width: Scalar,
+    /// Content-box TOP edge for the page currently being laid out (floats that
+    /// suspend resume at this y on the next page).
+    content_y: Scalar,
     /// Content-box height of the page currently being laid out.
     page_height: Scalar,
     /// Resolved target-counter page numbers by element `NodeId` (from the
@@ -226,6 +257,8 @@ fn paginate(
         running: RunningStrings::new(),
         page_base: 1,
         current_index: 0,
+        active_floats: Vec::new(),
+        pending_floats: Vec::new(),
     };
     // The named page in effect, carried across pages until an element switches
     // it (spec §4).
@@ -234,6 +267,10 @@ fn paginate(
     while let Some(token) = incoming.take() {
         let page_index = pages.len();
         flow.current_index = page_index;
+        // Each fragmentainer starts with only the carry-over floats: floats
+        // that suspended at the previous page boundary resume at the content
+        // top and keep intruding on this page's text.
+        flow.active_floats = flow.pending_floats.clone();
 
         // Resolve the named page in effect for this page: a `page:<name>` box
         // that starts fresh at the top of this page switches the context.
@@ -249,6 +286,7 @@ fn paginate(
             styles,
             content_x: content.x,
             content_width: content.width,
+            content_y: content.y,
             page_height: content.height,
             target_pages,
         };
@@ -523,6 +561,11 @@ impl<'a> Ctx<'a> {
                 Item::Text(text) => {
                     let child_tok = self.child_incoming(token, i);
                     let lh = line_height(style);
+                    // Resume: a run that began beside a float resumes by source
+                    // offset (its page's available width may differ from the
+                    // previous page's); otherwise the legacy line-count resume.
+                    let resume_offset = child_tok.consumed_chars;
+                    if flow.active_floats.is_empty() && resume_offset.is_none() {
                     let lines = self.break_paragraph(text, inner_width, style);
                     // How many lines already consumed by earlier fragments.
                     let consumed_lines =
@@ -597,14 +640,288 @@ impl<'a> Ctx<'a> {
                                 seen_all_children: false,
                                 child_tokens: Vec::new(),
                                 break_before: false,
+                                consumed_chars: None,
                             },
                         });
                         broke = true;
                         break;
                     }
+                    } else {
+                        // Floats are (or were) active: break the remaining text
+                        // in segments, one per distinct available-width state.
+                        // Lines beside a float use a reduced width; lines below
+                        // its bottom return to full width. Runs resume by source
+                        // offset so a width change across a page break is safe.
+                        let mut src_offset = resume_offset.unwrap_or(0).min(text.len());
+                        let mut run_broke = false;
+                        'segments: while src_offset < text.len() {
+                            // Floats whose bottom has passed stop intruding.
+                            flow.active_floats.retain(|f| f.bottom().get() > y.get());
+                            let (seg_x, seg_w) =
+                                self.segment_geometry(inner_left, inner_width, y, lh, flow);
+                            if seg_w.get() <= 0.0 {
+                                // The float consumes the whole line area: jump
+                                // below the lowest float bottom.
+                                let below = flow
+                                    .active_floats
+                                    .iter()
+                                    .map(|f| f.bottom())
+                                    .fold(Scalar::ZERO, |a, b| if b.get() > a.get() { b } else { a });
+                                if below.get() > y.get() {
+                                    y = below;
+                                    continue;
+                                }
+                                break;
+                            }
+                            let lines = self.break_paragraph(&text[src_offset..], seg_w, style);
+                            if lines.is_empty() {
+                                break;
+                            }
+                            let mut li = 0usize;
+                            let mut page_bottom_break = false;
+                            while li < lines.len() {
+                                let fits = y + lh <= bottom_limit;
+                                // Last resort only on a genuinely empty
+                                // fragmentainer.
+                                let last_resort = !placed && li == 0;
+                                if !fits && !last_resort {
+                                    page_bottom_break = true;
+                                    break;
+                                }
+                                let baseline = y + style.font_size;
+                                let lr = &lines[li];
+                                let x = self.aligned_x(seg_x, seg_w, lr.drawn_width(), style);
+                                let run = TextRun {
+                                    text: lr.text.clone(),
+                                    baseline: Point::new(x, baseline),
+                                    font_size: style.font_size,
+                                    color: style.color,
+                                    font_family: style.font_family.clone(),
+                                    glyphs: lr.glyphs.clone(),
+                                    expansion: lr.expansion,
+                                    protrude_left: lr.protrude_left,
+                                    protrude_right: lr.protrude_right,
+                                };
+                                children.push(Fragment::line(
+                                    Point::new(seg_x, y),
+                                    (seg_w, lh),
+                                    run,
+                                ));
+                                y += lh;
+                                li += 1;
+                                src_offset += lr.text.len();
+                                placed = true;
+                                // A last-resort line that overflowed: stop here.
+                                if last_resort && y > bottom_limit {
+                                    page_bottom_break = true;
+                                    break;
+                                }
+                                // The segment ends when the intrusion set
+                                // changes at the NEXT line (a float's bottom
+                                // crossed): the remaining text re-breaks at
+                                // the new width in the next segment.
+                                let (nx, nw) =
+                                    self.segment_geometry(inner_left, inner_width, y, lh, flow);
+                                if (nw - seg_w).get().abs() > 1e-9
+                                    || (nx - seg_x).get().abs() > 1e-9
+                                {
+                                    break;
+                                }
+                            }
+                            if page_bottom_break && li < lines.len() {
+                                // The run breaks at the page bottom inside this
+                                // segment. Apply orphans/widows to the segment's
+                                // lines, pulling excess lines back (and rewinding
+                                // the source offset past them).
+                                let (split, _moved) = apply_orphans_widows(
+                                    0,
+                                    li,
+                                    lines.len(),
+                                    style.orphans as usize,
+                                    style.widows as usize,
+                                );
+                                if split < li {
+                                    for _ in 0..(li - split) {
+                                        let dropped = children
+                                            .pop()
+                                            .expect("line fragment present");
+                                        if let FragmentContent::Text(run) = &dropped.content {
+                                            src_offset -= run.text.len();
+                                        }
+                                        y = y - lh;
+                                    }
+                                }
+                                run_broke = true;
+                                break 'segments;
+                            }
+                            // All of this segment's lines placed. If the next
+                            // segment would have the same geometry, the run is
+                            // finished.
+                            let (nx, nw) =
+                                self.segment_geometry(inner_left, inner_width, y, lh, flow);
+                            if (nw - seg_w).get().abs() < 1e-9 && (nx - seg_x).get().abs() < 1e-9 {
+                                break;
+                            }
+                        }
+                        if run_broke {
+                            seen_all = false;
+                            outgoing_children.push(ChildToken {
+                                index: i,
+                                token: BreakToken {
+                                    consumed_block_size: Scalar::ZERO,
+                                    seen_all_children: false,
+                                    child_tokens: Vec::new(),
+                                    break_before: false,
+                                    consumed_chars: Some(src_offset),
+                                },
+                            });
+                            broke = true;
+                            break;
+                        }
+                    }
                 }
                 Item::Block(child) => {
                     let child_tok = self.child_incoming(token, i);
+                    let cstyle = &self.styles[*child];
+                    if cstyle.float != Float::None {
+                        if child_tok.is_break_before() {
+                            // ---- float first placement ----
+                            // Measure the float's margin box (width: explicit
+                            // or shrink-to-fit; height: content measure).
+                            let (fw, fh) = self.measure_float(*child, inner_width);
+                            let fits = y + fh <= bottom_limit;
+                            let last_resort = !placed;
+                            if !fits && !last_resort {
+                                // The float does not fit the remaining space:
+                                // suspend it; in-flow siblings continue here
+                                // (parallel flow, css-break-3). It resumes at
+                                // the top of the next fragmentainer.
+                                seen_all = false;
+                                outgoing_children.push(ChildToken {
+                                    index: i,
+                                    token: BreakToken::break_before(),
+                                });
+                                broke = true;
+                                break;
+                            }
+                            let fx = match cstyle.float {
+                                Float::Left => inner_left,
+                                Float::Right => inner_left + inner_width - fw,
+                                _ => inner_left,
+                            };
+                            // A float's own content lays in-flow and ignores
+                            // the active intrusion set: floats do not wrap
+                            // around sibling floats in this model, and the
+                            // shared retain() below must not prune siblings.
+                            let saved_floats = std::mem::take(&mut flow.active_floats);
+                            let res = self.layout_box(
+                                *child,
+                                fx,
+                                fw,
+                                y,
+                                bottom_limit,
+                                placed,
+                                &child_tok,
+                                flow,
+                            );
+                            flow.active_floats = saved_floats;
+                            children.push(res.fragment);
+                            // The float intrudes on following in-flow text
+                            // until its bottom passes.
+                            flow.active_floats.push(PlacedFloat {
+                                id: *child,
+                                x: fx,
+                                y,
+                                width: fw,
+                                height: fh,
+                                side: cstyle.float,
+                            });
+                            placed = true;
+                            // A float whose content broke across the page
+                            // carries its remaining rectangle to the next
+                            // fragmentainer (which resumes at the content top),
+                            // and its OWN content resumes there too: push the
+                            // float's break token so the next page re-enters
+                            // this item in the resume branch.
+                            if res.outgoing.is_some() {
+                                let r = fh - res.used;
+                                let remaining = if r.get() > 0.0 { r } else { Scalar::ZERO };
+                                if remaining.get() > 0.0 {
+                                    flow.pending_floats.push(PlacedFloat {
+                                        id: *child,
+                                        x: fx,
+                                        y: self.content_y,
+                                        width: fw,
+                                        height: remaining,
+                                        side: cstyle.float,
+                                    });
+                                }
+                                seen_all = false;
+                                outgoing_children.push(ChildToken {
+                                    index: i,
+                                    token: res.outgoing.unwrap(),
+                                });
+                            }
+                            // The in-flow cursor does NOT advance past a float:
+                            // the next sibling starts at the same y and wraps
+                            // around it. Advance the ITEM index explicitly:
+                            // `continue` skips the loop's trailing `i += 1`.
+                            i += 1;
+                            continue;
+                        }
+                        // ---- float resume across fragmentainers ----
+                        // The carry-over rectangle was seeded into the active
+                        // set at the page start. Lay the continuation at the
+                        // same x/width; do NOT advance the in-flow cursor so
+                        // text wraps beside it (css-break-3 parallel flow).
+                        if let Some(pf) = flow.active_floats.iter().find(|f| f.id == *child) {
+                            let pf = *pf;
+                            // The float's own content lays in-flow: the active
+                            // intrusion set (including this float's own
+                            // carry-over rect) does not apply to it.
+                            let saved_floats = std::mem::take(&mut flow.active_floats);
+                            let res = self.layout_box(
+                                *child,
+                                pf.x,
+                                pf.width,
+                                y,
+                                bottom_limit,
+                                placed,
+                                &child_tok,
+                                flow,
+                            );
+                            flow.active_floats = saved_floats;
+                            children.push(res.fragment);
+                            placed = true;
+                            if res.outgoing.is_some() {
+                                // Still not finished: update the carry-over
+                                // rectangle for the next fragmentainer and
+                                // propagate the float's own break token.
+                                let r = pf.height - res.used;
+                                let remaining = if r.get() > 0.0 { r } else { Scalar::ZERO };
+                                flow.pending_floats.retain(|f| f.id != *child);
+                                if remaining.get() > 0.0 {
+                                    flow.pending_floats.push(PlacedFloat {
+                                        id: *child,
+                                        x: pf.x,
+                                        y: self.content_y,
+                                        width: pf.width,
+                                        height: remaining,
+                                        side: cstyle.float,
+                                    });
+                                }
+                                seen_all = false;
+                                outgoing_children.push(ChildToken {
+                                    index: i,
+                                    token: res.outgoing.unwrap(),
+                                });
+                            }
+                        }
+                        // Advance the ITEM index explicitly (`continue` skips
+                        // the loop's trailing `i += 1`).
+                        i += 1;
+                        continue;
+                    }
                     let res = self.layout_box(
                         *child,
                         inner_left,
@@ -708,6 +1025,7 @@ impl<'a> Ctx<'a> {
                 seen_all_children: seen_all,
                 child_tokens: outgoing_children,
                 break_before: false,
+                consumed_chars: None,
             };
             fragment.break_token = Some(tok.clone());
             Some(tok)
@@ -945,6 +1263,7 @@ impl<'a> Ctx<'a> {
                 seen_all_children: seen_all,
                 child_tokens: outgoing_children,
                 break_before: false,
+                consumed_chars: None,
             };
             fragment.break_token = Some(tok.clone());
             Some(tok)
@@ -1051,6 +1370,7 @@ impl<'a> Ctx<'a> {
                 seen_all_children: seen_all,
                 child_tokens: outgoing_children,
                 break_before: false,
+                consumed_chars: None,
             };
             fragment.break_token = Some(tok.clone());
             Some(tok)
@@ -1305,11 +1625,116 @@ impl<'a> Ctx<'a> {
                     h = h + style.line_height * (lines.len() as f64);
                 }
                 Item::Block(child) => {
+                    // A float does not add in-flow height: its own fragment
+                    // carries it, and text wraps around it rather than below.
+                    if self.styles[child].float != Float::None {
+                        continue;
+                    }
                     h = h + self.measure_block(child, inner_width);
                 }
             }
         }
         h
+    }
+
+    /// Measure a float's margin box: width (explicit `width` clamped to the
+    /// containing block, else shrink-to-fit) and height (content measure at
+    /// that width, mirrors [`Ctx::measure_block`] so measured == laid-out).
+    fn measure_float(&self, id: NodeId, inner_width: Scalar) -> (Scalar, Scalar) {
+        let style = &self.styles[id];
+        let content_w = match style.width {
+            Some(w) => {
+                if w.get() > inner_width.get() {
+                    inner_width
+                } else {
+                    w
+                }
+            }
+            None => self.shrink_to_fit(id, inner_width),
+        };
+        let w = content_w + style.margin_left + style.margin_right;
+        let w = if w.get() > inner_width.get() {
+            inner_width
+        } else {
+            w
+        };
+        let h = self.measure_block(id, w);
+        (w, h)
+    }
+
+    /// Shrink-to-fit width: the widest line of the float's content (text or
+    /// nested blocks), capped at the containing block's inner width.
+    fn shrink_to_fit(&self, id: NodeId, max_width: Scalar) -> Scalar {
+        let style = &self.styles[id];
+        let mut width = Scalar::ZERO;
+        for item in self.collect_items(id) {
+            match item {
+                Item::Text(text) => {
+                    let lines = self.break_paragraph(&text, max_width, style);
+                    for line in &lines {
+                        let w = line.drawn_width();
+                        if w.get() > width.get() {
+                            width = w;
+                        }
+                    }
+                }
+                Item::Block(child) => {
+                    let w = self.shrink_to_fit(child, max_width);
+                    if w.get() > width.get() {
+                        width = w;
+                    }
+                }
+            }
+        }
+        if width.get() <= 0.0 {
+            max_width
+        } else if width.get() > max_width.get() {
+            max_width
+        } else {
+            width
+        }
+    }
+
+    /// The line origin + available width at `y` for a text segment, given the
+    /// active floats. Left floats indent the line start; right floats shorten
+    /// the line end. Multiple floats on the same side: the widest wins (the
+    /// simplified stacking rule).
+    fn segment_geometry(
+        &self,
+        inner_left: Scalar,
+        inner_width: Scalar,
+        y: Scalar,
+        lh: Scalar,
+        flow: &Flow,
+    ) -> (Scalar, Scalar) {
+        let mut left = Scalar::ZERO;
+        let mut right = Scalar::ZERO;
+        for f in &flow.active_floats {
+            let overlaps = f.y.get() < y.get() + lh.get() && f.bottom().get() > y.get();
+            if !overlaps {
+                continue;
+            }
+            match f.side {
+                Float::Left => {
+                    if f.width.get() > left.get() {
+                        left = f.width;
+                    }
+                }
+                Float::Right => {
+                    if f.width.get() > right.get() {
+                        right = f.width;
+                    }
+                }
+                Float::None => {}
+            }
+        }
+        let reduced = inner_width - left - right;
+        let w = if reduced.get() > 0.0 {
+            reduced
+        } else {
+            Scalar::ZERO
+        };
+        (inner_left + left, w)
     }
 
     /// Collect a block's children as an ordered item list: contiguous inline
