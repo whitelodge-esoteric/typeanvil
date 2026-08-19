@@ -24,16 +24,12 @@ use krilla::text::{Font, GlyphId, KrillaGlyph, TextDirection};
 use krilla::destination::XyzDestination;
 use krilla::outline::{Outline, OutlineNode};
 use krilla::{Document, SerializeSettings};
+use std::sync::LazyLock;
 
 use crate::css::Color;
 use crate::frag::{Fragment, FragmentContent};
 use crate::layout::Layout;
 use crate::typography::ShapedGlyph;
-
-/// A fixed macOS system font, embedded for deterministic output. Verified to
-/// exist on this machine. (A later issue will ship a bundled font / use
-/// fontique for portable discovery.)
-const FONT_PATH: &str = "/System/Library/Fonts/Supplemental/Arial.ttf";
 
 fn to_krilla_color(c: Color) -> rgb::Color {
     rgb::Color::new(c.r, c.g, c.b)
@@ -47,16 +43,49 @@ fn solid_fill(c: Color) -> Fill {
     }
 }
 
-/// Load the embedded font once.
-fn load_font() -> Result<Font> {
-    let data =
-        std::fs::read(FONT_PATH).with_context(|| format!("reading embedded font {FONT_PATH}"))?;
-    Font::new(data.into(), 0).ok_or_else(|| anyhow!("krilla failed to parse font {FONT_PATH}"))
+/// A fixed macOS system font bundle, embedded for deterministic output.
+/// Verified to exist on this machine. (A later issue will ship a bundled font
+/// / use fontique for portable discovery.)
+static FACE_FONTS: [LazyLock<Option<Font>>; 4] = [
+    LazyLock::new(|| {
+        let path = crate::fonts::face_path(crate::fonts::FontFace::Regular);
+        std::fs::read(path)
+            .with_context(|| format!("reading embedded font {path}"))
+            .ok()
+            .and_then(|data| Font::new(data.into(), 0))
+    }),
+    LazyLock::new(|| {
+        let path = crate::fonts::face_path(crate::fonts::FontFace::Bold);
+        std::fs::read(path)
+            .with_context(|| format!("reading embedded font {path}"))
+            .ok()
+            .and_then(|data| Font::new(data.into(), 0))
+    }),
+    LazyLock::new(|| {
+        let path = crate::fonts::face_path(crate::fonts::FontFace::Italic);
+        std::fs::read(path)
+            .with_context(|| format!("reading embedded font {path}"))
+            .ok()
+            .and_then(|data| Font::new(data.into(), 0))
+    }),
+    LazyLock::new(|| {
+        let path = crate::fonts::face_path(crate::fonts::FontFace::BoldItalic);
+        std::fs::read(path)
+            .with_context(|| format!("reading embedded font {path}"))
+            .ok()
+            .and_then(|data| Font::new(data.into(), 0))
+    }),
+];
+
+fn font_for(face: crate::fonts::FontFace) -> Result<&'static Font> {
+    let path = crate::fonts::face_path(face);
+    FACE_FONTS[face as usize]
+        .as_ref()
+        .ok_or_else(|| anyhow!("krilla failed to parse font {path}"))
 }
 
 /// Render a paginated layout to PDF bytes.
 pub fn render(layout: &Layout) -> Result<Vec<u8>> {
-    let font = load_font()?;
 
     // Disable tagging: the engine emits no semantic structure, and turning it
     // off keeps output smaller and free of an empty tag tree.
@@ -132,6 +161,7 @@ pub fn render(layout: &Layout) -> Result<Vec<u8>> {
         }
 
         for t in &texts {
+            let font = font_for(t.font_face)?;
             surface.set_fill(Some(solid_fill(t.color)));
             if t.glyphs.is_empty() {
                 // Simple text path (generated content, margin boxes): no
@@ -270,6 +300,7 @@ struct TextItem {
     y: f32,
     font_size: f32,
     color: Color,
+    font_face: crate::fonts::FontFace,
     text: String,
     glyphs: Vec<ShapedGlyph>,
     expansion: f32,
@@ -321,6 +352,7 @@ fn collect(
                 y: parent_y + run.baseline.y.to_f32(),
                 font_size: run.font_size.to_f32(),
                 color: run.color,
+                font_face: run.font_face,
                 text: run.text.clone(),
                 glyphs: run.glyphs.clone(),
                 expansion: run.expansion as f32,

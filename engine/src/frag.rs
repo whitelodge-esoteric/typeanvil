@@ -136,10 +136,8 @@ pub struct TextRun {
     pub font_size: Scalar,
     /// Fill color.
     pub color: Color,
-    /// Resolved font family (carried for the shaping stage; the PDF backend
-    /// currently embeds a single font).
-    #[allow(dead_code)]
-    pub font_family: String,
+    /// Resolved font face for this run (used by PDF emit).
+    pub font_face: crate::fonts::FontFace,
     /// The shaped glyphs of the line (typography layer). Empty for the simple
     /// text path — generated content and margin boxes draw via `draw_text`.
     pub glyphs: Vec<ShapedGlyph>,
