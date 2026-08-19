@@ -152,6 +152,7 @@ def render_gallery(
     output_path: Path,
 ) -> None:
     docs = scoreboard.get("docs", [])
+    out_dir = output_path.parent
     image_rel_root = Path("images")
 
     rows = []
@@ -214,7 +215,7 @@ def render_gallery(
                     exists=ta_exists,
                     label="TypeAnvil",
                     page_index=page_index,
-                    img_path=(image_rel_root / slugify(file) / f"page-{page_index:03d}-ta.png")
+                    img_path=(out_dir / image_rel_root / slugify(file) / f"page-{page_index:03d}-ta.png")
                     if ta_exists
                     else None,
                 )
@@ -222,7 +223,7 @@ def render_gallery(
                     exists=pr_exists,
                     label="Prince",
                     page_index=page_index,
-                    img_path=(image_rel_root / slugify(file) / f"page-{page_index:03d}-pr.png")
+                    img_path=(out_dir / image_rel_root / slugify(file) / f"page-{page_index:03d}-pr.png")
                     if pr_exists
                     else None,
                 )
@@ -368,15 +369,31 @@ def _page_cell(*, exists: bool, label: str, page_index: int, img_path: Path | No
             "</div>"
         )
     zoom_id = slugify(f"{label}-{page_index}-{img_path.parent.name}")
+    # Inline the image as a data URI so the gallery renders from ANY base URL
+    # (file://, WebUI /api/media preview, editor preview panes, static hosts).
+    # The spec (visual-comparison-demo §Behavior 8) allows "images inlined or
+    # relative"; inlining removes the whole class of broken-relative-path bugs.
+    src = _inline_image_src(img_path)
     return (
         "<div class=\"page-cell\">"
         f"<div class=\"page-label\">{_escape(label)} — Page {page_index}</div>"
         f"<input class=\"zoom-check\" type=\"checkbox\" id=\"{zoom_id}\" />"
         f"<label class=\"zoom-label\" for=\"{zoom_id}\">"
-        f"<img src=\"{_escape(str(img_path.as_posix()))}\" alt=\"{_escape(label)} page {page_index}\" />"
+        f"<img src=\"{src}\" alt=\"{_escape(label)} page {page_index}\" />"
         "</label>"
         "</div>"
     )
+
+
+def _inline_image_src(img_path: Path) -> str:
+    """Return a base64 data URI for the PNG, or a relative fallback if unreadable."""
+    import base64 as _b64
+    try:
+        data = img_path.read_bytes()
+    except OSError:
+        return _escape(str(img_path.as_posix()))
+    encoded = _b64.b64encode(data).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
 
 
 def write_scoreboard(
