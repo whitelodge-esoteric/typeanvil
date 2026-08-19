@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-18
-updated: 2026-08-18
+updated: 2026-08-19
 sidebar_position: 9
 tags: [engine, layout, css-position, css-break, fragmentation]
 spec_id: out-of-flow-positioning
@@ -85,13 +85,16 @@ The engine shall:
    block (the page content box).
 3. Resolve offsets: each non-`auto` inset positions the box's margin edge
    against the containing block's padding edge (per css-position-3); `auto`
-   insets use the static position — where the box would have been in flow
-   (basic static-position computation: the offset within the containing
-   block's content).
+   insets use the static position — the containing block's padding-box origin
+   (top-left corner; the basic static position, not the full css-position
+   static-position rules).
 4. **Attach abspos fragments to the fragmentainer**: the abspos box's
    fragment becomes a child of the fragmentainer in which its containing
    block lands — NOT a child of the containing block's fragment tree branch
-   (css-break-3; the Chromium tree-mapping rule).
+   (css-break-3; the Chromium tree-mapping rule). Concretely: the fragment is
+   appended to `fragmentainer.root.children` (the page root's children),
+   offset pre-adjusted into the root's coordinate space, so the in-flow
+   subtree never sees it.
 5. Place the abspos box on the page containing its containing block: if the
    containing block spans pages, the box lands on the first page containing
    the anchor point resolved at layout.
@@ -101,8 +104,10 @@ The engine shall:
    sibling layout; a relative box is a valid containing block for descendants.
 8. Paint positioned siblings in `z-index` order (higher first); `auto` paints
    in tree order. Painting happens after in-flow content.
-9. Keep the monolithic rule for abspos content taller than the fragmentainer
-   (overflow, never slice a line).
+9. Keep the monolithic rule for abspos content taller than the fragmentainer:
+   the box is PLACED ONCE (like last-resort lines) and may overflow the page
+   bottom; it never slices and never resumes across pages — the abspos item
+   needs no break token.
 10. Stay deterministic: containing-block resolution and offsets are pure
     arithmetic in document order.
 
@@ -110,48 +115,73 @@ The engine shall:
 
 ### `engine/src/css.rs`
 
+- Add engine-owned types (the seam: `ComputedStyle` never carries stylo types —
+  mirror the CORE-62 `Float` mapping):
+
+  ```rust
+  /// CSS `position` (mapped from stylo `PositionProperty`).
+  #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+  pub enum Position { #[default] Static, Relative, Absolute, Fixed }
+  ```
+  Sticky is computed by stylo but maps to `Relative` (per the Non-Goals:
+  sticky treated as relative until sticky semantics land).
+
 - Add to `ComputedStyle`:
 
   ```rust
-  /// CSS `position` (stylo computed; values::generics::box::PositionProperty).
-  pub position: PositionProperty, // Static | Relative | Absolute | Fixed | Sticky
-  /// CSS insets, resolved to absolute pt or Auto (stylo `Inset`).
-  pub inset_top: Inset,
-  pub inset_right: Inset,
-  pub inset_bottom: Inset,
-  pub inset_left: Inset,
-  /// CSS `z-index` (stylo `ZIndex`).
-  pub z_index: ZIndex, // Auto | Integer(i32)
+  pub position: Position,
+  /// Non-`auto` insets, resolved to absolute pt. Points.
+  pub inset_top: Option<Scalar>,
+  pub inset_right: Option<Scalar>,
+  pub inset_bottom: Option<Scalar>,
+  pub inset_left: Option<Scalar>,
+  /// `z-index` (stylo `ZIndex`), `None` = `auto` (tree order).
+  pub z_index: Option<i32>,
   ```
 
-- In `convert`, read `clone_position()`, the four `clone_top()/right()/
-  bottom()/left()` insets, and `clone_z_index()` from stylo's box struct.
-  `ComputedStyle::initial()`: `position: PositionProperty::Static`,
-  insets `Auto`, `z_index: ZIndex::Auto`.
+- In `convert`, read `box_.clone_position()` (box struct) → `Position`;
+  `position.clone_top()/right()/bottom()/left()` (position struct — the same
+  struct that carries `width`; insets are `LengthPercentage`, `auto` →
+  `to_length()` = `None`) → `Option<Scalar>`; `box_.clone_z_index()` →
+  `Option<i32>`. `ComputedStyle::initial()`: `Static`, insets `None`,
+  `z_index: None`. (Verify accessor struct placement in the generated
+  `properties.rs` before relying on it — see CORE-62's `clone_width` lesson.)
 
 ### `engine/src/layout.rs`
 
-- During block layout, hoist a box with `position: Absolute | Fixed` out of
-  flow into a **per-fragmentainer abspos list** with its resolved
-  containing-block-relative offset (the containing block is resolved from the
-  ancestor chain; the initial containing block is the page content box).
-- The abspos fragment attaches to the fragmentainer fragment — it is laid out
-  as a child of the fragmentainer, not of the containing block's subtree
-  (behavior 4).
-- `position: Relative` offsets applied at fragment finalization (no sibling
-  impact).
+- `Flow` gains:
+  - `abspos_cb: Option<(Point, Scalar)>` — the nearest positioned ancestor's
+    padding-box origin + content width on the current page. `layout_box` sets
+    it (save/restore around the box's subtree) when the box's `position` is
+    `Relative | Absolute | Fixed`; the initial containing block (page content
+    box) is the fallback.
+  - `abspos: Vec<Fragment>` — abspos fragments with page-absolute offsets,
+    drained into the fragmentainer root after each page.
+- In the block item loop, a child with `position: Absolute | Fixed` takes the
+  **out-of-flow branch** (parallel to the CORE-62 float branch): resolve the
+  containing block (nearest positioned ancestor, else the page content box;
+  `Fixed` always the page content box), resolve x/y from the insets (left →
+  `cb.x + left`; else right → `cb.x + cb_w - w - right`; else static x = cb.x;
+  same for y with top/bottom), measure (width auto → shrink-to-fit, height via
+  `measure_block`), lay the box monolithically with the page bottom, push the
+  fragment to `flow.abspos`, and do NOT advance the in-flow cursor. `continue`
+  with an explicit `i += 1` (the CORE-62 lesson).
+- `measure_block` skips `position: Absolute | Fixed` children (they add no
+  in-flow height) — same rule as floats.
+- After `layout_root` returns for a page, drain `flow.abspos` (sorted stable by
+  `z_index`, tree order for ties/`None`) into `fragmentainer.root.children`,
+  each offset adjusted by the root's origin (the root is the body fragment at
+  `(content_x, content_top)`).
 
 ### `engine/src/frag.rs`
 
-- `Fragmentainer` gains `abspos: Vec<AbsposFragment>` (resolved `Rect` +
-  fragment + z-order). Distinct from the floats parallel-flow list: abspos
-  fragments do not suspend/resume across pages — they are placed once on the
-  page of their containing block.
+- No new fields: abspos fragments ride the existing `Fragmentainer.root`
+  child list (Behavior 4). `Flow::abspos` is layout-internal.
 
 ### `engine/src/pdf.rs`
 
-- Paint order per fragmentainer: in-flow content, then abspos fragments
-  sorted by `z_index` (document order for ties/`auto`).
+- No change: paint order = tree order, and the abspos fragments are appended
+  after the in-flow subtree, sorted by `z_index`.
 
 ## Acceptance Criteria
 
