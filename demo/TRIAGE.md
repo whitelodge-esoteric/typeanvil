@@ -1,67 +1,121 @@
-# CORE-72 — First Demo Run: Baseline + Triage
+# CORE-79 — Second Demo Triage: Re-baseline post CORE-62/63/64/74/78
 
-Run: `bash scripts/build-demo.sh` at commit `a657cd1` (engine) / `daff6e0` (pipeline).
-Prince 16.2, non-commercial license. Geometry: 5in×3in, 0.5in margins, 96 DPI raster.
+Run: `bash scripts/build-demo.sh` at commit `eeafd44` (current main).
+Prince 16.2 non-commercial. Geometry: 5in×3in, 0.5in margins, 96 DPI raster.
+Scoreboard regenerated (numbers identical to the `f7d2501` commit — CORE-78's
+table×multicol fix does not touch the corpus, which has no multicol).
 
-## Scoreboard (committed alongside)
+## Scoreboard (current main, 2026-08-19)
 
-| Doc | Overall diff | TA pages | PR pages | Bucket |
+| Doc | Overall diff | TA pages | PR pages | Bucket (revised) |
 |---|---|---|---|---|
-| Invoice | 28.8% | 4 | 5 | cosmetic |
-| Letterhead | 15.8% | 8 | 8 | cosmetic |
-| Academic Paper | 28.8% | 9 | 10 | cosmetic |
-| Prose Showcase | 28.0% | 9 | 10 | cosmetic |
-| Quarterly Report | 18.7% | 10 | 10 | cosmetic |
-| Table Stress | 34.0% | 20 | 41 | cosmetic |
+| Invoice | 30.0% | 4 | 5 | **engine-bug (bold/weight)** |
+| Letterhead | 14.7% | 8 | 8 | **engine-bug (margin-box cover) + cosmetic** |
+| Academic Paper | 27.5% | 9 | 9 | **engine-bug (italic) + line-break** |
+| Prose Showcase | 28.5% | 9 | 8 | **engine-bug (bold) + line-break** |
+| Quarterly Report | 17.7% | 10 | 10 | **engine-bug (bold) + cosmetic** |
+| Table Stress | 33.5% | 20 | 45 | **engine-bug (bold) + table column-width** |
 
 ## Method
 
-Per-doc page pairs were inspected visually (rasterized at 96 DPI, TypeAnvil vs
-Prince side by side) against the spec's bucket definitions (§Behavior 7):
+1. Rebuilt gallery on current main (venv python, pipeline determinism passes).
+2. Built side-by-side montages for all 60 shared pages
+   (`demo/scripts/make_montages.py`, TA|PR labeled).
+3. Vision-triaged representative page pairs per doc; then **verified every
+   visual hypothesis with hard PDF evidence** (embedded-font lists, text-layer
+   extraction, char-box geometry, minimal repro renders through both engines).
 
-- **identical** (<1%, no visible difference) — none
-- **cosmetic** (1–20%, spacing/font only) / **missing-feature** (content absent
-  for a known gap) / **engine-bug** (wrong without a known-feature explanation)
+## Findings — this triage REVERSES CORE-72's conclusion
 
-## Findings
+CORE-72 said "zero engine bugs; diffs = font substitution" and filed CORE-73
+(font pinning). **That was wrong.** After pinning, the scoreboard did not move
+(28.8→30.0, 15.8→14.7, 34.0→33.5). Root cause: the engine never honored the
+font stack's weight/style anyway.
 
-**Zero engine bugs.** Every doc's *structure* renders correctly in TypeAnvil:
-content present, elements placed, tables intact. The diffs are dominated by:
+### Confirmed engine bugs (each verified, not eyeballed)
 
-1. **Font substitution** (largest factor). Corpus uses `font-family: sans-serif`,
-   which each engine resolves to a different system font (different metrics,
-   different line-height). This explains the near-uniform 15–34% diffs and the
-   page-count mismatches (e.g. Table Stress: 20 vs 41 pages — Prince's default
-   line-height is much taller).
-2. **Prince watermark/logo**. Prince adds a small "P" logo to every page —
-   a constant pixel-diff contributor on all docs.
-3. **counter(pages)** — TypeAnvil renders `Page 1 of 0` (known gap, documented
-   in the manifest; letterhead only).
-4. **Prince repeats tfoot oddly** on Table Stress (total row early) — that is
-   Prince's own table-fragmentation behavior, not a TypeAnvil defect.
+1. **`font-weight` and `font-style` are ignored entirely.** `engine/src/pdf.rs`
+   hardcodes `/System/Library/Fonts/Supplemental/Arial.ttf` (regular) as the
+   only font; there is no bold/italic face selection anywhere in the render
+   path (grep: no font-weight/font-style reads; `ComputedStyle` carries
+   `font_family` only). Verification: minimal repro `<div class="bold">` /
+   `.italic` — TA PDF embeds ONE font (`ArialMT`), Prince embeds three
+   (`ArialMT`, `Arial-BoldMT`, `Arial-ItalicMT`); bold line width 257.5pt
+   (Prince) vs no bold variant in TA. **Affects every doc**: every `h1`/`h2`,
+   `thead th`, `.total-row`, `.brand`, `.sig .name`, `.abstract`, `blockquote`
+   renders regular weight/upright. This is the single largest visible diff
+   driver. Filed as **CORE-80**.
+2. **Named-page margin-box suppression not honored.** Letterhead p1 (cover,
+   `@page cover { @top-left { content: none } … }`) — TA renders "Northwind
+   Systems www.northwind.example Page 1 of 0" in the margin; Prince renders
+   none. Filed as **CORE-82**.
+3. **Non-ASCII in margin-box content strings → mojibake.** `@top-center
+   content: "… — 2026"` renders as "â□□" (text layer shows UTF-8 bytes
+   `E2 80 94` decoded as Latin-1). Visible on table-stress and invoice
+   headers. Filed as **CORE-83**.
+4. **Body-text ToUnicode map is garbage.** Glyphs render correctly (vision
+   read "Anvil, standard (150 lb)" fine) but the PDF text layer extracts as
+   control chars (`\x01nventory`, `\x1co\x0fpany`). Copy/paste, search, and
+   accessibility are broken in every TA PDF. Invisible in the raster gallery,
+   but a real product defect. Filed as **CORE-85**.
 
-## Verified strengths (visual evidence)
+### Structural divergence (engine algorithm, not a single bug)
 
-- **Quarterly Report TOC**: TypeAnvil and Prince produce *identical* dotted
-  leaders and page numbers (2, 4, 6, 9) on the same pages.
-- **Prose Showcase**: both engines fully justify with hyphenation and even
-  texture (TypeAnvil hyphenates "machinery"; no rivers in either).
-- **Table Stress**: TypeAnvil repeats the table header on every page and
-  preserves all 150 rows; values verified correct.
-- **Invoice**: both engines render the bordered table with header + line items.
-- **Letterhead**: named-page cover has no running content in either engine.
+5. **Auto table-layout column-width distribution differs.** Table Stress: TA
+   fits 4 data rows/page (row pitch 14.8pt), Prince fits 1–3 (pitch 31.5pt —
+   2.1×) because Prince gives the Description column less width so cells wrap
+   to 2 lines and "On hand" wraps. This is the 20 vs 45 page blowup and the
+   33.5%. Manifest already flags "columns scale from content, not fixed
+   widths" as a known delta. Filed as **CORE-81**.
+6. **Margin-box font default differs.** Prince renders margin-box text in
+   TimesNewRomanPSMT (its default), TA in its single Arial. Corpus does not
+   pin margin-box `font-family`. Cheap fix on the corpus side. Filed as
+   **CORE-86** (Low, corpus).
 
-## Follow-up
+### Known gaps, now ticketed
 
-- **CORE-73 filed**: corpus font-stack pinning (`font-family` + explicit
-  `line-height` per fixture) to remove font-substitution noise from the diff —
-  the single highest-leverage demo improvement. This is corpus work, not
-  engine work, and would move several docs toward the 1–20% cosmetic band.
-- No engine-bug issues filed (none found). Known gaps remain tracked by their
-  original tickets (footnotes → none filed yet; counter(pages) → noted in
-  manifest; border-spacing → CORE-61 non-goals).
+7. **counter(pages)** — "Page 1 of 0" on letterhead footer. Tracked in the
+   manifest since CORE-70 but never filed. Filed as **CORE-84**.
 
-## Baseline committed
+### Not TypeAnvil defects (do not ticket)
 
-`demo/out/scoreboard.json` + `demo/out/index.html` committed as the v0.4
-baseline artifact (CORE-67's "scoreboard committed" Done criterion).
+- **Prince tfoot on table-stress p1**: Prince repeats the total row early
+  (its own table-fragmentation behavior, as noted in CORE-72).
+- **Prince watermark logo** (non-commercial license): constant small
+  contributor on every Prince page.
+- **Line-break/hyphenation positions** (paper, prose): different hyphenation
+  dictionaries / breaking algorithms; expected per manifest `expected_deltas`,
+  not a bug. Will converge only via algorithm parity work, deliberately out of
+  scope for this triage.
+
+## Revised diff-driver map (per doc)
+
+- Invoice 30.0: bold (h1, thead, total-row) + table column-width + em-dash
+- Letterhead 14.7: cover margin boxes + counter(pages) + bold (brand)
+- Paper 27.5: italic (abstract, blockquote) + bold (h1/h2) + line-breaks
+- Prose 28.5: bold (h1/h2) + line-breaks + hyphenation
+- Report 17.7: bold (h1, thead, total-row) + line-breaks
+- Table Stress 33.5: bold (thead, tfoot) + auto table column-width + em-dash
+
+**Single highest-leverage fix: CORE-80 (font weight/style).** It touches every
+doc and is the difference between "the demo shows bugs" and "the demo shows a
+wedge". Expect a large jump in convergence from it alone; CORE-81 is the
+second lever (page-count parity on tables).
+
+## Follow-up tickets filed (all children of CORE-79)
+
+- CORE-80 (High, engine): font-weight/font-style ignored — single hardcoded
+  Arial regular face
+- CORE-81 (High, engine): auto table-layout column-width distribution
+- CORE-82 (Medium, engine): named-page margin-box `content: none` not honored
+- CORE-83 (Medium, engine): non-ASCII in margin-box content strings → mojibake
+- CORE-84 (Medium, engine): counter(pages) total-page counter unsupported
+- CORE-85 (Medium, engine): body-text ToUnicode/text-extraction broken
+- CORE-86 (Low, corpus): pin margin-box font-family in corpus fixtures
+
+## Re-verification plan
+
+After CORE-80 lands: rebuild gallery, expect letterhead/report to drop toward
+single digits; table-stress stays high until CORE-81. Do NOT re-triage from
+vision alone — check embedded-font lists and char-box geometry (scripts under
+`/tmp` were one-shot; the durable technique is in the skill reference).
