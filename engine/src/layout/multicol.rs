@@ -149,8 +149,18 @@ impl<'a> Ctx<'a> {
                 let fits = y + target <= bottom_limit;
                 if !fits && !(placed && y == content_top) {
                     // The set does not fit the page: fill the remaining page
-                    // with as many columns as fit, then fragment the
-                    // container; the next page re-balances the rest.
+                    // with as many columns as fit — anchored at the
+                    // container's current cursor (anchoring at the page
+                    // bottom gave columns zero usable height: the first item
+                    // was force-placed at `bottom_limit` and could never
+                    // progress, the CORE-78 infinite pagination) — then
+                    // fragment the container; the next page re-balances the
+                    // rest as a fresh set. A set whose balanced estimate
+                    // over-ran but whose content actually finished inside the
+                    // page's columns is DONE: do not fragment (fragmenting
+                    // with an empty child token would re-lay the same set
+                    // with no cursor advance).
+                    let set_top = y;
                     let (cols, consumed_upto, tok) = self.fill_columns_partial(
                         id,
                         &items,
@@ -159,22 +169,39 @@ impl<'a> Ctx<'a> {
                         col_w,
                         gap,
                         n,
+                        set_top,
                         bottom_limit,
                         placed,
                         token,
                         flow,
                         style,
                     );
-                    for c in cols {
-                        children.push(c);
+                    for c in &cols {
+                        children.push(c.clone());
                     }
                     in_flight = consumed_upto;
                     if let Some(t) = tok {
                         outgoing_children.push(t);
                     }
-                    done = false;
-                    y = bottom_limit;
-                    break;
+                    if consumed_upto < items.len() {
+                        // Content remains after the page's columns: the
+                        // container fragments and the rest resumes next page.
+                        done = false;
+                        y = bottom_limit;
+                        break;
+                    }
+                    // The set finished inside the page's columns: advance the
+                    // cursor past the laid columns and continue with the next
+                    // set.
+                    let laid = cols.iter().map(|c| c.size.1).fold(Scalar::ZERO, |a, b| {
+                        if b.get() > a.get() {
+                            b
+                        } else {
+                            a
+                        }
+                    });
+                    y = y + laid;
+                    set_i += 1;
                 }
                 // The set fits: fill all n columns at the balanced target.
                 let (cols, consumed_upto, tok) = self.fill_columns(
@@ -418,7 +445,7 @@ impl<'a> Ctx<'a> {
     }
 
     /// Fill columns against the page bottom (a set that does not fit the
-    /// page): columns are as tall as the remaining page; overflow resumes on
+    /// page): columns span `set_top..bottom_limit`; overflow resumes on
     /// the next page. Returns (columns, consumed_upto, in-flight token).
     #[allow(clippy::too_many_arguments)]
     fn fill_columns_partial(
@@ -430,6 +457,7 @@ impl<'a> Ctx<'a> {
         col_w: Scalar,
         gap: Scalar,
         n: u32,
+        set_top: Scalar,
         bottom_limit: Scalar,
         placed: bool,
         token: &BreakToken,
@@ -452,7 +480,7 @@ impl<'a> Ctx<'a> {
                 x,
                 col_w,
                 bottom_limit,
-                bottom_limit,
+                set_top,
                 placed,
                 token,
                 resume,
