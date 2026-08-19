@@ -1678,6 +1678,7 @@ dependencies = [
  "stylo",
  "stylo_atoms",
  "stylo_dom",
+ "stylo_static_prefs",
  "stylo_traits",
  "tempfile",
  "unicode-linebreak",
