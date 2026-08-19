@@ -37,9 +37,10 @@ use style::servo::media_features::PointerCapabilities;
 use style::shared_lock::{SharedRwLock, StylesheetGuards};
 use style::stylist::{RuleInclusion, Stylist};
 use style::stylesheets::{AllowImportRules, Origin, Stylesheet as StylesheetFromStylo, UrlExtraData};
+use style::values::computed::box_::Float as StyloFloat;
 use style::values::computed::font::{FontFamily, LineHeight, SingleFontFamily};
 use style::values::computed::Color as ComputedColor;
-use style::values::computed::Length;
+use style::values::computed::{Length, Size as StyloSize};
 use style::values::specified::box_::{DisplayInside, DisplayOutside};
 use style::values::specified::font::FONT_MEDIUM_PX;
 use style::values::specified::text::TextAlignKeyword;
@@ -74,6 +75,14 @@ pub enum Display {
     TableFooterGroup,
     TableRow,
     TableCell,
+}
+/// The computed `float` value (css-box-3 §2).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum Float {
+    #[default]
+    None,
+    Left,
+    Right,
 }
 
 /// The `text-align` computed value (css-text-3 §8). Read from stylo's
@@ -149,6 +158,13 @@ pub struct ComputedStyle {
     pub line_height: Scalar,
     pub font_family: String,
     pub display: Display,
+    /// The computed `float` value (css-box-3 §2). `Left`/`Right` take the
+    /// element out of flow; layout places it at the content edge and wraps
+    /// in-flow text around it.
+    pub float: Float,
+    /// The computed `width` property, `None` = `auto` (shrink-to-fit for
+    /// floats). Points.
+    pub width: Option<Scalar>,
     pub margin_top: Scalar,
     pub margin_right: Scalar,
     pub margin_bottom: Scalar,
@@ -207,6 +223,8 @@ impl ComputedStyle {
             line_height: px_to_pt(16.0) * NORMAL_LINE_HEIGHT_FACTOR,
             font_family: "sans-serif".to_string(),
             display: Display::Inline,
+            float: Float::None,
+            width: None,
             margin_top: Scalar::ZERO,
             margin_right: Scalar::ZERO,
             margin_bottom: Scalar::ZERO,
@@ -505,6 +523,23 @@ impl CascadeSession {
                 }
             },
         };
+        let position = values.get_position();
+        let float = match box_.clone_float() {
+            StyloFloat::None => Float::None,
+            StyloFloat::Left => Float::Left,
+            StyloFloat::Right => Float::Right,
+            _ => Float::None,
+        };
+        let width = match position.clone_width() {
+            StyloSize::Auto => None,
+            StyloSize::LengthPercentage(lp) => {
+                // NonNegative<LengthPercentage>: `.0` unwraps the non-negative
+                // marker; percentages have no absolute length (`to_length` is
+                // None) and fall back to shrink-to-fit.
+                lp.0.to_length().map(|len| px_to_pt(len.px() as f64))
+            }
+            _ => None,
+        };
 
         // `color` is the computed `color` property, always an absolute color
         // once resolved (currentcolor etc. are resolved by the cascade).
@@ -552,6 +587,8 @@ impl CascadeSession {
             line_height,
             font_family,
             display,
+            float,
+            width,
             margin_top,
             margin_right,
             margin_bottom,

@@ -219,6 +219,10 @@ pub struct BreakToken {
     /// Block size (height) already consumed by earlier fragments of this box.
     /// Lets specified heights resolve correctly across breaks.
     pub consumed_block_size: Scalar,
+    /// Source bytes consumed by the previous fragment of a text run (Rust
+    /// `&str` slicing is byte-indexed).
+    /// Used to resume at a source offset when available widths vary.
+    pub consumed_chars: Option<usize>,
     /// `HasSeenAllChildren`: true once every child has been fully laid out.
     /// Disambiguates "no child tokens because we're done" from "not started",
     /// which is what prevents infinite page generation.

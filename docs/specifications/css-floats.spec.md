@@ -205,7 +205,8 @@ The engine shall:
   segment's origin/width); advance y; end the segment when the intrusion set
   changes at a line boundary or the page bottom is reached. When the
   fragmentainer bottom ends the run, the emitted break token records the
-  CONSUMED SOURCE OFFSET (number of source characters placed) so the next
+  CONSUMED SOURCE OFFSET (number of source BYTES placed — Rust `&str` slicing
+  is byte-indexed) so the next
   fragmentainer re-breaks the remaining text at ITS available width. Keep
   orphans/widows and last-resort monolithic placement semantics.
 
