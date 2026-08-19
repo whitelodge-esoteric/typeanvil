@@ -108,18 +108,26 @@ The engine shall:
    the fragmentainer bottom. Lines below every float's bottom return to full
    width. Segments consume source text in order; the next segment starts at
    the source offset where the previous ended.
-7. Track active floats as intrusions with their rectangle
+7. Resume text runs across fragmentainers by CONSUMED SOURCE OFFSET, not by
+   line count. A text run that spans a page break records how many source
+   characters it consumed; the next fragmentainer re-breaks the REMAINING text
+   at that fragmentainer's available width (which may differ from the previous
+   page's, because floats resume at the top of the next page). The existing
+   line-count resume (`consumed_block_size`) is insufficient once widths vary
+   per page — the break token for a text run carries the consumed character
+   offset (see Interfaces).
+8. Track active floats as intrusions with their rectangle
    `(x, y, width, height)`; a float stops intruding once `y >= float_bottom`.
-8. Fragment floats across pages: when a float's measured height does not fit
+9. Fragment floats across pages: when a float's measured height does not fit
    the remaining fragmentainer (and the fragmentainer already has content —
    monolithic last-resort placement on an empty page still applies), suspend
    the float with a break token and emit its continuation at the top of the
    next fragmentainer. Carry the remaining float rectangle forward so text on
    the next page wraps around the continuation. In-flow siblings continue in
    the current fragmentainer normally (parallel flow).
-9. Keep orphans/widows behavior: page splits inside a text segment still apply
+10. Keep orphans/widows behavior: page splits inside a text segment still apply
    the existing orphans/widows logic to the segment's lines.
-10. Not change the Knuth-Plass objective, shaping, microtypography, tables, or
+11. Not change the Knuth-Plass objective, shaping, microtypography, tables, or
     paged-media machinery. Float boxes are placed in the same fragment tree;
     only the placement + available-width computation is new.
 
@@ -195,9 +203,30 @@ The engine shall:
   overlapping the current y-band; call `break_paragraph` on the remaining
   source; place lines as today (baseline, alignment via `aligned_x` with the
   segment's origin/width); advance y; end the segment when the intrusion set
-  changes at a line boundary or the page bottom is reached. Keep the
-  existing consumed-line resume (break tokens with `consumed_block_size`),
-  orphans/widows, and last-resort monolithic placement semantics.
+  changes at a line boundary or the page bottom is reached. When the
+  fragmentainer bottom ends the run, the emitted break token records the
+  CONSUMED SOURCE OFFSET (number of source characters placed) so the next
+  fragmentainer re-breaks the remaining text at ITS available width. Keep
+  orphans/widows and last-resort monolithic placement semantics.
+
+### `engine/src/frag.rs`
+
+- `BreakToken` gains a text-run resume field:
+
+  ```rust
+  /// Source characters consumed by the previous fragment of a text run.
+  /// Set on tokens that resume a Text item; re-breaking on the next
+  /// fragmentainer starts from this offset and uses that fragmentainer's
+  /// available width (which may differ from the previous page's once
+  /// floats are active). `None` keeps the existing `consumed_block_size`
+  /// line-count resume for tokens created before this feature.
+  pub consumed_chars: Option<usize>,
+  ```
+
+  The text item's resume path (layout.rs) prefers `consumed_chars` when
+  present; `consumed_block_size` remains the fallback so unrelated break
+  tokens (blocks, tables) are untouched. `ChildToken`/`BreakToken` constructors
+  default the new field to `None`.
 
 - `measure_block` (break-inside: avoid measure): floats inside a measured
   block must be excluded from the in-flow measure (a float does not add
