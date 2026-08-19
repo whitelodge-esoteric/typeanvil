@@ -37,8 +37,13 @@ use style::servo::media_features::PointerCapabilities;
 use style::shared_lock::{SharedRwLock, StylesheetGuards};
 use style::stylist::{RuleInclusion, Stylist};
 use style::stylesheets::{AllowImportRules, Origin, Stylesheet as StylesheetFromStylo, UrlExtraData};
+use style::properties::generated::longhands::column_span::computed_value::T as StyloColumnSpan;
 use style::values::computed::box_::Float as StyloFloat;
+use style::values::computed::column::ColumnCount as StyloColumnCount;
 use style::values::computed::font::{FontFamily, LineHeight, SingleFontFamily};
+use style::values::computed::length::{
+    NonNegativeLengthOrAuto as StyloColumnWidth, NonNegativeLengthPercentageOrNormal as StyloColumnGap,
+};
 use style::values::computed::position::{Inset as StyloInset, ZIndex as StyloZIndex};
 use style::values::computed::Color as ComputedColor;
 use style::values::computed::{Length, PositionProperty, Size as StyloSize};
@@ -77,6 +82,14 @@ pub enum Display {
     TableRow,
     TableCell,
 }
+/// The computed `column-span` value (css-multicol-1 §4).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum ColumnSpan {
+    #[default]
+    None,
+    All,
+}
+
 /// The computed `float` value (css-box-3 §2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum Float {
@@ -187,6 +200,14 @@ pub struct ComputedStyle {
     pub inset_left: Option<Scalar>,
     /// `z-index`, `None` = `auto` (paint in tree order).
     pub z_index: Option<i32>,
+    /// `column-count`, `None` = `auto` (css-multicol-1).
+    pub column_count: Option<u32>,
+    /// `column-width`, `None` = `auto`. Points.
+    pub column_width: Option<Scalar>,
+    /// `column-span` (spanners interrupt the column flow).
+    pub column_span: ColumnSpan,
+    /// `column-gap`; `normal`/`auto` resolve to 1em. Points.
+    pub column_gap: Scalar,
     pub margin_top: Scalar,
     pub margin_right: Scalar,
     pub margin_bottom: Scalar,
@@ -253,6 +274,10 @@ impl ComputedStyle {
             inset_bottom: None,
             inset_left: None,
             z_index: None,
+            column_count: None,
+            column_width: None,
+            column_span: ColumnSpan::None,
+            column_gap: px_to_pt(16.0),
             margin_top: Scalar::ZERO,
             margin_right: Scalar::ZERO,
             margin_bottom: Scalar::ZERO,
@@ -292,6 +317,9 @@ pub struct Stylesheet {
 impl Stylesheet {
     /// Collect CSS source text. Parsing is deferred to stylo inside [`cascade`].
     pub fn parse(css: &str) -> Stylesheet {
+        // column-count/width/span are pref-gated in the servo build; enable
+        // the gate before any declaration parsing (CORE-63).
+        static_prefs::set_pref!("layout.columns.enabled", true);
         Stylesheet {
             css: css.to_string(),
         }
@@ -592,6 +620,21 @@ impl CascadeSession {
             StyloZIndex::Auto => None,
             StyloZIndex::Integer(n) => Some(n),
         };
+        // css-multicol longhands. column-gap lives on the *position* style
+        // struct; the rest on the *column* struct.
+        let column = values.get_column();
+        let column_count = match column.clone_column_count() {
+            StyloColumnCount::Integer(n) => Some(n.0 as u32),
+            StyloColumnCount::Auto => None,
+        };
+        let column_width = match column.clone_column_width() {
+            StyloColumnWidth::Auto => None,
+            StyloColumnWidth::LengthPercentage(lp) => Some(px_to_pt(lp.0.px() as f64)),
+        };
+        let column_span = match column.clone_column_span() {
+            StyloColumnSpan::None => ColumnSpan::None,
+            StyloColumnSpan::All => ColumnSpan::All,
+        };
 
         // `color` is the computed `color` property, always an absolute color
         // once resolved (currentcolor etc. are resolved by the cascade).
@@ -607,6 +650,15 @@ impl CascadeSession {
         };
 
         let font_size = px_to_pt(font.clone_font_size().computed_size().px() as f64);
+        // column-gap resolves `normal` to 1em against the font size.
+        let column_gap = match position.clone_column_gap() {
+            StyloColumnGap::Normal => font_size,
+            StyloColumnGap::LengthPercentage(lp) => lp
+                .0
+                .to_length()
+                .map(|len| px_to_pt(len.px() as f64))
+                .unwrap_or(font_size),
+        };
         let font_family = first_family_name(font.clone_font_family())
             .unwrap_or_else(|| "sans-serif".to_string());
         let line_height = match font.clone_line_height() {
@@ -647,6 +699,10 @@ impl CascadeSession {
             inset_bottom,
             inset_left,
             z_index,
+            column_count,
+            column_width,
+            column_span,
+            column_gap,
             margin_top,
             margin_right,
             margin_bottom,

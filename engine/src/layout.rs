@@ -43,6 +43,8 @@ use crate::frag::{
     FragmentKind, TextRun,
 };
 use crate::geom::{PageGeometry, Point, Scalar};
+
+mod multicol;
 use crate::paged::{
     parse_page_rules, resolve_page_spec, ContentPiece, MarginAlign, MarginBoxName, MarginRow,
     PageRule, PageSpec, RunningStrings,
@@ -526,6 +528,25 @@ impl<'a> Ctx<'a> {
             Position::Relative | Position::Absolute | Position::Fixed
         ) {
             flow.abspos_cb = Some((Point::new(inner_left, box_top), inner_width));
+        }
+
+        // Multi-column: a box with `column-count`/`column-width` engaging >= 2
+        // columns hands its items to the column fragmentainers (CORE-63).
+        if let Some(mc) = self.multicol_geometry(style, inner_width) {
+            let res = self.layout_multicol_container(
+                id,
+                inner_left,
+                inner_width,
+                top,
+                bottom_limit,
+                placed,
+                token,
+                flow,
+                style,
+                mc,
+            );
+            flow.abspos_cb = saved_abspos_cb;
+            return res;
         }
 
         let start_index = if fresh {
