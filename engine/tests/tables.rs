@@ -261,3 +261,228 @@ fn test_table_regression_guards() {
     let l = lay(html, geo);
     assert!(!l.pages.is_empty());
 }
+
+// --- CORE-81 auto table layout acceptance tests ------------------------------
+// Each maps to an acceptance criterion in
+// `docs/specifications/auto-table-layout.spec.md`.
+
+use typeanvil::table::{distribute_column_widths, intrinsic_column_widths, measure_columns};
+
+/// Parse fixture + cascade styles, for the direct table API tests.
+fn parse(html: &str) -> (Dom, Vec<typeanvil::css::ComputedStyle>) {
+    let dom = Dom::parse(html).expect("parse html");
+    let mut css = String::new();
+    for (id, node) in dom.nodes.iter().enumerate() {
+        if let NodeKind::Element(el) = &node.kind {
+            if el.tag == "style" {
+                css.push_str(&dom.text_content(id));
+                css.push('\n');
+            }
+        }
+    }
+    let sheet = Stylesheet::parse(&css);
+    let styles = typeanvil::css::cascade(&dom, &sheet);
+    (dom, styles)
+}
+
+fn table_id_of(dom: &Dom) -> usize {
+    dom.nodes
+        .iter()
+        .enumerate()
+        .find(|(_, n)| matches!(&n.kind, NodeKind::Element(el) if el.tag == "table"))
+        .map(|(i, _)| i)
+        .expect("table element")
+}
+
+#[test]
+fn test_intrinsic_min_max_uncapped() {
+    let html = r#"<!DOCTYPE html><style>
+        table { border-collapse: collapse; }
+        th, td { padding: 2pt 4pt; font-size: 9pt; font-family: Arial, sans-serif; }
+    </style><table><tr><td>Disappearing/reappearing clothes</td><td>Qty</td></tr></table>"#;
+    let (dom, styles) = parse(html);
+    let tid = table_id_of(&dom);
+    let (mins, maxs) = intrinsic_column_widths(&dom, &styles, tid);
+    assert_eq!(mins.len(), 2);
+    // min-content = widest whitespace word ("Disappearing/reappearing", one
+    // glued token ≈ 112pt at 9pt Arial) + padding.
+    assert!(
+        mins[0].get() > 100.0 && mins[0].get() < 135.0,
+        "min-content col0 = {} (expect ≈112)",
+        mins[0].get()
+    );
+    // max-content = whole text on one line (≈145pt) + padding; strictly
+    // larger than min, and far below the available width (uncapped).
+    assert!(
+        maxs[0].get() > mins[0].get(),
+        "max-content ({}) must exceed min-content ({})",
+        maxs[0].get(),
+        mins[0].get()
+    );
+    assert!(maxs[0].get() < 200.0, "max-content col0 = {}", maxs[0].get());
+}
+
+#[test]
+fn test_distribute_extra_proportional_max() {
+    let min = [Scalar(10.0), Scalar(20.0)];
+    let max = [Scalar(30.0), Scalar(40.0)];
+    // used=100 ≥ sum(max)=70 → col = max + extra×max/sum(max), extra=30.
+    let out = distribute_column_widths(&min, &max, Scalar(100.0));
+    assert!((out[0].get() - 42.857).abs() < 0.01, "col0 = {}", out[0].get());
+    assert!((out[1].get() - 57.143).abs() < 0.01, "col1 = {}", out[1].get());
+    assert!((out[0].get() + out[1].get() - 100.0).abs() < 0.01);
+}
+
+#[test]
+fn test_distribute_middle_branch() {
+    let min = [Scalar(10.0), Scalar(10.0), Scalar(10.0)];
+    let max = [Scalar(20.0), Scalar(100.0), Scalar(30.0)];
+    // sum(min)=30, sum(max)=150; used=90 → extra=60 ∝ (max−min)=(10,90,20).
+    let out = distribute_column_widths(&min, &max, Scalar(90.0));
+    assert!((out[0].get() - 15.0).abs() < 0.01, "col0 = {}", out[0].get());
+    assert!((out[1].get() - 55.0).abs() < 0.01, "col1 = {}", out[1].get());
+    assert!((out[2].get() - 20.0).abs() < 0.01, "col2 = {}", out[2].get());
+    assert!((out.iter().map(|w| w.get()).sum::<f64>() - 90.0).abs() < 0.01);
+}
+
+#[test]
+fn test_distribute_overflow_keeps_min() {
+    let min = [Scalar(10.0), Scalar(20.0)];
+    let max = [Scalar(100.0), Scalar(200.0)];
+    let out = distribute_column_widths(&min, &max, Scalar(25.0));
+    assert_eq!(out, min.to_vec());
+}
+
+#[test]
+fn test_table_used_width_resolution() {
+    let html = r#"<!DOCTYPE html><style>
+        table { border-collapse: collapse; width: 100%; }
+        th, td { padding: 2pt 4pt; font-size: 9pt; font-family: Arial, sans-serif; }
+    </style><table>
+      <tr><th>SKU</th><th>Description</th><th>On hand</th><th>Backorder</th><th>Unit cost</th><th>Value</th></tr>
+      <tr><td>ANV-0001</td><td>Anvil standard 150 lb</td><td>24</td><td>3</td><td>120.00</td><td>2880.00</td></tr>
+      <tr><td>CLO-1401</td><td>Disappearing/reappearing clothes</td><td>8</td><td>1</td><td>130.00</td><td>1040.00</td></tr>
+    </table>"#;
+    let (dom, styles) = parse(html);
+    let tid = table_id_of(&dom);
+    // The cascade carries `width: 100%` as a 1.0 fraction (CORE-81).
+    let pct = styles[tid]
+        .width_percent
+        .expect("width:100% carries a percentage");
+    assert!((pct - 1.0).abs() < 0.001, "width_percent = {pct}");
+    // Used widths differ per the declared width at a 540pt content box.
+    let avail = Scalar(540.0);
+    let sum = |cw: &typeanvil::table::ColumnWidths| {
+        cw.widths.iter().map(|w| w.get()).sum::<f64>()
+    };
+    let auto = measure_columns(&dom, &styles, tid, avail, None);
+    let pct100 = measure_columns(&dom, &styles, tid, avail, Some(Scalar(avail.get() * pct)));
+    let fixed400 = measure_columns(&dom, &styles, tid, avail, Some(Scalar(400.0)));
+    assert!(sum(&auto) < 540.0, "auto sum = {}", sum(&auto));
+    assert!(
+        (sum(&pct100) - 540.0).abs() < 1.0,
+        "100% sum = {}",
+        sum(&pct100)
+    );
+    assert!(
+        (sum(&fixed400) - 400.0).abs() < 1.0,
+        "400pt sum = {}",
+        sum(&fixed400)
+    );
+}
+
+#[test]
+fn test_table_stress_description_column_wraps() {
+    // 6-column table shaped like the table-stress corpus fixture at the demo
+    // geometry (5in × 3in, 0.5in margins → 288pt content): the overflow
+    // branch (sum(min) > used) pins Description at its min-content ≈ 112pt
+    // and long descriptions wrap to 2+ lines.
+    let geo = geometry(5.0, 3.0, 0.5);
+    let html = r#"<!DOCTYPE html><style>
+        table { border-collapse: collapse; width: 100%; }
+        th, td { padding: 2pt 4pt; font-size: 9pt; font-family: Arial, sans-serif; }
+    </style><table>
+      <thead><tr><th>SKU</th><th>Description</th><th>On hand</th><th>Backorder</th><th>Unit cost</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>ANV-0001</td><td>Anvil, standard (150 lb)</td><td>24</td><td>3</td><td>120.00</td><td>2,880.00</td></tr>
+        <tr><td>CLO-1401</td><td>Disappearing/reappearing clothes</td><td>8</td><td>1</td><td>130.00</td><td>1,040.00</td></tr>
+        <tr><td>TRP-1510</td><td>Earthquake pill (double strength)</td><td>14</td><td>0</td><td>55.00</td><td>770.00</td></tr>
+      </tbody>
+    </table>"#;
+    // Direct check: Description column = min-content ≈ 112pt.
+    let (dom, styles) = parse(html);
+    let tid = table_id_of(&dom);
+    let cols = measure_columns(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)));
+    let desc = cols.widths[1];
+    assert!(
+        desc.get() > 100.0 && desc.get() < 135.0,
+        "Description column = {} (expect ≈112pt min-content)",
+        desc.get()
+    );
+    // The longest description wraps to 2+ lines: "Earthquake" and "strength"
+    // land on different lines (different y).
+    let l = lay(html, geo);
+    let frags = page_fragments(&l, 0);
+    let y_of = |needle: &str| {
+        frags
+            .iter()
+            .filter(|(f, _, _)| text_of(f).contains(needle))
+            .map(|(_, _, y)| *y)
+            .next()
+    };
+    let y_eq = y_of("Earthquake").expect("Earthquake text on page 1");
+    let y_st = y_of("strength").expect("strength text on page 1");
+    assert!(
+        (y_st - y_eq).abs() > 3.0,
+        "expected 2-line description: Earthquake y={y_eq}, strength y={y_st}"
+    );
+}
+
+#[test]
+fn test_table_stress_page_count_grows() {
+    // The corpus fixture at the demo geometry. The auto-layout distribution
+    // (overflow branch → min-content columns) wraps the longest descriptions,
+    // moving the page count above the old heuristic's 20. NOTE: measured 21 —
+    // the residual gap to Prince's 45 is Prince's FIRST-PAGE column freeze
+    // (it measures only the header + first-page rows, giving the Description
+    // column ≈57pt = the header width; the standard CSS algorithm measures
+    // all rows → 112pt). Tracked as a follow-up (CORE-89); this test guards
+    // against regressing back to the content-scaling heuristic.
+    let src = std::fs::read_to_string("../demo/corpus/table-stress.html")
+        .expect("table-stress corpus fixture");
+    let geo = geometry(5.0, 3.0, 0.5);
+    let l = lay(&src, geo);
+    assert!(
+        l.pages.len() > 20,
+        "table-stress pages = {} (expect > 20; was 20, Prince 45, standard algorithm 21)",
+        l.pages.len()
+    );
+}
+
+#[test]
+fn test_two_column_probe_width() {
+    // Prince-verified constant (2026-08-20): the same 320pt-wide two-column
+    // table splits col1 ≈ 293pt / col2 ≈ 23pt in Prince, matching the
+    // css-tables-3 middle branch within measurement error. The engine must
+    // land within ±2% of the verified 295pt.
+    let html = r#"<!DOCTYPE html><style>
+        table { border-collapse: collapse; width: 320pt; }
+        th, td { padding: 2pt 4pt; font-size: 9pt; font-family: Arial, sans-serif; }
+    </style><table>
+      <thead><tr><th>Description</th><th>Qty</th></tr></thead>
+      <tbody>
+        <tr><td>Earthquake pill double strength trial pack with extra warranty coverage for industrial use</td><td>24</td></tr>
+        <tr><td>Disintegrating shotgun with automatic reloading mechanism and carrying case</td><td>3</td></tr>
+        <tr><td>Spring loaded boxing glove certified tournament grade leather construction</td><td>13</td></tr>
+      </tbody>
+    </table>"#;
+    let (dom, styles) = parse(html);
+    let tid = table_id_of(&dom);
+    let cols = measure_columns(&dom, &styles, tid, Scalar(540.0), Some(Scalar(320.0)));
+    let long = cols.widths[0];
+    assert!(
+        (long.get() - 295.0).abs() / 295.0 <= 0.02,
+        "long column = {} (expect 295 ±2%)",
+        long.get()
+    );
+}
