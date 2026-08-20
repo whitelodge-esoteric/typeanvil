@@ -9,6 +9,7 @@ use typeanvil::dom::{Dom, NodeKind};
 use typeanvil::frag::{Fragment, FragmentContent, FragmentKind};
 use typeanvil::geom::{PageGeometry, Scalar};
 use typeanvil::layout::{layout, Layout};
+use typeanvil::typography::baseline_offset;
 
 const EPS: f64 = 1e-6;
 
@@ -69,6 +70,29 @@ fn p_style(html: &str) -> ComputedStyle {
 fn first_line_height(layout: &Layout) -> Scalar {
     let page = layout.pages.first().expect("layout must contain a page");
     find_first_line_height(&page.root).expect("layout must contain a line fragment")
+}
+
+/// Baseline y of the first main-text line on page 1, in page coordinates
+/// (sums ancestor fragment offsets; a text run's baseline is box-local).
+fn first_baseline(layout: &Layout) -> Scalar {
+    let page = layout.pages.first().expect("layout must contain a page");
+    let mut acc = Scalar::ZERO;
+    find_first_baseline(&page.root, &mut acc).expect("layout must contain a text run")
+}
+
+fn find_first_baseline(frag: &Fragment, acc: &mut Scalar) -> Option<Scalar> {
+    let here = *acc + frag.offset.y;
+    if let FragmentContent::Text(run) = &frag.content {
+        if !run.glyphs.is_empty() {
+            return Some(here + run.baseline.y);
+        }
+    }
+    for child in &frag.children {
+        if let Some(b) = find_first_baseline(child, &mut (*acc + frag.offset.y)) {
+            return Some(b);
+        }
+    }
+    None
 }
 
 fn find_first_line_height(frag: &Fragment) -> Option<Scalar> {
@@ -259,4 +283,88 @@ fn output_is_deterministic_with_line_height() {
     let ba = std::fs::read(&a).unwrap();
     let bb = std::fs::read(&b).unwrap();
     assert_eq!(ba, bb, "PDF output is not byte-identical across runs");
+}
+
+// --- 8. Baseline placement follows CSS2.1 §10.8.1 half-leading (CORE-90) ---
+//
+// Prince places the first baseline at content_top + ascent + (line_height −
+// ascent − descent)/2 (half the leading split around the font's natural
+// metrics). TypeAnvil historically used `content_top + font_size` (slope 0
+// vs factor), which is what made prose page counts cross between line-height
+// 1.2 (TA taller) and 1.6 (Prince taller). Verified against Prince 16.2 with
+// Arial hhea (asc 1854/2048, desc 434/2048): every factor reproduced to
+// 0.001pt. This test pins the formula on the fragment tree.
+
+const ARIA_ASC_EM: f64 = 1854.0 / 2048.0;
+const ARIA_DESC_EM: f64 = 434.0 / 2048.0;
+
+fn expected_offset(font_size: f64, line_height: f64) -> f64 {
+    let asc = font_size * ARIA_ASC_EM;
+    let desc = font_size * ARIA_DESC_EM;
+    asc + (line_height - asc - desc) * 0.5
+}
+
+#[test]
+fn first_baseline_uses_half_leading() {
+    let geo = geometry(5.0, 3.0, 0.5);
+    let cases = [
+        (1.0, 10.0f64),
+        (1.2, 10.0),
+        (1.6, 10.0),
+        (2.0, 10.0),
+        (1.2, 15.0),
+        (1.6, 15.0),
+    ];
+    for (factor, fs) in cases {
+        let html = format!(
+            r#"<html><head><style>
+                body {{ margin: 0; }}
+                h1 {{ font-size: {fs}pt; line-height: {factor}; margin: 0; }}
+            </style></head><body><h1>Heading</h1></body></html>"#
+        );
+        let lay = lay(&html, geo);
+        // Content top = page 36 (0.5in margin). The baseline must be
+        // content_top + expected_offset, NOT content_top + font_size.
+        let baseline = first_baseline(&lay).get();
+        let want = 36.0 + expected_offset(fs, fs * factor);
+        assert!(
+            (baseline - want).abs() < 0.01,
+            "factor {factor} fs {fs}: baseline {baseline:.3} want {want:.3} \
+             (old behavior: {})",
+            36.0 + fs
+        );
+        // And it must differ from the old `content_top + font_size` rule
+        // whenever half-leading is nonzero.
+        if (fs * factor - (fs * ARIA_ASC_EM + fs * ARIA_DESC_EM)).abs() > 0.01 {
+            assert!(
+                (baseline - (36.0 + fs)).abs() > 0.05,
+                "factor {factor} fs {fs}: baseline must move off content_top + font_size"
+            );
+        }
+    }
+}
+
+#[test]
+fn baseline_offset_matches_prince_formula() {
+    // The pure function itself, against the Prince-verified numbers
+    // (measured via pypdfium2 charbox bottoms on Prince 16.2 output).
+    let face = typeanvil::fonts::FontFace::Regular;
+    let measured: &[(f64, f64, f64)] = &[
+        (10.0, 10.0, 8.467),
+        (10.0, 12.0, 9.467),
+        (10.0, 15.0, 10.967),
+        (10.0, 16.0, 11.467),
+        (10.0, 20.0, 13.467),
+        (15.0, 15.0, 12.701),
+        (15.0, 18.0, 14.200),
+        (15.0, 24.0, 17.200),
+        (15.0, 30.0, 20.200),
+    ];
+    for &(fs, lh, want) in measured {
+        let got = baseline_offset(Scalar(fs), Scalar(lh), face).get();
+        assert!(
+            (got - want).abs() < 0.01,
+            "baseline_offset({fs}pt, {lh}pt) = {got:.4} want {want:.4}"
+        );
+    }
 }

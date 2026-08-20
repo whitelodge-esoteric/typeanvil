@@ -38,6 +38,7 @@ use std::sync::LazyLock;
 
 use harfrust::{Direction, FontRef, ShaperData, ShapeOptions, UnicodeBuffer};
 use hypher::Lang;
+use read_fonts::TableProvider;
 use unicode_linebreak::{linebreaks, BreakOpportunity as UaxBreak};
 
 use crate::css::ComputedStyle;
@@ -100,6 +101,35 @@ static FACE_SHAPERS: [LazyLock<(FontRef<'static>, ShaperData)>; 4] = [
 
 fn face_shaper(face: FontFace) -> &'static (FontRef<'static>, ShaperData) {
     &FACE_SHAPERS[face as usize]
+}
+
+/// The vertical metrics of a face, in fractions of the em square: (ascent,
+/// descent). Read from the font's hhea table (the CSS2.1 §10.8.1 font
+/// leading baseline: half the leading is split around ascent + descent).
+/// All bundled Arial faces share one hhea, but this reads per-face so a
+/// future font swap stays correct.
+pub fn font_metrics(face: FontFace) -> (f64, f64) {
+    let (font, _) = face_shaper(face);
+    let hhea = font.hhea().expect("hhea table for font metrics");
+    let upem = font.head().expect("head table").units_per_em() as f64;
+    let asc = hhea.ascender().to_i16() as f64 / upem;
+    let desc = hhea.descender().to_i16() as f64 / upem; // negative
+    (asc, desc)
+}
+
+/// The CSS2.1 §10.8.1 baseline offset: the distance from a line box's top to
+/// its text baseline. `ascent + half-leading`, where leading = line-height −
+/// (ascent + descent) and ascent/descent are the font's hhea metrics scaled
+/// to `font_size`. TypeAnvil historically placed the baseline at `font_size`
+/// (ascent assumed = font size, no half-leading); Prince uses this formula,
+/// which is what CORE-90 proved. Line box HEIGHT is unchanged (still
+/// `line_height`); only the glyph baseline inside the box moves.
+pub fn baseline_offset(font_size: Scalar, line_height: Scalar, face: FontFace) -> Scalar {
+    let (asc_em, desc_em) = font_metrics(face);
+    let ascent = font_size.get() * asc_em;
+    let descent = font_size.get() * -desc_em;
+    let half_leading = (line_height.get() - ascent - descent) * 0.5;
+    Scalar(ascent + half_leading)
 }
 
 /// One shaped glyph.

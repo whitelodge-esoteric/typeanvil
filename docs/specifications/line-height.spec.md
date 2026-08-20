@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-18
-updated: 2026-08-18
+updated: 2026-08-20
 sidebar_position: 6
 tags: [engine, css, typography, line-height]
 spec_id: line-height
@@ -66,8 +66,8 @@ NOT needed.
 - `line-height` on the page-margin context: margin boxes keep the `normal`
   factor against their fixed 10pt font (there is no element style to read).
 - Changing the Knuth-Plass line-breaking objective or the shaping pipeline.
-- Baseline alignment beyond line box height (half-leading distribution is
-  not modeled; the box grows, text baseline stays `top + font_size`).
+- Inline-level baseline alignment between different font sizes on one line
+  (the tallest box wins; sub/superscript shifting is not modeled).
 
 ## Behavior
 
@@ -98,6 +98,13 @@ The engine shall:
 9. Not alter the Knuth-Plass line-breaking objective, shaping, or
    microtypography; `line-height` affects only the vertical extent of line
    boxes.
+10. Place the text baseline inside each line box per CSS2.1 §10.8.1:
+    `baseline = box_top + ascent + (line_height − ascent − descent)/2`,
+    where `ascent`/`descent` are the face's hhea metrics scaled to the run's
+    font size. The line box HEIGHT remains `line_height`; only the glyph
+    baseline moves. (CORE-90: this replaces the historic
+    `box_top + font_size`, which made prose page counts cross Prince between
+    line-height 1.2 and 1.6.)
 
 ## Interfaces
 
@@ -136,6 +143,25 @@ The engine shall:
 - **Do NOT** add a manual author-CSS pass (unlike `hyphens`/break longhands):
   `line-height` is compiled in the servo build, so the stylo cascade handles
   parsing, specificity, `!important`, and inheritance.
+
+### `engine/src/typography.rs`
+
+- Add (CORE-90):
+
+  ```rust
+  /// The face's hhea vertical metrics as (ascent, descent) fractions of em.
+  pub fn font_metrics(face: FontFace) -> (f64, f64);
+
+  /// CSS2.1 §10.8.1 baseline offset from a line box's top:
+  /// ascent + half-leading, in points.
+  pub fn baseline_offset(font_size: Scalar, line_height: Scalar, face: FontFace) -> Scalar;
+  ```
+
+- Layout (`layout.rs` generated-content / paragraph / float-segment sites and
+  `layout/multicol.rs`) computes each line's baseline as
+  `box_top + crate::typography::baseline_offset(font_size, line_height, face)`
+  instead of `box_top + font_size`. Margin boxes use the same call with the
+  fixed 10pt margin-box font and `normal` factor.
 
 ### `engine/src/layout.rs`
 
@@ -181,6 +207,15 @@ Each criterion maps to a test in `engine/tests/line_height.rs` (helpers mirror
 7. **Determinism preserved.** Rendering the same doc twice with a declared
    `line-height` produces byte-identical PDFs (CLI render + hash compare, as
    in `tests/smoke.rs`).
+8. **Baseline placement (CORE-90).** Given a single-line block with
+   `font-size: 10pt; line-height: 1.6` at content top 36pt, the first text
+   baseline is at `36 + 0.9053·10 + (16 − 0.9053·10 − 0.2119·10)/2` ≈ 47.46pt
+   — NOT `36 + 10` (the pre-CORE-90 behavior). Asserted on the fragment
+   tree's `TextRun.baseline.y` in page coordinates.
+9. **Prince parity of the offset function (CORE-90).** `baseline_offset`
+   reproduces the values measured from Prince 16.2 output (Arial hhea
+   asc/desc 1854/434 per 2048): e.g. `(10pt, 12pt) → 9.467`, `(10pt, 16pt) →
+   11.467`, `(15pt, 24pt) → 17.200`, each within 0.01pt.
 
 ## Edge Cases
 
@@ -200,6 +235,11 @@ Each criterion maps to a test in `engine/tests/line_height.rs` (helpers mirror
 ## References
 
 - css-inline-3 `line-height`: https://drafts.csswg.org/css-inline-3/#line-height-property
+- CSS2.1 §10.8.1 leading and half-leading (baseline offset formula):
+  https://www.w3.org/TR/CSS21/visudet.html#leading
+- CORE-90 (baseline placement divergence — the follow-up this spec's §Behavior
+  10 and criteria 8–9 document): Linear CORE-90; probe evidence in
+  `probe/CORE90_DIAGNOSIS.md` (worktree)
 - CORE-73 close-out (discovery: corpus font-pinning converged page counts but
   not diff %, engine ignores `line-height`): Linear CORE-73
 - Visual comparison demo (the consumer this fix serves): `visual-comparison-demo.spec.md`
