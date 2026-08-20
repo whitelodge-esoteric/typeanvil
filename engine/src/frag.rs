@@ -232,6 +232,9 @@ pub struct BreakToken {
     /// `IsBreakBefore`: true when the box itself has not started yet (no
     /// fragment produced), distinguishing resume-inside from start-fresh.
     pub break_before: bool,
+    /// Flex-container continuation state (CORE-65). `None` for non-flex
+    /// boxes and for flex containers that have not fragmented yet.
+    pub flex: Option<FlexToken>,
 }
 
 impl BreakToken {
@@ -252,14 +255,36 @@ impl BreakToken {
 
 /// A child continuation nested inside a parent [`BreakToken`].
 ///
-/// `index` is the position of the child among the parent box's *block
-/// children*, so resume can skip finished siblings and match the right one.
+/// `index` is the position of the child among the parent box's block
+/// children, so resume can skip finished siblings and match the right one.
 #[derive(Clone, Debug)]
 pub struct ChildToken {
     /// Position among the parent box's block children.
     pub index: usize,
     /// The child's own continuation.
     pub token: BreakToken,
+}
+
+/// Flex-container continuation state (CORE-65).
+///
+/// A row flex container lays out *lines* down the page; each line holds
+/// items placed along the main axis. When the container fragments, the next
+/// page must know which line and which item-within-line to resume, because a
+/// mid-line item break (a row item taller than the page) resumes the *line*
+/// at the top of the next page, not just a single block. The flex item list
+/// is the container's block children in document order, so `next_item`
+/// doubles as the positional child index for `child_tokens`.
+#[derive(Clone, Debug, Default)]
+pub struct FlexToken {
+    /// Index of the next flex item to lay out (into the container's flex
+    /// item list, which is document order).
+    pub next_item: usize,
+    /// Index of the line that item starts (or resumes) on.
+    pub line: usize,
+    /// True when resuming an item that broke mid-line: the previous fragment
+    /// of this item ended on the previous page, and the line's remaining
+    /// items follow it at the top of this page.
+    pub mid_line: bool,
 }
 
 /// A first-class fragment with no source box: a page.

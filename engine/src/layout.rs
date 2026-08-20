@@ -44,6 +44,7 @@ use crate::frag::{
 };
 use crate::geom::{PageGeometry, Point, Scalar};
 
+mod flex;
 mod multicol;
 use crate::paged::{
     parse_page_rules, resolve_page_spec, ContentPiece, MarginAlign, MarginBoxName, MarginRow,
@@ -513,6 +514,33 @@ impl<'a> Ctx<'a> {
                 flow,
             );
         }
+        // Flex containers (css-flexbox-1, CORE-65): rows pack lines down the
+        // page, columns stack items like blocks. `inline-flex` is treated as
+        // a block-level flex container in paged flow (spec Goal 1).
+        if matches!(style.display, Display::Flex | Display::InlineFlex) {
+            // A flex container whose children are all TEXT (no block-level
+            // items, e.g. `display: flex` on a leaf) falls back to the block
+            // path so the text renders as a normal paragraph. Anonymous
+            // text flex items are a spec non-goal; without the fallback the
+            // container would render empty and diverge from block
+            // references (page-name-fixed-pos-001).
+            let has_items = self
+                .collect_items(id)
+                .iter()
+                .any(|i| matches!(i, Item::Block(_)));
+            if has_items {
+                return self.layout_flex_container(
+                    id,
+                    origin_x,
+                    avail_width,
+                    top,
+                    bottom_limit,
+                    page_has_content,
+                    token,
+                    flow,
+                );
+            }
+        }
         // NOTE: TableCell deliberately does NOT dispatch here — layout_table_cell
         // delegates back into layout_box to lay out the cell's content as a
         // block; routing it through layout_table_like again would recurse forever.
@@ -806,6 +834,7 @@ impl<'a> Ctx<'a> {
                                 child_tokens: Vec::new(),
                                 break_before: false,
                                 consumed_chars: None,
+                                flex: None,
                             },
                         });
                         broke = true;
@@ -948,6 +977,7 @@ impl<'a> Ctx<'a> {
                                     child_tokens: Vec::new(),
                                     break_before: false,
                                     consumed_chars: Some(src_offset),
+                                    flex: None,
                                 },
                             });
                             broke = true;
@@ -1263,6 +1293,7 @@ impl<'a> Ctx<'a> {
                 child_tokens: outgoing_children,
                 break_before: false,
                 consumed_chars: None,
+                flex: None,
             };
             fragment.break_token = Some(tok.clone());
             Some(tok)
@@ -1549,6 +1580,7 @@ impl<'a> Ctx<'a> {
                 child_tokens: outgoing_children,
                 break_before: false,
                 consumed_chars: None,
+                flex: None,
             };
             fragment.break_token = Some(tok.clone());
             Some(tok)
@@ -1658,6 +1690,7 @@ impl<'a> Ctx<'a> {
                 child_tokens: outgoing_children,
                 break_before: false,
                 consumed_chars: None,
+                flex: None,
             };
             fragment.break_token = Some(tok.clone());
             Some(tok)
@@ -2055,10 +2088,12 @@ impl<'a> Ctx<'a> {
             match &self.dom.nodes[child].kind {
                 NodeKind::Text(t) => pending.push_str(t),
                 NodeKind::Element(_) => {
-                    // Block-level children (including the table family:
-                    // table, row groups, rows, cells) start a new item so the
-                    // table layout path is reached; everything else is inline
-                    // and folds its text into the current run.
+                    // Block-level children (including the table family and
+                    // flex containers) start a new item so their layout path
+                    // is reached; everything else is inline and folds its
+                    // text into the current run. Flex containers must be
+                    // `Item::Block` or their children get folded into the
+                    // parent's text run (CORE-65).
                     if self.styles[child].display == Display::Block
                         || matches!(
                             self.styles[child].display,
@@ -2068,6 +2103,8 @@ impl<'a> Ctx<'a> {
                                 | Display::TableFooterGroup
                                 | Display::TableRow
                                 | Display::TableCell
+                                | Display::Flex
+                                | Display::InlineFlex
                         )
                     {
                         if !pending.trim().is_empty() {
