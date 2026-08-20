@@ -112,11 +112,21 @@ The engine shall:
    advances may be scaled by a per-line factor in [−2%, +2%] so the line fits
    the content width exactly (a deterministic post-pass on top of glue
    stretching; expansion is applied only when it reduces residual error).
-9. **Draw glyphs, not strings**: the PDF backend draws main-text lines via
+9. **Breakpoint glue is consumed by the break (CORE-94)**: the glue at a
+   line's break point produces no space glyph and contributes neither its
+   natural width nor its stretch/shrink to the line. The DP's
+   `adjustment_ratio` measures `items[start..end]` (exclusive of the break
+   item) and the materializer must match: counting the breakpoint glue
+   inflated the line's natural width, over-stretched it, then shrank it via
+   negative expansion — leaving justified lines ~4pt short of the measure
+   and diverging from Prince's line counts. Verified 2026-08-20: prose
+   justified lines now reach the content edge (spec §Behavior 4), matching
+   Prince to <0.5pt.
+10. **Draw glyphs, not strings**: the PDF backend draws main-text lines via
    krilla's `draw_glyphs` (glyph ids + advances), not the high-level
    `draw_text` string path, so shaped widths, protrusion offsets, and
    expansion factors reach the output exactly as laid out.
-10. **Map every glyph back to its source text**: each shaped glyph carries the
+11. **Map every glyph back to its source text**: each shaped glyph carries the
     byte range of its cluster in the run's text (`ShapedGlyph.range`); the
     PDF backend passes those ranges to krilla, which slices the text by them
     to build the font's `/ToUnicode` CMap. Body text must therefore extract,
@@ -124,19 +134,19 @@ The engine shall:
     chars) in every emitted PDF (CORE-85). Empty ranges are prohibited — a
     glyph with no text mapping yields an empty CMap entry and garbage
     extraction.
-11. **Shape every run**: `TextRun` carries the shaped glyphs and resolved
+12. **Shape every run**: `TextRun` carries the shaped glyphs and resolved
     text; `Fragment`/`Fragmentainer`/break-token structure is unchanged.
     Margin boxes and generated content (single short lines) are shaped with
     `shape_word` like body text — no run uses the raw `draw_text` string
     path, so non-ASCII (em dash, curly quotes, `·`) always renders as a real
     glyph with a ToUnicode mapping (CORE-83).
-12. **Stay deterministic**: shaping (fixed font bytes + size), K-P (pure
+13. **Stay deterministic**: shaping (fixed font bytes + size), K-P (pure
     function of widths/opportunities), protrusion, and expansion are all
     deterministic; no hash-order dependence; identical input yields
     byte-identical PDF.
-13. **Keep everything else green**: fragmentation (CORE-51) and paged-media
+14. **Keep everything else green**: fragmentation (CORE-51) and paged-media
     (CORE-52) acceptance tests pass unchanged.
-14. **Ship the demo**: a fixture (`typography-demo.html`) rendering a
+15. **Ship the demo**: a fixture (`typography-demo.html`) rendering a
     typography-sensitive paragraph set; a script produces the side-by-side
     spread (Typeanvil + Chromium now; Prince slot reserved).
 
@@ -273,7 +283,13 @@ Given/When/Then, each mapping to a real test in `engine/tests/typography.rs`:
     word's and line's glyph ranges cover their text exactly
     (`tounicode.rs::shaped_word_ranges_cover_text`,
     `tounicode.rs::line_ranges_cover_line_text`).
-11. **Demo fixture** — Given `engine/tests/fixtures/typography-demo.html`, when
+11. **Justified lines fill the measure (CORE-94)** — Given a justified
+    paragraph with no hyphenation, when broken at content width W, then every
+    non-final line's ink width equals W within 0.5pt (the breakpoint glue is
+    consumed by the break, so the line is not left ~4pt short). Verified
+    against Prince 16.2: prose justified lines reach the content edge to
+    <0.5pt, matching Prince's measure.
+12. **Demo fixture** — Given `engine/tests/fixtures/typography-demo.html`, when
     rendered, then it is multi-page, deterministic, and a side-by-side spread
     script produces a PNG with Typeanvil's render (`typography.rs::demo_fixture`,
     plus `scripts/render-typography-demo.sh` for the comparison image).
