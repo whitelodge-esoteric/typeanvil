@@ -204,6 +204,73 @@ fn named_pages() {
     assert_eq!(layout.pages[1].root.size.0.get(), inches(8.0).get());
 }
 
+#[test]
+fn named_page_margin_box_suppression() {
+    // CORE-82: `@page cover { @top-left { content: none } }` must suppress the
+    // margin boxes on pages the cover element's boxes start, while pages after
+    // a `page: auto` reset keep the default page's margin boxes. Previously
+    // page 1 (a fresh token with no child tokens) never activated the named
+    // page, and `page: auto` was indistinguishable from unset.
+    let html = r#"<html><head><style>
+        @page { margin: 0.4in;
+            @top-left { content: "Northwind"; }
+            @bottom-center { content: counter(page); } }
+        @page cover { margin: 0.4in;
+            @top-left { content: none; }
+            @bottom-center { content: none; } }
+        .cover { page: cover; break-after: page; }
+        .body { page: auto; }
+        p { font-size: 12px; }
+    </style></head><body>
+        <div class="cover"><p>Cover content.</p></div>
+        <div class="body"><p>Letter body.</p></div>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.4));
+    assert!(layout.pages.len() >= 2, "expected cover + letter pages");
+    // Cover page: no default margin-box content.
+    assert!(
+        !any_text_contains(&layout.pages[0], "Northwind"),
+        "cover page must suppress the top-left margin box: {:?}",
+        page_texts(&layout.pages[0])
+    );
+    assert!(
+        !any_text_contains(&layout.pages[0], "1"),
+        "cover page must suppress the bottom-center counter: {:?}",
+        page_texts(&layout.pages[0])
+    );
+    // Letter page: the default page's margin boxes return.
+    assert!(
+        any_text_contains(&layout.pages[1], "Northwind"),
+        "letter page must keep the default top-left margin box: {:?}",
+        page_texts(&layout.pages[1])
+    );
+}
+
+#[test]
+fn named_page_first_page_activates() {
+    // CORE-82: the cover element is the FIRST box in the document — page 1's
+    // incoming token is a bare break-before with no child tokens. The named
+    // page must still activate (margin boxes suppressed), not fall through to
+    // the default page. Regression for the page-1 walk.
+    let html = r#"<html><head><style>
+        @page { margin: 0.4in; @top-center { content: "HDR"; } }
+        @page cover { margin: 0.4in; @top-center { content: none; } }
+        .cover { page: cover; }
+        p { font-size: 12px; }
+    </style></head><body>
+        <div class="cover"><p>Cover body text that fills the page.</p></div>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.4));
+    assert!(!layout.pages.is_empty());
+    for page in &layout.pages {
+        assert!(
+            !any_text_contains(page, "HDR"),
+            "cover pages must not carry the default header: {:?}",
+            page_texts(page)
+        );
+    }
+}
+
 // --- 5. First / left / right selectors -------------------------------------
 
 #[test]

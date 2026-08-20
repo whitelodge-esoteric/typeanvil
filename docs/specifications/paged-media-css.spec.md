@@ -110,7 +110,14 @@ The engine shall:
    flag shape is unchanged.
 4. **Honor named pages**: an element with `page: <name>` switches the page
    context; pages that the element's boxes start use `@page <name>` (falling
-   back to the default page spec if no such rule exists).
+   back to the default page spec if no such rule exists). The context is the
+   *effective* `page` value (css-page-3 §4): a box's own non-auto declaration,
+   else the nearest ancestor-or-self with one, else the default page. A fresh
+   box whose effective value is the default (`page: auto` or no named ancestor)
+   **resets** the context to the default page; a pure continuation page
+   (no box starts fresh at its top) carries the previous name. The very first
+   page can activate a named page (the fresh break token descends into the
+   first block child).
 5. **Emit margin boxes as fragments**: each fragmentainer's root fragment
    carries margin-box child fragments positioned in the page margin area
    (top row above the content box, bottom row below; corners and center/left/
@@ -291,11 +298,22 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     (forced break, orphans/widows, avoid, monolithic, 1,000-page linear) still
     pass unchanged.
 14. **Self-check** — the spec file itself passes `scripts/validate_docs.py`.
+15. **Named-page margin-box suppression** — Given `@page { @top-left { content:
+    "HDR"; } }`, `@page cover { @top-left { content: none; } }`, a cover box
+    with `page: cover; break-after: page;`, and a following box with
+    `page: auto`, when rendered, then the cover page carries no "HDR" text and
+    the following page does (`paged_media.rs::named_page_margin_box_suppression`).
+    Also: a document whose FIRST element carries `page: <name>` activates the
+    named page on page 1 (`paged_media.rs::named_page_first_page_activates`).
 
 ## Edge Cases
 
 - **No `@page` rule matches** → CLI geometry is used; no margin boxes.
 - **Named page rule missing** → falls back to the default page spec.
+- **`page: auto` on a fresh box** → resets the page context to the default page
+  (the letterhead cover flow: cover page suppressed, letter pages normal).
+- **No box starts fresh at a page top** (content continues from the previous
+  page) → the previous page's named context carries.
 - **`@page` rule with no `size`** → inherits the default/CLI size.
 - **`string()` referenced before any assignment on page 1** → empty string.
 - **`target-counter` target on the same page as the TOC entry** → its page
