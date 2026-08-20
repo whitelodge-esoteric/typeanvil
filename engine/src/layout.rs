@@ -1416,7 +1416,8 @@ impl<'a> Ctx<'a> {
             used,
             self.page_height,
         );
-        crate::table::measure_columns_scoped(self.dom, self.styles, table_id, avail_width, used, scope)
+        let widths = crate::table::measure_columns_scoped(self.dom, self.styles, table_id, avail_width, used, scope.clone());
+        widths
     }
 
     fn layout_table_block(
@@ -1472,6 +1473,47 @@ impl<'a> Ctx<'a> {
         let mut outgoing_children = Vec::new();
         let mut seen_all = true;
         let mut placed = page_has_content;
+        let mut placed_any = false;
+
+        // Footer repetition (spec rule 8): a `tfoot`/`table-footer-group` is
+        // laid out at the bottom of EVERY fragment that contains table content
+        // (including the last), so its height is reserved out of the row
+        // budget below — rows break early enough that rows + footer always
+        // fit. A footer taller than a full page gets no reservation (it
+        // overflows monolithically at the table's end, rule 11).
+        let footer_indices: Vec<usize> = children
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| self.styles[**c].display == Display::TableFooterGroup)
+            .map(|(i, _)| i)
+            .collect();
+        let mut footer_height = Scalar::ZERO;
+        for &fi in &footer_indices {
+            let footer_rows: Vec<NodeId> = self
+                .dom
+                .nodes[children[fi]]
+                .children
+                .iter()
+                .copied()
+                .filter(|c| {
+                    matches!(self.dom.nodes[*c].kind, NodeKind::Element(_))
+                        && self.styles[*c].display == Display::TableRow
+                })
+                .collect();
+            if footer_rows.is_empty() {
+                continue;
+            }
+            let (heights, _) = measure_rows(self.dom, self.styles, &footer_rows, &columns, avail_width);
+            for h in heights {
+                footer_height = footer_height + h;
+            }
+        }
+        let reserve_footer = footer_height.get() > 0.0 && footer_height.get() < self.page_height.get();
+        let row_limit = if reserve_footer {
+            bottom_limit - footer_height
+        } else {
+            bottom_limit
+        };
 
         // Repeating header (spec rule 7): on continuation fragments the
         // table-header-group re-lays-out at the top of the page even though
@@ -1488,7 +1530,7 @@ impl<'a> Ctx<'a> {
                     origin_x,
                     avail_width,
                     y,
-                    bottom_limit,
+                    row_limit,
                     placed,
                     &child_tok,
                     flow,
@@ -1497,6 +1539,7 @@ impl<'a> Ctx<'a> {
                 if !res.empty {
                     y += res.used;
                     placed = true;
+                    placed_any = true;
                     frag_children.push(res.fragment);
                 }
                 if let Some(tok) = res.outgoing {
@@ -1520,15 +1563,22 @@ impl<'a> Ctx<'a> {
             ) {
                 continue;
             }
+            // The footer is placed by the footer-repetition block below, not
+            // by the in-order loop (it would otherwise render only once, at
+            // the end of the table — spec rule 8 requires it on every
+            // fragment).
+            if cd == Display::TableFooterGroup {
+                continue;
+            }
             let child_tok = self.child_incoming(token, i);
             let res = match cd {
-                Display::TableHeaderGroup | Display::TableRowGroup | Display::TableFooterGroup => {
+                Display::TableHeaderGroup | Display::TableRowGroup => {
                     self.layout_table_group(
                         child,
                         origin_x,
                         avail_width,
                         y,
-                        bottom_limit,
+                        row_limit,
                         placed,
                         &child_tok,
                         flow,
@@ -1540,7 +1590,7 @@ impl<'a> Ctx<'a> {
                     origin_x,
                     avail_width,
                     y,
-                    bottom_limit,
+                    row_limit,
                     placed,
                     &child_tok,
                     flow,
@@ -1551,12 +1601,44 @@ impl<'a> Ctx<'a> {
             if !res.empty {
                 y += res.used;
                 placed = true;
+                placed_any = true;
                 frag_children.push(res.fragment);
             }
             if let Some(tok) = res.outgoing {
                 seen_all = false;
                 outgoing_children.push(ChildToken { index: i, token: tok });
                 break;
+            }
+        }
+
+        // Footer repetition: place the footer group(s) at the bottom of this
+        // fragment, after the last row that fit. Only when the fragment
+        // actually contains table content (an empty fragment — e.g. a table
+        // that starts at the very bottom of a page — defers everything,
+        // footer included, to the next fragment).
+        if placed_any && reserve_footer {
+            for &fi in &footer_indices {
+                let child_tok = self.child_incoming(token, fi);
+                let res = self.layout_table_group(
+                    children[fi],
+                    origin_x,
+                    avail_width,
+                    y,
+                    bottom_limit,
+                    placed,
+                    &child_tok,
+                    flow,
+                    &columns,
+                );
+                if !res.empty {
+                    y += res.used;
+                    placed = true;
+                    frag_children.push(res.fragment);
+                }
+                if let Some(tok) = res.outgoing {
+                    seen_all = false;
+                    outgoing_children.push(ChildToken { index: fi, token: tok });
+                }
             }
         }
 
@@ -1735,13 +1817,24 @@ impl<'a> Ctx<'a> {
         let mut children = Vec::new();
         // Cell ordinal, NOT the raw child index: DOM children include whitespace
         // text nodes between cells, so enumerate() would misalign columns.
+        // CORE-96: a cell with `colspan` occupies that many column slots (its
+        // box spans the summed widths); the next cell starts after them.
         let mut col = 0usize;
         for &cell in self.dom.nodes[id].children.iter() {
             if let NodeKind::Element(_) = &self.dom.nodes[cell].kind {
                 if self.styles[cell].display != Display::TableCell {
                     continue;
                 }
-                let col_w = columns.widths.get(col).copied().unwrap_or(Scalar::ZERO);
+                let span = crate::table::cell_colspan(self.dom, cell);
+                let mut col_w = Scalar::ZERO;
+                for j in 0..span {
+                    col_w = col_w
+                        + columns
+                            .widths
+                            .get(col + j)
+                            .copied()
+                            .unwrap_or(Scalar::ZERO);
+                }
                 let res = self.layout_table_cell(
                     cell,
                     x,
@@ -1760,7 +1853,7 @@ impl<'a> Ctx<'a> {
                     children.push(res.fragment);
                 }
                 x += col_w;
-                col += 1;
+                col += span;
             }
         }
 
@@ -1900,13 +1993,36 @@ impl<'a> Ctx<'a> {
             || st.border_left.get() > 0.0
         {
             if let Some(color) = st.border_color {
-                res.fragment.content = FragmentContent::Border(BorderBox {
+                let border_box = BorderBox {
                     top: st.border_top,
                     right: st.border_right,
                     bottom: st.border_bottom,
                     left: st.border_left,
                     color,
-                });
+                };
+                // CORE-100: background + border must COEXIST on the cell.
+                // layout_box set FragmentContent::Background(bg) when the cell
+                // has a background color; one fragment holds ONE content kind,
+                // so the old code overwrote the background with Border
+                // whenever any border was present — every corpus table header
+                // and footer rendered WHITE (invoice p1: 0 #a8dadc px vs
+                // Prince 4,016). Keep the background and push the border as a
+                // child fragment instead; the pdf emitter draws backgrounds,
+                // then borders, then text, so the border strokes on top of the
+                // fill with no order change.
+                match res.fragment.content {
+                    FragmentContent::Background(_) => {
+                        let mut bf = Fragment::block(
+                            Point::new(Scalar::ZERO, Scalar::ZERO),
+                            (res.fragment.size.0, res.fragment.size.1),
+                        );
+                        bf.content = FragmentContent::Border(border_box);
+                        res.fragment.children.push(bf);
+                    }
+                    _ => {
+                        res.fragment.content = FragmentContent::Border(border_box);
+                    }
+                }
             }
         }
         res

@@ -521,6 +521,11 @@ impl CascadeSession {
         tfoot { display: table-footer-group; }
         tr { display: table-row; }
         td, th { display: table-cell; }
+        /* Prince 16.2 html.css bolds th (line 482); browsers' UA sheets do
+           too (th { font-weight: bolder }). Without it, header cells measure
+           ~10% narrower than Prince's, the header column freezes narrower,
+           and rows wrap to an extra line (CORE-96). */
+        th { font-weight: bold; }
         h1, h2, h3, h4, h5, h6 { font-weight: bold; }
         /* CORE-95: Prince's print UA sheet (lib/prince/style/html.css, 16.2)
            uses FIXED point heading sizes and margins, and 1.12em block
