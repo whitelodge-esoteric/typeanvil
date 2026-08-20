@@ -814,6 +814,17 @@ impl<'a> Ctx<'a> {
                             style.orphans as usize,
                             style.widows as usize,
                         );
+                        // NEVER consume more lines than were placed on this
+                        // fragmentainer (CORE-97). `apply_orphans_widows` can
+                        // return split > li when the orphans bump would fix an
+                        // impossible violation (e.g. the paragraph starts with
+                        // 0 lines fitting at the page bottom: orphans=2 bumps
+                        // split to first+2, but nothing was placed). Claiming
+                        // those lines consumed drops real text — the next
+                        // fragmentainer resumes past them. Clamp to the lines
+                        // actually placed; the constraint is dropped when it
+                        // cannot be honored (css-break-3 §4.4).
+                        let split = split.min(li);
                         // Natural split honored orphans/widows when `split ==
                         // li`; otherwise the constraint pulled the break back.
                         // If widows/orphans pulled the split back, drop the
