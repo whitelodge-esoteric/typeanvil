@@ -164,8 +164,9 @@ pub fn render(layout: &Layout) -> Result<Vec<u8>> {
             let font = font_for(t.font_face)?;
             surface.set_fill(Some(solid_fill(t.color)));
             if t.glyphs.is_empty() {
-                // Simple text path (generated content, margin boxes): no
-                // shaping, no microtypography.
+                // Fallback text path (empty run — nothing shaped). All normal
+                // runs — body text, generated content, margin boxes — carry
+                // shaped glyphs (CORE-85, CORE-83).
                 surface.draw_text(
                     Point::from_xy(t.x, t.y),
                     font.clone(),
@@ -292,9 +293,9 @@ fn to_krilla_glyphs(
 }
 /// One text draw call, resolved to absolute page coordinates.
 ///
-/// Main-text lines carry their shaped glyphs plus the typography layer's
-/// microtypography (protrusion offsets, per-line expansion); generated
-/// content and margin boxes carry none and draw via `draw_text`.
+/// All runs carry their shaped glyphs (body text, generated content, and
+/// margin boxes — CORE-85, CORE-83); `draw_text` is only a fallback for
+/// degenerate empty runs.
 struct TextItem {
     x: f32,
     y: f32,
