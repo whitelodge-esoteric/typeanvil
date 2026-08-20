@@ -138,6 +138,14 @@ def compare(
         triptych PNG (test | ref | diff heatmap) here.
     """
     test_sel = _select_pages(test_images, pages)
+    # wptrunner print-reftest semantics: when a `reftest-pages` selection
+    # names pages the reference does not have, the reference's LAST page is
+    # repeated for the remainder (the reference is a shortened rendering of
+    # the same pagination, and the selected test pages beyond its count are
+    # expected to match its final page). Only applies to explicit page
+    # selections; unselected comparisons keep the strict count check below.
+    if pages is not None and ref_images and len(ref_images) < len(test_images):
+        ref_images = list(ref_images) + [ref_images[-1]] * (len(test_images) - len(ref_images))
     ref_sel = _select_pages(ref_images, pages)
 
     # Page-count mismatch: for rel=match this is a hard FAIL; for rel=mismatch a

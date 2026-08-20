@@ -21,6 +21,7 @@
 //! and counters are threaded in document order. No hash-order dependence.
 
 use crate::geom::{PageGeometry, Scalar};
+use crate::css::Color;
 
 /// A `@page` pseudo-class we support (css-page-3 subset).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -166,6 +167,43 @@ pub struct PageMargins {
     pub left: Scalar,
 }
 
+/// A `size` declaration inside an `@page` rule (css-page-3 §4.3).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SizeDecl {
+    /// An absolute size (width, height) in points; a single value is square.
+    Abs(Scalar, Scalar),
+    /// `size: portrait` — the default page size, oriented tall (width < height).
+    Portrait,
+    /// `size: landscape` — the default page size, oriented wide.
+    Landscape,
+}
+
+/// The `page-orientation` property (css-page-3): how the laid-out content is
+/// rotated within the page box. Parsed and carried on the spec; the PDF
+/// emitter applies the rotation (see `pdf.rs`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PageOrientation {
+    RotateLeft,
+    RotateRight,
+    RotateTop,
+    RotateBottom,
+}
+
+/// One margin/size value inside an `@page` rule: lengths, percentages
+/// (relative to the page box), and the `auto`/`inherit` keywords.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PageLength {
+    /// An absolute length in points.
+    Abs(Scalar),
+    /// A percentage as a 0..=1 fraction of the page box size (width for
+    /// left/right, height for top/bottom).
+    Percent(f64),
+    /// `auto` — participates in page-area centering (css-page-3 §4.1).
+    Auto,
+    /// `inherit` — resolves to the initial value (0) in the page context.
+    Inherit,
+}
+
 /// One parsed `@page` rule.
 #[derive(Clone, Debug)]
 pub struct PageRule {
@@ -173,13 +211,21 @@ pub struct PageRule {
     pub name: Option<String>,
     /// The pseudo-class selector.
     pub pseudo: PagePseudo,
-    /// Explicit `size` (width, height) in points, if set.
-    pub size: Option<(Scalar, Scalar)>,
-    /// Individually-set margins (any subset), in points.
-    pub margin_top: Option<Scalar>,
-    pub margin_right: Option<Scalar>,
-    pub margin_bottom: Option<Scalar>,
-    pub margin_left: Option<Scalar>,
+    /// Explicit `size` (width, height) or an orientation keyword.
+    pub size: Option<SizeDecl>,
+    /// Page-area `width` override (css-page-3 §4.1 overconstrained sizing).
+    pub width: Option<PageLength>,
+    /// Page-area `height` override.
+    pub height: Option<PageLength>,
+    /// Individually-set margins (any subset), as parsed values.
+    pub margin_top: Option<PageLength>,
+    pub margin_right: Option<PageLength>,
+    pub margin_bottom: Option<PageLength>,
+    pub margin_left: Option<PageLength>,
+    /// Page box background color (paints the whole page, under content).
+    pub background: Option<Color>,
+    /// `page-orientation` — how the content rotates within the page box.
+    pub page_orientation: Option<PageOrientation>,
     /// Margin-box declarations, in source order.
     pub margin_boxes: Vec<MarginBoxDecl>,
     /// Source order, so later equal-specificity rules win.
@@ -192,6 +238,8 @@ pub struct PageRule {
 pub struct PageSpec {
     pub size: (Scalar, Scalar),
     pub margins: PageMargins,
+    pub background: Option<Color>,
+    pub page_orientation: Option<PageOrientation>,
     pub margin_boxes: Vec<(MarginBoxName, Vec<ContentPiece>)>,
 }
 
@@ -306,10 +354,14 @@ fn parse_one_page_rule(prelude: &str, body: &str, order: u32) -> Option<PageRule
         name,
         pseudo,
         size: None,
+        width: None,
+        height: None,
         margin_top: None,
         margin_right: None,
         margin_bottom: None,
         margin_left: None,
+        background: None,
+        page_orientation: None,
         margin_boxes: Vec::new(),
         order,
     };
@@ -384,77 +436,118 @@ fn apply_page_decl(rule: &mut PageRule, decl: &str) {
     let value = value.trim();
     match prop.as_str() {
         "size" => rule.size = parse_size(value),
+        "width" => rule.width = parse_page_length(value),
+        "height" => rule.height = parse_page_length(value),
         "margin" => {
-            if let Some(m) = parse_margin_shorthand(value) {
-                rule.margin_top = Some(m.top);
-                rule.margin_right = Some(m.right);
-                rule.margin_bottom = Some(m.bottom);
-                rule.margin_left = Some(m.left);
+            if let Some((t, r, b, l)) = parse_margin_shorthand(value) {
+                rule.margin_top = Some(t);
+                rule.margin_right = Some(r);
+                rule.margin_bottom = Some(b);
+                rule.margin_left = Some(l);
             }
         }
-        "margin-top" => rule.margin_top = parse_length(value),
-        "margin-right" => rule.margin_right = parse_length(value),
-        "margin-bottom" => rule.margin_bottom = parse_length(value),
-        "margin-left" => rule.margin_left = parse_length(value),
+        "margin-top" => rule.margin_top = parse_page_length(value),
+        "margin-right" => rule.margin_right = parse_page_length(value),
+        "margin-bottom" => rule.margin_bottom = parse_page_length(value),
+        "margin-left" => rule.margin_left = parse_page_length(value),
+        "background" | "background-color" => rule.background = crate::css::parse_css_color(value),
+        "page-orientation" => rule.page_orientation = parse_page_orientation(value),
         _ => {}
     }
 }
 
-/// Parse a `size` value: `A4`/`Letter`/`Legal` keyword, one length (square),
-/// or two lengths (width height). Keywords resolve to portrait points.
-fn parse_size(value: &str) -> Option<(Scalar, Scalar)> {
+/// Parse a `size` value: css-page size keywords, orientation keywords
+/// (`landscape`/`portrait`), one length (square), or two lengths
+/// (width height). A keyword + orientation pair orients the keyword's size.
+fn parse_size(value: &str) -> Option<SizeDecl> {
     let v = value.trim();
-    match v.to_ascii_lowercase().as_str() {
-        "a4" => return Some((Scalar(595.0), Scalar(842.0))),
-        "letter" => return Some((Scalar(612.0), Scalar(792.0))),
-        "legal" => return Some((Scalar(612.0), Scalar(1008.0))),
-        _ => {}
-    }
     let parts: Vec<&str> = v.split_whitespace().collect();
-    match parts.as_slice() {
-        [one] => {
-            let s = parse_length(one)?;
-            Some((s, s))
+    let mut lens: Vec<Scalar> = Vec::new();
+    let mut orient: Option<SizeDecl> = None;
+    for p in &parts {
+        match p.to_ascii_lowercase().as_str() {
+            "landscape" => orient = Some(SizeDecl::Landscape),
+            "portrait" => orient = Some(SizeDecl::Portrait),
+            // Predefined page sizes (css-page-3 §6.3). Values are computed
+            // with the SAME mm→pt formula as `parse_length` (mm * 72 / 25.4)
+            // so `size: a5` renders byte-identically to `size: 148mm 210mm`
+            // (the WPT references spell the keywords out as mm).
+            "a5" => lens = vec![Scalar(148.0 * 72.0 / 25.4), Scalar(210.0 * 72.0 / 25.4)],
+            "a4" => lens = vec![Scalar(210.0 * 72.0 / 25.4), Scalar(297.0 * 72.0 / 25.4)],
+            "a3" => lens = vec![Scalar(297.0 * 72.0 / 25.4), Scalar(420.0 * 72.0 / 25.4)],
+            "b5" => lens = vec![Scalar(176.0 * 72.0 / 25.4), Scalar(250.0 * 72.0 / 25.4)],
+            "b4" => lens = vec![Scalar(250.0 * 72.0 / 25.4), Scalar(353.0 * 72.0 / 25.4)],
+            "jis-b5" => lens = vec![Scalar(182.0 * 72.0 / 25.4), Scalar(257.0 * 72.0 / 25.4)],
+            "jis-b4" => lens = vec![Scalar(257.0 * 72.0 / 25.4), Scalar(364.0 * 72.0 / 25.4)],
+            "letter" => lens = vec![Scalar(8.5 * 72.0), Scalar(11.0 * 72.0)],
+            "legal" => lens = vec![Scalar(8.5 * 72.0), Scalar(14.0 * 72.0)],
+            "ledger" => lens = vec![Scalar(11.0 * 72.0), Scalar(17.0 * 72.0)],
+            _ => lens.push(parse_length(p)?),
         }
-        [w, h] => Some((parse_length(w)?, parse_length(h)?)),
+    }
+    let abs = match lens.as_slice() {
+        [] => None,
+        [s] => Some((*s, *s)),
+        [w, h] => Some((*w, *h)),
+        _ => return None,
+    };
+    match (abs, orient) {
+        (None, o) => o,
+        (Some((w, h)), None) => Some(SizeDecl::Abs(w, h)),
+        (Some((w, h)), Some(SizeDecl::Landscape)) => {
+            Some(SizeDecl::Abs(Scalar(w.get().max(h.get())), Scalar(w.get().min(h.get()))))
+        }
+        (Some((w, h)), Some(SizeDecl::Portrait)) => {
+            Some(SizeDecl::Abs(Scalar(w.get().min(h.get())), Scalar(w.get().max(h.get()))))
+        }
         _ => None,
     }
 }
 
-/// Parse a CSS `margin` shorthand (1–4 lengths) into `PageMargins`.
-fn parse_margin_shorthand(value: &str) -> Option<PageMargins> {
-    let parts: Vec<Scalar> = value.split_whitespace().filter_map(parse_length).collect();
-    let m = match parts.as_slice() {
-        [a] => PageMargins {
-            top: *a,
-            right: *a,
-            bottom: *a,
-            left: *a,
-        },
-        [v, h] => PageMargins {
-            top: *v,
-            right: *h,
-            bottom: *v,
-            left: *h,
-        },
-        [t, h, b] => PageMargins {
-            top: *t,
-            right: *h,
-            bottom: *b,
-            left: *h,
-        },
-        [t, r, b, l] => PageMargins {
-            top: *t,
-            right: *r,
-            bottom: *b,
-            left: *l,
-        },
-        _ => return None,
-    };
-    Some(m)
+/// Parse the `page-orientation` property.
+fn parse_page_orientation(value: &str) -> Option<PageOrientation> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "rotate-left" => Some(PageOrientation::RotateLeft),
+        "rotate-right" => Some(PageOrientation::RotateRight),
+        "rotate-top" => Some(PageOrientation::RotateTop),
+        "rotate-bottom" => Some(PageOrientation::RotateBottom),
+        _ => None,
+    }
 }
 
-/// Parse a CSS absolute length (`in`/`pt`/`px`/`cm`/`mm`) into points.
+/// Parse a CSS `margin` shorthand (1–4 values) into `(top, right, bottom, left)`
+/// as [`PageLength`] values (lengths, percentages, `auto`, `inherit`).
+fn parse_margin_shorthand(value: &str) -> Option<(PageLength, PageLength, PageLength, PageLength)> {
+    let parts: Vec<PageLength> = value.split_whitespace().filter_map(parse_page_length).collect();
+    match parts.as_slice() {
+        [a] => Some((*a, *a, *a, *a)),
+        [v, h] => Some((*v, *h, *v, *h)),
+        [t, h, b] => Some((*t, *h, *b, *h)),
+        [t, r, b, l] => Some((*t, *r, *b, *l)),
+        _ => None,
+    }
+}
+
+/// Parse one margin/size value: `auto`, `inherit`, a percentage, or an
+/// absolute length.
+fn parse_page_length(s: &str) -> Option<PageLength> {
+    let s = s.trim();
+    if s.eq_ignore_ascii_case("auto") {
+        return Some(PageLength::Auto);
+    }
+    if s.eq_ignore_ascii_case("inherit") {
+        return Some(PageLength::Inherit);
+    }
+    if let Some(pct) = s.strip_suffix('%') {
+        let n: f64 = pct.trim().parse().ok()?;
+        return Some(PageLength::Percent(n / 100.0));
+    }
+    parse_length(s).map(PageLength::Abs)
+}
+
+/// Parse a CSS absolute length (`in`/`pt`/`px`/`cm`/`mm`/`em`) into points.
+/// `em` resolves against the page context's default font-size (16px = 12pt,
+/// css-page-3 §3).
 pub fn parse_length(s: &str) -> Option<Scalar> {
     let s = s.trim();
     if s.is_empty() {
@@ -469,6 +562,7 @@ pub fn parse_length(s: &str) -> Option<Scalar> {
         "px" => num * 0.75,
         "cm" => num * 72.0 / 2.54,
         "mm" => num * 72.0 / 25.4,
+        "em" => num * 12.0,
         _ => return None,
     };
     Some(Scalar(pt))
@@ -586,6 +680,13 @@ pub fn parse_content(value: &str) -> Vec<ContentPiece> {
 /// parity; later, more-specific matches override earlier ones property by
 /// property. Every field starts from the CLI geometry so unspecified props
 /// inherit the default.
+///
+/// Resolution (css-page-3 §4.1): the page box size comes from `size` (with
+/// `landscape`/`portrait` oriiented against the running size); the page AREA
+/// (the content box) is either the explicit `width`/`height` overrides or the
+/// page box minus margins. `auto` margins absorb the leftover space equally
+/// (both auto) or entirely (single auto); with no auto margin, the leftover
+/// goes to the end (right/bottom) margin, matching the overconstrained case.
 pub fn resolve_page_spec(
     rules: &[PageRule],
     page_name: Option<&str>,
@@ -593,12 +694,16 @@ pub fn resolve_page_spec(
     cli: &PageGeometry,
 ) -> PageSpec {
     let mut size = (cli.width, cli.height);
-    let mut margins = PageMargins {
-        top: cli.margin_top,
-        right: cli.margin_right,
-        bottom: cli.margin_bottom,
-        left: cli.margin_left,
-    };
+    let mut width: Option<PageLength> = None;
+    let mut height: Option<PageLength> = None;
+    let mut margins = (
+        PageLength::Abs(cli.margin_top),
+        PageLength::Abs(cli.margin_right),
+        PageLength::Abs(cli.margin_bottom),
+        PageLength::Abs(cli.margin_left),
+    );
+    let mut background = None;
+    let mut page_orientation = None;
     // Margin boxes accumulate by name; later matches replace earlier.
     let mut boxes: Vec<(MarginBoxName, Vec<ContentPiece>)> = Vec::new();
 
@@ -622,19 +727,43 @@ pub fn resolve_page_spec(
 
     for r in matching {
         if let Some(s) = r.size {
-            size = s;
+            size = match s {
+                SizeDecl::Abs(w, h) => (w, h),
+                // Orientation keywords orient the *running* size (the default
+                // page size) rather than a fresh pair.
+                SizeDecl::Portrait => (
+                    Scalar(size.0.get().min(size.1.get())),
+                    Scalar(size.0.get().max(size.1.get())),
+                ),
+                SizeDecl::Landscape => (
+                    Scalar(size.0.get().max(size.1.get())),
+                    Scalar(size.0.get().min(size.1.get())),
+                ),
+            };
+        }
+        if let Some(v) = r.width {
+            width = Some(v);
+        }
+        if let Some(v) = r.height {
+            height = Some(v);
         }
         if let Some(v) = r.margin_top {
-            margins.top = v;
+            margins.0 = v;
         }
         if let Some(v) = r.margin_right {
-            margins.right = v;
+            margins.1 = v;
         }
         if let Some(v) = r.margin_bottom {
-            margins.bottom = v;
+            margins.2 = v;
         }
         if let Some(v) = r.margin_left {
-            margins.left = v;
+            margins.3 = v;
+        }
+        if let Some(c) = r.background {
+            background = Some(c);
+        }
+        if let Some(o) = r.page_orientation {
+            page_orientation = Some(o);
         }
         for mb in &r.margin_boxes {
             match boxes.iter_mut().find(|(n, _)| *n == mb.name) {
@@ -644,10 +773,79 @@ pub fn resolve_page_spec(
         }
     }
 
+    // Resolve margins to concrete values against the final page size.
+    let mt = resolve_margin(margins.0, size.1);
+    let mr = resolve_margin(margins.1, size.0);
+    let mb = resolve_margin(margins.2, size.1);
+    let ml = resolve_margin(margins.3, size.0);
+    let (mut margin_top, auto_top) = mt;
+    let (mut margin_right, auto_right) = mr;
+    let (mut margin_bottom, auto_bottom) = mb;
+    let (mut margin_left, auto_left) = ml;
+
+    // The page area: explicit width/height overrides, else size minus margins
+    // (auto margins contribute 0 at this stage).
+    let area_w = resolve_area(width, size.0).unwrap_or(size.0 - margin_left - margin_right);
+    let area_h = resolve_area(height, size.1).unwrap_or(size.1 - margin_top - margin_bottom);
+
+    // Leftover space on each axis: distributed to auto margins (equal split
+    // when both auto), or to the end margin when overconstrained (css-page-3
+    // §4.1: "the used value of the right/bottom margin absorbs the extra").
+    let leftover_w = Scalar((size.0 - area_w - margin_left - margin_right).get().max(0.0));
+    match (auto_left, auto_right) {
+        (true, true) => {
+            margin_left += leftover_w * 0.5;
+            margin_right += leftover_w * 0.5;
+        }
+        (true, false) => margin_left += leftover_w,
+        (false, true) => margin_right += leftover_w,
+        (false, false) => margin_right += leftover_w,
+    }
+    let leftover_h = Scalar((size.1 - area_h - margin_top - margin_bottom).get().max(0.0));
+    match (auto_top, auto_bottom) {
+        (true, true) => {
+            margin_top += leftover_h * 0.5;
+            margin_bottom += leftover_h * 0.5;
+        }
+        (true, false) => margin_top += leftover_h,
+        (false, true) => margin_bottom += leftover_h,
+        (false, false) => margin_bottom += leftover_h,
+    }
+
     PageSpec {
         size,
-        margins,
+        margins: PageMargins {
+            top: margin_top,
+            right: margin_right,
+            bottom: margin_bottom,
+            left: margin_left,
+        },
+        background,
+        page_orientation,
         margin_boxes: boxes,
+    }
+}
+
+/// Resolve one margin value against the page box dimension (width for
+/// left/right, height for top/bottom). Returns the concrete value plus
+/// whether it was `auto`.
+fn resolve_margin(len: PageLength, page_dim: Scalar) -> (Scalar, bool) {
+    match len {
+        PageLength::Abs(v) => (v, false),
+        PageLength::Percent(f) => (page_dim * f, false),
+        PageLength::Auto => (Scalar::ZERO, true),
+        // `inherit` in the page context resolves to the initial value (0).
+        PageLength::Inherit => (Scalar::ZERO, false),
+    }
+}
+
+/// Resolve a page-area `width`/`height` override against the page dimension.
+/// `None` means no override (the area is size minus margins).
+fn resolve_area(len: Option<PageLength>, page_dim: Scalar) -> Option<Scalar> {
+    match len? {
+        PageLength::Abs(v) => Some(v),
+        PageLength::Percent(f) => Some(page_dim * f),
+        PageLength::Auto | PageLength::Inherit => None,
     }
 }
 
@@ -736,8 +934,68 @@ mod tests {
         assert_eq!(rules.len(), 1);
         let r = &rules[0];
         assert!(r.name.is_none());
-        assert_eq!(r.size, Some((Scalar(612.0), Scalar(792.0))));
-        assert_eq!(r.margin_top, Some(Scalar(72.0)));
+        assert_eq!(r.size, Some(SizeDecl::Abs(Scalar(612.0), Scalar(792.0))));
+        assert_eq!(r.margin_top, Some(PageLength::Abs(Scalar(72.0))));
+    }
+
+    #[test]
+    fn parses_orientation_and_margins() {
+        let rules = parse_page_rules(
+            "@page { size: portrait; margin: 10px 20px 30px 40px; } \
+             @page wide { size: landscape; page-orientation: rotate-right; \
+             width: 12em; height: 3em; margin: auto; background: yellow; }",
+        );
+        assert_eq!(rules.len(), 2);
+        assert_eq!(rules[0].size, Some(SizeDecl::Portrait));
+        assert_eq!(
+            rules[0].margin_left,
+            Some(PageLength::Abs(Scalar(30.0))) // 40px = 30pt
+        );
+        assert_eq!(rules[1].size, Some(SizeDecl::Landscape));
+        assert_eq!(rules[1].page_orientation, Some(PageOrientation::RotateRight));
+        assert_eq!(rules[1].width, Some(PageLength::Abs(Scalar(144.0)))); // 12em = 144pt
+        assert_eq!(rules[1].margin_top, Some(PageLength::Auto));
+        assert!(rules[1].background.is_some());
+    }
+
+    #[test]
+    fn resolves_auto_margins_and_area() {
+        // size 20em x 7em (= 240 x 84pt), area 12em x 3em (= 144 x 36pt),
+        // margin auto -> 48pt left/right, 24pt top/bottom (centered).
+        let rules = parse_page_rules("@page { size: 20em 7em; width: 12em; height: 3em; margin: auto; }");
+        let cli = PageGeometry {
+            width: Scalar(360.0),
+            height: Scalar(216.0),
+            margin_top: Scalar(36.0),
+            margin_right: Scalar(36.0),
+            margin_bottom: Scalar(36.0),
+            margin_left: Scalar(36.0),
+        };
+        let spec = resolve_page_spec(&rules, None, 0, &cli);
+        assert_eq!(spec.size, (Scalar(240.0), Scalar(84.0)));
+        assert_eq!(spec.margins.left, Scalar(48.0));
+        assert_eq!(spec.margins.right, Scalar(48.0));
+        assert_eq!(spec.margins.top, Scalar(24.0));
+        assert_eq!(spec.margins.bottom, Scalar(24.0));
+    }
+
+    #[test]
+    fn resolves_orientation_specificity() {
+        // page-rule-specificity-001 semantics: :first portrait beats default
+        // landscape on page 1; page 2 uses the default landscape.
+        let rules = parse_page_rules("@page :first { size: portrait; } @page { size: landscape; }");
+        let cli = PageGeometry {
+            width: Scalar(360.0),
+            height: Scalar(216.0),
+            margin_top: Scalar(36.0),
+            margin_right: Scalar(36.0),
+            margin_bottom: Scalar(36.0),
+            margin_left: Scalar(36.0),
+        };
+        let p1 = resolve_page_spec(&rules, None, 0, &cli);
+        assert_eq!(p1.size, (Scalar(216.0), Scalar(360.0))); // portrait of 5x3in
+        let p2 = resolve_page_spec(&rules, None, 1, &cli);
+        assert_eq!(p2.size, (Scalar(360.0), Scalar(216.0))); // landscape (default)
     }
 
     #[test]

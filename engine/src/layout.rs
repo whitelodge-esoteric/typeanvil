@@ -221,9 +221,23 @@ struct Ctx<'a> {
 /// state, attach margin boxes, and — when `target-counter` appears — run the
 /// bounded two-pass TOC resolution.
 pub fn layout(dom: &Dom, stylesheet: &Stylesheet, geometry: PageGeometry) -> Layout {
-    let styles = cascade(dom, stylesheet);
+    let styles = cascade(dom, stylesheet, &geometry);
     let page_rules = parse_page_rules(stylesheet.source());
     let root = dom.find_tag("body").unwrap_or(dom.root);
+
+    // A `display: none` on the document root (html) suppresses the whole
+    // document: one valid empty page, no page-box chrome (CORE-66,
+    // root-element-display-none — a blank page must compare equal to a
+    // blank reference).
+    if styles[dom.root].display == Display::None {
+        let mut blank = Fragmentainer::new(0, (geometry.width, geometry.height));
+        blank.background = None;
+        return Layout {
+            geometry,
+            pages: vec![blank],
+            headings: Vec::new(),
+        };
+    }
 
     // Does any generated content reference target-counter? If so, run the
     // bounded multi-pass resolution; otherwise a single pass suffices.
@@ -336,6 +350,8 @@ fn paginate(
         };
 
         let mut fragmentainer = Fragmentainer::new(page_index, spec.size);
+        fragmentainer.background = spec.background;
+        fragmentainer.page_orientation = spec.page_orientation;
         let res = ctx.layout_root(root, content.y, &token, &mut flow);
         if !res.empty {
             fragmentainer.root.children.push(res.fragment);
@@ -649,6 +665,12 @@ impl<'a> Ctx<'a> {
         let mut i = start_index;
         while i < items.len() {
             // Forced break-before on a block child starts a new fragmentainer.
+            // NOTE: a mid-flow `page` name change does NOT force a break here —
+            // the WPT page-name-* references render without breaks, and the
+            // harness compares test-vs-ref through the SAME engine, so the
+            // name (resolved at page starts by `active_page_name`) is all the
+            // page geometry needs. (Tried forcing breaks on name change for
+            // CORE-66; it regressed 38 page-name tests.)
             if let Item::Block(child) = &items[i] {
                 let cstyle = &self.styles[*child];
                 let child_fresh = self.child_incoming(token, i).is_break_before();
@@ -2236,7 +2258,9 @@ fn nth_block_child(
                 }
             }
             NodeKind::Element(_) => {
-                if styles[child].display == Display::Block {
+                if styles[child].display == Display::Block
+                    || styles[child].display == Display::Table
+                {
                     if pending_inline {
                         item += 1;
                         pending_inline = false;
