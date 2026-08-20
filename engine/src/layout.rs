@@ -634,8 +634,8 @@ impl<'a> Ctx<'a> {
             let lh = line_height(style);
             if y + lh <= bottom_limit || !placed {
                 let text = self.resolve_content(id, &style.content, inner_width, style, flow);
-                let baseline = y + style.font_size;
                 let face = crate::fonts::face_for(style.font_weight, style.font_style);
+                let baseline = y + crate::typography::baseline_offset(style.font_size, lh, face);
                 // Shape the resolved content so non-ASCII (em dash, curly
                 // quotes, ·) renders as a real glyph with a ToUnicode mapping
                 // — never raw UTF-8 bytes (CORE-83). Generated content is one
@@ -714,7 +714,8 @@ impl<'a> Ctx<'a> {
                         if !fits && !last_resort {
                             break;
                         }
-                        let baseline = y + style.font_size;
+                        let face = crate::fonts::face_for(style.font_weight, style.font_style);
+                        let baseline = y + crate::typography::baseline_offset(style.font_size, lh, face);
                         let lr = &lines[li];
                         let x = self.aligned_x(inner_left, inner_width, lr.drawn_width(), style);
                         let run = TextRun {
@@ -820,7 +821,8 @@ impl<'a> Ctx<'a> {
                                     page_bottom_break = true;
                                     break;
                                 }
-                                let baseline = y + style.font_size;
+                                let face = crate::fonts::face_for(style.font_weight, style.font_style);
+                                let baseline = y + crate::typography::baseline_offset(style.font_size, lh, face);
                                 let lr = &lines[li];
                                 let x = self.aligned_x(seg_x, seg_w, lr.drawn_width(), style);
                                 let run = TextRun {
@@ -2375,7 +2377,7 @@ fn attach_margin_boxes(
             MarginAlign::Center => slot_x + Scalar((slot_w.get() - text_w.get()).max(0.0) * 0.5),
             MarginAlign::End => slot_x + Scalar((slot_w.get() - text_w.get()).max(0.0)),
         };
-        let baseline = slot_y + font_size;
+        let baseline = slot_y + crate::typography::baseline_offset(font_size, lh, face);
         let run = TextRun {
             text: shaped.text,
             baseline: Point::new(x, baseline),

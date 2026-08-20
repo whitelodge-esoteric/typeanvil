@@ -39,6 +39,7 @@ cssparser = "0.35"
 krilla = "0.8"
 # Text shaping (HarfBuzz port, pure Rust) — main-text glyph advances.
 harfrust = "0.13"
+read-fonts = "0.43"
 # Knuth-Liang hyphenation patterns (zero-alloc, pure Rust, data-only).
 hypher = "0.1"
 # UAX #14 line-break opportunities (pure Rust). Deviation from the spec's
