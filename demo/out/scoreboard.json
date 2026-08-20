@@ -1,6 +1,6 @@
 {
-  "generated": "2026-08-20T18:32:55Z",
-  "typeanvil_version": "5afe57d",
+  "generated": "2026-08-20T20:21:10Z",
+  "typeanvil_version": "9a2f5dc",
   "prince_version": "Prince 16.2",
   "docs": [
     {
@@ -12,23 +12,23 @@
       "pages": [
         {
           "page": 1,
-          "diff_percent": 13.41796875
+          "diff_percent": 13.967013888888888
         },
         {
           "page": 2,
-          "diff_percent": 18.894675925925927
+          "diff_percent": 17.05078125
         },
         {
           "page": 3,
-          "diff_percent": 25.164207175925924
+          "diff_percent": 25.29007523148148
         },
         {
           "page": 4,
-          "diff_percent": 22.91521990740741
+          "diff_percent": 22.81684027777778
         },
         {
           "page": 5,
-          "diff_percent": 26.11038773148148
+          "diff_percent": 26.121238425925924
         },
         {
           "page": 6,
@@ -43,7 +43,7 @@
           "diff_percent": 21.510416666666668
         }
       ],
-      "overall_diff_percent": 22.14156539351852,
+      "overall_diff_percent": 21.984501591435187,
       "render_error": null
     },
     {
@@ -67,10 +67,10 @@
         },
         {
           "page": 4,
-          "diff_percent": 31.11762152777778
+          "diff_percent": 31.10821759259259
         }
       ],
-      "overall_diff_percent": 28.750180844907405,
+      "overall_diff_percent": 28.74782986111111,
       "render_error": null
     },
     {
@@ -86,15 +86,15 @@
         },
         {
           "page": 2,
-          "diff_percent": 16.589988425925924
+          "diff_percent": 17.452980324074076
         },
         {
           "page": 3,
-          "diff_percent": 2.040653935185185
+          "diff_percent": 0.5041956018518519
         },
         {
           "page": 4,
-          "diff_percent": 8.49392361111111
+          "diff_percent": 6.522714120370371
         },
         {
           "page": 5,
@@ -113,7 +113,7 @@
           "diff_percent": 7.300347222222222
         }
       ],
-      "overall_diff_percent": 9.687319155092593,
+      "overall_diff_percent": 9.356734664351853,
       "render_error": null
     },
     {
@@ -125,58 +125,58 @@
       "pages": [
         {
           "page": 1,
-          "diff_percent": 13.190104166666666
+          "diff_percent": 9.796730324074074
         },
         {
           "page": 2,
-          "diff_percent": 26.34620949074074
+          "diff_percent": 26.40118634259259
         },
         {
           "page": 3,
-          "diff_percent": 24.852430555555554
+          "diff_percent": 22.73003472222222
         },
         {
           "page": 4,
-          "diff_percent": 23.527199074074073
+          "diff_percent": 23.210358796296298
         },
         {
           "page": 5,
-          "diff_percent": 31.040943287037038
+          "diff_percent": 32.26417824074074
         },
         {
           "page": 6,
-          "diff_percent": 25.05714699074074
+          "diff_percent": 24.92549189814815
         },
         {
           "page": 7,
-          "diff_percent": 22.315538194444446
+          "diff_percent": 23.29644097222222
         },
         {
           "page": 8,
-          "diff_percent": 31.575520833333332
+          "diff_percent": 22.53689236111111
         },
         {
           "page": 9,
-          "diff_percent": 24.18330439814815
+          "diff_percent": 22.941261574074073
         },
         {
           "page": 10,
-          "diff_percent": 27.53833912037037
+          "diff_percent": 24.86328125
         },
         {
           "page": 11,
-          "diff_percent": 15.19748263888889
+          "diff_percent": 11.469184027777777
         }
       ],
-      "overall_diff_percent": 24.074928977272734,
+      "overall_diff_percent": 22.22136731902357,
       "render_error": null
     },
     {
       "name": "Prose Showcase",
       "file": "prose.html",
-      "typeanvil_pages": 10,
+      "typeanvil_pages": 11,
       "prince_pages": 11,
-      "page_count_mismatch": true,
+      "page_count_mismatch": false,
       "pages": [
         {
           "page": 1,
@@ -192,11 +192,11 @@
         },
         {
           "page": 4,
-          "diff_percent": 19.95659722222222
+          "diff_percent": 19.621672453703702
         },
         {
           "page": 5,
-          "diff_percent": 20.95413773148148
+          "diff_percent": 23.174189814814813
         },
         {
           "page": 6,
@@ -212,14 +212,18 @@
         },
         {
           "page": 9,
-          "diff_percent": 18.821614583333332
+          "diff_percent": 9.154369212962964
         },
         {
           "page": 10,
-          "diff_percent": 24.92549189814815
+          "diff_percent": 9.10083912037037
+        },
+        {
+          "page": 11,
+          "diff_percent": 2.8334780092592595
         }
       ],
-      "overall_diff_percent": 17.96759259259259,
+      "overall_diff_percent": 14.445693918350168,
       "render_error": null
     },
     {
@@ -235,19 +239,19 @@
         },
         {
           "page": 2,
-          "diff_percent": 21.89163773148148
+          "diff_percent": 22.214988425925927
         },
         {
           "page": 3,
-          "diff_percent": 21.707899305555557
+          "diff_percent": 16.255063657407405
         },
         {
           "page": 4,
-          "diff_percent": 20.85575810185185
+          "diff_percent": 19.93634259259259
         },
         {
           "page": 5,
-          "diff_percent": 7.594762731481482
+          "diff_percent": 4.290364583333333
         },
         {
           "page": 6,
@@ -255,22 +259,22 @@
         },
         {
           "page": 7,
-          "diff_percent": 14.467592592592593
+          "diff_percent": 8.75
         },
         {
           "page": 8,
-          "diff_percent": 6.448929398148148
+          "diff_percent": 3.2045717592592595
         },
         {
           "page": 9,
-          "diff_percent": 21.476417824074073
+          "diff_percent": 21.79904513888889
         },
         {
           "page": 10,
-          "diff_percent": 5.745081018518518
+          "diff_percent": 3.5496238425925926
         }
       ],
-      "overall_diff_percent": 14.54448784722222,
+      "overall_diff_percent": 12.525679976851851,
       "render_error": null
     },
     {
@@ -282,11 +286,11 @@
       "pages": [
         {
           "page": 1,
-          "diff_percent": 27.175202546296294
+          "diff_percent": 24.64988425925926
         },
         {
           "page": 2,
-          "diff_percent": 27.83492476851852
+          "diff_percent": 27.863859953703702
         },
         {
           "page": 3,
@@ -294,7 +298,7 @@
         },
         {
           "page": 4,
-          "diff_percent": 28.47945601851852
+          "diff_percent": 28.465711805555554
         },
         {
           "page": 5,
@@ -306,7 +310,7 @@
         },
         {
           "page": 7,
-          "diff_percent": 27.664207175925924
+          "diff_percent": 27.67939814814815
         },
         {
           "page": 8,
@@ -314,23 +318,23 @@
         },
         {
           "page": 9,
-          "diff_percent": 28.45341435185185
+          "diff_percent": 28.446180555555557
         },
         {
           "page": 10,
-          "diff_percent": 29.47120949074074
+          "diff_percent": 29.483506944444443
         },
         {
           "page": 11,
-          "diff_percent": 29.355468750000004
+          "diff_percent": 29.408275462962962
         },
         {
           "page": 12,
-          "diff_percent": 30.090422453703702
+          "diff_percent": 30.11212384259259
         },
         {
           "page": 13,
-          "diff_percent": 28.581452546296298
+          "diff_percent": 28.506944444444443
         },
         {
           "page": 14,
@@ -338,7 +342,7 @@
         },
         {
           "page": 15,
-          "diff_percent": 28.138020833333332
+          "diff_percent": 28.131510416666668
         },
         {
           "page": 16,
@@ -346,7 +350,7 @@
         },
         {
           "page": 17,
-          "diff_percent": 28.234953703703702
+          "diff_percent": 28.231336805555557
         },
         {
           "page": 18,
@@ -354,7 +358,7 @@
         },
         {
           "page": 19,
-          "diff_percent": 31.686921296296294
+          "diff_percent": 31.627604166666668
         },
         {
           "page": 20,
@@ -362,11 +366,11 @@
         },
         {
           "page": 21,
-          "diff_percent": 29.735243055555554
+          "diff_percent": 29.73162615740741
         },
         {
           "page": 22,
-          "diff_percent": 28.18721064814815
+          "diff_percent": 28.203125
         },
         {
           "page": 23,
@@ -378,7 +382,7 @@
         },
         {
           "page": 25,
-          "diff_percent": 28.82957175925926
+          "diff_percent": 28.834635416666664
         },
         {
           "page": 26,
@@ -386,7 +390,7 @@
         },
         {
           "page": 27,
-          "diff_percent": 28.92867476851852
+          "diff_percent": 28.946035879629626
         },
         {
           "page": 28,
@@ -402,7 +406,7 @@
         },
         {
           "page": 31,
-          "diff_percent": 31.21527777777778
+          "diff_percent": 31.24855324074074
         },
         {
           "page": 32,
@@ -410,7 +414,7 @@
         },
         {
           "page": 33,
-          "diff_percent": 30.34866898148148
+          "diff_percent": 30.43258101851852
         },
         {
           "page": 34,
@@ -418,11 +422,11 @@
         },
         {
           "page": 35,
-          "diff_percent": 27.52025462962963
+          "diff_percent": 27.48263888888889
         },
         {
           "page": 36,
-          "diff_percent": 31.644965277777775
+          "diff_percent": 31.71585648148148
         },
         {
           "page": 37,
@@ -434,14 +438,14 @@
         },
         {
           "page": 39,
-          "diff_percent": 28.443287037037035
+          "diff_percent": 28.51634837962963
         },
         {
           "page": 40,
           "diff_percent": 27.527488425925927
         }
       ],
-      "overall_diff_percent": 28.960286458333332,
+      "overall_diff_percent": 28.90275969328703,
       "render_error": null
     }
   ]
