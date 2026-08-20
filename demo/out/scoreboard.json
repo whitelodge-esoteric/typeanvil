@@ -1,6 +1,6 @@
 {
-  "generated": "2026-08-20T20:22:18Z",
-  "typeanvil_version": "b102c36",
+  "generated": "2026-08-20T20:43:12Z",
+  "typeanvil_version": "5ec6c0d",
   "prince_version": "Prince 16.2",
   "docs": [
     {
@@ -86,7 +86,7 @@
       "pages": [
         {
           "page": 1,
-          "diff_percent": 8.211805555555555
+          "diff_percent": 7.4884259259259265
         },
         {
           "page": 2,
@@ -102,7 +102,7 @@
         },
         {
           "page": 5,
-          "diff_percent": 13.414351851851853
+          "diff_percent": 13.274739583333334
         },
         {
           "page": 6,
@@ -117,7 +117,7 @@
           "diff_percent": 7.300347222222222
         }
       ],
-      "overall_diff_percent": 9.356734664351853,
+      "overall_diff_percent": 9.248860677083334,
       "render_error": null
     },
     {
