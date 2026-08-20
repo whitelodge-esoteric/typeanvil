@@ -63,6 +63,20 @@
     ]
   },
   {
+    "name": "Float Showcase — Figure & Pull Quote",
+    "file": "float-showcase.html",
+    "wedge_features": ["css-floats", "fragmentation-core", "typography-layer"],
+    "known_limitations": [
+      "clear unsupported (floats spec Non-Goals; no clear declarations used)",
+      "one float per side per y-band (simplified stacking; fixture uses at most one per side)"
+    ],
+    "expected_deltas": [
+      "Prince may resolve a different system font for the sans-serif stack",
+      "Float placement may differ by a line where line-box heights diverge (CORE-90)",
+      "Prince hyphenation dictionary may differ inside float-wrapped segments"
+    ]
+  },
+  {
     "name": "Prose Showcase",
     "file": "prose.html",
     "wedge_features": ["typography-layer", "fragmentation-core"],

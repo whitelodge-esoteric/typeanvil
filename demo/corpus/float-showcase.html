@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Float Showcase — Figure &amp; Pull Quote</title>
+<style>
+  /* Geometry via CLI flags only (demo spec). */
+  @page {
+    margin: 0.5in;
+    @top-center { content: "Float Showcase — Parallel Flows"; font-family: Arial, Helvetica, sans-serif; font-size: 10pt; }
+    @bottom-right { content: "Page " counter(page); font-family: Arial, Helvetica, sans-serif; font-size: 10pt; }
+  }
+  body { font-family: Arial, Helvetica, "Liberation Sans", sans-serif; font-size: 10pt; line-height: 1.4; color: #111; }
+  h1 { font-size: 15pt; margin: 0 0 6pt 0; }
+  h2 { font-size: 11pt; margin: 10pt 0 3pt 0; }
+  p { text-align: justify; hyphens: auto; margin: 0 0 7pt 0; }
+  .figure { float: right; width: 2in; font-size: 9pt; margin: 2pt 0 4pt 8pt; }
+  .figure .title { font-weight: bold; }
+  .figure .caption { font-style: italic; margin-top: 4pt; }
+  .pullquote { float: left; width: 1.9in; font-size: 12pt; font-style: italic; color: #333; margin: 2pt 8pt 4pt 0; }
+  .note { font-size: 8pt; color: #666; margin-top: 10pt; }
+</style>
+</head>
+<body>
+
+<h1>Setting Type Beside the Flow</h1>
+
+<p>A page of prose is a single stream: one paragraph follows the next, line
+after line, from the first word to the last. Print rarely stays that simple.
+A figure needs to sit beside its reference, a quotation deserves to be lifted
+out of the body, a sidebar carries a detail too long for a footnote. In CSS
+these intrusions are floats — boxes drawn out of the running text and set
+against the margin, with the body wrapping around them like water around a
+stone. This fixture exercises that machinery: a floated figure on the right,
+a pull quote on the left, and justified text flowing around both.</p>
+
+<div class="figure">
+  <div class="title">Figure 1 — A floated panel</div>
+  <p>In print, a figure or table is lifted out of the running text and set
+  beside it. The float is measured first, at its declared width; the body
+  text is then broken into segments, each segment shaped by the intrusion
+  beside it, until the float's bottom is passed and the column widens again.</p>
+  <div class="caption">Fig. 1 — A floated panel with its caption, set at 2&nbsp;inches.</div>
+</div>
+
+<p>How does an engine place such a box? The float is removed from the in-flow
+cursor entirely: it does not advance the paragraph below it, and the next
+in-flow line begins at the same height where the float began. A right float
+sits flush against the right content edge, a left float against the left edge,
+each offset by its own margin. Its width comes from the style sheet when one
+is declared, or from the widest line of its content when the width is left
+automatic — the same measurement the engine uses for a table column, capped at
+the inner width of the page.</p>
+
+<div class="pullquote">A float is a parallel flow: it advances its own cursor
+while the text beside it advances its own.</div>
+
+<p>Once the float is placed, the body text must wrap around it. The engine
+does not break a whole paragraph once at the full column width and hope for
+the best. It walks the text in segments, recomputing the available width at
+the start of each one: a line whose band overlaps a left float is indented by
+that float's width, a line beside a right float is shortened from the margin
+side, and a line below every float's bottom returns to the full measure. The
+segment ends when the line crosses a float's top or bottom — when the
+intrusion set changes — or when the page runs out.</p>
+
+<p>Fragmentation is where this design earns its keep. A float that is taller
+than the space remaining on the page does not shove the paragraph aside. It
+suspends at the page boundary and resumes at the top of the next page, while
+the in-flow text continues beside it in the current page — two parallel
+flows, each advancing its own cursor, meeting again on the next page where
+the text wraps around the float's continuation. The text resume is anchored
+by consumed source characters, not by line counts, so the break is exact even
+when the available width differs between pages.</p>
+
+<p>What the reader sees is the outcome of that arithmetic: a page where the
+body never collides with a figure, where a pull quote sits in the white space
+of a paragraph rather than punching a hole in it, and where the margins stay
+clean from the first page to the last. The figure below the quote demonstrates
+the same rules with the float on the left, proving the machinery is
+symmetric. Between the two intrusions the text narrows, widens, and narrows
+again, and every line in between is justified to the exact measure the float
+allows.</p>
+
+<h2>What the fixture measures</h2>
+
+<p>This document is the first corpus fixture to exercise CSS floats, and the
+first time the demo scoreboard can move on the float feature line. Prince
+16.2 and TypeAnvil render the same HTML with the same page geometry; the
+comparison records page counts and per-page pixel differences. Where the two
+engines disagree — a float placed a line higher or lower, a caption wrapped
+differently at the same width — the difference is data, not noise, and the
+gallery shows it side by side.</p>
+
+<div class="note">Fixture exercises CORE-62 floats: right-float figure with
+explicit width, left-float pull quote, segment-based text wrap, and
+justified body text around both. No <code>clear</code> is used (deferred in
+the floats spec). line-height 1.4 pinned per corpus convention; residual
+line-box divergence tracked as CORE-90.</div>
+</body>
+</html>
