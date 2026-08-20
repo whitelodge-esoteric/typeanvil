@@ -33,6 +33,7 @@
 //! `GlyphInfo::glyph_id`; advances from `GlyphPosition::x_advance` (i32 design
 //! units).
 
+use std::ops::Range;
 use std::sync::LazyLock;
 
 use harfrust::{Direction, FontRef, ShaperData, ShapeOptions, UnicodeBuffer};
@@ -110,6 +111,12 @@ pub struct ShapedGlyph {
     pub x_advance: Scalar,
     /// Positioning offset in points (kerning etc.).
     pub x_offset: Scalar,
+    /// Byte range of the glyph's cluster in the paired text string (the
+    /// `ShapeRun.text` for shaped words, the `LineResult.text` for line
+    /// glyphs). krilla slices the text by these ranges to build the PDF
+    /// ToUnicode map, so every glyph's range must be non-empty and in-bounds
+    /// (CORE-85).
+    pub range: Range<usize>,
 }
 
 /// A shaped word or segment.
@@ -199,16 +206,37 @@ pub fn shape_word(word: &str, font_size: Scalar, face: FontFace) -> ShapeRun {
 
     let infos = glyph_buffer.glyph_infos();
     let positions = glyph_buffer.glyph_positions();
+    // HarfRust's `push_str` assigns cluster = byte offset of each char into
+    // the word (see `UnicodeBuffer::push_str` — `char_indices`), so a shaped
+    // glyph's `cluster` is the byte offset of its grapheme cluster in the
+    // word. For LTR Latin (single script, no reordering) the clusters are
+    // non-decreasing; a ligature glyph keeps the cluster of its first char
+    // and therefore spans multiple source bytes.
+    let clusters: Vec<u32> = infos.iter().map(|i| i.cluster).collect();
+    let byte_len = word.len();
     let mut glyphs = Vec::with_capacity(infos.len());
     let mut width = 0.0f64;
-    for (info, pos) in infos.iter().zip(positions.iter()) {
+    for (i, (info, pos)) in infos.iter().zip(positions.iter()).enumerate() {
         let adv = pos.x_advance as f64 * scale;
         let off = pos.x_offset as f64 * scale;
         width += adv;
+        let start = clusters[i] as usize;
+        // End at the next DISTINCT cluster, or the word's end. Glyphs that
+        // share a cluster (e.g. base + combining marks) get the SAME range;
+        // krilla assigns codepoints only to the first glyph of a run of equal
+        // ranges, so the cluster's text is not duplicated in the ToUnicode
+        // map. Every range here is non-empty (a cluster never equals the word
+        // length).
+        let end = clusters[i + 1..]
+            .iter()
+            .find(|&&c| c > clusters[i])
+            .map(|&c| c as usize)
+            .unwrap_or(byte_len);
         glyphs.push(ShapedGlyph {
             id: info.glyph_id,
             x_advance: Scalar(adv),
             x_offset: Scalar(off),
+            range: start..end,
         });
     }
 
@@ -576,6 +604,7 @@ fn materialize_line(
                     // The glue that preceded this box materializes as a space
                     // glyph between the words (advance patched below).
                     if let Some(sg) = space_run.glyphs.first() {
+                        let sp = text.len();
                         text.push(' ');
                         let gi = glyphs.len();
                         // Default advance = the glue's natural width so
@@ -586,13 +615,24 @@ fn materialize_line(
                             id: sg.id,
                             x_advance: Scalar(g.width.get()),
                             x_offset: Scalar::ZERO,
+                            // The single ' ' just appended to the line text
+                            // (CORE-85).
+                            range: sp..sp + 1,
                         });
                         spaces.push((gi, g.width.get(), g.stretch.get(), g.shrink.get()));
                     }
                 }
+                let base = text.len();
                 text.push_str(&b.text);
                 natural += b.width.get();
-                glyphs.extend(b.glyphs.iter().cloned());
+                // Rebase the word's glyph ranges (word-relative cluster byte
+                // offsets) onto the line text (CORE-85).
+                glyphs.extend(b.glyphs.iter().map(|g| ShapedGlyph {
+                    id: g.id,
+                    x_advance: g.x_advance,
+                    x_offset: g.x_offset,
+                    range: (base + g.range.start)..(base + g.range.end),
+                }));
             }
             Item::Glue(g) => {
                 pending_glue = Some(*g);
@@ -610,8 +650,16 @@ fn materialize_line(
     } = &items[end]
     {
         natural += width.get();
+        let hp = text.len();
         text.push('-');
-        glyphs.extend(h.glyphs.iter().cloned());
+        // The hyphen glyph(s) cover the trailing '-' in the line text
+        // (CORE-85).
+        glyphs.extend(h.glyphs.iter().map(|g| ShapedGlyph {
+            id: g.id,
+            x_advance: g.x_advance,
+            x_offset: g.x_offset,
+            range: hp..hp + 1,
+        }));
     }
 
     let (mut stretch_used, mut shrink_used) = (0.0f64, 0.0f64);
