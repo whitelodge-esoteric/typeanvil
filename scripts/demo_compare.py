@@ -29,6 +29,7 @@ FEATURE_LABELS = {
     "paged-media-css": "Paged Media CSS",
     "typography-layer": "Typography Layer",
     "tables-fragmentation": "Tables Fragmentation",
+    "css-floats": "CSS Floats",
 }
 
 
