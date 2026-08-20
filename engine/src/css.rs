@@ -1038,20 +1038,24 @@ mod breaks {
     }
 
     /// Strip `/* ... */` comments so they never leak into selectors/values.
+    /// Char-safe: iterates code points, never raw bytes (CORE-83 — a
+    /// byte-wise loop turned every multi-byte UTF-8 char in the stylesheet
+    /// into Latin-1 mojibake before declarations were parsed).
     pub(super) fn strip_comments(css: &str) -> String {
         let mut out = String::with_capacity(css.len());
-        let bytes = css.as_bytes();
-        let mut i = 0;
-        while i < bytes.len() {
-            if i + 1 < bytes.len() && bytes[i] == b'/' && bytes[i + 1] == b'*' {
-                i += 2;
-                while i + 1 < bytes.len() && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
-                    i += 1;
+        let mut rest = css;
+        while !rest.is_empty() {
+            if rest.starts_with("/*") {
+                match rest.find("*/") {
+                    Some(end) => rest = &rest[end + 2..],
+                    // Unterminated comment: drop the remainder (matches the
+                    // byte-wise loop, which ran off the end of the buffer).
+                    None => break,
                 }
-                i += 2;
             } else {
-                out.push(bytes[i] as char);
-                i += 1;
+                let ch = rest.chars().next().expect("non-empty rest");
+                out.push(ch);
+                rest = &rest[ch.len_utf8()..];
             }
         }
         out

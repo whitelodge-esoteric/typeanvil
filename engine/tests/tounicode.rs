@@ -200,6 +200,88 @@ fn tounicode_map_extracts_source_text() {
     );
 }
 
+// --- CORE-83: margin-box / generated-content non-ASCII ---------------------
+
+/// 4. Margin-box content is shaped (CORE-83): the run's glyphs are non-empty,
+///    their ranges cover the resolved text (em dash U+2014, middle dot U+00B7),
+///    and every glyph is a real outline (id != 0), not the font's `.notdef`.
+#[test]
+fn margin_box_runs_are_shaped() {
+    let html = r#"<html><style>
+        @page { margin: 0.5in; @top-center { content: "— · "; } }
+        p { font-family: Arial; font-size: 11pt; }
+    </style><body><p>Body text.</p></body></html>"#;
+    let l = lay(html);
+    let mut found = false;
+    for page in &l.pages {
+        collect_margin_runs(&page.root, &mut |run: &typeanvil::frag::TextRun| {
+            if run.text.contains('\u{2014}') {
+                found = true;
+                assert!(!run.glyphs.is_empty(), "margin box must be shaped");
+                for g in &run.glyphs {
+                    assert!(g.id != 0, "glyph id 0 = .notdef for {:?}", run.text);
+                    assert!(
+                        g.range.start <= g.range.end && g.range.end <= run.text.len(),
+                        "range {:?} out of bounds for {:?}",
+                        g.range,
+                        run.text
+                    );
+                }
+                // The em dash and middle dot must both be present in the run.
+                assert!(run.text.contains('\u{00B7}'), "missing middle dot");
+            }
+        });
+    }
+    assert!(found, "no margin-box run with an em dash found");
+}
+
+fn collect_margin_runs<'a>(
+    frag: &'a typeanvil::frag::Fragment,
+    f: &mut impl FnMut(&'a typeanvil::frag::TextRun),
+) {
+    if let typeanvil::frag::FragmentContent::Text(run) = &frag.content {
+        f(run);
+    }
+    for child in &frag.children {
+        collect_margin_runs(child, f);
+    }
+}
+
+/// 5. The rendered PDF's `/ToUnicode` CMap maps margin-box glyphs back to the
+///    readable source text — the CORE-83 Done criterion: `content: "— · "`
+///    extracts as a real em dash and middle dot, no control chars.
+#[test]
+fn margin_box_tounicode_map() {
+    let html = r#"<html><style>
+        @page { margin: 0.5in;
+            @top-center { content: "Northwind — · 2026"; }
+            @bottom-right { content: "Page " counter(page); } }
+        p { font-family: Arial; font-size: 11pt; }
+    </style><body><p>Inventory body text.</p></body></html>"#;
+    let l = lay(html);
+    let pdf = render(&l).unwrap();
+
+    let entries = to_unicode_entries(&pdf);
+    assert!(
+        entries.len() >= 10,
+        "ToUnicode map suspiciously small: {} entries",
+        entries.len()
+    );
+    let joined: String = entries.iter().map(|(_, s)| s.as_str()).collect();
+    assert!(
+        joined.contains('\u{2014}'),
+        "map missing the em dash U+2014 from the margin box: {joined:?}"
+    );
+    assert!(
+        joined.contains('\u{00B7}'),
+        "map missing the middle dot U+00B7 from the margin box: {joined:?}"
+    );
+    assert!(
+        !joined.chars().any(|c| (c as u32) < 0x20),
+        "map contains control chars: {joined:?}"
+    );
+}
+
 // --- ToUnicode CMap extraction ----------------------------------------------
 
 /// Find the byte index of `needle` at or after `from`, or `None`.

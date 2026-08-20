@@ -21,7 +21,7 @@
     ],
     "expected_deltas": [
       "TOC dotted leaders may use slightly different dot spacing",
-      "Running-header font metrics may differ between engines",
+      "Running-header font pinned to Arial 10pt in both engines (CORE-86); residual header diffs are layout-metric or structural",
       "Prince may hyphenate differently in table cells"
     ]
   },
@@ -44,7 +44,7 @@
     "wedge_features": ["paged-media-css", "fragmentation-core"],
     "known_limitations": [],
     "expected_deltas": [
-      "Named-page margin-box fonts may differ between engines",
+      "Margin-box fonts pinned to Arial 10pt (CORE-86); cover page margin boxes are content: none",
       "Prince may apply default margins to @page cover differently"
     ]
   },
