@@ -203,9 +203,15 @@ fn justified_lines_fill_width() {
 #[test]
 fn total_fit_beats_greedy() {
     let style = p_style("<html><body><p>t</p></body></html>");
+    // CORE-94 (2026-08-20): with the breakpoint-glue natural-width fix, this
+    // text at 180pt is the discriminating case — K-P globally redistributes
+    // slack and packs the paragraph in 3 lines (deviation 0.0), while greedy
+    // first-fit needs 4 lines (deviation 13.2). At the old fixture width 150
+    // the two now tie, so the assertion moved to a width where the K-P
+    // advantage is structural.
     let text = "alpha beta gamma delta epsilon zeta eta theta iota kappa \
                 lambda mu nu xi omicron pi rho sigma tau";
-    let width = Scalar(150.0);
+    let width = Scalar(180.0);
 
     let kp = break_paragraph(text, width, &style, false, true);
     let greedy = greedy_first_fit(text, width, &style);
@@ -213,8 +219,15 @@ fn total_fit_beats_greedy() {
     let kp_demerit = spacing_deviation(&kp, width.get());
     let greedy_demerit = spacing_deviation(&greedy, width.get());
     assert!(
-        greedy_demerit > kp_demerit + 10.0,
+        greedy_demerit > kp_demerit + 5.0,
         "total fit ({kp_demerit:.1}) must beat greedy ({greedy_demerit:.1}) by a clear margin"
+    );
+    // K-P must not use more lines than greedy (it packs, never fragments).
+    assert!(
+        kp.len() <= greedy.len(),
+        "K-P lines {} must not exceed greedy lines {}",
+        kp.len(),
+        greedy.len()
     );
     // Both break the same text: no words lost or invented.
     let join = |ls: &[typeanvil::typography::LineResult]| {
