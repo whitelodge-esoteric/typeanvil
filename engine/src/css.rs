@@ -202,6 +202,10 @@ pub struct ComputedStyle {
     /// The computed `width` property, `None` = `auto` (shrink-to-fit for
     /// floats and abspos). Points.
     pub width: Option<Scalar>,
+    /// The raw `width` percentage as a 0..=1 fraction, kept when the declared
+    /// width is a percentage so table layout can resolve it against the
+    /// containing block (CORE-81). `None` = no percentage declared.
+    pub width_percent: Option<f64>,
     /// The computed `position` value. `Absolute`/`Fixed` take the element out
     /// of flow; the fragment attaches to the fragmentainer.
     pub position: Position,
@@ -282,6 +286,7 @@ impl ComputedStyle {
             display: Display::Inline,
             float: Float::None,
             width: None,
+            width_percent: None,
             position: Position::Static,
             inset_top: None,
             inset_right: None,
@@ -600,15 +605,20 @@ impl CascadeSession {
             StyloFloat::Right => Float::Right,
             _ => Float::None,
         };
-        let width = match position.clone_width() {
-            StyloSize::Auto => None,
+        let (width, width_percent) = match position.clone_width() {
+            StyloSize::Auto => (None, None),
             StyloSize::LengthPercentage(lp) => {
                 // NonNegative<LengthPercentage>: `.0` unwraps the non-negative
-                // marker; percentages have no absolute length (`to_length` is
-                // None) and fall back to shrink-to-fit.
-                lp.0.to_length().map(|len| px_to_pt(len.px() as f64))
+                // marker. Lengths resolve to points; percentages have no
+                // absolute length (`to_length` is None) and are carried as a
+                // 0..=1 fraction so table layout can resolve them against the
+                // containing block (CORE-81).
+                let len = lp.0.to_length().map(|l| px_to_pt(l.px() as f64));
+                // Computed Percentage is a plain fraction (pub CSSFloat).
+                let pct = lp.0.to_percentage().map(|p| p.0 as f64);
+                (len, pct)
             }
-            _ => None,
+            _ => (None, None),
         };
         // `position` and the insets/z-index live on stylo's *position* struct
         // (the same one that carries `width`) — the CORE-62 `clone_width`
@@ -714,6 +724,7 @@ impl CascadeSession {
             font_style,
             float,
             width,
+            width_percent,
             position: position_prop,
             inset_top,
             inset_right,

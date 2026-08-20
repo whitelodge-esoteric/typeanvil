@@ -1553,7 +1553,9 @@ impl<'a> Ctx<'a> {
         token: &BreakToken,
         flow: &mut Flow,
     ) -> BlockResult {
-        let columns = measure_columns(self.dom, self.styles, self.dom.nodes[id].parent.unwrap_or(id), avail_width);
+        let table_id = self.dom.nodes[id].parent.unwrap_or(id);
+        let used = crate::table::table_used_width(self.styles, table_id, avail_width);
+        let columns = measure_columns(self.dom, self.styles, table_id, avail_width, used);
         let row_ids = [id];
         let (row_heights, _) = measure_rows(self.dom, self.styles, &row_ids, &columns, avail_width);
         let row_height = row_heights.first().copied().unwrap_or(Scalar::ZERO);
@@ -1615,7 +1617,8 @@ impl<'a> Ctx<'a> {
     }
 
     fn collect_table_state(&self, table_id: NodeId, avail_width: Scalar) -> TableState {
-        let columns = measure_columns(self.dom, self.styles, table_id, avail_width);
+        let used = crate::table::table_used_width(self.styles, table_id, avail_width);
+        let columns = measure_columns(self.dom, self.styles, table_id, avail_width, used);
         let mut header: Option<TableGroupState> = None;
         let mut footer: Option<TableGroupState> = None;
         let mut body: Vec<TableGroupState> = Vec::new();
