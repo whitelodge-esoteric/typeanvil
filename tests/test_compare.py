@@ -121,6 +121,32 @@ def test_page_selection_still_detects_diff():
     assert not res.passed
 
 
+def test_page_selection_pads_short_ref_with_last_page():
+    # wptrunner print-reftest semantics: a 2-page test whose ref has only 1
+    # page compares test page 2 against the ref's LAST (only) page.
+    a = [solid((255, 0, 0)), solid((0, 255, 0))]
+    b = [solid((0, 255, 0))]  # 1 page, matches test page 2
+    res = compare(a, b, pages=[2])
+    assert res.passed
+    assert [p.page_index for p in res.pages] == [2]
+
+
+def test_page_selection_pad_still_fails_on_mismatch():
+    a = [solid((255, 0, 0)), solid((0, 0, 0))]
+    b = [solid((0, 255, 0))]  # padded page differs from test page 2
+    res = compare(a, b, pages=[2])
+    assert not res.passed
+
+
+def test_unselected_page_count_mismatch_not_padded():
+    # Without reftest-pages, a ref with fewer pages is still a hard FAIL.
+    a = [solid((0, 0, 0)), solid((0, 0, 0))]
+    b = [solid((0, 0, 0))]
+    res = compare(a, b)
+    assert not res.passed
+    assert "page count" in res.reason
+
+
 def test_triptych_written_on_failure(tmp_path):
     a = [solid((255, 0, 0))]
     b = [solid((0, 0, 0))]

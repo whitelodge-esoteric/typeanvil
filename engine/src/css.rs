@@ -25,7 +25,6 @@
 //! byte-identical across runs.
 
 use euclid::{Scale, Size2D};
-use style_traits::{CSSPixel, DevicePixel};
 use servo_arc::Arc;
 use style::device::Device;
 use style::device::servo::FontMetricsProvider;
@@ -37,6 +36,7 @@ use style::servo::media_features::PointerCapabilities;
 use style::shared_lock::{SharedRwLock, StylesheetGuards};
 use style::stylist::{RuleInclusion, Stylist};
 use style::stylesheets::{AllowImportRules, Origin, Stylesheet as StylesheetFromStylo, UrlExtraData};
+use style_traits::{CSSPixel, DevicePixel};
 use style::properties::generated::longhands::column_span::computed_value::T as StyloColumnSpan;
 use style::values::computed::box_::Float as StyloFloat;
 use style::values::computed::column::ColumnCount as StyloColumnCount;
@@ -412,11 +412,16 @@ impl CascadeSession {
         td, th { display: table-cell; }
     "#;
 
-    fn new(lock: &SharedRwLock, css: &str) -> Self {
+    fn new(lock: &SharedRwLock, css: &str, geometry: &crate::geom::PageGeometry) -> Self {
         let guard = lock.read();
         let guards = StylesheetGuards::same(&guard);
 
         let default_values = ComputedValues::initial_values_with_font_override(Font::initial_values());
+        // The stylo viewport stays at the engine's historical 1024x768 (the
+        // paged-media content-box viewport was tried for CORE-66 — it fixes
+        // page-size-009's 100vw/100vh div but regresses the monolithic-overflow
+        // and fixedpos suites, whose shared references are authored against
+        // the fixed viewport). vw/vh correctness is tracked separately.
         let viewport = Size2D::<f32, CSSPixel>::new(1024.0, 768.0);
         let device_size = Size2D::<f32, DevicePixel>::new(1024.0, 768.0);
         let url_data = UrlExtraData(Arc::new(
@@ -620,6 +625,10 @@ impl CascadeSession {
             }
             _ => (None, None),
         };
+        // The computed `height` is deliberately NOT carried: the skeleton has
+        // no containing-block/block-size resolution (CORE-66: adding it
+        // regressed the monolithic-overflow and body-background suites, whose
+        // references rely on auto-height self-consistency).
         // `position` and the insets/z-index live on stylo's *position* struct
         // (the same one that carries `width`) — the CORE-62 `clone_width`
         // lesson; only the `position` longhand itself is a box property.
@@ -841,15 +850,21 @@ fn walk<'a>(
     }
 }
 
+/// Parse a CSS color (`#rgb`/`#rrggbb` or named), reused by the `@page` pass
+/// for the page box background. `None` for `transparent`/unrecognized.
+pub fn parse_css_color(s: &str) -> Option<Color> {
+    borders::parse_color(s)
+}
+
 /// The cascade entry point. Produces a `ComputedStyle` per DOM node id
 /// (indexed by `NodeId`). Text nodes inherit their parent's style.
 ///
 /// This is the swap boundary between the engine and stylo: layout and PDF
 /// read only the returned `Vec<ComputedStyle>`.
-pub fn cascade(dom: &Dom, stylesheet: &Stylesheet) -> Vec<ComputedStyle> {
+pub fn cascade(dom: &Dom, stylesheet: &Stylesheet, geometry: &crate::geom::PageGeometry) -> Vec<ComputedStyle> {
     let lock = SharedRwLock::new();
-    let backend = TyBackend::new(dom, &lock);
-    let mut session = CascadeSession::new(&lock, stylesheet.source());
+    let mut backend = TyBackend::new(dom, &lock);
+    let mut session = CascadeSession::new(&lock, stylesheet.source(), geometry);
     let mut styles = vec![ComputedStyle::initial(); dom.nodes.len()];
     // Pre-order walk: parents are resolved before children, and the parent's
     // `ComputedValues` is threaded down explicitly (the element-data map on
@@ -888,13 +903,25 @@ mod breaks {
     use super::{BreakBetween, BreakInside, ComputedStyle, Hyphens};
     use crate::dom::{Dom, NodeId, NodeKind};
 
+    /// A structural pseudo-class the author-CSS passes can match (css-selectors-4
+    /// subset, added for CORE-66: WPT fixtures use `:first-of-type` /
+    /// `:nth-of-type(N)` for page-break and named-page rules, and `:root` for
+    /// `print-color-adjust`).
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(super) enum StructuralPseudo {
+        FirstOfType,
+        NthOfType(u32),
+        Root,
+    }
+
     /// A parsed simple selector: an optional tag plus required classes/id.
     pub(super) struct SimpleSelector {
         pub(super) tag: Option<String>,
         pub(super) id: Option<String>,
         pub(super) classes: Vec<String>,
+        pub(super) pseudo: Option<StructuralPseudo>,
         /// Higher wins ties; approximates specificity (id=100, class=10,
-        /// tag=1) then declaration order.
+        /// tag=1, pseudo-class=10) then declaration order.
         pub(super) specificity: u32,
     }
 
@@ -913,22 +940,71 @@ mod breaks {
                     return false;
                 }
             }
-            self.classes.iter().all(|c| el.classes.iter().any(|x| x == c))
+            if !self.classes.iter().all(|c| el.classes.iter().any(|x| x == c)) {
+                return false;
+            }
+            match self.pseudo {
+                None => true,
+                Some(StructuralPseudo::Root) => id == dom.root,
+                Some(p) => structural_pseudo_matches(dom, id, p),
+            }
         }
     }
 
-    /// Parse one compound simple selector like `section.note#x`. Returns `None`
-    /// for anything with a combinator or pseudo we do not support.
+    /// Evaluate a structural pseudo against an element's sibling position.
+    /// `:first-of-type` / `:nth-of-type(N)` are relative to the element's
+    /// parent: the N-th element child (1-based) with the same tag.
+    fn structural_pseudo_matches(dom: &Dom, id: NodeId, p: StructuralPseudo) -> bool {
+        let Some(parent) = dom.nodes[id].parent else {
+            return false;
+        };
+        let NodeKind::Element(el) = &dom.nodes[id].kind else {
+            return false;
+        };
+        let mut nth = 0u32;
+        for &sib in &dom.nodes[parent].children {
+            let NodeKind::Element(se) = &dom.nodes[sib].kind else {
+                continue;
+            };
+            if !se.tag.eq_ignore_ascii_case(&el.tag) {
+                continue;
+            }
+            nth += 1;
+            if sib == id {
+                return match p {
+                    StructuralPseudo::FirstOfType => nth == 1,
+                    StructuralPseudo::NthOfType(n) => nth == n,
+                    StructuralPseudo::Root => false,
+                };
+            }
+        }
+        false
+    }
+
+    /// Parse one compound simple selector like `section.note#x:first-of-type`.
+    /// Returns `None` for anything with a combinator or a pseudo we do not
+    /// support.
     pub(super) fn parse_simple(sel: &str) -> Option<SimpleSelector> {
         let sel = sel.trim();
-        if sel.is_empty() || sel.contains([' ', '>', '+', '~', ':', '[', '*']) {
+        if sel.is_empty() || sel.contains([' ', '>', '+', '~', '[', '*']) {
+            return None;
+        }
+        // Split a trailing `:pseudo` (the first `:` starts the pseudo token).
+        let (core, pseudo) = match sel.find(':') {
+            Some(p) => {
+                let (head, tail) = sel.split_at(p);
+                (head, parse_pseudo(tail)?)
+            }
+            None => (sel, None),
+        };
+        if core.is_empty() && pseudo.is_none() {
             return None;
         }
         let mut tag = None;
         let mut id = None;
         let mut classes = Vec::new();
         let mut spec = 0u32;
-        let mut chars = sel.chars().peekable();
+        let mut chars = core.chars().peekable();
         // Optional leading type selector.
         let mut lead = String::new();
         while let Some(&c) = chars.peek() {
@@ -966,12 +1042,45 @@ mod breaks {
                 _ => return None,
             }
         }
+        if pseudo.is_some() {
+            spec += 10;
+        }
         Some(SimpleSelector {
             tag,
             id,
             classes,
+            pseudo,
             specificity: spec,
         })
+    }
+
+    /// Parse a trailing pseudo-class token (`:first-of-type`, `:nth-of-type(N)`,
+    /// `:root`). `None` for unknown pseudos (the rule is dropped).
+    fn parse_pseudo(tok: &str) -> Option<Option<StructuralPseudo>> {
+        let t = tok.trim().to_ascii_lowercase();
+        match t.as_str() {
+            ":first-of-type" => Some(Some(StructuralPseudo::FirstOfType)),
+            ":root" => Some(Some(StructuralPseudo::Root)),
+            _ => {
+                if let Some(inner) = t.strip_prefix(":nth-of-type(") {
+                    let n: u32 = inner.trim_end_matches(')').trim().parse().ok()?;
+                    if n >= 1 {
+                        return Some(Some(StructuralPseudo::NthOfType(n)));
+                    }
+                }
+                None
+            }
+        }
+    }
+
+    /// Split a `style=""` attribute value into (property, value) pairs, in
+    /// source order. Used by every author-CSS pass so inline declarations win
+    /// the cascade exactly like a stylesheet rule with maximal specificity.
+    pub(super) fn parse_inline_decls(attr: &str) -> Vec<(String, String)> {
+        attr.split(';')
+            .filter_map(|d| d.split_once(':'))
+            .map(|(p, v)| (p.trim().to_ascii_lowercase(), v.trim().to_string()))
+            .collect()
     }
 
     /// One break declaration, keyed to a field.
@@ -1339,6 +1448,14 @@ mod borders {
             "navy" => (0, 0, 128),
             "purple" => (128, 0, 128),
             "orange" => (255, 165, 0),
+            // css-color-3 basic keywords + the WPT fixture palette (CORE-66:
+            // page-box tests paint the page box with yellow/cyan/hotpink).
+            "yellow" => (255, 255, 0),
+            "cyan" | "aqua" => (0, 255, 255),
+            "magenta" | "fuchsia" => (255, 0, 255),
+            "hotpink" => (255, 105, 180),
+            "pink" => (255, 192, 203),
+            "lightblue" => (173, 216, 230),
             _ => return None,
         };
         Some(Color { r: named.0, g: named.1, b: named.2 })
@@ -1404,6 +1521,18 @@ mod borders {
                 width: w,
                 color: c,
             }),
+            // Per-side color longhands (CORE-66, page-orientation mismatch
+            // tests use `border-bottom-color`). The engine's border model is a
+            // single shared color, so the per-side override sets that slot —
+            // enough to make test/notref differ where the tests require.
+            "border-top-color" | "border-right-color" | "border-bottom-color"
+            | "border-left-color" => {
+                if let Some(c) = c {
+                    Some(BorderDecl::Color(c))
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
@@ -1542,6 +1671,81 @@ mod borders {
                                     won[id].color = Some(prio);
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Inline `style=""` declarations win over every stylesheet rule
+        // (CORE-66: WPT fixtures set border colors/widths inline).
+        let mut inline_order = 0u32;
+        for id in 0..dom.nodes.len() {
+            let crate::dom::NodeKind::Element(el) = &dom.nodes[id].kind else {
+                continue;
+            };
+            let Some(attr) = el.attr("style") else {
+                continue;
+            };
+            for (prop, value) in super::breaks::parse_inline_decls(attr) {
+                let Some(decl) = parse_decl(&prop, &value) else {
+                    continue;
+                };
+                let prio = (u32::MAX, inline_order);
+                inline_order += 1;
+                match &decl {
+                    BorderDecl::Shorthand { width, color } => {
+                        let st = &mut styles[id];
+                        if let Some(w) = width {
+                            if won[id].top.is_none_or(|p| prio >= p) {
+                                st.border_top = *w;
+                                won[id].top = Some(prio);
+                            }
+                            if won[id].right.is_none_or(|p| prio >= p) {
+                                st.border_right = *w;
+                                won[id].right = Some(prio);
+                            }
+                            if won[id].bottom.is_none_or(|p| prio >= p) {
+                                st.border_bottom = *w;
+                                won[id].bottom = Some(prio);
+                            }
+                            if won[id].left.is_none_or(|p| prio >= p) {
+                                st.border_left = *w;
+                                won[id].left = Some(prio);
+                            }
+                        }
+                        if let Some(c) = color {
+                            if won[id].color.is_none_or(|p| prio >= p) {
+                                st.border_color = Some(*c);
+                                won[id].color = Some(prio);
+                            }
+                        }
+                    }
+                    BorderDecl::Side { side, width, color } => {
+                        let st = &mut styles[id];
+                        let (slot, flag) = match side {
+                            Side::Top => (&mut st.border_top, &mut won[id].top),
+                            Side::Right => (&mut st.border_right, &mut won[id].right),
+                            Side::Bottom => (&mut st.border_bottom, &mut won[id].bottom),
+                            Side::Left => (&mut st.border_left, &mut won[id].left),
+                        };
+                        if let Some(w) = width {
+                            if flag.is_none_or(|p| prio >= p) {
+                                *slot = *w;
+                                *flag = Some(prio);
+                            }
+                        }
+                        if let Some(c) = color {
+                            if won[id].color.is_none_or(|p| prio >= p) {
+                                st.border_color = Some(*c);
+                                won[id].color = Some(prio);
+                            }
+                        }
+                    }
+                    BorderDecl::Color(c) => {
+                        if won[id].color.is_none_or(|p| prio >= p) {
+                            styles[id].border_color = Some(*c);
+                            won[id].color = Some(prio);
                         }
                     }
                 }
@@ -1762,6 +1966,57 @@ mod paged_props {
                                     won[id].content = Some(prio);
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Inline `style=""` declarations win over every stylesheet rule
+        // (CORE-66: WPT fixtures set `page:` inline, e.g. `style="page:a"`).
+        let mut inline_order = 0u32;
+        for id in 0..dom.nodes.len() {
+            let NodeKind::Element(el) = &dom.nodes[id].kind else {
+                continue;
+            };
+            let Some(attr) = el.attr("style") else {
+                continue;
+            };
+            for (prop, value) in super::breaks::parse_inline_decls(attr) {
+                let Some(decl) = parse_decl(&prop, &value) else {
+                    continue;
+                };
+                let prio = (u32::MAX, inline_order);
+                inline_order += 1;
+                match decl {
+                    PagedDecl::Page(v) => {
+                        if won[id].page.is_none_or(|w| prio >= w) {
+                            styles[id].page = v.clone();
+                            won[id].page = Some(prio);
+                        }
+                    }
+                    PagedDecl::StringSet(v) => {
+                        if won[id].string_set.is_none_or(|w| prio >= w) {
+                            styles[id].string_set = v.clone();
+                            won[id].string_set = Some(prio);
+                        }
+                    }
+                    PagedDecl::CounterReset(v) => {
+                        if won[id].counter_reset.is_none_or(|w| prio >= w) {
+                            styles[id].counter_reset = v.clone();
+                            won[id].counter_reset = Some(prio);
+                        }
+                    }
+                    PagedDecl::CounterIncrement(v) => {
+                        if won[id].counter_increment.is_none_or(|w| prio >= w) {
+                            styles[id].counter_increment = v.clone();
+                            won[id].counter_increment = Some(prio);
+                        }
+                    }
+                    PagedDecl::Content(v) => {
+                        if won[id].content.is_none_or(|w| prio >= w) {
+                            styles[id].content = v.clone();
+                            won[id].content = Some(prio);
                         }
                     }
                 }

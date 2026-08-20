@@ -105,6 +105,45 @@ pub fn render(layout: &Layout) -> Result<Vec<u8>> {
         let mut pdf_page = document.start_page_with(settings);
         let mut surface = pdf_page.surface();
 
+        // Page box background (CORE-66): a full-page fill from the resolved
+        // `@page` background, painted under everything else.
+        if let Some(bg) = page.background {
+            if let Some(rect) = Rect::from_xywh(0.0, 0.0, page_w, page_h) {
+                let mut pb = krilla::geom::PathBuilder::new();
+                pb.push_rect(rect);
+                if let Some(path) = pb.finish() {
+                    surface.set_fill(Some(solid_fill(bg)));
+                    surface.draw_path(&path);
+                }
+            }
+        }
+
+        // `page-orientation` (CORE-66): rotate the laid-out content within the
+        // page box. The layout itself is unrotated; the transform maps content
+        // coordinates (top-left origin, y down) into their rotated positions.
+        // rotate-right: (x, y) -> (H - y, x); rotate-left: (x, y) -> (y, W - x);
+        // rotate-top/bottom: 180°, (x, y) -> (W - x, H - y).
+        let rotated = if let Some(orient) = page.page_orientation {
+            let (sx, ky, kx, sy, tx, ty) = match orient {
+                crate::paged::PageOrientation::RotateRight => {
+                    (0.0, 1.0, -1.0, 0.0, page_h, 0.0)
+                }
+                crate::paged::PageOrientation::RotateLeft => {
+                    (0.0, -1.0, 1.0, 0.0, 0.0, page_w)
+                }
+                crate::paged::PageOrientation::RotateTop
+                | crate::paged::PageOrientation::RotateBottom => {
+                    (-1.0, 0.0, 0.0, -1.0, page_w, page_h)
+                }
+            };
+            surface.push_transform(&krilla::geom::Transform::from_row(
+                sx, ky, kx, sy, tx, ty,
+            ));
+            true
+        } else {
+            false
+        };
+
         // Two passes over the fragment tree so backgrounds sit under text.
         let mut backgrounds: Vec<(f32, f32, f32, f32, Color)> = Vec::new();
         let mut borders: Vec<(f32, f32, f32, f32, f32, f32, f32, f32, Color)> = Vec::new();
@@ -190,6 +229,12 @@ pub fn render(layout: &Layout) -> Result<Vec<u8>> {
                     false,
                 );
             }
+        }
+
+        // Pop any pushed graphics state (page-orientation rotation) before
+        // finishing the page — krilla asserts a balanced push/pop.
+        if rotated {
+            surface.pop();
         }
 
         surface.finish();

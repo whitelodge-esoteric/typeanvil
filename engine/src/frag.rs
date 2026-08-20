@@ -269,6 +269,11 @@ pub struct Fragmentainer {
     pub index: usize,
     /// The root fragment for this page (kind [`FragmentKind::Fragmentainer`]).
     pub root: Fragment,
+    /// Page box background color, from the resolved `@page` rule (CORE-66).
+    pub background: Option<crate::css::Color>,
+    /// `page-orientation` from the resolved `@page` rule (CORE-66). Carried
+    /// so the PDF emitter can rotate content within the page box.
+    pub page_orientation: Option<crate::paged::PageOrientation>,
 }
 
 impl Fragmentainer {
@@ -285,6 +290,8 @@ impl Fragmentainer {
                 break_token: None,
                 source: None,
             },
+            background: None,
+            page_orientation: None,
         }
     }
 }

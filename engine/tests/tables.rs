@@ -284,7 +284,7 @@ fn parse(html: &str) -> (Dom, Vec<typeanvil::css::ComputedStyle>) {
         }
     }
     let sheet = Stylesheet::parse(&css);
-    let styles = typeanvil::css::cascade(&dom, &sheet);
+    let styles = typeanvil::css::cascade(&dom, &sheet, &geometry(5.0, 3.0, 0.5));
     (dom, styles)
 }
 

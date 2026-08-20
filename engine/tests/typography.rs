@@ -62,7 +62,7 @@ fn lay(html: &str, geo: PageGeometry) -> Layout {
 fn p_style(html: &str) -> ComputedStyle {
     let dom = Dom::parse(html).unwrap();
     let ss = stylesheet_of(&dom);
-    let styles = cascade(&dom, &ss);
+    let styles = cascade(&dom, &ss, &geometry(5.0, 3.0, 0.5));
     let p_id = dom
         .nodes
         .iter()
