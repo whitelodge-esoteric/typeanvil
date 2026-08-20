@@ -194,7 +194,7 @@ class RunConfig:
     spec: PageSpec = field(default_factory=PageSpec.wpt_default)
     filter_substr: str | None = None
     limit: int | None = None
-    workers: int = 4
+    workers: int = 2
     artifacts_root: Path | None = None
 
 

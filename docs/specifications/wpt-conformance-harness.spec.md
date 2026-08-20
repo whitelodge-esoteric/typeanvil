@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: elijah
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-08-20
 sidebar_position: 1
 tags: [harness, wpt, conformance, testing]
 spec_id: wpt-conformance-harness
@@ -86,7 +86,9 @@ The harness shall:
     likewise yields `ERROR` ("worker crash").
 11. **Parallelize safely**: Playwright's sync API is not thread-safe, so
     parallelism is process-based (`ProcessPoolExecutor`, one browser per
-    worker, default 4); `--workers 1` runs sequentially.
+    worker, default 2); `--workers 1` runs sequentially. The default is 2 so
+    a run stays under ~8GB on a 16GB machine (each worker owns a Chromium
+    renderer, which can consume 2–4GB while rasterizing at 96 DPI).
 12. **Stay reproducible**: results shall be sorted by test id before reporting.
 13. **Record**: each run shall write a wpt-compatible `wptreport.json`
     (`results[]` with `test`, `status`, `duration` in ms, and per-page
@@ -117,7 +119,7 @@ The harness shall:
 | `score` | `--db` `--gate` | scoreboard; nonzero exit on regressions |
 | `history` | `--db` `--limit` | list recorded runs |
 
-Defaults: `--engine chromium`, `--workers 4`, `--timeout 30.0` (s),
+Defaults: `--engine chromium`, `--workers 2`, `--timeout 30.0` (s),
 `--report wptreport.json`, `--db history.sqlite`, `--artifacts artifacts`.
 
 **Engine adapter contract** (what the future `typeanvil render` MUST satisfy):
@@ -141,7 +143,7 @@ harness appends the template args (which start with `{input}`) directly:
 ```text
 .venv/bin/python -m harness run --engine cli \
     --cli-cmd "engine/target/debug/typeanvil render" \
-    --workers 4 ...
+    --workers 2 ...
 ```
 
 Run the harness with the repo venv (`.venv/bin/python`, Python 3.11) — it has
