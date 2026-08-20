@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-19
-updated: 2026-08-19
+updated: 2026-08-20
 sidebar_position: 7
 tags: [engine, css, floats, fragmentation, layout]
 spec_id: css-floats
@@ -115,7 +115,14 @@ The engine shall:
    page's, because floats resume at the top of the next page). The existing
    line-count resume (`consumed_block_size`) is insufficient once widths vary
    per page — the break token for a text run carries the consumed character
-   offset (see Interfaces).
+   offset (see Interfaces). **The consumed offset is the REAL source byte
+   span of the placed lines (sum of each line's `LineResult.consumed`), NOT
+   the rebuilt line-text length: `materialize_line` collapses every whitespace
+   run (newlines, indent, multi-space) to one space, so `lr.text.len()`
+   undercounts source bytes, the next segment re-breaks inside the previous
+   line's last word, and its final glyph is drawn twice (CORE-91, fixed
+   2026-08-20). `build_items` records each box's source end so every line
+   knows its true span.
 8. Track active floats as intrusions with their rectangle
    `(x, y, width, height)`; a float stops intruding once `y >= float_bottom`.
 9. Fragment floats across pages: when a float's measured height does not fit
@@ -272,6 +279,12 @@ Each criterion maps to a test in `engine/tests/floats.rs` (helpers mirror
    passes unmodified).
 8. **Determinism.** CLI render of a doc with floats twice → byte-identical
    PDFs (mirror `tests/smoke.rs`).
+9. **Segment reflow tiles the source exactly (CORE-91 regression).** Given a
+   right float whose bottom crosses a paragraph (multi-line source with
+   newlines/indent), the concatenation of every line's glyph text across all
+   pages, whitespace-normalized, equals the source text — no duplicated
+   boundary glyph ("A float t that is taller" must never appear). Test:
+   `segment_reflow_preserves_source_text` in `engine/tests/floats.rs`.
 
 ## Edge Cases
 

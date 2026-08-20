@@ -843,7 +843,12 @@ impl<'a> Ctx<'a> {
                                 ));
                                 y += lh;
                                 li += 1;
-                                src_offset += lr.text.len();
+                                // True source bytes consumed (CORE-91): rebuilt
+                                // `text` length undercounts whitespace runs, so
+                                // the next segment must resume at the line's
+                                // real source end or it re-breaks inside the
+                                // previous line's last word (duplicated glyph).
+                                src_offset += lr.consumed;
                                 placed = true;
                                 // A last-resort line that overflowed: stop here.
                                 if last_resort && y > bottom_limit {
@@ -875,13 +880,17 @@ impl<'a> Ctx<'a> {
                                     style.widows as usize,
                                 );
                                 if split < li {
+                                    // Rewind src_offset by the DROPPED lines'
+                                    // true source consumption (CORE-91) —
+                                    // summing rebuilt text lengths would
+                                    // undercount and re-break mid-word.
+                                    let rewound: usize =
+                                        lines[split..li].iter().map(|l| l.consumed).sum();
+                                    src_offset -= rewound;
                                     for _ in 0..(li - split) {
-                                        let dropped = children
+                                        children
                                             .pop()
                                             .expect("line fragment present");
-                                        if let FragmentContent::Text(run) = &dropped.content {
-                                            src_offset -= run.text.len();
-                                        }
                                         y = y - lh;
                                     }
                                 }

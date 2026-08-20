@@ -305,6 +305,68 @@ fn no_float_unchanged() {
     assert_close(lines[0].2, inches(4.0), "line uses full content width");
 }
 
+// --- CORE-91 regression: segment reflow must not duplicate glyphs ------------
+
+/// Concatenate every line's run text across the whole document (pre-order),
+/// whitespace-normalized to single spaces. Used to prove that float segment
+/// reflow preserves the source text exactly — no duplicated boundary glyph.
+fn joined_run_text(layout: &Layout) -> String {
+    fn walk(frag: &Fragment, out: &mut Vec<String>) {
+        if let FragmentContent::Text(run) = &frag.content {
+            out.push(run.text.clone());
+        }
+        for c in &frag.children {
+            walk(c, out);
+        }
+    }
+    let mut runs = Vec::new();
+    for page in &layout.pages {
+        walk(&page.root, &mut runs);
+    }
+    runs.join(" ")
+}
+
+#[test]
+fn segment_reflow_preserves_source_text() {
+    // CORE-91: `src_offset += lr.text.len()` undercounted by the collapsed
+    // whitespace between source words, so the segment resumed a few bytes
+    // early and the next line re-drew the previous line's last glyph
+    // ("A float t that is taller" from "A float that is taller"). Every
+    // wrapped line's glyph text must now tile the source exactly.
+    let html = r#"<html><head><style>
+        body { margin: 0; font-size: 12pt; line-height: 1.2; }
+        p, div { margin: 0; padding: 0; }
+        .f { float: right; width: 2in; }
+    </style></head><body>
+        <div class="f"><p>Floated sidebar content with several words inside it.</p></div>
+        <p>How does an engine place such a box the float is removed from the in-flow
+        cursor entirely it does not advance the paragraph below it and the next
+        in-flow line begins at the same height where the float began a right float
+        sits flush against the right content edge a left float against the left
+        edge each offset by its own margin its width comes from the style sheet
+        when one is declared or from the widest line of its content when the width
+        is left automatic the same measurement the engine uses for a table column
+        capped at the inner width of the page.</p>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    // The fixture must actually wrap beside the float AND cross its bottom so
+    // the segment boundary is exercised (otherwise the test proves nothing).
+    let lines = page_lines(&layout, 0);
+    assert!(
+        lines.iter().any(|(_x, _y, w)| w.get() < inches(4.0).get() - 1.0),
+        "some lines must be narrowed by the float"
+    );
+    // Normalize both sides: collapse every whitespace run to one space.
+    let joined = joined_run_text(&layout);
+    let joined_norm: String = joined.split_whitespace().collect::<Vec<_>>().join(" ");
+    let src: String = "Floated sidebar content with several words inside it. How does an engine place such a box the float is removed from the in-flow cursor entirely it does not advance the paragraph below it and the next in-flow line begins at the same height where the float began a right float sits flush against the right content edge a left float against the left edge each offset by its own margin its width comes from the style sheet when one is declared or from the widest line of its content when the width is left automatic the same measurement the engine uses for a table column capped at the inner width of the page."
+        .to_string();
+    assert_eq!(
+        joined_norm, src,
+        "segment reflow must tile the source text exactly (CORE-91)"
+    );
+}
+
 // --- 8. Determinism ---------------------------------------------------------
 
 const FIXTURE: &str = r#"<html><head><style>
