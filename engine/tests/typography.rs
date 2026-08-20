@@ -284,6 +284,8 @@ fn greedy_first_fit(
             expansion,
             protrude_left: Scalar::ZERO,
             protrude_right: Scalar::ZERO,
+            // This helper measures spacing only; no offset accounting.
+            consumed: 0,
         });
     }
     out

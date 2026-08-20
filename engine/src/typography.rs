@@ -214,6 +214,16 @@ pub struct LineResult {
     pub protrude_left: Scalar,
     /// Optical hang for the last glyph (punctuation), in points.
     pub protrude_right: Scalar,
+    /// Number of SOURCE bytes this line consumes from the input passed to
+    /// [`break_paragraph`] (CORE-91). This is the real byte span of the
+    /// line's last box in the original text, minus the previous line's end —
+    /// NOT `text.len()`, which is rebuilt with single spaces and therefore
+    /// undercounts when the source has newlines/indent or multiple spaces.
+    /// The float/multicol segment loops accumulate this to resume text runs
+    /// at the exact next source byte; undercounting made the next segment
+    /// re-break inside the previous line's last word and redraw its final
+    /// glyph.
+    pub consumed: usize,
 }
 
 /// Shape a single word against the selected face at `font_size`.
@@ -353,28 +363,65 @@ fn space_glue(font_size: Scalar, face: FontFace) -> Glue {
 /// Tokenize a paragraph into the K-P item stream. Words are shaped; spaces
 /// become glue; `hyphenate` adds intra-word hyphen penalties from `hypher`.
 /// UAX #14 boundaries confirm where inter-word breaks are legal.
-fn build_items(text: &str, font_size: Scalar, face: FontFace, hyphenate: bool) -> Vec<Item> {
+///
+/// Returns the items plus a parallel `box_ends` vec: for each item, the
+/// SOURCE byte offset in `text` just past that item's text (meaningful only
+/// for `Item::Box`; 0 for glue/penalty). `materialize_line` uses these to
+/// compute the real source span each line consumes (CORE-91) — rebuilt line
+/// text with single spaces is shorter than the source when the source has
+/// newlines/indent/multi-space runs, and offset accounting based on it
+/// resumes runs a few bytes early, redrawing the previous line's last glyph.
+fn build_items(
+    text: &str,
+    font_size: Scalar,
+    face: FontFace,
+    hyphenate: bool,
+) -> (Vec<Item>, Vec<usize>) {
     let glue = space_glue(font_size, face);
     let hyphen_run = shape_word("-", font_size, face);
     let mut items: Vec<Item> = Vec::new();
-    let words: Vec<&str> = text.split_whitespace().collect();
-    for (wi, word) in words.iter().enumerate() {
+    let mut box_ends: Vec<usize> = Vec::new();
+    // Walk words with their real byte offsets in `text` (split_whitespace
+    // loses them; a manual scan keeps the source mapping).
+    let mut scan = 0usize;
+    for (wi, word) in text.split_whitespace().enumerate() {
+        // Locate this word's start at/after `scan` (words are in order).
+        let start = text[scan..]
+            .find(word)
+            .map(|i| i + scan)
+            .unwrap_or(scan);
         if wi > 0 {
             // Inter-word glue is a legal (zero-penalty) breakpoint.
             items.push(Item::Glue(glue));
+            box_ends.push(0);
         }
-        push_word(&mut items, word, font_size, hyphenate, &hyphen_run, face);
+        push_word(
+            &mut items,
+            &mut box_ends,
+            word,
+            start,
+            font_size,
+            hyphenate,
+            &hyphen_run,
+            face,
+        );
+        scan = start + word.len();
     }
-    items
+    (items, box_ends)
 }
 
 /// Push one word into the item stream. With `hyphenate`, split the word into
 /// Liang syllables and emit a hyphen penalty between each; otherwise emit the
 /// whole word as a single box. Trailing/leading punctuation stays attached to
-/// its syllable box (protrusion is a draw-time concern).
+/// its syllable box (protrusion is a draw-time concern). `start` is the
+/// word's byte offset in the ORIGINAL text — every syllable box records its
+/// source end in `box_ends` so line materialization can track real source
+/// consumption (CORE-91).
 fn push_word(
     items: &mut Vec<Item>,
+    box_ends: &mut Vec<usize>,
     word: &str,
+    start: usize,
     font_size: Scalar,
     hyphenate: bool,
     hyphen_run: &ShapeRun,
@@ -382,6 +429,7 @@ fn push_word(
 ) {
     if !hyphenate || word.chars().count() < 5 {
         items.push(Item::Box(shape_word(word, font_size, face)));
+        box_ends.push(start + word.len());
         return;
     }
     // hypher hyphenates only the alphabetic core; shape each syllable as a box
@@ -389,8 +437,10 @@ fn push_word(
     let syllables: Vec<&str> = hypher::hyphenate(word, Lang::English).collect();
     if syllables.len() <= 1 {
         items.push(Item::Box(shape_word(word, font_size, face)));
+        box_ends.push(start + word.len());
         return;
     }
+    let mut syl_start = start;
     for (si, syl) in syllables.iter().enumerate() {
         if si > 0 {
             // Candidate break with a hyphen glyph.
@@ -400,8 +450,11 @@ fn push_word(
                 hyphen: Some(hyphen_run.clone()),
                 forced: false,
             });
+            box_ends.push(0);
         }
         items.push(Item::Box(shape_word(syl, font_size, face)));
+        box_ends.push(syl_start + syl.len());
+        syl_start += syl.len();
     }
 }
 
@@ -611,6 +664,7 @@ impl LineResult {
 #[allow(clippy::too_many_arguments)]
 fn materialize_line(
     items: &[Item],
+    box_ends: &[usize],
     start: usize,
     end: usize,
     max_width: Scalar,
@@ -626,8 +680,14 @@ fn materialize_line(
     let mut total_stretch = 0.0f64;
     let mut total_shrink = 0.0f64;
     let mut pending_glue: Option<Glue> = None;
+    // The SOURCE end of the last box in this line (CORE-91): the byte offset
+    // in the original text just past the line's final word. The line's
+    // consumed span = this minus the previous line's end; rebuilt `text`
+    // length is NOT equivalent (whitespace collapse undercounts it).
+    let mut src_end = 0usize;
 
-    for it in &items[start..=end] {
+    for (it_idx, it) in items[start..=end].iter().enumerate() {
+        let item_idx = start + it_idx;
         match it {
             Item::Box(b) => {
                 if let Some(g) = pending_glue.take() {
@@ -655,6 +715,7 @@ fn materialize_line(
                 let base = text.len();
                 text.push_str(&b.text);
                 natural += b.width.get();
+                src_end = box_ends[item_idx];
                 // Rebase the word's glyph ranges (word-relative cluster byte
                 // offsets) onto the line text (CORE-85).
                 glyphs.extend(b.glyphs.iter().map(|g| ShapedGlyph {
@@ -737,6 +798,9 @@ fn materialize_line(
         expansion,
         protrude_left: pl * font_size.get(),
         protrude_right: rr * font_size.get(),
+        // Absolute source end of this line's last box (break_paragraph
+        // converts it to the per-line consumed delta; CORE-91).
+        consumed: src_end,
     }
 }
 
@@ -758,7 +822,7 @@ pub fn break_paragraph(
     }
     let font_size = style.font_size;
     let face = crate::fonts::face_for(style.font_weight, style.font_style);
-    let items = build_items(text, font_size, face, hyphenate);
+    let (items, box_ends) = build_items(text, font_size, face, hyphenate);
     if items.is_empty() {
         return Vec::new();
     }
@@ -767,18 +831,27 @@ pub fn break_paragraph(
     let space_run = shape_word(" ", font_size, face);
     let mut lines = Vec::with_capacity(breaks.len());
     let mut start = 0usize;
+    // Previous line's absolute source end; the current line's consumed delta
+    // = its source end minus this (CORE-91). Keeps the sum of `consumed`
+    // across the paragraph exactly equal to the source byte span.
+    let mut prev_end = 0usize;
     for (bi, &end) in breaks.iter().enumerate() {
         // The final line is never justified (spec Behavior §4).
         let justify_line = justify && bi + 1 < breaks.len();
-        lines.push(materialize_line(
+        let mut lr = materialize_line(
             &items,
+            &box_ends,
             start,
             end,
             max_width,
             &space_run,
             justify_line,
             font_size,
-        ));
+        );
+        let abs_end = lr.consumed;
+        lr.consumed = abs_end - prev_end;
+        prev_end = abs_end;
+        lines.push(lr);
         start = end + 1;
     }
     lines

@@ -580,7 +580,11 @@ impl<'a> Ctx<'a> {
                         children.push(Fragment::line(Point::new(x, y), (col_w, lh), run));
                         y += lh;
                         li += 1;
-                        src_offset += lr.text.len();
+                        // True source bytes consumed (CORE-91): rebuilt `text`
+                        // length undercounts whitespace, so resume at the
+                        // line's real source end or the next column re-breaks
+                        // inside the previous line's last word.
+                        src_offset += lr.consumed;
                         page_placed = true;
                         if last_resort && y > col_bottom {
                             run_broke = true;
