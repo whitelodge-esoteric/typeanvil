@@ -570,3 +570,88 @@ fn ua_body_margin_is_zero() {
         expected + 6.0
     );
 }
+
+// --- 14. UA heading/paragraph defaults are Prince print defaults (CORE-95) --
+//
+// Prince's UA sheet (lib/prince/style/html.css) uses FIXED point heading
+// sizes and margins (h1: 24pt/16pt … h6: 8pt/21pt) and 1.12em paragraph
+// margins, and TRUNCATES the first in-flow box's top margin at each
+// fragmentainer start (css-break-3). The engine mirrors both. The four
+// tests below pin the two behaviors that differ from the old HTML4 em-based
+// defaults: truncation at page top, and fixed-pt sizes independent of body
+// font-size, plus the 1.12em paragraph margin and the h6 21pt margin
+// mid-page (where truncation must NOT apply).
+
+#[test]
+fn ua_heading_margin_truncates_at_page_top() {
+    // Unstyled h1 at the top of page 1: the 16pt UA margin is truncated to
+    // zero (Prince renders it flush with the content top). Baseline =
+    // content top (36) + ascent (24×1854/2048) + half-leading of the 24pt
+    // line at lh 1.2 → 58.72. Without truncation the margin would add 16pt
+    // → 74.72.
+    let html = "<html><head></head><body><h1>Heading</h1></body></html>";
+    let geo = geometry(5.0, 3.0, 0.5);
+    let layout = lay(html, geo);
+    let (_, y) = text_pos(&layout.pages[0], "Heading").expect("text must be present");
+    let expected = 36.0 + 24.0 * 1854.0 / 2048.0
+        + (24.0 * 1.2 - 24.0 * 1854.0 / 2048.0 - 24.0 * 434.0 / 2048.0) * 0.5;
+    assert!(
+        (y - expected).abs() < 0.1,
+        "UA h1 top margin must truncate: baseline y={y:.3} want {expected:.3} (old was ~{:.3})",
+        expected + 16.0
+    );
+}
+
+#[test]
+fn ua_heading_font_sizes_are_fixed_pt() {
+    // Prince's h1 is 24pt REGARDLESS of body font-size; the HTML4 2em value
+    // would scale to 16pt at body 8pt. Baseline = content top + 24pt line
+    // box → 58.72 in both cases here (the h1 is first → margin truncated).
+    let html = "<html><head><style>body { font-size: 8pt; }</style></head><body><h1>Heading</h1></body></html>";
+    let geo = geometry(5.0, 3.0, 0.5);
+    let layout = lay(html, geo);
+    let (_, y) = text_pos(&layout.pages[0], "Heading").expect("text must be present");
+    let expected = 36.0 + 24.0 * 1854.0 / 2048.0
+        + (24.0 * 1.2 - 24.0 * 1854.0 / 2048.0 - 24.0 * 434.0 / 2048.0) * 0.5;
+    assert!(
+        (y - expected).abs() < 0.1,
+        "UA h1 font-size must be fixed 24pt, not 2em of body: baseline y={y:.3} want {expected:.3}"
+    );
+}
+
+#[test]
+fn ua_paragraph_margin_is_1_12em_mid_page() {
+    // A second, mid-page paragraph keeps the UA 1.12em top margin (12pt font
+    // → 13.44pt): baseline = first line box bottom (50.4) + 13.44 + ascent +
+    // half-leading → 75.70. The old 1em default gave 74.26; Prince uses
+    // 1.12em.
+    let html = r#"<html><head><style>.z { margin: 0; }</style></head>
+        <body><p class="z">First.</p><p>Second.</p></body></html>"#;
+    let geo = geometry(5.0, 3.0, 0.5);
+    let layout = lay(html, geo);
+    let (_, y) = text_pos(&layout.pages[0], "Second").expect("text must be present");
+    let expected = 36.0 + 14.4 + 12.0 * 1.12 + 12.0 * 1854.0 / 2048.0
+        + (14.4 - 12.0 * 1854.0 / 2048.0 - 12.0 * 434.0 / 2048.0) * 0.5;
+    assert!(
+        (y - expected).abs() < 0.1,
+        "UA p margin must be 1.12em mid-page: baseline y={y:.3} want {expected:.3}"
+    );
+}
+
+#[test]
+fn ua_h6_margin_is_21pt_mid_page() {
+    // Prince's h6 margin is a FIXED 21pt (the HTML4 2.33em at 8pt font is
+    // 18.64pt). Mid-page it must apply in full: baseline = first line box
+    // bottom (50.4) + 21 + 8pt ascent + half-leading → 78.97.
+    let html = r#"<html><head><style>.z { margin: 0; }</style></head>
+        <body><p class="z">First.</p><h6>Six.</h6></body></html>"#;
+    let geo = geometry(5.0, 3.0, 0.5);
+    let layout = lay(html, geo);
+    let (_, y) = text_pos(&layout.pages[0], "Six").expect("text must be present");
+    let expected = 36.0 + 14.4 + 21.0 + 8.0 * 1854.0 / 2048.0
+        + (8.0 * 1.2 - 8.0 * 1854.0 / 2048.0 - 8.0 * 434.0 / 2048.0) * 0.5;
+    assert!(
+        (y - expected).abs() < 0.1,
+        "UA h6 margin must be 21pt mid-page: baseline y={y:.3} want {expected:.3}"
+    );
+}
