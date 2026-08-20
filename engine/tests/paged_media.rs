@@ -543,3 +543,30 @@ fn determinism_multi() {
     let bb = std::fs::read(&b).unwrap();
     assert_eq!(ba, bb, "margin-box PDF not byte-identical across runs");
 }
+
+// --- 13. UA body margin is 0 (Prince parity, CORE-92) ----------------------
+//
+// The engine's UA stylesheet changed body margin from 8px (6pt) to 0 to match
+// Prince's print default. Before this fix, a bare `<body>` doc had its first
+// baseline pushed 6pt down from the content box top, which changed page-break
+// decisions and flipped the prose page-count comparison at line-height 1.2.
+
+#[test]
+fn ua_body_margin_is_zero() {
+    // No body rule; pin p's margin to isolate the body UA default.
+    let html = "<html><head><style>p { margin: 0; }</style></head><body><p>Hi.</p></body></html>";
+    // 0.5in margin → content top = 36pt. 16px default font → 12pt.
+    let geo = geometry(5.0, 3.0, 0.5);
+    let layout = lay(html, geo);
+    let (_, y) = text_pos(&layout.pages[0], "Hi").expect("text must be present");
+    // Expected: 36 (content top) + 12*0.9053 + (12*1.2 − 12*0.9053 − 12*0.2119)/2
+    // = 36 + 10.864 + (14.4 − 10.864 − 2.543)/2 = 47.36 ± 0.1.
+    // The old 8px body margin would have pushed this to ~53.4.
+    let expected = 36.0 + 12.0 * 1854.0 / 2048.0
+        + (14.4 - 12.0 * 1854.0 / 2048.0 - 12.0 * 434.0 / 2048.0) * 0.5;
+    assert!(
+        (y - expected).abs() < 0.1,
+        "UA body margin: baseline y={y:.3} want {expected:.3} (old push was +6pt → ~{:.3})",
+        expected + 6.0
+    );
+}

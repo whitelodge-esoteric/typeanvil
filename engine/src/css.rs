@@ -405,7 +405,12 @@ impl CascadeSession {
         h6 { font-size: 0.67em; margin: 2.33em 0; }
         p { margin: 1em 0; }
         ul, ol { padding-left: 2.5em; margin: 1em 0; }
-        body { margin: 8px; }
+        // CORE-92: Prince applies no default body margin in print (probe
+        // 2026-08-20: first baseline = content top + half-leading exactly).
+        // The HTML4/WHATWG `body { margin: 8px }` UA default is a screen
+        // convention; honoring it here pushed every page-1 block 6pt down
+        // vs Prince and flipped prose page counts at line-height 1.2.
+        body { margin: 0; }
         blockquote { margin: 1em 2.5em; }
         pre { margin: 1em 0; font-family: monospace; }
         table { border-collapse: collapse; }
