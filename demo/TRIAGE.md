@@ -240,3 +240,60 @@ After CORE-95 lands: rebuild gallery, expect float-showcase to converge
 toward PR 8 pages, prose toward 11, and every fixture's text block to span
 the full 36→324 content box. Re-check with char-box geometry, not vision.
 
+---
+
+# CORE-100 — Fourth triage follow-up: table backgrounds dropped (2026-08-20)
+
+Run at `5afe57d` (same build as the CORE-96–99 scoreboard, 2026-08-20).
+Found while triaging the residual table diffs: invoice/table-stress/report
+all render their colored table headers and total rows as WHITE in TypeAnvil.
+
+## Finding: `background-color` on table cells vanishes when a border is present
+
+- Invoice p1 header: TA has **0** `#a8dadc` pixels, Prince 4,016.
+- Table-stress p2 header: TA 0, Prince 10,577; total-row band: TA 0,
+  Prince 6,072 (`#457b9d`).
+- Report p6 table band: TA 0 `#e9f0f5`, Prince 6,575.
+- Minimal repros isolate the trigger: bg WITHOUT border renders fine
+  (`/tmp/bgtest2.html` shows `#a8dadc` + `#ffdd88`); bg WITH border drops
+  everything (`/tmp/bgtest.html` / `bgtest3.html` — borders only).
+- Row-level `tr { background-color }` never paints (`#00ff00` absent).
+
+**Root cause:** `engine/src/layout.rs` `layout_table_cell` (~1871) calls
+`layout_box` (sets `FragmentContent::Background`, line 1278) then, when any
+border width > 0, UNCONDITIONALLY overwrites `res.fragment.content` with
+`FragmentContent::Border` (1902-1910). One fragment = one content kind
+today; background is lost. Every corpus table uses `th, td { border: … }`
+AND `background-color`, so all hit it.
+
+## Follow-up ticket
+
+- **CORE-100** (High, engine, codex): table cell/row backgrounds dropped
+  when border present. Background + border must coexist (background under,
+  border stroke on top — pdf.rs two-pass order already supports it); add
+  row/group-level bg (`tr`/`thead`/`tfoot`).
+
+## Verification technique: background pixel-scan
+
+When a doc "looks flat" or a table band is missing color, count exact-color
+pixels in a rasterized band instead of trusting vision (10pt color at 96
+DPI is unreliable):
+
+```python
+from PIL import Image
+import collections
+img = Image.open('demo/out/images/<doc>/page-NNN-ta.png').convert('RGB')
+px = img.load()
+c = collections.Counter()
+for y in range(y0, y1):
+    for x in range(img.width):
+        c[px[x, y]] += 1
+print(c.most_common(4))  # target color present ⇒ background painted
+```
+
+Compare TA vs Prince on the same band; a target hex present in Prince and
+absent in TA = the engine dropped the fill. Reusable for any
+background/border/color-convergence question (see the skill's
+`pdf-verification-techniques` reference for the sibling char-box/ToUnicode
+techniques).
+
