@@ -312,9 +312,13 @@ fn paginate(
         flow.abspos_cb = None;
 
         // Resolve the named page in effect for this page: a `page:<name>` box
-        // that starts fresh at the top of this page switches the context.
-        if let Some(name) = active_page_name(dom, styles, root, &token) {
-            current_name = Some(name);
+        // that starts fresh at the top of this page switches the context; a
+        // fresh box whose effective `page` is the default (auto/unset) resets
+        // it; a pure continuation page carries the previous name (spec §4).
+        match active_page_name(dom, styles, root, &token) {
+            PageCtx::Named(name) => current_name = Some(name),
+            PageCtx::Reset => current_name = None,
+            PageCtx::Carry => {}
         }
         let spec = resolve_page_spec(page_rules, current_name.as_deref(), page_index, cli);
         let geo = spec.geometry();
@@ -2131,42 +2135,78 @@ fn push_side(before: &mut String, after: &mut String, leader: Option<char>, s: &
     }
 }
 
+/// The outcome of resolving the named page in effect for a fragmentainer.
+enum PageCtx {
+    /// No box starts fresh at the top of this page (pure continuation page) —
+    /// the caller carries the previous page's name.
+    Carry,
+    /// A fresh box's effective `page` is the default page (`page: auto` or no
+    /// named declaration on the ancestor-or-self chain) — reset to default.
+    Reset,
+    /// A fresh box's effective `page` is a named page — switch to it.
+    Named(String),
+}
+
 /// The named page in effect entering the page laid out with `token`.
 ///
 /// Descends the incoming break-token tree following the fresh-start (break-
-/// before) path from `root`; the deepest `page: <name>` box on that path that
-/// starts fresh at the top of this page wins. Returns `None` when no such box
-/// switches the context (the caller then carries the previous page's name).
+/// before) path from `root`; the deepest `page`-declaring box on that path
+/// that starts fresh at the top of this page determines the context. Returns
+/// `Carry` when no box starts fresh here (the caller keeps the previous
+/// page's name), `Reset` when a fresh box's effective page is the default,
+/// and `Named(name)` when it is a named page.
+///
+/// Effective `page` (css-page-3 §4): a box's page name is its own non-auto
+/// `page` declaration, else the nearest ancestor-or-self with one, else the
+/// default page. This is why `page: auto` on a fresh box *resets* the
+/// context even though the parsed declaration is `None` — a named ancestor
+/// would carry the name instead.
 fn active_page_name(
     dom: &Dom,
     styles: &[ComputedStyle],
     root: NodeId,
     token: &BreakToken,
-) -> Option<String> {
-    let mut found: Option<String> = None;
+) -> PageCtx {
+    // The deepest fresh-start element seen so far on the walk. A box switches
+    // the page context only when it starts fresh here.
+    let mut deepest_fresh: Option<NodeId> = None;
     let mut id = root;
-    let mut tok = token;
+    let mut tok = token.clone();
     loop {
         // A box switches the page context only when it starts fresh here.
         if tok.is_break_before() {
-            if let NodeKind::Element(_) = &dom.nodes[id].kind {
-                if let Some(name) = &styles[id].page {
-                    found = Some(name.clone());
-                }
-            }
+            deepest_fresh = Some(id);
         }
         // Descend to the first (lowest-index) unfinished child, mapping the
-        // child-item index back to a DOM node.
-        let Some(child_tok) = tok.child_tokens.first() else {
-            break;
+        // child-item index back to a DOM node. A fresh box with no child
+        // tokens yet (e.g. the very first page) starts its first block child
+        // fresh too — without this, page 1 can never activate a named page.
+        let next = if let Some(ct) = tok.child_tokens.first() {
+            nth_block_child(dom, styles, id, ct.index).map(|c| (c, ct.token.clone()))
+        } else if tok.is_break_before() {
+            nth_block_child(dom, styles, id, 0).map(|c| (c, BreakToken::break_before()))
+        } else {
+            None
         };
-        let Some(child_id) = nth_block_child(dom, styles, id, child_tok.index) else {
+        let Some((child_id, child_tok)) = next else {
             break;
         };
         id = child_id;
-        tok = &child_tok.token;
+        tok = child_tok;
     }
-    found
+
+    let Some(fresh) = deepest_fresh else {
+        return PageCtx::Carry;
+    };
+    // Effective page: nearest ancestor-or-self with a non-auto declaration.
+    let mut cur = Some(fresh);
+    while let Some(n) = cur {
+        if let Some(name) = &styles[n].page {
+            return PageCtx::Named(name.clone());
+        }
+        cur = dom.nodes[n].parent;
+    }
+    PageCtx::Reset
 }
 
 /// The DOM node id of the `index`-th block child item of `id`, matching how
