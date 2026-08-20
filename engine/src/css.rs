@@ -353,6 +353,11 @@ pub struct ComputedStyle {
     /// `orphans`: minimum lines left at the bottom of a fragmentainer.
     pub orphans: u32,
     /// `widows`: minimum lines carried to the top of the next fragmentainer.
+    /// Default 1 (not CSS's initial 2) for Prince parity — CORE-97 probed
+    /// Prince 16.2 allowing a 1-line widow (float-showcase splits 8+1,
+    /// widows probe [10,10,10,10,1]); the 2 default pulled page breaks back
+    /// and cascaded +2 pages on float-showcase. Explicit author CSS still
+    /// overrides.
     pub widows: u32,
     /// The `page` property: the named page this box switches to (paged-media).
     pub page: Option<String>,
@@ -434,7 +439,7 @@ impl ComputedStyle {
             break_after: BreakBetween::Auto,
             break_inside: BreakInside::Auto,
             orphans: 2,
-            widows: 2,
+            widows: 1,
             text_align: TextAlign::Start,
             hyphens: Hyphens::Manual,
             page: None,
@@ -1023,7 +1028,7 @@ impl CascadeSession {
             break_after: BreakBetween::Auto,
             break_inside: BreakInside::Auto,
             orphans: 2,
-            widows: 2,
+            widows: 1,
             text_align,
             hyphens: Hyphens::Manual,
             // Paged-media element props are likewise absent from the servo

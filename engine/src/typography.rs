@@ -46,7 +46,19 @@ use crate::fonts::{face_path, FontFace};
 use crate::geom::Scalar;
 
 /// The K-P hyphen penalty (Typst's default, from Knuth-Plass §hyphenation).
+/// CORE-97 swept 5..=135 and found the corpus page counts and per-page diffs
+/// are INSENSITIVE to this value (prose/float/paper all flat across the
+/// sweep); it is kept at the documented Typst/TeX default. The real density
+/// driver was breakpoint choice (glue model) + page-break placement (see
+/// the CORE-97 spec's Calibration section).
 const HYPHEN_PENALTY: f64 = 135.0;
+
+/// Minimum characters that must precede a hyphenation break (TeX
+/// `\lefthyphenmin`; Prince's smallest observed hyphenation prefix on the
+/// CORE-97 probe is 2 — `hy|phenation`, `un|comfortable`). A syllable whose
+/// left side is shorter than this is not a break opportunity: the leading
+/// 1-character syllables merge into the first box.
+const LEFT_HYPHEN_MIN: usize = 2;
 
 /// The embedded font bytes, loaded once per face. `'static` so a [`FontRef`]
 /// can borrow them for the whole process. The initializer is fixed, hence
@@ -410,6 +422,46 @@ fn build_items(
     (items, box_ends)
 }
 
+/// Syllable indices at which a hyphenation break is allowed: every boundary
+/// with at least [`LEFT_HYPHEN_MIN`] characters on the left (TeX
+/// `\lefthyphenmin`; CORE-97). `si` is the index of the syllable the break
+/// PRECEDES (1-based boundaries only: a break never precedes the first
+/// syllable). Leading 1-char syllables merge into the first box.
+fn hyphenation_break_indices(syllables: &[&str]) -> Vec<usize> {
+    let mut left = 0usize;
+    let mut out = Vec::new();
+    for (si, syl) in syllables.iter().enumerate() {
+        if si > 0 && left >= LEFT_HYPHEN_MIN {
+            out.push(si);
+        }
+        left += syl.chars().count();
+    }
+    out
+}
+
+/// Byte offsets in `word` after which a hyphenation break is legal: Liang
+/// syllable boundaries with at least [`LEFT_HYPHEN_MIN`] characters on the
+/// left, for words of at least 5 characters (CORE-97). Test-facing spec of
+/// the same rule `push_word` applies inline via
+/// [`hyphenation_break_indices`].
+pub fn allowed_hyphenation_breaks(word: &str) -> Vec<usize> {
+    if word.chars().count() < 5 {
+        return Vec::new();
+    }
+    let syllables: Vec<&str> = hypher::hyphenate(word, Lang::English).collect();
+    let mut left = 0usize;
+    let mut out = Vec::new();
+    for (si, syl) in syllables.iter().enumerate() {
+        // `left` is the byte offset just past the previous syllable — the
+        // break position after syllables[0..si].
+        if si > 0 && left >= LEFT_HYPHEN_MIN {
+            out.push(left);
+        }
+        left += syl.len();
+    }
+    out
+}
+
 /// Push one word into the item stream. With `hyphenate`, split the word into
 /// Liang syllables and emit a hyphen penalty between each; otherwise emit the
 /// whole word as a single box. Trailing/leading punctuation stays attached to
@@ -440,9 +492,10 @@ fn push_word(
         box_ends.push(start + word.len());
         return;
     }
+    let breaks = hyphenation_break_indices(&syllables);
     let mut syl_start = start;
     for (si, syl) in syllables.iter().enumerate() {
-        if si > 0 {
+        if breaks.contains(&si) {
             // Candidate break with a hyphen glyph.
             items.push(Item::Penalty {
                 penalty: HYPHEN_PENALTY,
@@ -600,7 +653,15 @@ fn knuth_plass(items: &[Item], max_width: f64, justify: bool) -> Vec<usize> {
                 demerit += 100.0;
             }
             let total = base_demerit + demerit;
-            if total < best[k] {
+            // `<=` (not `<`): on an exact tie, the LAST equal candidate wins.
+            // The forward loop processes pred ascending, so the last tie is
+            // the LONGEST line (pred == k, line_start == 0). Ragged-right
+            // (non-justified) lines are all free when underfull, so without
+            // this every break ties and the shortest line wins — headings
+            // wrapped absurdly early ("On the" + rest) instead of packing to
+            // the longest fit like Prince (CORE-97). Justified lines have
+            // distinct badness-derived totals; this only changes exact ties.
+            if total <= best[k] {
                 best[k] = total;
                 prev[k] = if pred == k { usize::MAX } else { pred };
                 fit[k] = cls;
