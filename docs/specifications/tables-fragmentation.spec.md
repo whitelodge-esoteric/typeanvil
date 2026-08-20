@@ -167,8 +167,10 @@ Each maps to a real test in `engine/tests/tables.rs` (new) or the WPT harness:
    (`test_border_collapse_single_lines`).
 6. **Footer placement** — Given a table with `<tfoot>` and body rows spanning
    two fragmentainers, when rendered, then the footer sits at the bottom of
-   the fragment closing the body (and repeats if body continues)
-   (`test_footer_bottom_of_closing_fragment`).
+   the fragment closing the body AND repeats on every continuation fragment
+   (`test_footer_repeats_every_fragment`; Prince 16.2 repeats the tfoot on
+   every page — verified 2026-08-20 on table-stress pages 1-44 and invoice
+   pages 1-4).
 7. **O(n) multi-page** — Given a 100-row × 10-page table, when laid out, then
    it completes with correct page count and row content preserved
    (`test_tables_pagination_linear_100x10`).
@@ -195,8 +197,10 @@ Each maps to a real test in `engine/tests/tables.rs` (new) or the WPT harness:
   never a panic.
 - Empty cells: zero-content cells still contribute column measure (padding
   + borders), per css-tables-3.
-- `colspan`/`rowspan`: render without spanning (each cell occupies one grid
-  slot; spanned layout deferred), documented limitation, no panic.
+- `colspan`: a spanning cell contributes an equal share of its intrinsic to
+  each spanned column and occupies every spanned slot in measure AND layout
+  (CORE-96, auto-table-layout §Behavior 9). `rowspan`: not supported — a
+  `rowspan` cell occupies one grid slot (documented limitation, no panic).
 
 ## Verification
 

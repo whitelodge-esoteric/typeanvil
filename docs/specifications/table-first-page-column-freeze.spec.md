@@ -53,6 +53,16 @@ in row 34 never enters the measure). Overall diff on the corpus drops
 33.07% → 29.06%. The constrained two-column probe stays within ±2% of Prince
 (295pt), and the css-break table WPT subset does not regress.
 
+**CORE-96 follow-up (same day):** the frozen widths were NOT the full story —
+the remaining 40v45 gap came from (a) the tfoot not repeating per page
+(tables-fragmentation rule 8 was unimplemented), (b) `th` not bold in the UA
+defaults (Prince bolds it), (c) the colspan-blind measure inflating the On
+hand column, and (d) row heights omitting the collapsed row-start border.
+With all four fixed, table-stress renders **45 pages** (Prince: 45) and the
+frozen widths land within ~0.4–6pt of Prince's measured columns. See
+`auto-table-layout` §Behavior 9 (colspan), `ua-print-defaults` §Behavior 8
+(bold th), and `tables-fragmentation` rule 8 (footer repeat).
+
 **Fitness function:** table-stress `typeanvil_pages` ≥ 40 (from 21; Prince
 45), the two-column probe still within ±2% of Prince, the css-break table WPT
 subset does not regress, and the full existing tables suite stays green.
