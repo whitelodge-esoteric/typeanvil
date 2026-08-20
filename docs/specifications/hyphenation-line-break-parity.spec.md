@@ -2,7 +2,7 @@
 title: Hyphenation density + line-break parity
 slug: /specifications/hyphenation-line-break-parity
 type: spec
-status: draft
+status: approved
 owner: elijah
 created: 2026-08-20
 updated: 2026-08-20
