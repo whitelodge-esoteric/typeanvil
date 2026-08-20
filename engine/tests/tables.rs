@@ -192,9 +192,12 @@ fn test_border_collapse_single_lines() {
 }
 
 #[test]
-fn test_footer_bottom_of_closing_fragment() {
-    // A tfoot must render at the bottom of the fragment that closes its body —
-    // on a multi-page table the footer lands on the LAST page, not the first.
+fn test_footer_repeats_every_fragment() {
+    // Spec rule 8 (tables-fragmentation): a tfoot renders at the bottom of
+    // the fragment that closes its body AND repeats on every continuation
+    // fragment that still has body rows below it. Prince 16.2 repeats the
+    // tfoot on every page (verified 2026-08-20: table-stress pages 1-44,
+    // invoice pages 1-4).
     let geo = geometry(5.0, 3.0, 0.5);
     let mut rows = String::new();
     for i in 0..30 {
@@ -219,8 +222,16 @@ fn test_footer_bottom_of_closing_fragment() {
         l.pages.len(),
         count_text(&l, last, "FOOT")
     );
-    // Footer should NOT be on page 0 of a multi-page table.
-    assert_eq!(count_text(&l, 0, "FOOT"), 0, "footer must not appear on page 0");
+    // The footer repeats on EVERY fragment (spec rule 8), so page 0 carries
+    // it too — unlike the pre-CORE-96 behavior where it rendered only once
+    // at the end of the table.
+    for pi in 0..l.pages.len() {
+        assert!(
+            count_text(&l, pi, "FOOT") >= 1,
+            "footer must repeat on every fragment (page {pi} has {})",
+            count_text(&l, pi, "FOOT")
+        );
+    }
 }
 
 #[test]
@@ -267,8 +278,8 @@ fn test_table_regression_guards() {
 // `docs/specifications/auto-table-layout.spec.md`.
 
 use typeanvil::table::{
-    distribute_column_widths, intrinsic_column_widths, measure_columns, measure_columns_scoped,
-    resolve_freeze_scope, MeasureScope,
+    cell_colspan, distribute_column_widths, intrinsic_column_widths, measure_columns,
+    measure_columns_scoped, measure_rows, resolve_freeze_scope, MeasureScope,
 };
 
 /// Parse fixture + cascade styles, for the direct table API tests.
@@ -668,5 +679,207 @@ fn test_table_stress_freeze_pages_ge_40() {
         l.pages.len() >= 40,
         "table-stress pages = {} (expect ≥ 40; was 21, Prince 45)",
         l.pages.len()
+    );
+}
+
+// --- CORE-96: table column-width residual (footer repeat, bold th, colspan) --
+
+#[test]
+fn test_colspan_measure_distributes_spanning_cells() {
+    // A tfoot's colspan=4 cell ("Total line items: 150") must contribute an
+    // EQUAL SHARE to each spanned column (css-tables-3 §10.4.3), and the
+    // footer's "158,900.00" (colspan=1) must land in the LAST column — NOT
+    // inflate the On hand column to its whole-text width. Before CORE-96 the
+    // colspan-blind measure put 158,900.00 into column 2 (On hand → 53pt) and
+    // "Total line items: 150" whole text into column 0 (SKU max → 93pt).
+    let html = r#"<!DOCTYPE html><style>
+        table { border-collapse: collapse; width: 100%; }
+        th, td { padding: 2pt 4pt; font-size: 9pt; font-family: Arial, sans-serif; }
+    </style><table>
+      <thead><tr><th>SKU</th><th>Description</th><th>On hand</th><th>Backorder</th><th>Unit cost</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>ANV-0001</td><td>Anvil, standard (150 lb)</td><td>24</td><td>3</td><td>120.00</td><td>2,880.00</td></tr>
+        <tr><td>ANV-0002</td><td>Anvil, deluxe (300 lb)</td><td>8</td><td>0</td><td>240.00</td><td>1,920.00</td></tr>
+      </tbody>
+      <tfoot><tr><td colspan="4">Total line items: 150</td><td>—</td><td>158,900.00</td></tr></tfoot>
+    </table>"#;
+    let (dom, styles) = parse(html);
+    let tid = table_id_of(&dom);
+    // The footer cell "158,900.00" is the 6th cell (colspan 1) → column 5.
+    let footer_cell = dom
+        .nodes
+        .iter()
+        .enumerate()
+        .find(|(_, n)| matches!(&n.kind, NodeKind::Element(el) if el.tag == "tfoot"))
+        .map(|(id, _)| {
+            dom.nodes[id]
+                .children
+                .iter()
+                .find(|c| {
+                    matches!(&dom.nodes[**c].kind, NodeKind::Element(el) if el.tag == "tr")
+                })
+                .copied()
+                .unwrap()
+        })
+        .and_then(|row| {
+            dom.nodes[row]
+                .children
+                .iter()
+                .find(|c| {
+                    matches!(&dom.nodes[**c].kind, NodeKind::Element(el) if el.tag == "td")
+                })
+                .copied()
+        })
+        .unwrap();
+    assert_eq!(
+        cell_colspan(&dom, footer_cell),
+        4,
+        "footer total cell spans 4 columns"
+    );
+    let cols = measure_columns(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)));
+    // On hand (col 2) is header/data driven, NOT the footer total.
+    assert!(
+        cols.widths[2].get() < 40.0,
+        "On hand column = {} (expect < 40 — the colspan-blind measure put \
+         158,900.00 here at 53pt)",
+        cols.widths[2].get()
+    );
+    // Value (col 5) picks up the footer total token.
+    assert!(
+        cols.min_widths[5].get() > 48.0,
+        "Value min = {} (expect ≈ 53 — the footer total lands here)",
+        cols.min_widths[5].get()
+    );
+    // SKU (col 0) max is NOT inflated by the spanning cell's whole text.
+    assert!(
+        cols.max_widths[0].get() < 60.0,
+        "SKU max = {} (expect < 60 — the spanning cell contributed a share)",
+        cols.max_widths[0].get()
+    );
+}
+
+#[test]
+fn test_th_bold_uas_default() {
+    // Prince 16.2 html.css line 482: `th { font-weight: bold; }`. The UA
+    // default must cascade to header cells (browsers use `bolder`), so the
+    // header column measures ~10% wider than a regular td (CORE-96: without
+    // it the frozen Description column is ~0.4pt too narrow and borderline
+    // rows wrap to an extra line vs Prince).
+    let html = r#"<!DOCTYPE html><style>
+        table { border-collapse: collapse; }
+        td, th { font-size: 9pt; font-family: Arial, sans-serif; }
+    </style><table>
+      <tr><th>Header</th><td>Body</td></tr>
+    </table>"#;
+    let (dom, styles) = parse(html);
+    let th = dom
+        .nodes
+        .iter()
+        .enumerate()
+        .find(|(_, n)| matches!(&n.kind, NodeKind::Element(el) if el.tag == "th"))
+        .map(|(id, _)| id)
+        .unwrap();
+    let td = dom
+        .nodes
+        .iter()
+        .enumerate()
+        .find(|(_, n)| matches!(&n.kind, NodeKind::Element(el) if el.tag == "td"))
+        .map(|(id, _)| id)
+        .unwrap();
+    assert!(
+        styles[th].font_weight >= 600.0,
+        "th font-weight = {} (expect ≥ 600 / bold)",
+        styles[th].font_weight
+    );
+    assert!(
+        styles[td].font_weight < 600.0,
+        "td font-weight = {} (expect regular)",
+        styles[td].font_weight
+    );
+}
+
+#[test]
+fn test_cell_background_survives_border() {
+    // CORE-100: a table cell with BOTH a background-color and a border must
+    // render both — the background fill AND the border strokes. The old code
+    // overwrote FragmentContent::Background with FragmentContent::Border when
+    // any border was present, so every corpus table header/footer rendered
+    // WHITE (invoice p1: 0 #a8dadc px vs Prince 4,016).
+    let html = r#"<!DOCTYPE html><style>
+        table { border-collapse: collapse; }
+        th { background-color: #a8dadc; border: 0.5pt solid #aaa; font-size: 9pt; }
+        td { border: 0.5pt solid #aaa; font-size: 9pt; }
+    </style><table>
+      <tr><th>HDR</th></tr>
+      <tr><td>row</td></tr>
+    </table>"#;
+    let l = lay(html, geometry(5.0, 3.0, 0.5));
+    let frags = page_fragments(&l, 0);
+    // A Background fragment must exist (the header fill)…
+    assert!(
+        frags.iter().any(|(f, _, _)| matches!(f.content, FragmentContent::Background(_))),
+        "expected a Background fragment (header fill)"
+    );
+    // …and a Border fragment must ALSO exist (the cell borders).
+    assert!(
+        frags.iter().any(|(f, _, _)| matches!(f.content, FragmentContent::Border(_))),
+        "expected a Border fragment (cell borders)"
+    );
+    // The background must be a direct content of the header cell, not
+    // replaced by the border: find a Background fragment whose parent has a
+    // Border child (the coexistence shape).
+    let has_bg_with_border_child = frags.iter().any(|(f, _, _)| {
+        matches!(f.content, FragmentContent::Background(_))
+            && f.children
+                .iter()
+                .any(|c| matches!(c.content, FragmentContent::Border(_)))
+    });
+    assert!(
+        has_bg_with_border_child,
+        "expected a Background fragment carrying a Border child (coexistence)"
+    );
+}
+
+#[test]
+fn test_row_height_includes_collapsed_border() {
+    // CORE-96: measure_rows adds the collapsed row-start border to the row
+    // height (border-collapse: collapse, spec rule 9). Prince's rows measure
+    // 0.5pt taller than TA's pre-fix (26.1 vs 25.6 for a 2-line row); the
+    // accumulated difference is the table-stress 43→45 page lever.
+    let with_border = r#"<!DOCTYPE html><style>
+        table { border-collapse: collapse; }
+        th, td { padding: 2pt; font-size: 9pt; font-family: Arial, sans-serif; border: 0.5pt solid #aaa; }
+    </style><table><tbody>
+      <tr><td>Anvil, standard (150 lb)</td><td>24</td></tr>
+    </tbody></table>"#;
+    let no_border = with_border.replace("border: 0.5pt solid #aaa;", "");
+    let (dom1, styles1) = parse(with_border);
+    let (dom2, styles2) = parse(&no_border);
+    let tid1 = table_id_of(&dom1);
+    let tid2 = table_id_of(&dom2);
+    let cols1 = measure_columns(&dom1, &styles1, tid1, Scalar(288.0), Some(Scalar(288.0)));
+    let cols2 = measure_columns(&dom2, &styles2, tid2, Scalar(288.0), Some(Scalar(288.0)));
+    let row1 = dom1
+        .nodes
+        .iter()
+        .enumerate()
+        .find(|(_, n)| matches!(&n.kind, NodeKind::Element(el) if el.tag == "tr"))
+        .map(|(id, _)| id)
+        .unwrap();
+    let row2 = dom2
+        .nodes
+        .iter()
+        .enumerate()
+        .find(|(_, n)| matches!(&n.kind, NodeKind::Element(el) if el.tag == "tr"))
+        .map(|(id, _)| id)
+        .unwrap();
+    let (h1, _) = measure_rows(&dom1, &styles1, &[row1], &cols1, Scalar(288.0));
+    let (h2, _) = measure_rows(&dom2, &styles2, &[row2], &cols2, Scalar(288.0));
+    let diff = h1.first().unwrap().get() - h2.first().unwrap().get();
+    assert!(
+        (diff - 0.5).abs() < 0.01,
+        "row height with 0.5pt border = {} vs without = {} (expect +0.5)",
+        h1.first().unwrap().get(),
+        h2.first().unwrap().get()
     );
 }
