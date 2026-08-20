@@ -124,10 +124,12 @@ The engine shall:
     chars) in every emitted PDF (CORE-85). Empty ranges are prohibited — a
     glyph with no text mapping yields an empty CMap entry and garbage
     extraction.
-11. **Keep the fragment contract**: `TextRun` carries the shaped glyphs and
-    resolved text; `Fragment`/`Fragmentainer`/break-token structure is
-    unchanged. Margin boxes and generated content (single short lines) may
-    keep the simple text path.
+11. **Shape every run**: `TextRun` carries the shaped glyphs and resolved
+    text; `Fragment`/`Fragmentainer`/break-token structure is unchanged.
+    Margin boxes and generated content (single short lines) are shaped with
+    `shape_word` like body text — no run uses the raw `draw_text` string
+    path, so non-ASCII (em dash, curly quotes, `·`) always renders as a real
+    glyph with a ToUnicode mapping (CORE-83).
 12. **Stay deterministic**: shaping (fixed font bytes + size), K-P (pure
     function of widths/opportunities), protrusion, and expansion are all
     deterministic; no hash-order dependence; identical input yields
@@ -200,7 +202,7 @@ TextRun {
   font_size: Scalar,
   color: Color,
   font_family: String,
-  glyphs: Vec<ShapedGlyph>,   // NEW — empty for the simple text path
+  glyphs: Vec<ShapedGlyph>,   // all runs carry shaped glyphs (CORE-83)
   expansion: f64,             // NEW — per-line advance scale (default 0.0)
   protrude_left: Scalar,      // NEW
   protrude_right: Scalar,     // NEW
@@ -213,14 +215,16 @@ TextRun {
 `break_paragraph` from `typography.rs` for main text. `measure_block` (the
 `break-inside: avoid` heuristic) uses the same breaker so measured heights
 match laid-out heights. Text runs produced by generated content (TOC entries,
-margin boxes) keep the existing simple path (they are single lines; no
-justification/protrusion needed).
+margin boxes) are shaped single-line via `shape_word` at their resolved font
+size/face, so non-ASCII maps to a glyph + ToUnicode range (CORE-83); no
+justification/protrusion is applied to them.
 
-**`engine/src/pdf.rs`** — main-text `Line` fragments with non-empty `glyphs`
-draw via `surface.draw_glyphs(start, glyphs, font, text, font_size,
-outlined=false)`; margin-box/generated lines keep `draw_text`. Protrusion
-offsets and expansion factors are applied to glyph positions/advances at draw
-time.
+**`engine/src/pdf.rs`** — `Line` fragments with non-empty `glyphs` draw via
+`surface.draw_glyphs(start, glyphs, font, text, font_size, outlined=false)`.
+Every run (body text, generated content, margin boxes) carries shaped glyphs
+(CORE-83); the `draw_text` fallback remains only for degenerate empty runs.
+Protrusion offsets and expansion factors are applied to glyph
+positions/advances at draw time.
 
 **`engine/Cargo.toml`** — add `harfrust` (0.13), `hypher` (0.1), and one of
 `icu_segmenter` (with a data provider that builds cleanly) or
@@ -273,6 +277,16 @@ Given/When/Then, each mapping to a real test in `engine/tests/typography.rs`:
     rendered, then it is multi-page, deterministic, and a side-by-side spread
     script produces a PNG with Typeanvil's render (`typography.rs::demo_fixture`,
     plus `scripts/render-typography-demo.sh` for the comparison image).
+12. **Margin-box / generated-content non-ASCII** — Given a margin box with
+    `content: "Northwind — · 2026"` and an element with a non-ASCII
+    `content` string, when rendered, then the margin-box run's glyphs are
+    non-empty, their ranges cover the resolved text, and the PDF's
+    `/ToUnicode` CMap maps the em dash (U+2014) and middle dot (U+00B7) back
+    to readable text with no control chars and no raw-byte mojibake
+    (`tounicode.rs::margin_box_runs_are_shaped`,
+    `tounicode.rs::margin_box_tounicode_map`). This requires the stylesheet
+    comment stripper to be char-safe (CORE-83 — the old byte-wise stripper
+    mangled every multi-byte UTF-8 char in the stylesheet source).
 
 ## Edge Cases
 
