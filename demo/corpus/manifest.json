@@ -17,7 +17,6 @@
     "file": "report.html",
     "wedge_features": ["paged-media-css", "fragmentation-core", "tables-fragmentation"],
     "known_limitations": [
-      "counter(pages) total-page counter unsupported (only counter(page))",
       "string-set limited to the content() of h1"
     ],
     "expected_deltas": [
@@ -43,9 +42,7 @@
     "name": "Letterhead",
     "file": "letterhead.html",
     "wedge_features": ["paged-media-css", "fragmentation-core"],
-    "known_limitations": [
-      "counter(pages) total-page counter unsupported (footer uses page only on letter pages; cover has none)"
-    ],
+    "known_limitations": [],
     "expected_deltas": [
       "Named-page margin-box fonts may differ between engines",
       "Prince may apply default margins to @page cover differently"

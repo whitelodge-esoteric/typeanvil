@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-08-19
 sidebar_position: 3
 tags: [css, paged-media, page, layout, engine]
 spec_id: paged-media-css
@@ -62,9 +62,9 @@ market.
   `string(name)`.
 - Counters: implicit `page` counter (increments per fragmentainer),
   `counter-reset`/`counter-increment` (page counter supported; named counters
-  parsed for future use), `counter(page)` in margin boxes, and
-  `target-counter(attr(href), page)` for TOC entries resolved by a bounded
-  two-pass layout.
+  parsed for future use), `counter(page)` and `counter(pages)` (total page
+  count) in margin boxes, and `target-counter(attr(href), page)` for TOC
+  entries resolved by a bounded two-pass layout.
 - `leader('.')` in inline content: fills the remaining line width to the
   content edge with a repeating character.
 - PDF bookmarks: an outline tree from `h1`–`h6` heading structure with target
@@ -128,7 +128,12 @@ The engine shall:
 8. **Increment the page counter**: the implicit `page` counter equals the
    1-based fragmentainer index unless reset; `counter-reset: page <n>` on an
    element takes effect at the page its box starts; `counter(page)` in margin
-   boxes renders the decimal value.
+   boxes renders the decimal value. The implicit `pages` counter
+   (`counter(pages)`) renders the document's total page count on every page;
+   because the total is only known after pagination, documents using
+   `counter(pages)` run the same bounded two-pass layout as §9 (margin-box
+   text cannot change pagination, so the page count is stable and the
+   resolution converges).
 9. **Resolve `target-counter(attr(href), page)` by bounded two-pass layout**:
    pass 1 lays out and records the fragmentainer index of every element with
    an `id` (from the fragment tree's source mapping); pass 2 re-lays out with
@@ -257,7 +262,11 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
 7. **Page counter** — Given `@bottom-right { content: counter(page); }`, when a
    3-page document renders, then "1", "2", "3" appear in the bottom-right of
    successive pages, and `counter-reset: page 0` on a section restarts the
-   count (`paged_media.rs::page_counter`).
+   count (`paged_media.rs::page_counter`). Given
+   `@bottom-center { content: "Page " counter(page) " of " counter(pages); }`,
+   when a multi-page document renders, then every footer reads "Page N of M"
+   with M = the document's total page count, on every page — no "of 0"
+   (`paged_media.rs::total_page_counter`).
 8. **TOC target-counter** — Given a TOC whose entries use
    `content: leader('.') target-counter(attr(href), page)`, when rendered,
    then each entry shows the correct target page number and dotted leaders

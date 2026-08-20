@@ -137,6 +137,9 @@ pub enum ContentPiece {
     StringRef(String),
     /// `counter(page)` — the decimal page counter.
     CounterPage,
+    /// `counter(pages)` — the total page count, resolved by a bounded
+    /// second layout pass (paged-media-css spec §8; see `layout.rs`).
+    CounterPages,
     /// `counter(name)` — a named counter (decimal).
     CounterRef(String),
     /// `target-counter(attr(href), page)` — the page of the element the
@@ -464,7 +467,7 @@ pub fn parse_length(s: &str) -> Option<Scalar> {
 }
 
 /// Parse a `content` value into an ordered piece list. Understands quoted
-/// literals, `string(name)`, `counter(page)`/`counter(name)`,
+/// literals, `string(name)`, `counter(page)`/`counter(pages)`/`counter(name)`,
 /// `target-counter(attr(href), page)`, and `leader('.')`. Unknown tokens are
 /// skipped.
 pub fn parse_content(value: &str) -> Vec<ContentPiece> {
@@ -529,6 +532,8 @@ pub fn parse_content(value: &str) -> Vec<ContentPiece> {
                 let name = args.split(',').next().unwrap_or("").trim();
                 if name.eq_ignore_ascii_case("page") {
                     pieces.push(ContentPiece::CounterPage);
+                } else if name.eq_ignore_ascii_case("pages") {
+                    pieces.push(ContentPiece::CounterPages);
                 } else {
                     pieces.push(ContentPiece::CounterRef(name.to_string()));
                 }

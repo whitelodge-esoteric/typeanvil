@@ -291,6 +291,34 @@ fn page_counter() {
     assert!(p2.iter().any(|t| t == "0"), "reset page counter not 0: {p2:?}");
 }
 
+#[test]
+fn total_page_counter() {
+    // counter(pages) renders the document's total page count on every page
+    // (CORE-84: footer previously showed "Page N of 0").
+    let html = r#"
+    <html><head><style>
+        @page { margin: 0.4in; @bottom-center { content: "Page " counter(page) " of " counter(pages); } }
+        p { font-size: 12px; }
+        .pb { break-before: page; }
+    </style></head><body>
+        <p>Page one.</p>
+        <p class="pb">Page two.</p>
+        <p class="pb">Page three.</p>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.4));
+    let total = layout.pages.len();
+    assert!(total >= 3, "expected a multi-page doc, got {total} page(s)");
+    for (i, page) in layout.pages.iter().enumerate() {
+        let want = format!("Page {} of {}", i + 1, total);
+        assert!(
+            any_text_contains(page, &want),
+            "page {} footer wrong: {:?}",
+            i + 1,
+            page_texts(page)
+        );
+    }
+}
+
 // --- 8. TOC target-counter -------------------------------------------------
 
 #[test]
