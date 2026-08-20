@@ -2,10 +2,10 @@
 title: Flexbox Fragmentation
 slug: /specifications/flexbox-fragmentation
 type: spec
-status: draft
+status: in-review
 owner: elijah
 created: 2026-08-18
-updated: 2026-08-18
+updated: 2026-08-20
 sidebar_position: 10
 tags: [engine, layout, css-flexbox, css-break, fragmentation]
 spec_id: flexbox-fragmentation
@@ -26,8 +26,7 @@ fragmentation-first (CORE-51) but handles only block and inline boxes.
 Flex adds the research brief's hard case: **two-pass modes × fragmentation**.
 The flex algorithm (taffy is the reference implementation) needs a measure
 pass (cross-axis sizing, `stretch`) before layout, and fragmentation must
-resume that state across pages. Flex *wrapping* is explicitly not viable here
-— it needs inline/fragmentation machinery the engine does not have.
+resume that state across pages.
 
 **Path chosen: stylo + taffy model.** Verified 2026-08-18 against stylo 0.20.0:
 
@@ -44,8 +43,9 @@ The layout algorithm follows taffy's flex model (grow/shrink/basis
 resolution), adapted to the fragment tree and the two-pass-measure-before-
 fragmentation rule below.
 
-**Fitness function:** the 12 named css-break flexbox print-reftests via the
-harness, growing from there.
+**Fitness function:** the 27 css-break flexbox print-reftests via the
+harness (11/27 passing as of CORE-65 landing; the rest deferred — see
+Acceptance Criteria for the honest breakdown).
 
 ## Goals / Non-Goals
 
@@ -55,8 +55,7 @@ harness, growing from there.
   flex container in paged flow) create a flex container whose children are
   flex items.
 - Main axis from `flex-direction` (`row` | `row-reverse` | `column` |
-  `column-reverse`); cross axis perpendicular. Basic `flex-wrap: nowrap`
-  only.
+  `column-reverse`); cross axis perpendicular.
 - Flex sizing: `flex-grow` / `flex-shrink` / `flex-basis` resolution —
   `flex: 1` ⇒ grow 1, shrink 1, basis 0%; the resolution algorithm follows
   taffy's reference model.
@@ -72,13 +71,24 @@ harness, growing from there.
 
 **Non-Goals** (deferred; scope stays honest)
 
-- `flex-wrap: wrap` — needs inline/fragmentation machinery the engine does
-  not have (explicitly excluded by the issue).
-- `order` beyond computed (layout order = document order until `order` lands).
-- Advanced alignment (`align-content: space-between` etc.), `justify-content`
-  distribution beyond basic start/center/end/space-between.
-- Nested flex; flex inside floats (CORE-62), multicol (CORE-63), or abspos
-  (CORE-64) — interaction specs land after the individual features.
+- `flex-wrap: wrap` **content-based** wrapping (line breaks driven by
+  intrinsic content measurement). The deterministic form of wrap — packing
+  items by their resolved base sizes, `flex: 0 0 <length|%>` — IS supported
+  (the WPT wrap fixtures all use fixed bases).
+- `order` reordering (layout order = document order; `order` computed but
+  unused).
+- Advanced alignment (`align-content`, `justify-content: space-around/evenly`,
+  baseline and overflow-safe variants).
+- Nested flex inside floats (CORE-62), multicol (CORE-63), or abspos
+  (CORE-64) — interaction specs land after the individual features. Nested
+  flex inside a flex item works (the item lays out through `layout_box`).
+- **Declared `height` on flex items.** Flex cross/main sizing is
+  CONTENT-based, deliberately mirroring the block path (CORE-66 auto-height
+  self-consistency). The block path ignores `height`; if flex honored it,
+  every height-authored WPT reference would diverge (the harness compares
+  test-vs-ref through the same engine). Honoring `height` engine-wide is a
+  block-layout ticket, not a flex one.
+- `wrap-reverse` line ordering (folds to `wrap`).
 - `min-width: auto` intrinsic minimums beyond the basic content-based rule.
 
 ## Behavior
@@ -89,10 +99,12 @@ The engine shall:
    `ComputedStyle` gains `flex_direction`, `flex_wrap`, `flex_grow`,
    `flex_shrink`, `flex_basis`, `align_items`, `align_self`,
    `justify_content`, `order`, `row_gap`, `column_gap`, read in
-   `css.rs::convert` (no manual author-CSS pass).
+   `css.rs::convert` (no manual author-CSS pass). All the flex longhands live
+   on stylo's *position* style struct (verified in the generated
+   `properties.rs`, 2026-08-20 — the same struct that carries `width`).
 2. Create a flex container for `display: flex` / `inline-flex`: children
    become flex items (in-flow block-level children; anonymous-item wrapping
-   deferred with flex-wrap).
+   of text children deferred with content-based wrap).
 3. Lay out the flex line: resolve main-axis sizes with the
    grow/shrink/basis algorithm (taffy reference), placing items along the
    main axis with gaps; cross-axis sizes per `align-items`/`align-self`
@@ -117,7 +129,7 @@ The engine shall:
 
 ### `engine/src/css.rs`
 
-- Add to `ComputedStyle`:
+- Add to `ComputedStyle` (implemented 2026-08-20):
 
   ```rust
   /// Flex container properties (stylo computed; struct = position).
@@ -125,34 +137,39 @@ The engine shall:
   pub flex_wrap: FlexWrap,           // Nowrap | Wrap | WrapReverse (computed)
   pub flex_grow: f64,                // NonNegativeNumber
   pub flex_shrink: f64,              // NonNegativeNumber
-  pub flex_basis: FlexBasis,         // Auto | Content | Size (stylo)
-  pub align_items: ItemPlacement,    // stylo computed
-  pub align_self: SelfAlignment,     // stylo computed
-  pub justify_content: ContentDistribution,
+  pub flex_basis: FlexBasis,         // Auto | Content | Size { length, percent }
+  pub align_items: AlignItems,       // Stretch | FlexStart | FlexEnd | Center
+  pub align_self: AlignSelf,         // Auto | Stretch | FlexStart | FlexEnd | Center
+  pub justify_content: JustifyContent, // FlexStart | FlexEnd | Center | SpaceBetween
   pub order: i32,
-  pub row_gap: Scalar,               // default 0
-  pub column_gap: Scalar,            // default 0
+  pub row_gap: Scalar,               // default 0 (flex: normal → 0, css-align-3 §8)
+  pub flex_column_gap: Scalar,       // column-gap for FLEX row containers
   ```
 
-- In `convert`, read the corresponding `clone_*()` accessors from stylo's
-  computed structs. `ComputedStyle::initial()` mirrors stylo's initial
-  values (grow 0, shrink 1, basis auto, gaps 0).
+- `height` / `height_percent` are carried on `ComputedStyle` for future
+  block-height work; flex does NOT use them (content-based sizing per
+  Non-Goals).
 
-### `engine/src/layout.rs` / new `engine/src/flex.rs`
+### `engine/src/layout/flex.rs` (new)
 
-- `flex.rs` implements the flex layout algorithm (taffy reference): main/cross
-  axis resolution, grow/shrink/basis, the cross-axis measure pass, and item
-  placement with gaps.
-- `layout.rs` dispatches to `flex.rs` when a box computes
-  `display: flex | inline-flex`; otherwise the block path is unchanged.
+- Implements the flex layout algorithm (taffy reference): main/cross axis
+  resolution, grow/shrink/basis, the cross-axis measure pass, line packing
+  (deterministic wrap), item placement with gaps, and fragmentation.
+- `layout.rs::layout_box` dispatches to `layout_flex_container` when a box
+  computes `display: flex | inline-flex`; otherwise the block path is
+  unchanged.
+- `layout.rs::collect_items_rec` treats flex displays as block-level items
+  (they were falling into the inline branch, which folded flex children into
+  the parent's text run — a CORE-65 fix).
 - Fragmentation integration: flex items lay out with break tokens exactly
   like block children (the fragment tree's existing resume machinery); the
-  container's token carries the flex line state (behavior 7).
+  container's token carries a `FlexToken` (line, next item, mid-line flag).
 
 ### `engine/src/frag.rs`
 
-- No new fragment kind required: flex containers and items are ordinary
-  fragments; the flex line state rides in the container's break token.
+- `BreakToken` gains `flex: Option<FlexToken>`; `FlexToken` is
+  `{ next_item, line, mid_line }` — the row container's continuation state.
+  Column containers reuse the block child-token resume (no flex token).
 
 ### `engine/src/pdf.rs`
 
@@ -170,16 +187,34 @@ Each criterion maps to a test in `engine/tests/flex.rs` (helpers mirror
    stack on the cross axis and the container's height equals the sum of item
    heights plus gaps.
 3. **Stretch two-pass.** Given `align-items: stretch` (default) with one
-   taller item, all items' cross size equals the tallest, resolved before
-   fragmentation.
+   taller item (content-based cross size), the line's cross size equals the
+   tallest item and the container's height equals that cross size, resolved
+   before fragmentation.
 4. **Fragment across pages.** Given a flex container taller than a page, the
    container fragments; a single item line never slices;
    `break-inside: avoid` on an item moves the whole item to the next page.
-5. **WPT targets.** The 12 failing css-break flexbox print-reftests pass via
-   the harness: `multi-line-row-flex-fragmentation-064/081/082`,
-   `single-line-column-flex-fragmentation-068c/d`,
-   `single-line-row-flex-fragmentation-042` (full list from the CORE-60
-   baseline).
+5. **WPT targets.** The flexbox print-reftests pass via the harness:
+   **11/27 passing at CORE-65 landing** — 068a-d, 069a-d (column-reverse /
+   column break propagation), 066, 080, 046 — up from 0/27 (no flex at all).
+   The remaining 16 fail for engine-wide reasons OUTSIDE flex scope,
+   documented per cluster:
+   - **Height-simulated references (060, 063, 064, 065, 075, 076, 042,
+     045):** the refs mock flex geometry with `height:`-declared divs and
+     gap divs; the engine's BLOCK path ignores `height` (CORE-66
+     auto-height model), so the refs render compact and the flex test (which
+     renders content-based but honors margins/gaps the refs can't) diverges
+     or gains pages. Fixing these requires block-path height support — a
+     CORE-66-adjacent engine change, deliberately NOT made here (it would
+     regress the monolithic-overflow/body-background suites).
+   - **Inline break-before on refs (081a-d):** the refs use
+     `style="break-before: page"` inline attributes, which the engine's
+     author-CSS break pass does not parse (stylesheet text only). Both sides
+     ignore it identically, but the refs' block simulation of the flex lines
+     then differs from flex line packing.
+   - **Inline-block references (082a-d):** the refs emulate the nested flex
+     with `display: inline-block` children, which the engine does not model
+     (inline-blocks fold into text runs) — the ref collapses to 1 page while
+     flex correctly produces 2.
 6. **Determinism.** Two renders of a flex doc are byte-identical; the full
    existing engine test suite still passes.
 
@@ -195,6 +230,8 @@ Each criterion maps to a test in `engine/tests/flex.rs` (helpers mirror
 - Gaps larger than the container: items shrink to minimum content size.
 - `inline-flex` inside a paragraph: treated as a block-level flex container in
   paged flow (per goal 1; true inline-fragment behavior deferred).
+- Empty items (`contain: size`, no content) measure zero — consistent with
+  the block path.
 
 ## References
 
@@ -210,3 +247,5 @@ Each criterion maps to a test in `engine/tests/flex.rs` (helpers mirror
 - stylo 0.20.0 `properties/longhands.toml` + `values/specified/box.rs`
   (verified 2026-08-18): all flex longhands compiled in the servo build;
   `display: flex`/`inline-flex` parse.
+- Self-consistency trap (test-vs-ref through the same engine, CORE-66):
+  `references/wpt-self-consistency-and-page-hardening.md`

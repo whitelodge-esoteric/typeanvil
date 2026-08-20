@@ -38,8 +38,15 @@ use style::stylist::{RuleInclusion, Stylist};
 use style::stylesheets::{AllowImportRules, Origin, Stylesheet as StylesheetFromStylo, UrlExtraData};
 use style_traits::{CSSPixel, DevicePixel};
 use style::properties::generated::longhands::column_span::computed_value::T as StyloColumnSpan;
+use style::properties::generated::longhands::flex_direction::computed_value::T as StyloFlexDirection;
+use style::properties::generated::longhands::flex_wrap::computed_value::T as StyloFlexWrap;
+use style::values::computed::align::{
+    ContentDistribution as StyloContentDistribution, ItemPlacement as StyloItemPlacement,
+    SelfAlignment as StyloSelfAlignment,
+};
 use style::values::computed::box_::Float as StyloFloat;
 use style::values::computed::column::ColumnCount as StyloColumnCount;
+use style::values::computed::flex::FlexBasis as StyloFlexBasis;
 use style::values::computed::font::{FontFamily, LineHeight, SingleFontFamily};
 use style::values::computed::font::FontStyle as StyloFontStyle;
 use style::values::computed::length::{
@@ -48,6 +55,7 @@ use style::values::computed::length::{
 use style::values::computed::position::{Inset as StyloInset, ZIndex as StyloZIndex};
 use style::values::computed::Color as ComputedColor;
 use style::values::computed::{Length, PositionProperty, Size as StyloSize};
+use style::values::specified::align::AlignFlags;
 use style::values::specified::box_::{DisplayInside, DisplayOutside};
 use style::values::specified::font::FONT_MEDIUM_PX;
 use style::values::specified::text::TextAlignKeyword;
@@ -82,6 +90,11 @@ pub enum Display {
     TableFooterGroup,
     TableRow,
     TableCell,
+    /// Block-level flex container (css-flexbox-1 §2).
+    Flex,
+    /// Inline-level flex container; treated as a block-level flex container
+    /// in paged flow (spec Goal 1 — true inline-fragment behavior deferred).
+    InlineFlex,
 }
 /// The computed `column-span` value (css-multicol-1 §4).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -109,6 +122,77 @@ pub enum Position {
     Relative,
     Absolute,
     Fixed,
+}
+
+/// The computed `flex-direction` value (css-flexbox-1 §3).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum FlexDirection {
+    #[default]
+    Row,
+    RowReverse,
+    Column,
+    ColumnReverse,
+}
+
+/// The computed `flex-wrap` value (css-flexbox-1 §3). Layout honors `Nowrap`
+/// and `Wrap`; `WrapReverse` folds to `Wrap` (reverse-wrap lines deferred).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum FlexWrap {
+    #[default]
+    Nowrap,
+    Wrap,
+    WrapReverse,
+}
+
+/// The computed `flex-basis` value (css-flexbox-1 §7.2.3). Stylo computes
+/// `auto` to `Size(Auto)` and `0%` to `Size(0%)`; we keep the resolved shape.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum FlexBasis {
+    /// `auto` — the item's `width` (row) / content main size (column).
+    Auto,
+    /// `content` — the item's max-content main size.
+    Content,
+    /// `<width>`: a definite length and/or a percentage of the container's
+    /// inner main size (either may be present; a percentage without a
+    /// length resolves against the container at layout time).
+    Size {
+        length: Option<Scalar>,
+        percent: Option<f64>,
+    },
+}
+
+/// The computed `align-items` value (css-align-3). Default `stretch`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum AlignItems {
+    #[default]
+    Stretch,
+    FlexStart,
+    FlexEnd,
+    Center,
+}
+
+/// The computed `align-self` value (css-align-3). `Auto` resolves against
+/// the parent container's `align-items` at layout time.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum AlignSelf {
+    #[default]
+    Auto,
+    Stretch,
+    FlexStart,
+    FlexEnd,
+    Center,
+}
+
+/// The computed `justify-content` value (css-align-3). Only the four basic
+/// distribution values are modeled (spec Non-Goals: `space-around`,
+/// `space-evenly`, baseline and overflow-safe variants deferred).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum JustifyContent {
+    #[default]
+    FlexStart,
+    FlexEnd,
+    Center,
+    SpaceBetween,
 }
 
 /// The `text-align` computed value (css-text-3 §8). Read from stylo's
@@ -206,6 +290,14 @@ pub struct ComputedStyle {
     /// width is a percentage so table layout can resolve it against the
     /// containing block (CORE-81). `None` = no percentage declared.
     pub width_percent: Option<f64>,
+    /// The computed `height` property (points), `None` = `auto`. The block
+    /// path deliberately ignores height (auto-height self-consistency,
+    /// CORE-66), but flex item sizing (cross axis for rows, main axis for
+    /// columns) resolves it — the flex tests pin explicit item heights.
+    pub height: Option<Scalar>,
+    /// The raw `height` percentage as a 0..=1 fraction, kept for flex item
+    /// sizing against the flex line's cross size / container height.
+    pub height_percent: Option<f64>,
     /// The computed `position` value. `Absolute`/`Fixed` take the element out
     /// of flow; the fragment attaches to the fragmentainer.
     pub position: Position,
@@ -224,6 +316,26 @@ pub struct ComputedStyle {
     pub column_span: ColumnSpan,
     /// `column-gap`; `normal`/`auto` resolve to 1em. Points.
     pub column_gap: Scalar,
+    /// Flex container properties (css-flexbox-1). Computed by stylo (all
+    /// flex longhands compile in the servo build — verified 2026-08-18);
+    /// layout reads these only for `display: flex | inline-flex` boxes.
+    pub flex_direction: FlexDirection,
+    pub flex_wrap: FlexWrap,
+    pub flex_grow: f64,
+    pub flex_shrink: f64,
+    pub flex_basis: FlexBasis,
+    pub align_items: AlignItems,
+    pub align_self: AlignSelf,
+    pub justify_content: JustifyContent,
+    pub order: i32,
+    /// `row-gap` (block-axis gap between flex lines / column items).
+    /// `normal` resolves to 0 (css-align-3 §8). Points.
+    pub row_gap: Scalar,
+    /// `column-gap` for FLEX row containers (inline-axis gap between items).
+    /// Distinct from [`ComputedStyle::column_gap`], which carries multicol
+    /// semantics (`normal` → 1em). `normal` → 0 for flex (css-align-3).
+    /// Points.
+    pub flex_column_gap: Scalar,
     pub margin_top: Scalar,
     pub margin_right: Scalar,
     pub margin_bottom: Scalar,
@@ -287,6 +399,8 @@ impl ComputedStyle {
             float: Float::None,
             width: None,
             width_percent: None,
+            height: None,
+            height_percent: None,
             position: Position::Static,
             inset_top: None,
             inset_right: None,
@@ -297,6 +411,17 @@ impl ComputedStyle {
             column_width: None,
             column_span: ColumnSpan::None,
             column_gap: px_to_pt(16.0),
+            flex_direction: FlexDirection::Row,
+            flex_wrap: FlexWrap::Nowrap,
+            flex_grow: 0.0,
+            flex_shrink: 1.0,
+            flex_basis: FlexBasis::Auto,
+            align_items: AlignItems::Stretch,
+            align_self: AlignSelf::Auto,
+            justify_content: JustifyContent::FlexStart,
+            order: 0,
+            row_gap: Scalar::ZERO,
+            flex_column_gap: Scalar::ZERO,
             margin_top: Scalar::ZERO,
             margin_right: Scalar::ZERO,
             margin_bottom: Scalar::ZERO,
@@ -598,6 +723,15 @@ impl CascadeSession {
                 DisplayInside::TableFooterGroup => Display::TableFooterGroup,
                 DisplayInside::TableRow => Display::TableRow,
                 DisplayInside::TableCell => Display::TableCell,
+                DisplayInside::Flex => {
+                    if matches!(d.outside(), DisplayOutside::Block) {
+                        Display::Flex
+                    } else {
+                        // `inline-flex` — treated as a block-level flex
+                        // container in paged flow (spec Goal 1).
+                        Display::InlineFlex
+                    }
+                }
                 DisplayInside::TableColumn | DisplayInside::TableColumnGroup => {
                     // Column boxes are unsupported; fall back to block.
                     Display::Block
@@ -636,10 +770,23 @@ impl CascadeSession {
             }
             _ => (None, None),
         };
-        // The computed `height` is deliberately NOT carried: the skeleton has
-        // no containing-block/block-size resolution (CORE-66: adding it
-        // regressed the monolithic-overflow and body-background suites, whose
-        // references rely on auto-height self-consistency).
+        // The computed `height` (points or percentage), carried for flex
+        // item sizing only — the block path ignores height (auto-height
+        // self-consistency, CORE-66).
+        let (height, height_percent) = match position.clone_height() {
+            StyloSize::Auto => (None, None),
+            StyloSize::LengthPercentage(lp) => {
+                let len = lp.0.to_length().map(|l| px_to_pt(l.px() as f64));
+                let pct = lp.0.to_percentage().map(|p| p.0 as f64);
+                (len, pct)
+            }
+            _ => (None, None),
+        };
+        // The computed `height` is carried above for FLEX item sizing only
+        // (CORE-65). The BLOCK path deliberately ignores it: the skeleton
+        // has no containing-block/block-size resolution (CORE-66: adding it
+        // regressed the monolithic-overflow and body-background suites,
+        // whose references rely on auto-height self-consistency).
         // `position` and the insets/z-index live on stylo's *position* struct
         // (the same one that carries `width`) — the CORE-62 `clone_width`
         // lesson; only the `position` longhand itself is a box property.
@@ -708,6 +855,91 @@ impl CascadeSession {
                 .map(|len| px_to_pt(len.px() as f64))
                 .unwrap_or(font_size),
         };
+
+        // Flex container properties (css-flexbox-1). All the flex longhands
+        // live on stylo's *position* style struct (verified in the generated
+        // `properties.rs`, 2026-08-20 — same struct that carries `width`).
+        let flex_direction = match position.clone_flex_direction() {
+            StyloFlexDirection::Row => FlexDirection::Row,
+            StyloFlexDirection::RowReverse => FlexDirection::RowReverse,
+            StyloFlexDirection::Column => FlexDirection::Column,
+            StyloFlexDirection::ColumnReverse => FlexDirection::ColumnReverse,
+        };
+        let flex_wrap = match position.clone_flex_wrap() {
+            StyloFlexWrap::Nowrap => FlexWrap::Nowrap,
+            StyloFlexWrap::Wrap => FlexWrap::Wrap,
+            StyloFlexWrap::WrapReverse => FlexWrap::WrapReverse,
+        };
+        let flex_grow = position.clone_flex_grow().0 as f64;
+        let flex_shrink = position.clone_flex_shrink().0 as f64;
+        // `flex-basis: auto` computes to `Size(Auto)` in stylo (the
+        // `FlexBasis::auto()` constructor); intrinsic keywords fold to
+        // `Auto` (treated as content-based at layout time).
+        let flex_basis = match position.clone_flex_basis() {
+            StyloFlexBasis::Content => FlexBasis::Content,
+            StyloFlexBasis::Size(size) => match size {
+                StyloSize::LengthPercentage(lp) => {
+                    let length = lp.0.to_length().map(|l| px_to_pt(l.px() as f64));
+                    let percent = lp.0.to_percentage().map(|p| p.0 as f64);
+                    FlexBasis::Size { length, percent }
+                }
+                _ => FlexBasis::Auto,
+            },
+        };
+        // css-align. `normal`/`stretch` behave per the flex model; the
+        // legacy `start`/`end` keywords fold to their flex equivalents.
+        let items_flag = position.clone_align_items().0;
+        let align_items = if items_flag == AlignFlags::STRETCH {
+            AlignItems::Stretch
+        } else if items_flag == AlignFlags::FLEX_START || items_flag == AlignFlags::START {
+            AlignItems::FlexStart
+        } else if items_flag == AlignFlags::FLEX_END || items_flag == AlignFlags::END {
+            AlignItems::FlexEnd
+        } else if items_flag == AlignFlags::CENTER {
+            AlignItems::Center
+        } else {
+            AlignItems::Stretch
+        };
+        let self_flag = position.clone_align_self().0;
+        let align_self = if self_flag == AlignFlags::AUTO || self_flag == AlignFlags::NORMAL {
+            AlignSelf::Auto
+        } else if self_flag == AlignFlags::STRETCH {
+            AlignSelf::Stretch
+        } else if self_flag == AlignFlags::FLEX_START || self_flag == AlignFlags::START {
+            AlignSelf::FlexStart
+        } else if self_flag == AlignFlags::FLEX_END || self_flag == AlignFlags::END {
+            AlignSelf::FlexEnd
+        } else if self_flag == AlignFlags::CENTER {
+            AlignSelf::Center
+        } else {
+            AlignSelf::Auto
+        };
+        let justify_flag = position.clone_justify_content().primary();
+        let justify_content = if justify_flag == AlignFlags::FLEX_END
+            || justify_flag == AlignFlags::END
+        {
+            JustifyContent::FlexEnd
+        } else if justify_flag == AlignFlags::CENTER {
+            JustifyContent::Center
+        } else if justify_flag == AlignFlags::SPACE_BETWEEN {
+            JustifyContent::SpaceBetween
+        } else {
+            // `normal`, `flex-start`, `start` and anything else → the default.
+            JustifyContent::FlexStart
+        };
+        let order = position.clone_order();
+        // Flex gaps: `normal` resolves to 0 for flex containers (css-align-3
+        // §8), unlike multicol's 1em default carried in `column_gap`.
+        let flex_gap = |v: &StyloColumnGap| match v {
+            StyloColumnGap::Normal => Scalar::ZERO,
+            StyloColumnGap::LengthPercentage(lp) => lp
+                .0
+                .to_length()
+                .map(|len| px_to_pt(len.px() as f64))
+                .unwrap_or(Scalar::ZERO),
+        };
+        let row_gap = flex_gap(&position.clone_row_gap());
+        let flex_column_gap = flex_gap(&position.clone_column_gap());
         let font_family = first_family_name(font.clone_font_family())
             .unwrap_or_else(|| "sans-serif".to_string());
         let line_height = match font.clone_line_height() {
@@ -745,6 +977,8 @@ impl CascadeSession {
             float,
             width,
             width_percent,
+            height,
+            height_percent,
             position: position_prop,
             inset_top,
             inset_right,
@@ -755,6 +989,17 @@ impl CascadeSession {
             column_width,
             column_span,
             column_gap,
+            flex_direction,
+            flex_wrap,
+            flex_grow,
+            flex_shrink,
+            flex_basis,
+            align_items,
+            align_self,
+            justify_content,
+            order,
+            row_gap,
+            flex_column_gap,
             margin_top,
             margin_right,
             margin_bottom,

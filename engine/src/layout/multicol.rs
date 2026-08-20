@@ -333,6 +333,7 @@ impl<'a> Ctx<'a> {
                 child_tokens: ct,
                 break_before: false,
                 consumed_chars: None,
+                flex: None,
             })
         };
 
@@ -632,6 +633,7 @@ impl<'a> Ctx<'a> {
                                 child_tokens: Vec::new(),
                                 break_before: false,
                                 consumed_chars: Some(src_offset),
+                                flex: None,
                             },
                         });
                         broke = true;
