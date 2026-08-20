@@ -208,6 +208,10 @@ struct Ctx<'a> {
     /// Resolved target-counter page numbers by element `NodeId` (from the
     /// previous layout pass). Empty on the first pass.
     target_pages: &'a BTreeMap<NodeId, usize>,
+    /// Total page count from the previous layout pass (0 on the first pass).
+    /// `counter(pages)` reads this; margin-box text never affects pagination,
+    /// so the second pass's count equals the first's and resolution converges.
+    total_pages: usize,
 }
 
 /// Run the pipeline stage: cascade, then paginate into fragmentainers.
@@ -228,17 +232,36 @@ pub fn layout(dom: &Dom, stylesheet: &Stylesheet, geometry: PageGeometry) -> Lay
             .iter()
             .any(|p| matches!(p, ContentPiece::TargetCounter { .. }))
     });
-    let passes = if needs_toc { MAX_TOC_PASSES } else { 1 };
+    // `counter(pages)` needs the total page count, which is only known after
+    // pagination. Margin-box / generated text never affects pagination, so one
+    // extra pass with the previous pass's total converges; reuse the bounded
+    // multi-pass loop (hard cap 3, last result wins).
+    let needs_total = styles.iter().any(|s| {
+        s.content
+            .iter()
+            .any(|p| matches!(p, ContentPiece::CounterPages))
+    }) || page_rules.iter().any(|r| {
+        r.margin_boxes.iter().any(|mb| {
+            mb.content
+                .iter()
+                .any(|p| matches!(p, ContentPiece::CounterPages))
+        })
+    });
+    let passes = if needs_toc || needs_total { MAX_TOC_PASSES } else { 1 };
 
     let mut target_pages: BTreeMap<NodeId, usize> = BTreeMap::new();
+    let mut total_pages: usize = 0;
     let mut pages = Vec::new();
     for _ in 0..passes {
-        let (p, map) = paginate(dom, &styles, &page_rules, root, &geometry, &target_pages);
-        // Converged when the target map is unchanged between passes: the
-        // resolved page numbers are stable, so the next pass would be identical.
-        let converged = map == target_pages;
+        let (p, map) = paginate(dom, &styles, &page_rules, root, &geometry, &target_pages, total_pages);
+        // Converged when the target map is unchanged between passes AND the
+        // page count is stable: resolved page numbers are stable, so the next
+        // pass would be identical. `counter(pages)` resolves against
+        // `total_pages`, so a stable count means the totals are final too.
+        let converged = map == target_pages && p.len() == total_pages;
         pages = p;
         target_pages = map;
+        total_pages = pages.len();
         if converged {
             break;
         }
@@ -261,6 +284,7 @@ fn paginate(
     root: NodeId,
     cli: &PageGeometry,
     target_pages: &BTreeMap<NodeId, usize>,
+    total_pages: usize,
 ) -> (Vec<Fragmentainer>, BTreeMap<NodeId, usize>) {
     let mut pages: Vec<Fragmentainer> = Vec::new();
     let mut incoming = Some(BreakToken::break_before());
@@ -304,6 +328,7 @@ fn paginate(
             content_y: content.y,
             page_height: content.height,
             target_pages,
+            total_pages,
         };
 
         let mut fragmentainer = Fragmentainer::new(page_index, spec.size);
@@ -314,7 +339,16 @@ fn paginate(
 
         // Margin boxes resolve against the running-string / counter state now
         // in effect at the end of this page's flow (spec §6, §7).
-        attach_margin_boxes(&mut fragmentainer, &spec, &geo, &flow, styles, dom, target_pages);
+        attach_margin_boxes(
+            &mut fragmentainer,
+            &spec,
+            &geo,
+            &flow,
+            styles,
+            dom,
+            target_pages,
+            total_pages,
+        );
 
         // Out-of-flow fragments attach to the page root (css-break-3: the
         // fragmentainer is their parent, not the CSS containing block).
@@ -341,7 +375,16 @@ fn paginate(
         let spec = resolve_page_spec(page_rules, None, 0, cli);
         let mut fragmentainer = Fragmentainer::new(0, spec.size);
         let geo = spec.geometry();
-        attach_margin_boxes(&mut fragmentainer, &spec, &geo, &flow, styles, dom, target_pages);
+        attach_margin_boxes(
+            &mut fragmentainer,
+            &spec,
+            &geo,
+            &flow,
+            styles,
+            dom,
+            target_pages,
+            total_pages,
+        );
         pages.push(fragmentainer);
     }
 
@@ -1935,8 +1978,10 @@ impl<'a> Ctx<'a> {
     /// Resolve a generated-content piece list to a single line of text.
     ///
     /// `string(name)` and `counter(page)` read the current [`Flow`] state;
-    /// `target-counter(attr(N), page)` reads the previous pass's page map
-    /// (empty → `?`); `leader(ch)` fills the remaining line width to the right
+    /// `counter(pages)` reads the previous pass's total page count (0 on the
+    /// first pass); `target-counter(attr(N), page)` reads the previous pass's
+    /// page map (empty → `?`); `leader(ch)` fills the remaining line width to
+    /// the right
     /// content edge with the repeating character. The leader's fill count is
     /// computed from the fixed-width parts, so it does not depend on the
     /// resolved number glyphs — the property that makes the two-pass TOC
@@ -1963,6 +2008,10 @@ impl<'a> Ctx<'a> {
                 }
                 ContentPiece::CounterPage => {
                     let v = flow.page_number().to_string();
+                    push_side(&mut before, &mut after, leader_char, &v);
+                }
+                ContentPiece::CounterPages => {
+                    let v = self.total_pages.to_string();
                     push_side(&mut before, &mut after, leader_char, &v);
                 }
                 ContentPiece::CounterRef(_) => {
@@ -2182,6 +2231,7 @@ fn attach_margin_boxes(
     _styles: &[ComputedStyle],
     _dom: &Dom,
     _target_pages: &BTreeMap<NodeId, usize>,
+    total_pages: usize,
 ) {
     if spec.margin_boxes.is_empty() {
         return;
@@ -2192,7 +2242,7 @@ fn attach_margin_boxes(
     let lh = font_size * NORMAL_LINE_HEIGHT_FACTOR;
 
     for (name, pieces) in &spec.margin_boxes {
-        let text = render_margin_content(pieces, flow);
+        let text = render_margin_content(pieces, flow, total_pages);
         if text.is_empty() {
             continue;
         }
@@ -2278,14 +2328,16 @@ fn vertical_offset(name: MarginBoxName, band_height: Scalar, lh: Scalar) -> Scal
 
 /// Resolve a margin box's content pieces to a single string. Margin boxes do
 /// not fill leaders (no line-break context) and have no target-counter in the
-/// demos; leader/target pieces are rendered inertly.
-fn render_margin_content(pieces: &[ContentPiece], flow: &Flow) -> String {
+/// demos; leader/target pieces are rendered inertly. `counter(pages)` reads
+/// the total page count from the previous layout pass.
+fn render_margin_content(pieces: &[ContentPiece], flow: &Flow, total_pages: usize) -> String {
     let mut out = String::new();
     for piece in pieces {
         match piece {
             ContentPiece::Literal(s) => out.push_str(s),
             ContentPiece::StringRef(name) => out.push_str(flow.running.get(name)),
             ContentPiece::CounterPage => out.push_str(&flow.page_number().to_string()),
+            ContentPiece::CounterPages => out.push_str(&total_pages.to_string()),
             ContentPiece::CounterRef(_) => out.push('0'),
             ContentPiece::TargetCounter { .. } => {}
             ContentPiece::Leader(_) => {}
