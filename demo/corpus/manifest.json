@@ -5,11 +5,12 @@
     "wedge_features": ["tables-fragmentation", "paged-media-css"],
     "known_limitations": [
       "border-collapse: separate + border-spacing unsupported (collapse only)",
-      "table width property not honored (columns scale from content)"
+      "rowspan unsupported (not used)"
     ],
     "expected_deltas": [
       "Prince may resolve a different system font for the sans-serif stack",
-      "Prince's default table-cell padding may differ from TypeAnvil's explicit padding"
+      "Prince's default table-cell padding may differ from TypeAnvil's explicit padding",
+      "Total row repeats at the bottom of every page (CORE-96, Prince parity)"
     ]
   },
   {
@@ -55,11 +56,12 @@
     "wedge_features": ["tables-fragmentation", "fragmentation-core", "paged-media-css"],
     "known_limitations": [
       "border-collapse: separate + border-spacing unsupported (collapse only)",
-      "rowspan/colspan unsupported (no spanning used)"
+      "rowspan unsupported (not used)"
     ],
     "expected_deltas": [
-      "Row/column measure differs from Prince's table algorithm (columns scale from content, not fixed widths)",
-      "Page-break positions may differ where a row's height differs between engines"
+      "Frozen column widths match Prince within ~0.4-6pt (CORE-96); residual from font metrics and Prince's ~7.7pt right-edge table overflow",
+      "Page-break positions may differ where a row's height differs between engines",
+      "Total row repeats at the bottom of every page (CORE-96, Prince parity)"
     ]
   },
   {
