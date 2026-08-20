@@ -1,6 +1,6 @@
 {
-  "generated": "2026-08-19T23:48:32Z",
-  "typeanvil_version": "622d47b",
+  "generated": "2026-08-20T01:27:59Z",
+  "typeanvil_version": "40cdbcb",
   "prince_version": "Prince 16.2",
   "docs": [
     {
@@ -39,38 +39,38 @@
       "pages": [
         {
           "page": 1,
-          "diff_percent": 18.896122685185183
+          "diff_percent": 18.897569444444446
         },
         {
           "page": 2,
-          "diff_percent": 20.41377314814815
+          "diff_percent": 20.41521990740741
         },
         {
           "page": 3,
-          "diff_percent": 4.269386574074074
+          "diff_percent": 4.270833333333333
         },
         {
           "page": 4,
-          "diff_percent": 15.940393518518519
+          "diff_percent": 15.944733796296296
         },
         {
           "page": 5,
-          "diff_percent": 18.26605902777778
+          "diff_percent": 18.270399305555557
         },
         {
           "page": 6,
-          "diff_percent": 19.00173611111111
+          "diff_percent": 19.00607638888889
         },
         {
           "page": 7,
-          "diff_percent": 12.913049768518519
+          "diff_percent": 12.917390046296296
         },
         {
           "page": 8,
-          "diff_percent": 8.702980324074074
+          "diff_percent": 8.707320601851851
         }
       ],
-      "overall_diff_percent": 14.800437644675926,
+      "overall_diff_percent": 14.803692853009258,
       "render_error": null
     },
     {
@@ -217,92 +217,96 @@
     {
       "name": "Inventory Ledger — Table Fragmentation Stress",
       "file": "table-stress.html",
-      "typeanvil_pages": 20,
+      "typeanvil_pages": 21,
       "prince_pages": 45,
       "page_count_mismatch": true,
       "pages": [
         {
           "page": 1,
-          "diff_percent": 34.30989583333333
+          "diff_percent": 34.33015046296296
         },
         {
           "page": 2,
-          "diff_percent": 33.967013888888886
+          "diff_percent": 31.3671875
         },
         {
           "page": 3,
-          "diff_percent": 34.57248263888889
+          "diff_percent": 31.95240162037037
         },
         {
           "page": 4,
-          "diff_percent": 34.25491898148148
+          "diff_percent": 30.91290509259259
         },
         {
           "page": 5,
-          "diff_percent": 33.90190972222222
+          "diff_percent": 34.0943287037037
         },
         {
           "page": 6,
-          "diff_percent": 32.544126157407405
+          "diff_percent": 33.195167824074076
         },
         {
           "page": 7,
-          "diff_percent": 31.44386574074074
+          "diff_percent": 31.785300925925924
         },
         {
           "page": 8,
-          "diff_percent": 34.50303819444444
+          "diff_percent": 33.59157986111111
         },
         {
           "page": 9,
-          "diff_percent": 34.02705439814815
+          "diff_percent": 32.17230902777778
         },
         {
           "page": 10,
-          "diff_percent": 34.36487268518518
+          "diff_percent": 34.21440972222222
         },
         {
           "page": 11,
-          "diff_percent": 33.30946180555556
+          "diff_percent": 33.97424768518518
         },
         {
           "page": 12,
-          "diff_percent": 34.924045138888886
+          "diff_percent": 33.57421875
         },
         {
           "page": 13,
-          "diff_percent": 34.67664930555556
+          "diff_percent": 34.36921296296296
         },
         {
           "page": 14,
-          "diff_percent": 35.389901620370374
+          "diff_percent": 33.44835069444444
         },
         {
           "page": 15,
-          "diff_percent": 32.863136574074076
+          "diff_percent": 32.70326967592593
         },
         {
           "page": 16,
-          "diff_percent": 34.703414351851855
+          "diff_percent": 33.99450231481482
         },
         {
           "page": 17,
-          "diff_percent": 33.35648148148148
+          "diff_percent": 33.10980902777778
         },
         {
           "page": 18,
-          "diff_percent": 33.63642939814815
+          "diff_percent": 34.5580150462963
         },
         {
           "page": 19,
-          "diff_percent": 34.53703703703704
+          "diff_percent": 34.91247106481482
         },
         {
           "page": 20,
-          "diff_percent": 24.71064814814815
+          "diff_percent": 33.1127025462963
+        },
+        {
+          "page": 21,
+          "diff_percent": 29.131944444444446
         }
       ],
-      "overall_diff_percent": 33.499819155092595,
+      "overall_diff_percent": 33.07164214065256,
       "render_error": null
     }
   ]
