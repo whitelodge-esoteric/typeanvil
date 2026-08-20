@@ -145,18 +145,22 @@ fn avoid_moves_block() {
     // `break-inside: avoid` the whole block must move to the next page, even
     // though it fits a full (fresh) page. We prove it by contrast: the same
     // markup WITHOUT avoid splits onto page 1; WITH avoid it does not.
+    //
+    // CORE-92: `body { margin: 0 }` is pinned so the fixture does not depend
+    // on the UA body-margin default (which changed 8px → 0 to match Prince);
+    // page height 1.5in makes the keep block genuinely overflow page 1.
     let ktext = (0..8).map(|i| format!("k{i}")).collect::<Vec<_>>().join(" ");
     let no_avoid = format!(
-        r#"<html><body><p>Filler.</p><div><p>{ktext}</p></div></body></html>"#
+        r#"<html><head><style>body{{margin:0;}}</style></head><body><p>Filler.</p><div><p>{ktext}</p></div></body></html>"#
     );
     let with_avoid = format!(
-        r#"<html><head><style>.keep{{break-inside:avoid;}}</style></head>
+        r#"<html><head><style>body{{margin:0;}} .keep{{break-inside:avoid;}}</style></head>
            <body><p>Filler.</p><div class="keep"><p>{ktext}</p></div></body></html>"#
     );
 
     // Narrow, short page: the keep paragraph wraps to several lines and cannot
     // fit beside the filler, but does fit alone on a fresh page.
-    let geo = geometry(1.0, 1.8, 0.15);
+    let geo = geometry(1.0, 1.5, 0.15);
 
     // Baseline: without avoid, the block splits — page 1 holds some keep lines.
     let base = lay(&no_avoid, geo);

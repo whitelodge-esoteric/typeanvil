@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-17
-updated: 2026-08-17
+updated: 2026-08-20
 sidebar_position: 5
 tags: [demo, comparison, prince, gallery, pipeline]
 spec_id: visual-comparison-demo
@@ -232,6 +232,13 @@ Each maps to a real check in `scripts/build-demo.sh` or a committed artifact:
 - **Non-determinism** — if a re-run differs beyond `generated`, the pipeline
   fails loudly (byte-compare in the script) so a flaky fixture is caught, not
   silently committed.
+- **UA defaults are Prince-parity, not HTML4-screen (CORE-92)** — the engine's
+  UA stylesheet uses `body { margin: 0 }` to match Prince's print default
+  (probe 2026-08-20: Prince's first baseline = content top + half-leading
+  exactly; the HTML4 `body { margin: 8px }` screen convention pushed every
+  page-1 block 6pt down and flipped prose page counts at line-height 1.2).
+  Corpus fixtures therefore inherit zero body margin; a fixture that needs
+  one must declare it explicitly.
 
 ## Verification
 
