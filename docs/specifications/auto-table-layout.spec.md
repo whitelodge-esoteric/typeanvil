@@ -34,24 +34,29 @@ algorithm (CSS2.1 §17.5.2.2, refined by css-tables-3 §10.4.2) instead uses a
 **min-content/max-content basis** and distributes the available width in two
 passes. This spec replaces the heuristic with that algorithm.
 
-**Verified ground truth (2026-08-20, Letter, 0.5in margins → 540pt content):**
+**Verified ground truth (2026-08-20, demo geometry: 5in × 3in page, 0.5in
+margins → 288pt content width — the build-demo.sh flags):**
 
-- Prince table-stress column widths: SKU 68 · Description **112** · On hand
-  148 · Backorder 74 · Unit cost 64 · Value 74 (sum 540, `width: 100%`
-  honored). The 112pt Description column wraps "Earthquake pill (double
-  strength)" (≈145pt) → taller rows → 45 pages.
+- Prince table-stress: 45 pages. Its Description column is narrow enough that
+  long descriptions wrap to 2–3 lines (page-1 rows wrap: "Anvil," /
+  "standard" / "(150 lb)") and the "On hand" / "Unit cost" headers wrap to
+  two lines.
 - TypeAnvil current: Description ≈ its max-content (~150pt), no wrapping →
   20 pages.
-- The css-tables-3 two-pass distribution with min-content = widest
-  whitespace-delimited word (so "Disappearing/reappearing" — one glued token
-  at ≈112pt — drives the Description column) and strict uncapped max-content
-  lands the Description column at ≈112pt on this fixture — matching Prince's
-  measured column width.
+- At 288pt content the standard algorithm hits the **overflow branch**
+  (sum(min) ≈ 344 > 288): columns take their min-content widths, so the
+  Description column lands at ≈112pt (the width of the glued token
+  "Disappearing/reappearing") — matching Prince's page-count behavior. The
+  min-content basis is therefore the page-count lever; strict max-content
+  (≈150pt) is what TypeAnvil uses today.
 - On an unconstrained two-column probe (long text + short number, room to
-  spare), Prince gives the long column its max-content (357pt) and the short
-  column max + a share of extra (33pt) — the `extra ∝ max-content` branch.
+  spare, Letter geometry), Prince gives the long column its max-content
+  (357pt) and the short column max + a share of extra (33pt) — the
+  `extra ∝ max-content` branch. On a **constrained** probe (320pt fixed table
+  width), Prince splits col1 ≈ 293pt / col2 ≈ 23pt, matching the css-tables-3
+  middle branch within measurement error (predicted 297 / 22.9).
   Measurement method: char-box geometry from both PDFs
-  (`/tmp/col_words.py`), the same technique CORE-79 used.
+  (`demo/scripts/col_words.py`), the same technique CORE-79 used.
 
 **Fitness function:** the table-stress corpus fixture page count moves
 materially toward Prince's 45 (from 20), plus the parity probe below, plus
@@ -116,7 +121,7 @@ The engine SHALL implement the following, stated as "shall" rules:
    `width` when it resolves (a length, or a percentage resolved against the
    containing block width — carried from the cascade, see Interfaces), else
    `min(avail, sum(max))`. With `width: 100%` the used width is therefore the
-   full content width (540pt on Letter), matching Prince.
+   full content width (288pt at the demo geometry), matching Prince.
 5. **Distribution (css-tables-3 §10.4.2, two passes).** Given `used` and
    per-column `min`/`max`:
    - If `used ≤ sum(min)`: each column SHALL take its min-content width (the
@@ -217,18 +222,22 @@ pipeline:
    used widths differ as specified (`test_table_used_width_resolution`).
 6. **Description column wraps (the CORE-79 lever)** — Given a 6-column table
    shaped like table-stress (SKU / long Description / 4 numeric) with
-   `width: 100%` at 540pt, when measured, then the Description column ≈
-   112pt (Prince-verified constant) and the long descriptions wrap to 2 lines
+   `width: 100%` at the demo geometry (5in × 3in page, 0.5in margins → 288pt
+   content), when measured, then the overflow branch applies (sum(min) > used)
+   and the Description column ≈ its min-content ≈ 112pt (Prince-verified
+   token width) and the long descriptions wrap to 2+ lines
    (`test_table_stress_description_column_wraps`).
 7. **Table-stress page-count movement** — Given `demo/corpus/table-stress.html`
-   rendered through the engine, when the page count is measured, then it is
-   ≥ 30 (from 20) and converging toward Prince's 45
+   rendered through the engine at the demo geometry (build-demo.sh flags:
+   `--page-width 5in --page-height 3in`, 0.5in margins), when the page count
+   is measured, then it is ≥ 30 (from 20) and converging toward Prince's 45
    (`test_table_stress_page_count_grows`).
 8. **Two-column probe parity** — Given the two-column probe fixture (long
-   text + short numeric, fixed table width that forces the long cell to
-   wrap), when rendered, then the long column's used width equals the
-   Prince-verified constant within ±2% (wrapped vs unwrapped cell geometry
-   compared in both PDFs during the demo pass) (`test_two_column_probe_width`).
+   text + short numeric, fixed table width of 320pt on a Letter page that
+   forces the long cell to wrap), when rendered, then the long column's used
+   width equals the Prince-verified constant ≈ 295pt within ±2% (wrapped vs
+   unwrapped cell geometry compared in both PDFs during the demo pass)
+   (`test_two_column_probe_width`).
 9. **Regression** — Given the existing engine tests (incl. the 36 CORE-61
    baseline), when the change lands, then all stay green; the demo scoreboard
    regenerates and table-stress diff drops from 33.5%.
@@ -268,5 +277,6 @@ pipeline:
   column-measure part of; §Behavior #3).
 - css-tables-3 §10.4.2 (extra-width distribution), CSS2.1 §17.5.2.2 (auto
   table layout).
-- Prince ground truth: `/tmp/ts-prince.pdf`, `/tmp/probe-2col-prince.pdf`,
-  `/tmp/col_words.py` (char-box word dumps, 2026-08-20).
+- Prince ground truth: `/tmp/ts-prince-5x3.pdf` (demo geometry, 45 pages),
+  `/tmp/probe-constrained-prince.pdf` (320pt probe split 293/23),
+  `demo/scripts/col_words.py` (char-box word dumps, 2026-08-20).
