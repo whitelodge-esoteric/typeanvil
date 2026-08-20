@@ -496,11 +496,26 @@ fn push_word(
     let mut syl_start = start;
     for (si, syl) in syllables.iter().enumerate() {
         if breaks.contains(&si) {
-            // Candidate break with a hyphen glyph.
+            // CORE-98: a break whose source position coincides with an
+            // EXISTING hyphen in the word (hypher keeps it attached to
+            // the preceding syllable box, e.g. "page-" from
+            // "page-margin") must not append a second hyphen glyph —
+            // the source hyphen is already in the line's text. Such
+            // penalties carry no glyph and add no width.
+            let at_existing_hyphen =
+                word.as_bytes().get(syl_start - start - 1) == Some(&b'-');
             items.push(Item::Penalty {
                 penalty: HYPHEN_PENALTY,
-                width: hyphen_run.width,
-                hyphen: Some(hyphen_run.clone()),
+                width: if at_existing_hyphen {
+                    Scalar::ZERO
+                } else {
+                    hyphen_run.width
+                },
+                hyphen: if at_existing_hyphen {
+                    None
+                } else {
+                    Some(hyphen_run.clone())
+                },
                 forced: false,
             });
             box_ends.push(0);
