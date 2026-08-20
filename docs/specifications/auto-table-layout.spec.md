@@ -95,8 +95,12 @@ regression guard.
   CORE-61).
 - Percentage column widths as *per-column* sizing (`<col>`, `th { width: % }`)
   — only the table's own width percentage is in scope.
-- `rowspan`/`colspan` contributions to column measure — spanned cells occupy
-  their grid slot with no width sharing (unchanged from CORE-61).
+- `rowspan` — row-spanning cells are not supported (a `rowspan` cell occupies
+  its own grid slot only).
+- Full css-tables-3 §10.4.3 spanning-cell distribution — a spanning cell
+  contributes an **equal share** of its intrinsic to each spanned column
+  (CORE-96 simplification, Prince-matching); the spec's clamping/redistribution
+  details are not implemented.
 - `border-collapse: separate` + `border-spacing` (defaults: collapse).
 - Table-in-table measure (nested tables stay block-stacked).
 - Tables inside multicol (CORE-78 fixed the hang; width parity there is a
@@ -152,11 +156,23 @@ The engine SHALL implement the following, stated as "shall" rules:
 8. **Fallback widths.** A column with zero intrinsic width (all cells empty
    with no padding/border) SHALL resolve to 0 and SHALL NOT panic; a table
    whose columns sum below `used` SHALL distribute the difference per rule 5.
+9. **Spanning-cell measure and placement (`colspan`).** A cell with
+   `colspan` > 1 SHALL contribute an **equal share** of its intrinsic
+   min/max (`cell / span`) to each spanned column (css-tables-3 §10.4.3
+   simplification, CORE-96) and SHALL occupy every spanned column slot in
+   layout — its box spans the summed column widths and its row height is
+   measured at the spanned width. This is what keeps a tfoot's
+   `colspan="4"` total from inflating one column to its whole-text width
+   (Prince parity, CORE-96). `rowspan` remains unsupported (Non-Goals).
 
 ## Interfaces
 
 ```rust
 // engine/src/table.rs — replaces the current measure_columns body.
+
+/// The column span of a table cell (the HTML `colspan` attribute; default 1).
+/// `rowspan` is NOT supported (Non-Goals).
+pub fn cell_colspan(dom: &Dom, cell: NodeId) -> usize
 
 /// Resolved per-column widths plus the intrinsic basis (for tests/audit).
 #[derive(Clone, Debug, Default)]
