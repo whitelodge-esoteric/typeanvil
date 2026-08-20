@@ -232,13 +232,17 @@ Each maps to a real check in `scripts/build-demo.sh` or a committed artifact:
 - **Non-determinism** — if a re-run differs beyond `generated`, the pipeline
   fails loudly (byte-compare in the script) so a flaky fixture is caught, not
   silently committed.
-- **UA defaults are Prince-parity, not HTML4-screen (CORE-92)** — the engine's
-  UA stylesheet uses `body { margin: 0 }` to match Prince's print default
-  (probe 2026-08-20: Prince's first baseline = content top + half-leading
-  exactly; the HTML4 `body { margin: 8px }` screen convention pushed every
-  page-1 block 6pt down and flipped prose page counts at line-height 1.2).
-  Corpus fixtures therefore inherit zero body margin; a fixture that needs
-  one must declare it explicitly.
+- **UA defaults are Prince-parity, not HTML4-screen (CORE-92 + CORE-95)** —
+  the engine's UA stylesheet matches Prince's print defaults: `body { margin:
+  0 }` (CORE-92, probe 2026-08-20: Prince's first baseline = content top +
+  half-leading exactly), fixed-point heading sizes/margins (h1 24pt/16pt …
+  h6 8pt/21pt) and 1.12em paragraph margins (CORE-95, `ua-print-defaults`
+  spec), plus css-break-3 top-of-fragmentainer margin truncation — the first
+  in-flow box on every page/column renders flush with the content top. The
+  old HTML4 em-based screen defaults pushed unstyled headings ~27pt down and
+  flipped prose page counts. Corpus fixtures therefore inherit zero body
+  margin; a fixture that needs a top margin must declare it explicitly (it
+  will be truncated only when it is the first in-flow box on a page).
 
 ## Verification
 

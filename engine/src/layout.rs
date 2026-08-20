@@ -438,18 +438,25 @@ impl<'a> Ctx<'a> {
             content_top,
             bottom_limit,
             false,
+            true,
             token,
             flow,
         )
     }
 
-    /// Lay out one block into the current fragmentainer.
+    /// Lay one block into the current fragmentainer.
     ///
     /// - `origin_x`: left edge for this box's border-box (points).
     /// - `avail_width`: width available for this box's border-box.
     /// - `top`: y where this box starts in the fragmentainer (points).
     /// - `bottom_limit`: y beyond which content does not fit (the fragmentainer
     ///   content bottom).
+    /// - `page_has_content`: whether the fragmentainer already holds any
+    ///   content (in-flow or out-of-flow) at or above this box's flow
+    ///   position — drives last-resort monolithic placement only.
+    /// - `first_in_flow`: whether this box is the first IN-FLOW content on
+    ///   the fragmentainer (floats/abspos do not consume it). Drives
+    ///   margin-top truncation at fragmentainer starts (css-break-3).
     /// - `token`: incoming continuation (break-before = start fresh).
     fn layout_box(
         &self,
@@ -459,6 +466,7 @@ impl<'a> Ctx<'a> {
         top: Scalar,
         bottom_limit: Scalar,
         page_has_content: bool,
+        first_in_flow: bool,
         token: &BreakToken,
         flow: &mut Flow,
     ) -> BlockResult {
@@ -472,6 +480,10 @@ impl<'a> Ctx<'a> {
             };
         }
 
+        // Table-family boxes dispatch through layout_table_like, which keeps
+        // `first_in_flow` for its layout_box fall-throughs (tables themselves
+        // do not apply margins yet, so truncation only matters once their
+        // cells delegate back into the block path).
         if matches!(
             style.display,
             Display::Table | Display::TableRowGroup | Display::TableHeaderGroup | Display::TableFooterGroup
@@ -483,6 +495,7 @@ impl<'a> Ctx<'a> {
                 top,
                 bottom_limit,
                 page_has_content,
+                first_in_flow,
                 token,
                 flow,
             );
@@ -495,6 +508,7 @@ impl<'a> Ctx<'a> {
                 top,
                 bottom_limit,
                 page_has_content,
+                first_in_flow,
                 token,
                 flow,
             );
@@ -506,10 +520,25 @@ impl<'a> Ctx<'a> {
         // laid out by layout_table_group, which calls layout_table_row directly).
 
         let fresh = token.is_break_before();
+        let mut first_in_flow = first_in_flow;
 
         // Margins/padding adjoining a fragmentainer break truncate to zero
         // (css-break-3). On resume (not fresh) the top margin/padding is gone.
-        let margin_top = if fresh { style.margin_top } else { Scalar::ZERO };
+        // Additionally (CORE-95), when a fresh box is the FIRST in-flow box on
+        // a fragmentainer, its top margin adjoins the fragmentainer boundary
+        // and truncates to zero too — matching Prince, which renders an
+        // unstyled h1 at the top of a page flush with the content top (its
+        // 16pt UA margin is honored mid-page, never at a page start).
+        // Floats/abspos do not consume `first_in_flow`: a paragraph after a
+        // top-of-page float is still the first in-flow box (verified vs
+        // Prince 16.2, 2026-08-20).
+        let margin_top = if fresh && first_in_flow {
+            Scalar::ZERO
+        } else if fresh {
+            style.margin_top
+        } else {
+            Scalar::ZERO
+        };
         let padding_top = if fresh { style.padding_top } else { Scalar::ZERO };
 
         let box_top = top + margin_top;
@@ -603,6 +632,7 @@ impl<'a> Ctx<'a> {
                 top,
                 bottom_limit,
                 placed,
+                first_in_flow,
                 token,
                 flow,
                 style,
@@ -659,6 +689,7 @@ impl<'a> Ctx<'a> {
                 ));
                 y += lh;
                 placed = true;
+                first_in_flow = false;
             }
         }
 
@@ -737,6 +768,7 @@ impl<'a> Ctx<'a> {
                         y += lh;
                         li += 1;
                         placed = true;
+                        first_in_flow = false;
                         // A last-resort line that overflowed: stop here so the
                         // rest of the run continues on the next fragmentainer.
                         if last_resort && y > bottom_limit {
@@ -970,6 +1002,7 @@ impl<'a> Ctx<'a> {
                             y,
                             Scalar(f64::MAX),
                             placed,
+                            first_in_flow,
                             &child_tok,
                             flow,
                         );
@@ -1017,6 +1050,7 @@ impl<'a> Ctx<'a> {
                                 y,
                                 bottom_limit,
                                 placed,
+                                first_in_flow,
                                 &child_tok,
                                 flow,
                             );
@@ -1083,6 +1117,7 @@ impl<'a> Ctx<'a> {
                                 y,
                                 bottom_limit,
                                 placed,
+                                first_in_flow,
                                 &child_tok,
                                 flow,
                             );
@@ -1125,6 +1160,7 @@ impl<'a> Ctx<'a> {
                         y,
                         bottom_limit,
                         placed,
+                        first_in_flow,
                         &child_tok,
                         flow,
                     );
@@ -1156,6 +1192,9 @@ impl<'a> Ctx<'a> {
                         children.push(res.fragment);
                         y += res.used;
                         placed = true;
+                        // A non-empty in-flow block is no longer the first
+                        // in-flow content: later siblings keep their margins.
+                        first_in_flow = false;
                     }
 
                     if let Some(tok) = res.outgoing {
@@ -1253,6 +1292,7 @@ impl<'a> Ctx<'a> {
         top: Scalar,
         bottom_limit: Scalar,
         page_has_content: bool,
+        first_in_flow: bool,
         token: &BreakToken,
         flow: &mut Flow,
     ) -> BlockResult {
@@ -1302,6 +1342,7 @@ impl<'a> Ctx<'a> {
                 top,
                 bottom_limit,
                 page_has_content,
+                first_in_flow,
                 token,
                 flow,
             ),
@@ -1312,6 +1353,7 @@ impl<'a> Ctx<'a> {
                 top,
                 bottom_limit,
                 page_has_content,
+                first_in_flow,
                 token,
                 flow,
             ),
@@ -1674,6 +1716,10 @@ impl<'a> Ctx<'a> {
                     top,
                     bottom_limit,
                     page_has_content,
+                    // Table cells do not participate in top-of-page margin
+                    // truncation (tables are out of CORE-95 scope; cell
+                    // content keeps its declared margins).
+                    false,
                     token,
                     flow,
                 );
@@ -1797,6 +1843,7 @@ impl<'a> Ctx<'a> {
         top: Scalar,
         bottom_limit: Scalar,
         page_has_content: bool,
+        first_in_flow: bool,
         token: &BreakToken,
         flow: &mut Flow,
     ) -> BlockResult {
@@ -1807,6 +1854,7 @@ impl<'a> Ctx<'a> {
             top,
             bottom_limit,
             page_has_content,
+            first_in_flow,
             token,
             flow,
         );

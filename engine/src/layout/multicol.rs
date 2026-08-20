@@ -68,13 +68,23 @@ impl<'a> Ctx<'a> {
         top: Scalar,
         bottom_limit: Scalar,
         placed: bool,
+        first_in_flow: bool,
         token: &BreakToken,
         flow: &mut Flow,
         style: &ComputedStyle,
         (n, col_w, gap): (u32, Scalar, Scalar),
     ) -> BlockResult {
         let fresh = token.is_break_before();
-        let margin_top = if fresh { style.margin_top } else { Scalar::ZERO };
+        // CORE-95: a multicol container that is the first in-flow box on a
+        // fragmentainer truncates its top margin like any block.
+        let margin_top = if fresh && first_in_flow {
+            Scalar::ZERO
+        } else if fresh {
+            style.margin_top
+        } else {
+            Scalar::ZERO
+        };
+        let mut first_in_flow = first_in_flow;
         let box_top = top + margin_top;
         let content_top = box_top + style.padding_top;
 
@@ -172,6 +182,7 @@ impl<'a> Ctx<'a> {
                         set_top,
                         bottom_limit,
                         placed,
+                        first_in_flow,
                         token,
                         flow,
                         style,
@@ -217,6 +228,7 @@ impl<'a> Ctx<'a> {
                     content_top,
                     y,
                     placed,
+                    first_in_flow,
                     token,
                     flow,
                     style,
@@ -256,10 +268,14 @@ impl<'a> Ctx<'a> {
                     y,
                     bottom_limit,
                     placed,
+                    first_in_flow,
                     &child_tok,
                     flow,
                 );
                 children.push(res.fragment);
+                // A placed spanner is in-flow content: later items are not
+                // first on the fragmentainer.
+                first_in_flow = false;
                 if res.outgoing.is_some() {
                     outgoing_children.push(ChildToken {
                         index: si,
@@ -391,6 +407,7 @@ impl<'a> Ctx<'a> {
         content_top: Scalar,
         set_top: Scalar,
         placed: bool,
+        first_in_flow: bool,
         token: &BreakToken,
         flow: &mut Flow,
         style: &ComputedStyle,
@@ -416,6 +433,10 @@ impl<'a> Ctx<'a> {
                 col_bottom,
                 set_top,
                 placed,
+                // Each column is a fresh fragmentainer: the first in-flow box
+                // of column > 0 truncates its margin even when the container
+                // already placed content in earlier columns (CORE-95).
+                if col == 0 { first_in_flow } else { true },
                 token,
                 resume,
                 flow,
@@ -460,6 +481,7 @@ impl<'a> Ctx<'a> {
         set_top: Scalar,
         bottom_limit: Scalar,
         placed: bool,
+        first_in_flow: bool,
         token: &BreakToken,
         flow: &mut Flow,
         style: &ComputedStyle,
@@ -482,6 +504,8 @@ impl<'a> Ctx<'a> {
                 bottom_limit,
                 set_top,
                 placed,
+                // Each column is a fresh fragmentainer (CORE-95).
+                if col == 0 { first_in_flow } else { true },
                 token,
                 resume,
                 flow,
@@ -519,6 +543,7 @@ impl<'a> Ctx<'a> {
         col_bottom: Scalar,
         set_top: Scalar,
         placed: bool,
+        first_in_flow: bool,
         token: &BreakToken,
         resume: Option<(usize, BreakToken)>,
         flow: &mut Flow,
@@ -528,6 +553,11 @@ impl<'a> Ctx<'a> {
         let mut y = set_top;
         let mut i = start;
         let mut page_placed = placed;
+        // CORE-95: whether any in-flow content has been placed in THIS
+        // column yet (columns are fragmentainers; the first in-flow box of
+        // each column truncates its top margin). Unlike `page_placed`, this
+        // starts true on every column, not just the container's first.
+        let mut col_first = first_in_flow;
         let mut in_flight: Option<ChildToken> = None;
         let mut broke = false;
 
@@ -586,6 +616,7 @@ impl<'a> Ctx<'a> {
                         // inside the previous line's last word.
                         src_offset += lr.consumed;
                         page_placed = true;
+                        col_first = false;
                         if last_resort && y > col_bottom {
                             run_broke = true;
                             break;
@@ -647,6 +678,7 @@ impl<'a> Ctx<'a> {
                             ay,
                             Scalar(f64::MAX),
                             true,
+                            col_first,
                             &child_tok,
                             flow,
                         );
@@ -686,12 +718,14 @@ impl<'a> Ctx<'a> {
                         y,
                         col_bottom,
                         page_placed,
+                        col_first,
                         &child_tok,
                         flow,
                     );
                     children.push(res.fragment);
                     y = y + res.used;
                     page_placed = true;
+                    col_first = false;
                     if res.outgoing.is_some() {
                         in_flight = Some(ChildToken {
                             index: i,

@@ -397,22 +397,28 @@ impl CascadeSession {
         tr { display: table-row; }
         td, th { display: table-cell; }
         h1, h2, h3, h4, h5, h6 { font-weight: bold; }
-        h1 { font-size: 2em; margin: 0.67em 0; }
-        h2 { font-size: 1.5em; margin: 0.83em 0; }
-        h3 { font-size: 1.17em; margin: 1em 0; }
-        h4 { font-size: 1em; margin: 1.33em 0; }
-        h5 { font-size: 0.83em; margin: 1.67em 0; }
-        h6 { font-size: 0.67em; margin: 2.33em 0; }
-        p { margin: 1em 0; }
-        ul, ol { padding-left: 2.5em; margin: 1em 0; }
+        /* CORE-95: Prince's print UA sheet (lib/prince/style/html.css, 16.2)
+           uses FIXED point heading sizes and margins, and 1.12em block
+           margins. The HTML4/WHATWG em-scaled screen defaults scale headings
+           with body font-size (an unstyled h1 at body 10pt computed to 20pt
+           text + 13.4pt margins vs Prince's fixed 24pt + 16pt) and deferred
+           floats past page boundaries by ~3.6pt. */
+        h1 { font-size: 24pt; margin: 16pt 0; }
+        h2 { font-size: 18pt; margin: 15pt 0; }
+        h3 { font-size: 14pt; margin: 14pt 0; }
+        h4 { font-size: 12pt; margin: 16pt 0; }
+        h5 { font-size: 10pt; margin: 16.5pt 0; }
+        h6 { font-size: 8pt; margin: 21pt 0; }
+        p { margin: 1.12em 0; }
+        ul, ol { padding-left: 40pt; margin: 1.12em 0; }
         // CORE-92: Prince applies no default body margin in print (probe
         // 2026-08-20: first baseline = content top + half-leading exactly).
         // The HTML4/WHATWG `body { margin: 8px }` UA default is a screen
         // convention; honoring it here pushed every page-1 block 6pt down
         // vs Prince and flipped prose page counts at line-height 1.2.
         body { margin: 0; }
-        blockquote { margin: 1em 2.5em; }
-        pre { margin: 1em 0; font-family: monospace; }
+        blockquote { margin: 1.12em 22.5pt; }
+        pre { margin: 1.12em 0; font-family: monospace; }
         table { border-collapse: collapse; }
         td, th { display: table-cell; }
     "#;

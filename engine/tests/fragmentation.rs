@@ -149,13 +149,18 @@ fn avoid_moves_block() {
     // CORE-92: `body { margin: 0 }` is pinned so the fixture does not depend
     // on the UA body-margin default (which changed 8px → 0 to match Prince);
     // page height 1.5in makes the keep block genuinely overflow page 1.
+    // CORE-95: `p { margin: 12pt 0 }` is pinned too — the UA paragraph
+    // margin (1em → 1.12em) now TRUNCATES to zero at the page top (Prince
+    // parity, css-break-3), so the filler would otherwise sit flush at the
+    // content top and the keep block would fit page 1, unexercising the
+    // break-inside: avoid move.
     let ktext = (0..8).map(|i| format!("k{i}")).collect::<Vec<_>>().join(" ");
     let no_avoid = format!(
-        r#"<html><head><style>body{{margin:0;}}</style></head><body><p>Filler.</p><div><p>{ktext}</p></div></body></html>"#
+        r#"<html><head><style>body{{margin:0;}} p{{margin:12pt 0;}}</style></head><body><p>Filler filler.</p><div><p>{ktext}</p></div></body></html>"#
     );
     let with_avoid = format!(
-        r#"<html><head><style>body{{margin:0;}} .keep{{break-inside:avoid;}}</style></head>
-           <body><p>Filler.</p><div class="keep"><p>{ktext}</p></div></body></html>"#
+        r#"<html><head><style>body{{margin:0;}} p{{margin:12pt 0;}} .keep{{break-inside:avoid;}}</style></head>
+           <body><p>Filler filler.</p><div class="keep"><p>{ktext}</p></div></body></html>"#
     );
 
     // Narrow, short page: the keep paragraph wraps to several lines and cannot
