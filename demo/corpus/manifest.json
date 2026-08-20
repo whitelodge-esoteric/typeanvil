@@ -35,7 +35,8 @@
     ],
     "expected_deltas": [
       "Hyphenation points may differ (different hyphenation dictionaries)",
-      "Justification glue distribution may differ slightly at identical widths"
+      "Justification glue distribution may differ slightly at identical widths",
+      "line-height pinned to 1.5 (CORE-75) to exercise CORE-74 convergence; page counts match Prince at 1.5 (11 = 11)"
     ]
   },
   {
@@ -71,7 +72,8 @@
     "expected_deltas": [
       "Hyphenation points may differ (different hyphenation dictionaries)",
       "Font metrics differences shift exact break positions",
-      "Prince does not implement Knuth-Plass protrusion to the same spec"
+      "Prince does not implement Knuth-Plass protrusion to the same spec",
+      "line-height pinned to 1.6 (CORE-75) to exercise CORE-74 convergence; page-count slope still diverges at 1.6 (tracked as CORE-90)"
     ]
   }
 ]
