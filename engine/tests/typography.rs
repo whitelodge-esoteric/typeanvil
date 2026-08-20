@@ -389,6 +389,53 @@ fn word_left_chars(word: &str, byte_offset: usize) -> usize {
     word[..byte_offset].chars().count()
 }
 
+/// AC (CORE-98): a compound-with-hyphen word broken AT its existing hyphen
+/// renders exactly one trailing hyphen — never two. "page-margin" splits
+/// into hypher syllables ["page-", "mar", "gin"]; a line breaking at the
+/// source hyphen carries the hyphen already inside the first syllable box,
+/// so the K-P penalty at that boundary must not append a second glyph.
+/// Regression: letterhead p1 rendered "page--" vs Prince "page-".
+#[test]
+fn existing_hyphen_break_single_hyphen() {
+    let style = p_style("<html><body><p>t</p></body></html>");
+    // 33–48pt: the word breaks at its own hyphen (offset 5). At 39pt the
+    // probe shows the full first line is "page-" — exactly one hyphen.
+    let lines = break_paragraph(
+        "page-margin boxes: the cover",
+        Scalar(39.0),
+        &style,
+        true,
+        false,
+    );
+    assert!(!lines.is_empty(), "paragraph must break");
+    // The compound's first part ends the line with ONE hyphen.
+    assert_eq!(
+        lines[0].text, "page-",
+        "existing-hyphen break must carry exactly one hyphen, got {:?}",
+        lines[0].text
+    );
+    // No line may carry a doubled hyphen anywhere in the paragraph.
+    for l in &lines {
+        assert!(
+            !l.text.contains("--"),
+            "line {:?} contains a doubled hyphen (CORE-98)",
+            l.text
+        );
+    }
+    // The hyphen glyph in the line's glyph run maps to the trailing '-' in
+    // the line text, and the source text is preserved across the break
+    // (the next line resumes with "margin", not "-margin").
+    assert!(lines[0].text.ends_with('-'));
+    assert_eq!(lines[1].text, "margin", "next line must not re-open with a hyphen");
+    assert!(
+        lines[0]
+            .glyphs
+            .iter()
+            .any(|g| g.range.start < lines[0].text.len() && lines[0].text[g.range.clone()] == *"-"),
+        "line must carry a hyphen glyph for the trailing '-'"
+    );
+}
+
 /// AC (CORE-97): the break offsets are valid byte positions that tile the
 /// word exactly (no text lost, no non-boundary cuts).
 #[test]
