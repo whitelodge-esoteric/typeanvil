@@ -2731,6 +2731,15 @@ impl<'a> Ctx<'a> {
         let mut fragment = Fragment::block(origin, (avail_width, height));
         fragment.children = frag_children;
         fragment.source = Some(id);
+        // CORE-100: a group-level background (`thead`/`tbody`/`tfoot`) paints
+        // as the group fragment's own fill — under row and cell fills. On a
+        // continuation page the fragment's height is the placed-slice height,
+        // so the fill covers exactly the rows that landed on that page.
+        if let Some(bg) = self.styles[id].background_color {
+            if height.get() > 0.0 {
+                fragment.content = FragmentContent::Background(bg);
+            }
+        }
         let outgoing = if !seen_all {
             let consumed = token.consumed_block_size + height;
             let tok = BreakToken {
@@ -2968,6 +2977,18 @@ impl<'a> Ctx<'a> {
             None
         };
         let empty = used.get() <= 0.0 && outgoing.is_none();
+        // CORE-100: a row-level background (`tr { background-color }`) paints
+        // as the row fragment's own fill. The pre-order collector pushes a
+        // parent's Background before its children's, so the row fill lands
+        // UNDER the cell fills and under borders/text (css-tables-3 paint
+        // order: row groups < rows < cells). Gate on the placed height (`used`),
+        // not the measured height: a resumed row claims only what its cells
+        // actually used on this fragmentainer.
+        if let Some(bg) = self.styles[id].background_color {
+            if used.get() > 0.0 {
+                fragment.content = FragmentContent::Background(bg);
+            }
+        }
         BlockResult {
             fragment,
             used,
