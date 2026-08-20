@@ -727,9 +727,21 @@ fn materialize_line(
             }
             Item::Glue(g) => {
                 pending_glue = Some(*g);
-                natural += g.width.get();
-                total_stretch += g.stretch.get();
-                total_shrink += g.shrink.get();
+                // CORE-94: the glue at the line's end (`item_idx == end`) is
+                // the breakpoint itself — it produces no space glyph and its
+                // width must NOT count toward the line's natural width.
+                // `adjustment_ratio` iterates `start..end` (exclusive) so it
+                // never counted it; counting it here double-counted the
+                // breakpoint glue, inflating `natural`, over-stretching the
+                // line (ratio computed against a smaller natural), then
+                // shrinking it back via negative expansion — landing ~4pt
+                // short of the measure. This is the prose page-count
+                // divergence driver.
+                if item_idx != end {
+                    natural += g.width.get();
+                    total_stretch += g.stretch.get();
+                    total_shrink += g.shrink.get();
+                }
             }
             Item::Penalty { .. } => {}
         }
