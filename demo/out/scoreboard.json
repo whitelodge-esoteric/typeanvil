@@ -1,6 +1,6 @@
 {
-  "generated": "2026-08-20T03:03:14Z",
-  "typeanvil_version": "fe53cf3",
+  "generated": "2026-08-20T16:02:34Z",
+  "typeanvil_version": "5311534",
   "prince_version": "Prince 16.2",
   "docs": [
     {
@@ -80,91 +80,107 @@
     {
       "name": "Academic Paper",
       "file": "paper.html",
-      "typeanvil_pages": 9,
-      "prince_pages": 9,
+      "typeanvil_pages": 11,
+      "prince_pages": 11,
       "page_count_mismatch": false,
       "pages": [
         {
           "page": 1,
-          "diff_percent": 31.726707175925927
+          "diff_percent": 26.17115162037037
         },
         {
           "page": 2,
-          "diff_percent": 24.697627314814817
+          "diff_percent": 26.155237268518515
         },
         {
           "page": 3,
-          "diff_percent": 26.944444444444443
+          "diff_percent": 23.61762152777778
         },
         {
           "page": 4,
-          "diff_percent": 29.073350694444443
+          "diff_percent": 25.491898148148145
         },
         {
           "page": 5,
-          "diff_percent": 28.096064814814813
+          "diff_percent": 28.20095486111111
         },
         {
           "page": 6,
-          "diff_percent": 31.378038194444446
+          "diff_percent": 22.416087962962962
         },
         {
           "page": 7,
-          "diff_percent": 27.793692129629626
+          "diff_percent": 25.54976851851852
         },
         {
           "page": 8,
-          "diff_percent": 29.147858796296294
+          "diff_percent": 30.883969907407405
         },
         {
           "page": 9,
-          "diff_percent": 18.06134259259259
+          "diff_percent": 25.08318865740741
+        },
+        {
+          "page": 10,
+          "diff_percent": 28.16767939814815
+        },
+        {
+          "page": 11,
+          "diff_percent": 15.11863425925926
         }
       ],
-      "overall_diff_percent": 27.435458461934157,
+      "overall_diff_percent": 25.16874473905723,
       "render_error": null
     },
     {
       "name": "Prose Showcase",
       "file": "prose.html",
-      "typeanvil_pages": 9,
-      "prince_pages": 8,
+      "typeanvil_pages": 10,
+      "prince_pages": 11,
       "page_count_mismatch": true,
       "pages": [
         {
           "page": 1,
-          "diff_percent": 35.066550925925924
+          "diff_percent": 24.816984953703702
         },
         {
           "page": 2,
-          "diff_percent": 32.71050347222222
+          "diff_percent": 23.287760416666668
         },
         {
           "page": 3,
-          "diff_percent": 27.669994212962962
+          "diff_percent": 23.799913194444443
         },
         {
           "page": 4,
-          "diff_percent": 23.81148726851852
+          "diff_percent": 21.40480324074074
         },
         {
           "page": 5,
-          "diff_percent": 28.20746527777778
+          "diff_percent": 22.565827546296298
         },
         {
           "page": 6,
-          "diff_percent": 28.622685185185187
+          "diff_percent": 21.93142361111111
         },
         {
           "page": 7,
-          "diff_percent": 25.17216435185185
+          "diff_percent": 22.35821759259259
         },
         {
           "page": 8,
-          "diff_percent": 24.108796296296298
+          "diff_percent": 22.837818287037038
+        },
+        {
+          "page": 9,
+          "diff_percent": 20.13237847222222
+        },
+        {
+          "page": 10,
+          "diff_percent": 25.982349537037035
         }
       ],
-      "overall_diff_percent": 28.171205873842595,
+      "overall_diff_percent": 22.911747685185183,
       "render_error": null
     },
     {
