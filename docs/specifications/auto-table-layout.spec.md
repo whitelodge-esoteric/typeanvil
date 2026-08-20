@@ -1,0 +1,269 @@
+---
+title: Auto Table Layout — Column-Width Distribution
+slug: /specifications/auto-table-layout
+type: spec
+status: draft
+owner: elijah
+created: 2026-08-20
+updated: 2026-08-20
+sidebar_position: 13
+tags: [layout, tables, css-tables, engine, demo-parity]
+spec_id: auto-table-layout
+issue_id: CORE-81
+applies_to: engine 0.x
+dependencies: [tables-fragmentation, fragmentation-core, paged-media-css]
+---
+
+# Auto Table Layout — Column-Width Distribution
+
+## Overview
+
+The CORE-79 demo triage (2026-08-19) isolated the largest remaining
+table-driven diff: **table-stress at 33.5% (TypeAnvil 20 pages vs Prince
+45)**. The root cause is the column-width distribution in auto table layout.
+TypeAnvil fits 4 data rows/page (row pitch 14.8pt); Prince fits 1–3 (pitch
+31.5pt, ~2.1×) because Prince gives the Description column ~112pt so long
+descriptions wrap to two lines, while TypeAnvil gives it its full
+max-content width (~150pt+) so nothing wraps.
+
+`measure_columns` in `engine/src/table.rs` (from CORE-61) is a
+**max-content-only heuristic**: it measures each column's widest wrapped line
+capped at the available width, and either keeps those widths as-is (when the
+sum fits) or scales them down proportionally. The CSS auto table layout
+algorithm (CSS2.1 §17.5.2.2, refined by css-tables-3 §10.4.2) instead uses a
+**min-content/max-content basis** and distributes the available width in two
+passes. This spec replaces the heuristic with that algorithm.
+
+**Verified ground truth (2026-08-20, Letter, 0.5in margins → 540pt content):**
+
+- Prince table-stress column widths: SKU 68 · Description **112** · On hand
+  148 · Backorder 74 · Unit cost 64 · Value 74 (sum 540, `width: 100%`
+  honored). The 112pt Description column wraps "Earthquake pill (double
+  strength)" (≈145pt) → taller rows → 45 pages.
+- TypeAnvil current: Description ≈ its max-content (~150pt), no wrapping →
+  20 pages.
+- The css-tables-3 two-pass distribution with min-content = longest word and
+  max-content measured at UAX #14 soft break opportunities (the engine's
+  existing `line_break_opportunities`, which splits "Disappearing/reappearing"
+  at the `/`) lands Description at exactly 112pt on this fixture — matching
+  Prince's measured column width.
+- On an unconstrained two-column probe (long text + short number, room to
+  spare), Prince gives the long column its max-content (357pt) and the short
+  column max + a share of extra (33pt) — the `extra ∝ max-content` branch.
+  Measurement method: char-box geometry from both PDFs
+  (`/tmp/col_words.py`), the same technique CORE-79 used.
+
+**Fitness function:** the table-stress corpus fixture page count moves
+materially toward Prince's 45 (from 20), plus the parity probe below, plus
+unit tests in `engine/tests/tables.rs` and the existing engine tests as
+regression guard.
+
+## Goals / Non-Goals
+
+**Goals**
+
+- Intrinsic per-column measurement: **min-content** (widest line when text
+  breaks at every opportunity — the longest word/segment) and **max-content**
+  (widest line at the breaker's soft opportunities), **uncapped** by the
+  available width, over header + body + footer cells, including each cell's
+  horizontal padding and border.
+- Used table width resolution: `width: auto` → `min(avail, sum(max))`; a
+  specified `width` (length or percentage, e.g. `width: 100%`) → that width
+  resolved against the containing block, honored as the distribution target.
+- Two-pass extra-width distribution per css-tables-3 §10.4.2 (first
+  ∝ (max − min) capped at max, remainder ∝ max-content), replacing the
+  single `scale = avail/total` heuristic.
+- Determinism preserved: identical input → identical column widths.
+
+**Non-Goals** (deferred, per wedge scope)
+
+- `table-layout: fixed` — the engine does not read `table-layout`; `fixed`
+  resolves to the auto algorithm (documented limitation, unchanged from
+  CORE-61).
+- Percentage column widths as *per-column* sizing (`<col>`, `th { width: % }`)
+  — only the table's own width percentage is in scope.
+- `rowspan`/`colspan` contributions to column measure — spanned cells occupy
+  their grid slot with no width sharing (unchanged from CORE-61).
+- `border-collapse: separate` + `border-spacing` (defaults: collapse).
+- Table-in-table measure (nested tables stay block-stacked).
+- Tables inside multicol (CORE-78 fixed the hang; width parity there is a
+  later pass).
+
+## Behavior
+
+The engine SHALL implement the following, stated as "shall" rules:
+
+1. **Intrinsic min-content.** For each column, the min-content width SHALL be
+   the maximum over its cells of (the widest line when the cell text breaks
+   at every soft break opportunity — the longest word/segment — plus the
+   cell's horizontal padding and borders). Empty cells SHALL contribute their
+   padding + borders only (CORE-61 rule).
+2. **Intrinsic max-content.** For each column, the max-content width SHALL be
+   the maximum over its cells of (the widest line when the cell text breaks
+   only at the breaker's soft opportunities — `line_break_opportunities`,
+   UAX #14 Allowed/Mandatory — measured with **no cap** from the available
+   width, plus the cell's horizontal padding and borders). Documented
+   deviation: strict CSS max-content ignores soft opportunities; the wedge
+   measure takes them so "Disappearing/reappearing clothes" maxes at the
+   "/"-split width (≈112pt), matching Prince (verified 2026-08-20).
+3. **Uncapped measurement.** The intrinsic measures SHALL NOT clamp to the
+   available width. The existing `measure_text_width` cap (`max_width =
+   avail`) SHALL be removed for the intrinsic pass; the cap applies only to
+   the *used* widths after distribution.
+4. **Used table width.** The used table width SHALL be: the table's specified
+   `width` when it resolves (a length, or a percentage resolved against the
+   containing block width — carried from the cascade, see Interfaces), else
+   `min(avail, sum(max))`. With `width: 100%` the used width is therefore the
+   full content width (540pt on Letter), matching Prince.
+5. **Distribution (css-tables-3 §10.4.2, two passes).** Given `used` and
+   per-column `min`/`max`:
+   - If `used ≤ sum(min)`: each column SHALL take its min-content width (the
+     table overflows the available width, no panic).
+   - If `used ≥ sum(max)`: each column SHALL take its max-content width, and
+     the extra `used − sum(max)` SHALL be distributed ∝ max-content.
+   - Otherwise: assign every column its min-content width, then distribute
+     `used − sum(min)` ∝ (max − min) over unsaturated columns, **capping each
+     at its max-content and re-distributing any surplus among the remaining
+     unsaturated columns**; any extra left after all columns saturate SHALL
+     be distributed ∝ max-content to columns still at min-content (this is
+     the branch that lands Description at 112pt on table-stress).
+6. **Padding/borders inside columns.** Resolved column widths SHALL be the
+   cell content + padding + border box widths (the existing convention);
+   `measure_rows` and the row layout SHALL keep consuming `inner_w =
+   col_w − padding − border` unchanged.
+7. **Determinism.** The algorithm SHALL be pure over (styles, geometry): no
+   HashMap iteration order, no wall clock, no randomness. Identical input →
+   byte-identical widths, and therefore byte-identical PDFs.
+8. **Fallback widths.** A column with zero intrinsic width (all cells empty
+   with no padding/border) SHALL resolve to 0 and SHALL NOT panic; a table
+   whose columns sum below `used` SHALL distribute the difference per rule 5.
+
+## Interfaces
+
+```rust
+// engine/src/table.rs — replaces the current measure_columns body.
+
+/// Resolved per-column widths plus the intrinsic basis (for tests/audit).
+#[derive(Clone, Debug, Default)]
+pub struct ColumnWidths {
+    pub widths: Vec<Scalar>,
+    pub min_widths: Vec<Scalar>,   // intrinsic min-content, uncapped
+    pub max_widths: Vec<Scalar>,   // intrinsic max-content, uncapped
+}
+
+/// Measure each column's intrinsic min/max content width over its cells.
+/// Public for unit tests; no available-width argument — intrinsics are
+/// uncapped.
+pub fn intrinsic_column_widths(
+    dom: &Dom,
+    styles: &[ComputedStyle],
+    table_id: NodeId,
+) -> (Vec<Scalar>, Vec<Scalar>)  // (min_widths, max_widths)
+
+/// Pure css-tables-3 two-pass distribution. Unit-testable with hand-built
+/// min/max vectors.
+pub fn distribute_column_widths(min_widths: &[Scalar], max_widths: &[Scalar], used_width: Scalar) -> Vec<Scalar>
+
+/// Entry point: intrinsics + used-width resolution + distribution.
+pub fn measure_columns(
+    dom: &Dom,
+    styles: &[ComputedStyle],
+    table_id: NodeId,
+    avail_width: Scalar,
+    used_width: Option<Scalar>,   // resolved table width; None = auto
+) -> ColumnWidths
+```
+
+```rust
+// engine/src/css.rs — ComputedStyle gains the raw percentage so table layout
+// can resolve width: 100% against the containing block (the cascade drops
+// percentages today; verified 2026-08-20, src/css.rs:603).
+pub width_percent: Option<f64>,   // 0..=100, Some only when width is a %
+```
+
+```rust
+// engine/src/layout.rs — layout_table_block / collect_table_state compute the
+// used width once:
+//   used = styles[table].width
+//        .or_else(|| styles[table].width_percent.map(|p| avail * p / 100.0))
+//        .unwrap_or_else(|| min(avail, sum(max)))   // auto branch
+// and pass it to measure_columns.
+```
+
+## Acceptance Criteria
+
+Each maps to a real test in `engine/tests/tables.rs` (new) or the demo
+pipeline:
+
+1. **Intrinsic min/max uncapped** — Given a cell "Disappearing/reappearing
+   clothes", when measured, then min-content = widest word (≈ "reappearing"),
+   max-content = the "/"-split line width (≈112pt), and neither equals the
+   available width (`test_intrinsic_min_max_uncapped`).
+2. **Distribution: room to spare** — Given min/max vectors whose sum(max) ≤
+   used, when distributed, then each column = max + extra ∝ max
+   (`test_distribute_extra_proportional_max`).
+3. **Distribution: constrained** — Given min/max vectors with
+   sum(min) < used < sum(max), when distributed, then each column =
+   min + (max−min) share, capped at max, surplus redistributed
+   (`test_distribute_middle_branch_caps_and_redistributes`).
+4. **Distribution: overflow** — Given sum(min) > used, when distributed, then
+   columns keep min widths and the sum overflows used without panic
+   (`test_distribute_overflow_keeps_min`).
+5. **Used width resolution** — Given the same 6-column table with
+   `width: auto` vs `width: 100%` vs `width: 400pt`, when rendered, then the
+   used widths differ as specified (`test_table_used_width_resolution`).
+6. **Description column wraps (the CORE-79 lever)** — Given a 6-column table
+   shaped like table-stress (SKU / long Description / 4 numeric) with
+   `width: 100%` at 540pt, when measured, then the Description column ≈
+   112pt (Prince-verified constant) and the long descriptions wrap to 2 lines
+   (`test_table_stress_description_column_wraps`).
+7. **Table-stress page-count movement** — Given `demo/corpus/table-stress.html`
+   rendered through the engine, when the page count is measured, then it is
+   ≥ 30 (from 20) and converging toward Prince's 45
+   (`test_table_stress_page_count_grows`).
+8. **Two-column probe parity** — Given the two-column probe fixture (long
+   text + short numeric, fixed table width that forces the long cell to
+   wrap), when rendered, then the long column's used width equals the
+   Prince-verified constant within ±2% (wrapped vs unwrapped cell geometry
+   compared in both PDFs during the demo pass) (`test_two_column_probe_width`).
+9. **Regression** — Given the existing engine tests (incl. the 36 CORE-61
+   baseline), when the change lands, then all stay green; the demo scoreboard
+   regenerates and table-stress diff drops from 33.5%.
+
+## Edge Cases
+
+- Table with no rows / zero columns: empty `ColumnWidths`, no panic.
+- Single-column table: column = used width (auto → min(avail, max)).
+- A row whose cells' intrinsic widths exceed `used`: columns stay at min
+  (rule 5 overflow branch), cells overflow horizontally like today, no panic.
+- `width: 100%` inside a narrow fragmentainer: used = the fragmentainer's
+  content width, not the page width (fragmentainer-aware).
+- A table with only a header (no body): header cells drive the intrinsics.
+- Cells with `white-space: nowrap` or long unbreakable tokens: min-content
+  grows accordingly (already handled by the breaker).
+- Nested tables: unchanged (block-stacked per CORE-61).
+- Table inside multicol (CORE-78 regression guard): widths measured against
+  the column content width; the termination fix must not regress.
+
+## Verification
+
+1. `cargo build` clean, `cargo test` all green (existing + new tables tests).
+2. `python3 scripts/validate_docs.py` OK (this spec + updated specs).
+3. Probe parity: render the two-column probe and table-stress with both
+   engines; compare column boundaries and wrapped/unwrapped cell geometry via
+   char-box extraction (`.venv/bin/python /tmp/col_words.py <pdf>`) — the
+   technique that produced the ground truth above.
+4. `demo/out/scoreboard.json` regenerated; table-stress `typeanvil_pages`
+   moves 20 → ≥ 30 and the overall diff drops below 33.5%.
+5. Close the loop in Linear (CORE-81) with What-was-built / Verification /
+   Next pass; commit messages reference CORE-81.
+
+## References
+
+- CORE-79 second demo triage (parent issue; measurement evidence).
+- CORE-61 `tables-fragmentation` spec (the feature this replaces the
+  column-measure part of; §Behavior #3).
+- css-tables-3 §10.4.2 (extra-width distribution), CSS2.1 §17.5.2.2 (auto
+  table layout).
+- Prince ground truth: `/tmp/ts-prince.pdf`, `/tmp/probe-2col-prince.pdf`,
+  `/tmp/col_words.py` (char-box word dumps, 2026-08-20).
