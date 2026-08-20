@@ -315,12 +315,14 @@ fn parse_one_page_rule(prelude: &str, body: &str, order: u32) -> Option<PageRule
     };
 
     // Walk the body, extracting flat `prop: value;` declarations and nested
-    // `@margin-box { ... }` sub-rules.
-    let bytes = body.as_bytes();
+    // `@margin-box { ... }` sub-rules. Char-safe iteration (CORE-83): a
+    // byte-wise loop would slice `body` mid-codepoint and mangle any
+    // multi-byte UTF-8 in the declarations.
     let mut i = 0;
     let mut decl = String::new();
-    while i < bytes.len() {
-        let c = bytes[i] as char;
+    let mut char_iter = body.char_indices();
+    while let Some((ci, c)) = char_iter.next() {
+        i = ci;
         if c == '@' {
             // A margin-box sub-rule. Read its keyword up to '{'.
             let Some(brace_rel) = body[i..].find('{') else {
@@ -338,7 +340,14 @@ fn parse_one_page_rule(prelude: &str, body: &str, order: u32) -> Option<PageRule
                 }
             }
             decl.clear();
-            i = end + 1;
+            // Skip past the sub-rule body (the char iterator is at `ci`, so
+            // advance it to just past `end`).
+            while let Some((nci, _)) = char_iter.next() {
+                if nci >= end {
+                    break;
+                }
+                let _ = nci;
+            }
             continue;
         }
         if c == ';' {
@@ -347,7 +356,6 @@ fn parse_one_page_rule(prelude: &str, body: &str, order: u32) -> Option<PageRule
         } else {
             decl.push(c);
         }
-        i += 1;
     }
     apply_page_decl(&mut rule, &decl);
 
@@ -672,20 +680,24 @@ fn pseudo_matches(pseudo: PagePseudo, global_index: usize) -> bool {
 // --- shared parsing helpers ------------------------------------------------
 
 /// Strip `/* ... */` comments (mirrors `css::breaks::strip_comments`).
+/// Char-safe: iterates code points, never raw bytes (CORE-83 — a byte-wise
+/// loop turned every multi-byte UTF-8 char in the stylesheet into Latin-1
+/// mojibake before margin-box content was parsed).
 fn strip_comments(css: &str) -> String {
     let mut out = String::with_capacity(css.len());
-    let bytes = css.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if i + 1 < bytes.len() && bytes[i] == b'/' && bytes[i + 1] == b'*' {
-            i += 2;
-            while i + 1 < bytes.len() && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
-                i += 1;
+    let mut rest = css;
+    while !rest.is_empty() {
+        if rest.starts_with("/*") {
+            match rest.find("*/") {
+                Some(end) => rest = &rest[end + 2..],
+                // Unterminated comment: drop the remainder (matches the
+                // byte-wise loop, which ran off the end of the buffer).
+                None => break,
             }
-            i += 2;
         } else {
-            out.push(bytes[i] as char);
-            i += 1;
+            let ch = rest.chars().next().expect("non-empty rest");
+            out.push(ch);
+            rest = &rest[ch.len_utf8()..];
         }
     }
     out
