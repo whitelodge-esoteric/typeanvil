@@ -562,7 +562,8 @@ impl<'a> Ctx<'a> {
                         if !fits && !last_resort {
                             break;
                         }
-                        let baseline = y + style.font_size;
+                        let face = crate::fonts::face_for(style.font_weight, style.font_style);
+                        let baseline = y + crate::typography::baseline_offset(style.font_size, lh, face);
                         let lr = &lines[li];
                         let lx = self.aligned_x(x, col_w, lr.drawn_width(), style);
                         let run = TextRun {
