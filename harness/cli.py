@@ -147,7 +147,7 @@ def build_parser() -> argparse.ArgumentParser:
     pr.add_argument("--cli-cmd", default=None, help="command for --engine cli")
     pr.add_argument("--filter", default=None, help="substring filter on test id")
     pr.add_argument("--limit", type=int, default=None, help="max tests to run")
-    pr.add_argument("--workers", type=int, default=4, help="parallel worker processes")
+    pr.add_argument("--workers", type=int, default=2, help="parallel worker processes")
     pr.add_argument("--timeout", type=float, default=30.0, help="per-render timeout (s)")
     pr.add_argument("--report", default="wptreport.json", help="wptreport output path")
     pr.add_argument("--db", default=str(report.DEFAULT_DB), help="history SQLite path")
