@@ -46,6 +46,13 @@ deviation is scoped to fragmented tables only — the same spirit as the
 CORE-81 UAX#14 glue note. The engine shall NOT apply the freeze to
 single-fragmentainer tables.
 
+**Measured result (2026-08-20, CORE-89 landed):** table-stress moves
+21 → **42 pages** (Prince: 45) at the demo geometry; the Description column
+freezes at the header's own width (the 112pt "Disappearing/reappearing" token
+in row 34 never enters the measure). Overall diff on the corpus drops
+33.07% → 29.06%. The constrained two-column probe stays within ±2% of Prince
+(295pt), and the css-break table WPT subset does not regress.
+
 **Fitness function:** table-stress `typeanvil_pages` ≥ 40 (from 21; Prince
 45), the two-column probe still within ±2% of Prince, the css-break table WPT
 subset does not regress, and the full existing tables suite stays green.
