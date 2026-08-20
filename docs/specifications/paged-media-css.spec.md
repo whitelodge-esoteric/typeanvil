@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-16
-updated: 2026-08-19
+updated: 2026-08-20
 sidebar_position: 3
 tags: [css, paged-media, page, layout, engine]
 spec_id: paged-media-css
@@ -126,7 +126,9 @@ The engine shall:
 6. **Render margin-box content**: `content` values of literal text,
    `string(name)`, `counter(page)`, and `counter(<name>)` are resolved at
    fragmentainer build time; each margin box is one line, no wrapping,
-   deterministically clipped if it overflows its box.
+   deterministically clipped if it overflows its box. Literal non-ASCII
+   (em dash, curly quotes, `·`) is shaped like body text — a real glyph
+   with a ToUnicode mapping, never raw UTF-8 bytes as Latin-1 (CORE-83).
 7. **Thread running strings**: `string-set: <name> content()` on an element
    assigns the element's text content to the named string; the value in effect
    for a page is the last assignment encountered in that page's document-order
@@ -297,8 +299,14 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
 13. **Regression: fragmentation intact** — the existing fragmentation tests
     (forced break, orphans/widows, avoid, monolithic, 1,000-page linear) still
     pass unchanged.
-14. **Self-check** — the spec file itself passes `scripts/validate_docs.py`.
-15. **Named-page margin-box suppression** — Given `@page { @top-left { content:
+ 14. **Margin-box non-ASCII** — Given `@top-center { content: "Northwind — ·
+     2026"; }` (and a header with a middle dot), when rendered, then the
+     header extracts as the correct em dash and middle dot (raster + text
+     extraction), no `â□□` mojibake
+     (`tounicode.rs::margin_box_runs_are_shaped`,
+     `tounicode.rs::margin_box_tounicode_map`).
+15. **Self-check** — the spec file itself passes `scripts/validate_docs.py`.
+16. **Named-page margin-box suppression** — Given `@page { @top-left { content:
     "HDR"; } }`, `@page cover { @top-left { content: none; } }`, a cover box
     with `page: cover; break-after: page;`, and a following box with
     `page: auto`, when rendered, then the cover page carries no "HDR" text and

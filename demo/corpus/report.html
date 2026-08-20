@@ -7,9 +7,9 @@
   /* Geometry via CLI flags only (demo spec). Margins + margin boxes OK. */
   @page {
     margin: 0.5in;
-    @top-left { content: string(chapter); }
-    @top-right { content: "Northwind Systems — Q3 2026"; }
-    @bottom-center { content: counter(page); }
+    @top-left { content: string(chapter); font-family: Arial, Helvetica, sans-serif; font-size: 10pt; }
+    @top-right { content: "Northwind Systems — Q3 2026"; font-family: Arial, Helvetica, sans-serif; font-size: 10pt; }
+    @bottom-center { content: counter(page); font-family: Arial, Helvetica, sans-serif; font-size: 10pt; }
   }
   body { font-family: Arial, Helvetica, "Liberation Sans", sans-serif; font-size: 10pt; color: #222; line-height: 1.2; }
   h1 { color: #1d3557; font-size: 16pt; string-set: chapter content(); margin: 0 0 4pt 0; }

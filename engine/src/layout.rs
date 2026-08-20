@@ -619,14 +619,19 @@ impl<'a> Ctx<'a> {
             if y + lh <= bottom_limit || !placed {
                 let text = self.resolve_content(id, &style.content, inner_width, style, flow);
                 let baseline = y + style.font_size;
+                let face = crate::fonts::face_for(style.font_weight, style.font_style);
+                // Shape the resolved content so non-ASCII (em dash, curly
+                // quotes, ·) renders as a real glyph with a ToUnicode mapping
+                // — never raw UTF-8 bytes (CORE-83). Generated content is one
+                // line; no microtypography.
+                let shaped = crate::typography::shape_word(&text, style.font_size, face);
                 let run = TextRun {
-                    text,
+                    text: shaped.text,
                     baseline: Point::new(inner_left, baseline),
                     font_size: style.font_size,
                     color: style.color,
-                    font_face: crate::fonts::face_for(style.font_weight, style.font_style),
-                    // Simple text path: no shaping, no microtypography.
-                    glyphs: Vec::new(),
+                    font_face: face,
+                    glyphs: shaped.glyphs,
                     expansion: 0.0,
                     protrude_left: Scalar::ZERO,
                     protrude_right: Scalar::ZERO,
@@ -1959,8 +1964,8 @@ impl<'a> Ctx<'a> {
     /// (real shaped widths, glue, hyphenation, justification). The `hyphens`
     /// and `text-align` computed values reach layout here: `hyphens: auto`
     /// enables Liang hyphenation, `text-align: justify` distributes glue on
-    /// non-final lines. Generated content (TOC, margin boxes) keeps the
-    /// simple single-line path and does not go through this.
+    /// non-final lines. Generated content (TOC, margin boxes) does not go
+    /// through this — it is shaped single-line via `shape_word` (CORE-83).
     fn break_paragraph(&self, text: &str, max_width: Scalar, style: &ComputedStyle) -> Vec<LineResult> {
         let hyphenate = style.hyphens == Hyphens::Auto;
         let justify = style.text_align == TextAlign::Justify;
@@ -2289,22 +2294,26 @@ fn attach_margin_boxes(
         if text.is_empty() {
             continue;
         }
+        let face = crate::fonts::FontFace::Regular;
+        // Shape the resolved content so non-ASCII (em dash, curly quotes, ·)
+        // renders as a real glyph with a ToUnicode mapping — never raw UTF-8
+        // bytes (CORE-83). Margin boxes are one line; no microtypography.
+        let shaped = crate::typography::shape_word(&text, font_size, face);
         let (slot_x, slot_w, slot_y) = margin_box_slot(*name, geo, &content, lh);
-        let text_w = text.chars().count() as f64 * font_size.get() * AVG_ADVANCE_EM;
+        let text_w = shaped.width;
         let x = match name.align() {
             MarginAlign::Start => slot_x,
-            MarginAlign::Center => slot_x + Scalar((slot_w.get() - text_w).max(0.0) * 0.5),
-            MarginAlign::End => slot_x + Scalar((slot_w.get() - text_w).max(0.0)),
+            MarginAlign::Center => slot_x + Scalar((slot_w.get() - text_w.get()).max(0.0) * 0.5),
+            MarginAlign::End => slot_x + Scalar((slot_w.get() - text_w.get()).max(0.0)),
         };
         let baseline = slot_y + font_size;
         let run = TextRun {
-            text,
+            text: shaped.text,
             baseline: Point::new(x, baseline),
             font_size,
             color: crate::css::Color::BLACK,
-            font_face: crate::fonts::FontFace::Regular,
-            // Simple text path: margin boxes are one line, no shaping.
-            glyphs: Vec::new(),
+            font_face: face,
+            glyphs: shaped.glyphs,
             expansion: 0.0,
             protrude_left: Scalar::ZERO,
             protrude_right: Scalar::ZERO,
