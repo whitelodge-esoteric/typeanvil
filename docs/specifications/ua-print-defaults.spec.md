@@ -88,7 +88,12 @@ The engine SHALL implement the following, stated as "shall" rules:
    first in-flow box's top margin, and a multicol container that is itself
    first-in-flow on the page SHALL truncate its own top margin.
 7. **Body margin stays zero.** CORE-92's `body { margin: 0 }` SHALL remain.
-8. **Comment hygiene.** `UA_CSS` SHALL use `/* */` block comments only.
+8. **Bold table headers.** `UA_CSS` SHALL declare `th { font-weight: bold }`
+   (Prince 16.2 `html.css` line 482; browsers' UA sheets use `bolder`).
+   Without it, header cells measure ~10% narrower than Prince's, the frozen
+   header column lands ~0.4pt too narrow, and borderline rows ("Rocket-powered
+   …") wrap to an extra line — the table-stress 43→45 page lever (CORE-96).
+9. **Comment hygiene.** `UA_CSS` SHALL use `/* */` block comments only.
    `//` line comments are not valid CSS and can poison stylo's rule stream
    for every rule that follows (hit on this ticket).
 

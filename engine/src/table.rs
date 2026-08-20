@@ -47,6 +47,21 @@ pub fn table_used_width(
         .or_else(|| s.width_percent.map(|p| avail_width * p))
 }
 
+/// The column span of a table cell (the HTML `colspan` attribute; default 1,
+/// clamped to ≥ 1). CORE-96: spanned cells contribute their intrinsic to every
+/// spanned column (equal share) and occupy every spanned slot in layout.
+/// `rowspan` is NOT supported (auto-table-layout spec Non-Goals).
+pub fn cell_colspan(dom: &Dom, cell: NodeId) -> usize {
+    match &dom.nodes[cell].kind {
+        NodeKind::Element(el) => el
+            .attr("colspan")
+            .and_then(|v| v.trim().parse::<usize>().ok())
+            .filter(|n| *n >= 1)
+            .unwrap_or(1),
+        _ => 1,
+    }
+}
+
 /// Measure each column's intrinsic min/max content width over its scoped
 /// cells. Public for unit tests; no available-width argument — intrinsics
 /// are uncapped.
@@ -62,7 +77,12 @@ pub fn intrinsic_column_widths(
     let rows = scoped_table_rows(dom, styles, table_id, &scope);
     let column_count = rows
         .iter()
-        .map(|r| collect_cells(dom, styles, *r).len())
+        .map(|r| {
+            collect_cells(dom, styles, *r)
+                .iter()
+                .map(|c| cell_colspan(dom, *c))
+                .sum()
+        })
         .max()
         .unwrap_or(0);
     if column_count == 0 {
@@ -72,18 +92,33 @@ pub fn intrinsic_column_widths(
     let mut max_widths = vec![Scalar::ZERO; column_count];
     for row in rows {
         let cells = collect_cells(dom, styles, row);
-        for (col, cell) in cells.iter().enumerate() {
-            let style = &styles[*cell];
-            let text = dom.text_content(*cell);
+        let mut col = 0usize;
+        for cell in cells {
+            let span = cell_colspan(dom, cell);
+            let style = &styles[cell];
+            let text = dom.text_content(cell);
             let (cell_min, cell_max) = measure_intrinsics(&text, style);
             let cell_min = cell_min + style.padding_left + style.padding_right;
             let cell_max = cell_max + style.padding_left + style.padding_right;
-            if cell_min.get() > min_widths[col].get() {
-                min_widths[col] = cell_min;
+            // CORE-96: a spanning cell contributes an EQUAL SHARE of its
+            // intrinsic to each spanned column (css-tables-3 §10.4.3
+            // simplification, Prince-matching: the tfoot's colspan=4 total
+            // no longer inflates a single column to its whole-text width).
+            let share_min = Scalar(cell_min.get() / span as f64);
+            let share_max = Scalar(cell_max.get() / span as f64);
+            for j in 0..span {
+                let target = col + j;
+                if target >= min_widths.len() {
+                    break;
+                }
+                if share_min.get() > min_widths[target].get() {
+                    min_widths[target] = share_min;
+                }
+                if share_max.get() > max_widths[target].get() {
+                    max_widths[target] = share_max;
+                }
             }
-            if cell_max.get() > max_widths[col].get() {
-                max_widths[col] = cell_max;
-            }
+            col += span;
         }
     }
     (min_widths, max_widths)
@@ -365,22 +400,33 @@ pub fn measure_rows(
         let cells = collect_cells(dom, styles, row);
         let mut heights = Vec::with_capacity(cells.len());
         let mut row_h = Scalar::ZERO;
-        for (col, cell) in cells.iter().enumerate() {
-            let style = &styles[*cell];
-            let col_w = column_widths
-                .widths
-                .get(col)
-                .copied()
-                .unwrap_or(Scalar::ZERO);
+        let mut col = 0usize;
+        for cell in cells {
+            let span = cell_colspan(dom, cell);
+            let style = &styles[cell];
+            let mut col_w = Scalar::ZERO;
+            for j in 0..span {
+                col_w = col_w
+                    + column_widths
+                        .widths
+                        .get(col + j)
+                        .copied()
+                        .unwrap_or(Scalar::ZERO);
+            }
             let inner_w = col_w - style.padding_left - style.padding_right;
             let inner_w = if inner_w.get() < 0.0 { Scalar::ZERO } else { inner_w };
-            let text = dom.text_content(*cell);
+            let text = dom.text_content(cell);
             let content_h = measure_text_height(&text, style, inner_w);
-            let total_h = content_h + style.padding_top + style.padding_bottom;
+            // CORE-96: a row's height includes its collapsed row-start border
+            // (border-collapse: collapse — the row-start border is drawn on
+            // the fragment that starts the row, spec rule 9, and Prince
+            // accounts for it: measured 26.1 vs 25.6 for a 2-line row).
+            let total_h = content_h + style.padding_top + style.padding_bottom + style.border_top;
             heights.push(total_h);
             if total_h.get() > row_h.get() {
                 row_h = total_h;
             }
+            col += span;
         }
         row_heights.push(row_h);
         cell_heights.push(heights);
