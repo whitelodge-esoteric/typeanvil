@@ -42,11 +42,11 @@ passes. This spec replaces the heuristic with that algorithm.
   strength)" (≈145pt) → taller rows → 45 pages.
 - TypeAnvil current: Description ≈ its max-content (~150pt), no wrapping →
   20 pages.
-- The css-tables-3 two-pass distribution with min-content = longest word and
-  max-content measured at UAX #14 soft break opportunities (the engine's
-  existing `line_break_opportunities`, which splits "Disappearing/reappearing"
-  at the `/`) lands Description at exactly 112pt on this fixture — matching
-  Prince's measured column width.
+- The css-tables-3 two-pass distribution with min-content = widest
+  whitespace-delimited word (so "Disappearing/reappearing" — one glued token
+  at ≈112pt — drives the Description column) and strict uncapped max-content
+  lands the Description column at ≈112pt on this fixture — matching Prince's
+  measured column width.
 - On an unconstrained two-column probe (long text + short number, room to
   spare), Prince gives the long column its max-content (357pt) and the short
   column max + a share of extra (33pt) — the `extra ∝ max-content` branch.
@@ -94,18 +94,20 @@ regression guard.
 The engine SHALL implement the following, stated as "shall" rules:
 
 1. **Intrinsic min-content.** For each column, the min-content width SHALL be
-   the maximum over its cells of (the widest line when the cell text breaks
-   at every soft break opportunity — the longest word/segment — plus the
-   cell's horizontal padding and borders). Empty cells SHALL contribute their
-   padding + borders only (CORE-61 rule).
+   the maximum over its cells of (the widest **whitespace-delimited word**)
+   plus the cell's horizontal padding and borders. This deliberately does
+   NOT take UAX #14 soft break opportunities inside words: `/` (class SY) and
+   hyphens stay glued, so "Disappearing/reappearing clothes" min-content is
+   the width of "Disappearing/reappearing" (≈112pt at 9pt Arial) — the
+   measured width of Prince's Description column on table-stress (verified
+   2026-08-20). Empty cells SHALL contribute their padding + borders only
+   (CORE-61 rule).
 2. **Intrinsic max-content.** For each column, the max-content width SHALL be
-   the maximum over its cells of (the widest line when the cell text breaks
-   only at the breaker's soft opportunities — `line_break_opportunities`,
-   UAX #14 Allowed/Mandatory — measured with **no cap** from the available
-   width, plus the cell's horizontal padding and borders). Documented
-   deviation: strict CSS max-content ignores soft opportunities; the wedge
-   measure takes them so "Disappearing/reappearing clothes" maxes at the
-   "/"-split width (≈112pt), matching Prince (verified 2026-08-20).
+   the maximum over its cells of (the widest line when the cell text takes
+   **no soft breaks** — the whole text on one line, split only at mandatory
+   breaks — plus the cell's horizontal padding and borders), measured with
+   **no cap** from the available width. (Strict CSS max-content; verified
+   2026-08-20.)
 3. **Uncapped measurement.** The intrinsic measures SHALL NOT clamp to the
    available width. The existing `measure_text_width` cap (`max_width =
    avail`) SHALL be removed for the intrinsic pass; the cap applies only to
@@ -196,9 +198,10 @@ Each maps to a real test in `engine/tests/tables.rs` (new) or the demo
 pipeline:
 
 1. **Intrinsic min/max uncapped** — Given a cell "Disappearing/reappearing
-   clothes", when measured, then min-content = widest word (≈ "reappearing"),
-   max-content = the "/"-split line width (≈112pt), and neither equals the
-   available width (`test_intrinsic_min_max_uncapped`).
+   clothes", when measured, then min-content = the width of the word
+   "Disappearing/reappearing" (≈112pt), max-content = the whole-text width
+   (≈145pt), and neither equals the available width
+   (`test_intrinsic_min_max_uncapped`).
 2. **Distribution: room to spare** — Given min/max vectors whose sum(max) ≤
    used, when distributed, then each column = max + extra ∝ max
    (`test_distribute_extra_proportional_max`).
