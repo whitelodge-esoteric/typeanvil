@@ -1,4 +1,5 @@
-//! Table layout helpers (CORE-61 tables × page breaks).
+//! Table layout helpers (CORE-61 tables × page breaks; CORE-89 first-page
+//! column freeze).
 //!
 //! Pure helpers: measure column widths, build row geometry, and map
 //! display roles to table-family depth for anonymous-box wrapping.
@@ -19,6 +20,18 @@ pub struct ColumnWidths {
     pub max_widths: Vec<Scalar>,
 }
 
+/// Which rows contribute to the intrinsic measure (CORE-89 first-page freeze).
+///
+/// Spec: table-first-page-column-freeze §Behavior #1–#3.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MeasureScope {
+    /// Header + every body row + footer (CORE-81 behavior; single-
+    /// fragmentainer tables, and pass 1 of the freeze resolution).
+    All,
+    /// Header + the first `body_rows` body rows + footer (frozen scope).
+    FirstPage { body_rows: usize },
+}
+
 /// Resolve a table's used width: the specified `width` (a length, or a
 /// percentage of the containing block) when present, else `None` (auto —
 /// resolved inside [`measure_columns`]).
@@ -34,17 +47,19 @@ pub fn table_used_width(
         .or_else(|| s.width_percent.map(|p| avail_width * p))
 }
 
-/// Measure each column's intrinsic min/max content width over its cells.
-/// Public for unit tests; no available-width argument — intrinsics are
-/// uncapped.
+/// Measure each column's intrinsic min/max content width over its scoped
+/// cells. Public for unit tests; no available-width argument — intrinsics
+/// are uncapped.
 ///
-/// Spec: auto-table-layout §Behavior #1–#3.
+/// Spec: auto-table-layout §Behavior #1–#3; table-first-page-column-freeze
+/// §Behavior #1 (scope).
 pub fn intrinsic_column_widths(
     dom: &Dom,
     styles: &[ComputedStyle],
     table_id: NodeId,
+    scope: MeasureScope,
 ) -> (Vec<Scalar>, Vec<Scalar>) {
-    let rows = table_rows(dom, styles, table_id);
+    let rows = scoped_table_rows(dom, styles, table_id, &scope);
     let column_count = rows
         .iter()
         .map(|r| collect_cells(dom, styles, *r).len())
@@ -74,15 +89,43 @@ pub fn intrinsic_column_widths(
     (min_widths, max_widths)
 }
 
-/// The rows of a table in document order: header groups, then body groups,
-/// then footer groups (matching the old `measure_columns` iteration).
-fn table_rows(dom: &Dom, styles: &[ComputedStyle], table_id: NodeId) -> Vec<NodeId> {
+/// The rows of a table restricted to a [`MeasureScope`] (CORE-89).
+///
+/// `All` returns every row. `FirstPage { body_rows: k }` returns the header
+/// rows, the first `k` body rows, and the footer rows — the rows whose top
+/// edge lies in the table's first fragmentainer (footer is included in the
+/// measure per spec §Behavior #1 even though it sits at the table's end).
+fn scoped_table_rows(
+    dom: &Dom,
+    styles: &[ComputedStyle],
+    table_id: NodeId,
+    scope: &MeasureScope,
+) -> Vec<NodeId> {
     let (header, body, footer) = collect_table_groups(dom, styles, table_id);
-    let mut rows: Vec<NodeId> = Vec::new();
-    rows.extend(header.iter().flat_map(|g| collect_rows(dom, styles, *g)));
-    rows.extend(body.iter().flat_map(|g| collect_rows(dom, styles, *g)));
-    rows.extend(footer.iter().flat_map(|g| collect_rows(dom, styles, *g)));
-    rows
+    let header_rows: Vec<NodeId> = header.iter().flat_map(|g| collect_rows(dom, styles, *g)).collect();
+    let mut body_rows: Vec<NodeId> = body.iter().flat_map(|g| collect_rows(dom, styles, *g)).collect();
+    let footer_rows: Vec<NodeId> = footer.iter().flat_map(|g| collect_rows(dom, styles, *g)).collect();
+    match scope {
+        MeasureScope::All => {
+            let mut rows = header_rows;
+            rows.extend(body_rows);
+            rows.extend(footer_rows);
+            rows
+        }
+        MeasureScope::FirstPage { body_rows: k } => {
+            body_rows.truncate(*k);
+            let mut rows = header_rows;
+            rows.extend(body_rows);
+            rows.extend(footer_rows);
+            rows
+        }
+    }
+}
+
+/// The body rows of a table in document order (used by the freeze resolver).
+fn body_rows(dom: &Dom, styles: &[ComputedStyle], table_id: NodeId) -> Vec<NodeId> {
+    let (_, body, _) = collect_table_groups(dom, styles, table_id);
+    body.iter().flat_map(|g| collect_rows(dom, styles, *g)).collect()
 }
 
 /// Intrinsic min/max content width of one cell's text, uncapped.
@@ -169,7 +212,22 @@ pub fn measure_columns(
     avail_width: Scalar,
     used_width: Option<Scalar>,
 ) -> ColumnWidths {
-    let (min_widths, max_widths) = intrinsic_column_widths(dom, styles, table_id);
+    measure_columns_scoped(dom, styles, table_id, avail_width, used_width, MeasureScope::All)
+}
+
+/// [`measure_columns`] with an explicit measure scope (CORE-89).
+///
+/// Spec: table-first-page-column-freeze §Behavior #5 (distribution unchanged;
+/// only the measure set differs).
+pub fn measure_columns_scoped(
+    dom: &Dom,
+    styles: &[ComputedStyle],
+    table_id: NodeId,
+    avail_width: Scalar,
+    used_width: Option<Scalar>,
+    scope: MeasureScope,
+) -> ColumnWidths {
+    let (min_widths, max_widths) = intrinsic_column_widths(dom, styles, table_id, scope);
     if min_widths.is_empty() {
         return ColumnWidths {
             widths: Vec::new(),
@@ -196,6 +254,85 @@ pub fn measure_columns(
         min_widths,
         max_widths,
     }
+}
+
+/// Resolve the frozen measure scope at the table's first layout (CORE-89).
+///
+/// Bounded fixed point over the first fragmentainer, spec
+/// table-first-page-column-freeze §Behavior #3: pass 1 measures with scope
+/// `All`, distributes, and counts the body rows whose top edge lies within
+/// `first_fragmentainer_height`; subsequent passes re-measure with
+/// `FirstPage { body_rows: k }` and re-count until `k` stabilizes. Hard cap 3
+/// passes; on the cap the last computed scope freezes. Returns `All` when the
+/// whole table fits one fragmentainer (spec §Behavior #2 — the no-op guard).
+///
+/// Pure over (dom, styles, geometry): identical input → identical scope →
+/// identical frozen widths on every fragmentainer.
+pub fn resolve_freeze_scope(
+    dom: &Dom,
+    styles: &[ComputedStyle],
+    table_id: NodeId,
+    avail_width: Scalar,
+    used_width: Option<Scalar>,
+    first_fragmentainer_height: Scalar,
+) -> MeasureScope {
+    let body = body_rows(dom, styles, table_id);
+    if body.is_empty() {
+        return MeasureScope::All;
+    }
+    let mut scope = MeasureScope::All;
+    for _ in 0..3 {
+        let columns = measure_columns_scoped(dom, styles, table_id, avail_width, used_width, scope.clone());
+        let k = count_first_page_rows(dom, styles, table_id, &columns, avail_width, first_fragmentainer_height);
+        if k >= body.len() {
+            return MeasureScope::All;
+        }
+        let next = MeasureScope::FirstPage { body_rows: k };
+        if next == scope {
+            return scope;
+        }
+        scope = next;
+    }
+    scope
+}
+
+/// Count the body rows whose top edge lies within the first fragmentainer's
+/// content area, given resolved column widths (spec §Behavior #1).
+///
+/// Walks header rows (consuming their heights), then body rows: a body row is
+/// counted while its top edge (the running y after prior rows) is strictly
+/// inside the content area — a row whose top is at or past the bottom edge is
+/// NOT counted. A straddling row (top inside, bottom past) IS counted.
+fn count_first_page_rows(
+    dom: &Dom,
+    styles: &[ComputedStyle],
+    table_id: NodeId,
+    columns: &ColumnWidths,
+    avail_width: Scalar,
+    first_fragmentainer_height: Scalar,
+) -> usize {
+    let (header, body, _footer) = collect_table_groups(dom, styles, table_id);
+    let header_rows: Vec<NodeId> = header.iter().flat_map(|g| collect_rows(dom, styles, *g)).collect();
+    let mut body_rows: Vec<NodeId> = body.iter().flat_map(|g| collect_rows(dom, styles, *g)).collect();
+    if body_rows.is_empty() {
+        return 0;
+    }
+    // Header heights consume the top of the fragmentainer.
+    let (header_heights, _) = measure_rows(dom, styles, &header_rows, columns, avail_width);
+    let mut y: f64 = header_heights.iter().map(|h| h.get()).sum();
+    let height = first_fragmentainer_height.get();
+    let mut k = 0usize;
+    while let Some(row) = body_rows.first().copied() {
+        body_rows.remove(0);
+        let (heights, _) = measure_rows(dom, styles, &[row], columns, avail_width);
+        let row_h = heights.first().copied().unwrap_or(Scalar::ZERO).get();
+        if y >= height {
+            break;
+        }
+        k += 1;
+        y += row_h;
+    }
+    k
 }
 
 /// Table-family depth for anonymous table box wrapping.

@@ -1235,6 +1235,7 @@ impl<'a> Ctx<'a> {
                 flow,
             ),
             Display::TableRowGroup | Display::TableHeaderGroup | Display::TableFooterGroup => {
+                let columns = self.frozen_table_columns(id, avail_width);
                 self.layout_table_group(
                     id,
                     origin_x,
@@ -1244,18 +1245,23 @@ impl<'a> Ctx<'a> {
                     page_has_content,
                     token,
                     flow,
+                    &columns,
                 )
             }
-            Display::TableRow => self.layout_table_row(
-                id,
-                origin_x,
-                avail_width,
-                top,
-                bottom_limit,
-                page_has_content,
-                token,
-                flow,
-            ),
+            Display::TableRow => {
+                let columns = self.frozen_table_columns(id, avail_width);
+                self.layout_table_row(
+                    id,
+                    origin_x,
+                    avail_width,
+                    top,
+                    bottom_limit,
+                    page_has_content,
+                    token,
+                    flow,
+                    &columns,
+                )
+            }
             Display::TableCell => self.layout_table_cell(
                 id,
                 origin_x,
@@ -1277,6 +1283,34 @@ impl<'a> Ctx<'a> {
                 flow,
             ),
         }
+    }
+
+    /// CORE-89 first-page column freeze: resolve the frozen column widths for
+    /// a table-family box. Walks up to the nearest table ancestor (the box
+    /// itself when it IS the table), resolves the frozen [`MeasureScope`]
+    /// against `self.page_height` as the first-fragmentainer height proxy,
+    /// and measures scoped. Pure: identical input → identical widths on every
+    /// page and every layout pass.
+    fn frozen_table_columns(&self, id: NodeId, avail_width: Scalar) -> crate::table::ColumnWidths {
+        let mut table_id = id;
+        let mut cur = Some(id);
+        while let Some(n) = cur {
+            if self.styles[n].display == Display::Table {
+                table_id = n;
+                break;
+            }
+            cur = self.dom.nodes[n].parent;
+        }
+        let used = crate::table::table_used_width(self.styles, table_id, avail_width);
+        let scope = crate::table::resolve_freeze_scope(
+            self.dom,
+            self.styles,
+            table_id,
+            avail_width,
+            used,
+            self.page_height,
+        );
+        crate::table::measure_columns_scoped(self.dom, self.styles, table_id, avail_width, used, scope)
     }
 
     fn layout_table_block(
@@ -1301,6 +1335,14 @@ impl<'a> Ctx<'a> {
                 empty: true,
             };
         }
+        // CORE-89 first-page column freeze: resolve the frozen widths once per
+        // table-block layout. `resolve_freeze_scope` is a pure function of
+        // (dom, styles, geometry) — the first-fragmentainer height proxy is
+        // `self.page_height` (the page content height, constant for uniform
+        // geometry) — so every page and every layout pass derives the SAME
+        // scope and the SAME frozen widths. The widths are threaded down to
+        // rows, which no longer re-measure per row (also a CORE-89 perf win).
+        let columns = self.frozen_table_columns(id, avail_width);
         let children: Vec<NodeId> = self
             .dom
             .nodes[id]
@@ -1344,6 +1386,7 @@ impl<'a> Ctx<'a> {
                     placed,
                     &child_tok,
                     flow,
+                    &columns,
                 );
                 if !res.empty {
                     y += res.used;
@@ -1383,6 +1426,7 @@ impl<'a> Ctx<'a> {
                         placed,
                         &child_tok,
                         flow,
+                        &columns,
                     )
                 }
                 Display::TableRow => self.layout_table_row(
@@ -1394,6 +1438,7 @@ impl<'a> Ctx<'a> {
                     placed,
                     &child_tok,
                     flow,
+                    &columns,
                 ),
                 _ => continue,
             };
@@ -1454,6 +1499,7 @@ impl<'a> Ctx<'a> {
         page_has_content: bool,
         token: &BreakToken,
         flow: &mut Flow,
+        columns: &crate::table::ColumnWidths,
     ) -> BlockResult {
         let fresh = token.is_break_before();
         // Resume bookkeeping (mirrors layout_box / layout_table_block):
@@ -1504,6 +1550,7 @@ impl<'a> Ctx<'a> {
                 placed,
                 &child_tok,
                 flow,
+                columns,
             );
             if !res.empty {
                 y += res.used;
@@ -1561,12 +1608,10 @@ impl<'a> Ctx<'a> {
         page_has_content: bool,
         token: &BreakToken,
         flow: &mut Flow,
+        columns: &crate::table::ColumnWidths,
     ) -> BlockResult {
-        let table_id = self.dom.nodes[id].parent.unwrap_or(id);
-        let used = crate::table::table_used_width(self.styles, table_id, avail_width);
-        let columns = measure_columns(self.dom, self.styles, table_id, avail_width, used);
         let row_ids = [id];
-        let (row_heights, _) = measure_rows(self.dom, self.styles, &row_ids, &columns, avail_width);
+        let (row_heights, _) = measure_rows(self.dom, self.styles, &row_ids, columns, avail_width);
         let row_height = row_heights.first().copied().unwrap_or(Scalar::ZERO);
 
         if top + row_height > bottom_limit && page_has_content && row_height.get() <= self.page_height.get() {

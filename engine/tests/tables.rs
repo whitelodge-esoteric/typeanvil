@@ -266,7 +266,10 @@ fn test_table_regression_guards() {
 // Each maps to an acceptance criterion in
 // `docs/specifications/auto-table-layout.spec.md`.
 
-use typeanvil::table::{distribute_column_widths, intrinsic_column_widths, measure_columns};
+use typeanvil::table::{
+    distribute_column_widths, intrinsic_column_widths, measure_columns, measure_columns_scoped,
+    resolve_freeze_scope, MeasureScope,
+};
 
 /// Parse fixture + cascade styles, for the direct table API tests.
 fn parse(html: &str) -> (Dom, Vec<typeanvil::css::ComputedStyle>) {
@@ -302,7 +305,7 @@ fn test_intrinsic_min_max_uncapped() {
     </style><table><tr><td>Disappearing/reappearing clothes</td><td>Qty</td></tr></table>"#;
     let (dom, styles) = parse(html);
     let tid = table_id_of(&dom);
-    let (mins, maxs) = intrinsic_column_widths(&dom, &styles, tid);
+    let (mins, maxs) = intrinsic_column_widths(&dom, &styles, tid, MeasureScope::All);
     assert_eq!(mins.len(), 2);
     // min-content = widest whitespace word ("Disappearing/reappearing", one
     // glued token ≈ 112pt at 9pt Arial) + padding.
@@ -484,5 +487,186 @@ fn test_two_column_probe_width() {
         (long.get() - 295.0).abs() / 295.0 <= 0.02,
         "long column = {} (expect 295 ±2%)",
         long.get()
+    );
+}
+
+// --- CORE-89 first-page column freeze acceptance tests -----------------------
+// Each maps to an acceptance criterion in
+// `docs/specifications/table-first-page-column-freeze.spec.md`.
+
+/// A table-stress-shaped fixture: 6 columns, header + 30 body rows, with the
+/// wide 112pt token "Disappearing/reappearing" in a LATE row (row 25) so it
+/// lands on page 2+ and must NOT enter the frozen measure.
+fn freeze_fixture() -> String {
+    let mut rows = String::new();
+    for i in 1..=30 {
+        let desc = if i == 25 {
+            "Disappearing/reappearing clothes"
+        } else {
+            "Anvil, standard (150 lb)"
+        };
+        rows.push_str(&format!(
+            "<tr><td>ANV-{i:04}</td><td>{desc}</td><td>24</td><td>3</td><td>120.00</td><td>2,880.00</td></tr>"
+        ));
+    }
+    format!(
+        r#"<!DOCTYPE html><style>
+        table {{ border-collapse: collapse; width: 100%; }}
+        th, td {{ padding: 2pt 4pt; font-size: 9pt; font-family: Arial, sans-serif; }}
+    </style><table>
+      <thead><tr><th>SKU</th><th>Description</th><th>On hand</th><th>Backorder</th><th>Unit cost</th><th>Value</th></tr></thead>
+      <tbody>{rows}</tbody>
+    </table>"#
+    )
+}
+
+#[test]
+fn test_freeze_excludes_late_wide_rows() {
+    // AC 1: the frozen scope excludes the late 112pt token, so Description
+    // min-content ≈ the header's own width (≈57pt), NOT 112pt.
+    let html = freeze_fixture();
+    let (dom, styles) = parse(&html);
+    let tid = table_id_of(&dom);
+    // Demo geometry: 5in × 3in page, 0.5in margins → 288pt content width,
+    // 144pt content height.
+    let scope = resolve_freeze_scope(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), Scalar(144.0));
+    assert!(
+        matches!(scope, MeasureScope::FirstPage { .. }),
+        "frozen scope = {:?} (expect FirstPage — the table fragments)",
+        scope
+    );
+    let frozen = measure_columns_scoped(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), scope);
+    let all = measure_columns(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)));
+    let desc_frozen = frozen.widths[1];
+    let desc_all = all.widths[1];
+    assert!(
+        desc_all.get() > 100.0,
+        "All-scope Description = {} (expect ≈112pt — the late token enters)",
+        desc_all.get()
+    );
+    assert!(
+        desc_frozen.get() < 100.0,
+        "frozen Description = {} (expect < 100pt — the late 112pt token is excluded)",
+        desc_frozen.get()
+    );
+    assert!(
+        desc_frozen.get() > 40.0,
+        "frozen Description = {} (expect ≈ header width ≈ 57pt)",
+        desc_frozen.get()
+    );
+}
+
+#[test]
+fn test_freeze_noop_single_fragmentainer() {
+    // AC 2: a table that fits one fragmentainer resolves scope All, so the
+    // frozen widths are byte-identical to the CORE-81 All-scope measure.
+    let html = r#"<!DOCTYPE html><style>
+        table { border-collapse: collapse; width: 100%; }
+        th, td { padding: 2pt 4pt; font-size: 9pt; font-family: Arial, sans-serif; }
+    </style><table>
+      <thead><tr><th>SKU</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>ANV-0001</td><td>Anvil, standard</td></tr>
+        <tr><td>RKT-0101</td><td>Rocket skates</td></tr>
+      </tbody>
+    </table>"#;
+    let (dom, styles) = parse(html);
+    let tid = table_id_of(&dom);
+    let scope = resolve_freeze_scope(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), Scalar(144.0));
+    assert_eq!(scope, MeasureScope::All, "single-fragmentainer table → All scope");
+    let frozen = measure_columns_scoped(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), scope);
+    let all = measure_columns(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)));
+    assert_eq!(frozen.widths, all.widths, "frozen widths == All-scope widths");
+}
+
+#[test]
+fn test_freeze_widths_stable_across_pages() {
+    // AC 3: freeze-once — every page's table uses the SAME frozen widths. The
+    // repeating header's "SKU" cell x is identical on every page; if widths
+    // varied per page, the header x would move.
+    let html = freeze_fixture();
+    let geo = geometry(5.0, 3.0, 0.5);
+    let l = lay(&html, geo);
+    assert!(l.pages.len() >= 3, "expected multi-page, got {}", l.pages.len());
+    let mut sku_xs: Vec<f32> = Vec::new();
+    for i in 0..l.pages.len() {
+        let frags = page_fragments(&l, i);
+        let x = frags
+            .iter()
+            .filter(|(f, _, _)| text_of(f) == "SKU")
+            .map(|(_, x, _)| *x)
+            .next();
+        sku_xs.push(x.expect("repeating header SKU on every page"));
+    }
+    sku_xs.dedup_by(|a, b| (*a - *b).abs() < 0.01);
+    assert_eq!(
+        sku_xs.len(),
+        1,
+        "header SKU x identical on every page (freeze-once), got {:?}",
+        sku_xs
+    );
+}
+
+#[test]
+fn test_freeze_deterministic() {
+    // AC 4: the freeze is pure — two renders of the same input produce
+    // identical layouts (page count + full fragment tree Debug form).
+    let html = freeze_fixture();
+    let geo = geometry(5.0, 3.0, 0.5);
+    let a = lay(&html, geo);
+    let b = lay(&html, geo);
+    assert_eq!(a.pages.len(), b.pages.len(), "same page count");
+    assert_eq!(
+        format!("{:?}", a.pages),
+        format!("{:?}", b.pages),
+        "identical fragment trees (deterministic freeze)"
+    );
+}
+
+#[test]
+fn test_freeze_header_only_scope() {
+    // AC 5: a first fragmentainer shorter than the header alone degrades to
+    // FirstPage { body_rows: 0 } without panic; the table still lays out.
+    // (NOTE: use a normal 9pt table — a giant-font table trips a PRE-EXISTING
+    // pagination hang on main with rows taller than the page, unrelated to
+    // the freeze.)
+    let html = r#"<!DOCTYPE html><style>
+        table { border-collapse: collapse; width: 100%; }
+        th, td { padding: 2pt 4pt; font-size: 9pt; font-family: Arial, sans-serif; }
+    </style><table>
+      <thead><tr><th>SKU</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>ANV-0001</td><td>Anvil, standard</td></tr>
+        <tr><td>RKT-0101</td><td>Rocket skates</td></tr>
+      </tbody>
+    </table>"#;
+    let (dom, styles) = parse(html);
+    let tid = table_id_of(&dom);
+    // A 5pt fragmentainer is shorter than the header alone (9pt text + padding
+    // ≈ 15pt), so the scope degrades to header-only without panic.
+    let scope = resolve_freeze_scope(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), Scalar(5.0));
+    assert_eq!(
+        scope,
+        MeasureScope::FirstPage { body_rows: 0 },
+        "header-taller-than-fragmentainer → FirstPage {{ body_rows: 0 }}"
+    );
+    // No panic, deterministic.
+    let l = lay(&html, geometry(5.0, 3.0, 0.5));
+    assert!(l.pages.len() >= 1);
+}
+
+#[test]
+fn test_table_stress_freeze_pages_ge_40() {
+    // AC 6 (the ticket's Done line): the corpus fixture at the demo geometry
+    // moves from 21 pages (standard algorithm) to ≥ 40 (Prince: 45) once the
+    // first-page freeze narrows the Description column to ≈ the header width.
+    let src = std::fs::read_to_string("../demo/corpus/table-stress.html")
+        .expect("table-stress corpus fixture");
+    let geo = geometry(5.0, 3.0, 0.5);
+    let l = lay(&src, geo);
+    assert!(
+        l.pages.len() >= 40,
+        "table-stress pages = {} (expect ≥ 40; was 21, Prince 45)",
+        l.pages.len()
     );
 }
