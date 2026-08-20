@@ -119,3 +119,124 @@ After CORE-80 lands: rebuild gallery, expect letterhead/report to drop toward
 single digits; table-stress stays high until CORE-81. Do NOT re-triage from
 vision alone — check embedded-font lists and char-box geometry (scripts under
 `/tmp` were one-shot; the durable technique is in the skill reference).
+
+---
+
+# CORE-93 — Third Demo Triage: Float fixture page-count divergence (TA 11 vs PR 8)
+
+Run: `bash scripts/build-demo.sh --keep-work` at commit `983b2aa` (current
+main, CORE-76 + CORE-90 + CORE-91 landed). Prince 16.2 non-commercial.
+Geometry: 5in×3in, 0.5in margins, 96 DPI raster. Scoreboard regenerated at
+`983b2aa`. **Update:** CORE-92 landed while this triage was in flight and
+already fixed the body-margin half — scoreboard at `3be65c5` shows Float
+Showcase 11→10 pages, matching the attribution below (remaining 10 vs 8 =
+line-breaking parity, CORE-94 In Progress).
+
+## Scoreboard (current main, 2026-08-20)
+
+| Doc | Overall diff | TA pages | PR pages | Bucket |
+|---|---|---|---|---|
+| Float Showcase | 24.40% | 11 | 8 | **engine (UA margins) + algorithm (hyphenation)** |
+| Invoice | 25.32% | 5 | 5 | cosmetic + engine (residual) |
+| Letterhead | 13.18% | 8 | 8 | cosmetic |
+| Academic Paper | 25.12% | 11 | 11 | cosmetic |
+| Prose Showcase | 21.86% | 10 | 11 | engine (UA margins) + line-box |
+| Quarterly Report | 16.70% | 10 | 10 | cosmetic |
+| Table Stress | 29.11% | 42 | 45 | engine (table) — CORE-89 residual |
+
+## Method
+
+1. Rendered float-showcase through both engines (identical flag set), extracted
+   per-line geometry + full text per page (pypdfium2 `get_text_bounded` +
+   `search`-anchored charboxes; the rect-index API is unreliable — text is
+   grouped per text object, not reading order).
+2. Isolated hypotheses with minimal probes (no-float packing probe, body-margin
+   probe, h1-margin probe, float-placement probe) — every hypothesis verified
+   with hard evidence, not montage eyeballing.
+3. Attributed page-count + line-count deltas per driver.
+
+## Findings
+
+### Driver 1 (engine bug): UA stylesheet is screen-defaults, not print
+
+`engine/src/css.rs` `UA_CSS` (line ~389) applies the HTML screen defaults:
+`body { margin: 8px }` (line 408), `h1 { margin: 0.67em 0 }` (line 400),
+`p { margin: 1em 0 }` (line 406), etc. In print (Prince's UA sheet), the body
+margin is zero and heading/paragraph margins are smaller.
+
+Evidence:
+- `body { margin: 8px }` = 6pt each side → TA content lines span
+  x=[42, 314] (272pt wide) vs Prince x=[36, 324] (287pt). Same 288pt page
+  content box, but TA's text block is inset ~8pt each side.
+- Minimal probe (no floats, identical text): with `body { margin: 0 }` TA
+  drops from 10 lines/2 pages to **9 lines/1 page** — matches Prince's 8
+  lines/1 page (1 line residual = hyphenation).
+- Float fixture: `body { margin: 0 }` TA drops 11→10 pages, 84→80 lines
+  (Prince: 8 pages, 75 lines). The 6pt horizontal inset alone costs ~4 lines
+  and 1 page.
+- `h1 { margin: 0.67em 0 }` (13.4pt top + bottom at 20pt font) pushes
+  unstyled headings down ~27pt. Float-placement probe: with `h1 { margin: 0 }`
+  the short float fits on page 1 (matches Prince); without it, the float is
+  deferred to page 2 because `y + fh > bottom_limit` by 3.6pt.
+
+Effect: every corpus fixture's lines are narrower and headings taller than
+Prince intends. Docs near a page boundary flip pages (float-showcase,
+prose); docs with slack do not (paper, report, letterhead, invoice).
+
+Filed as: **CORE-95** (engine: print-adapted UA stylesheet).
+
+### Driver 2 (algorithm parity, not a bug): hyphenation density / line breaking
+
+Same text, same font (both embed ArialMT/Arial-BoldMT/Arial-ItalicMT), same
+14.0pt line pitch, same width — but Prince takes 9 hyphen breaks where TA
+takes 2 (packing probe), fitting 12–14 words/line vs TA's 10–13. Total: PR 49
+body lines vs TA 56 (margin-zeroed probe). HYPHEN_PENALTY = 135 (Typst/TeX
+default); TA's K-P prefers a clean space break when it fits with modest
+badness, Prince hyphenates eagerly. This is the CORE-53 typography-tuning
+question, magnitude larger than the other fixtures at line-height 1.4.
+**Cross-reference:** CORE-94 (In Progress, filed from CORE-90 close-out)
+tracks the same line-breaking divergence at 1.6/2.0 and notes the direction
+flips with line-height — the shared root is the justification glue model
+(stretch/shrink tolerances), not hyphenation alone.
+
+Effect: ~5 extra lines per fixture doc; 2 of the 3 float-showcase extra pages.
+
+Recorded in manifest `expected_deltas` (already present: "Prince hyphenation
+dictionary may differ"). Not filed as a bug — tracked in CORE-53 scope.
+
+### NOT a float bug
+
+Float placement itself is correct: `fits = y + fh <= bottom_limit`, suspend
+when it doesn't fit, resume at next page top, text wraps beside it (verified:
+float-placement probe with equalized margins renders 1 page in TA matching
+Prince's 1 page, float on page 1 with wrapping). The figure lands on page 3
+in TA vs page 2 in Prince purely because Drivers 1+2 make the preceding text
+taller/longer — the float-placement cascade is a symptom, not a defect.
+CORE-91 (glyph duplication) remains fixed.
+
+## Attribution (float-showcase, 11 vs 8 pages)
+
+| Driver | Pages | Lines | Type |
+|---|---|---|---|
+| UA body margin 8px (narrower lines) | 1 | 4 | engine bug (CORE-95) |
+| UA h1/h2 margins (fixture authors these; probe-only for unstyled) | 0–1 | ~1 | engine bug (CORE-95) |
+| Hyphenation density (PR hyphenates 4× more) | 2 | 5 | algorithm parity (CORE-53) |
+| **Total** | **3** | **9** | |
+
+## Follow-up tickets filed
+
+- **CORE-95** (High, engine): print-adapted UA stylesheet — body margin 8px +
+  heading margins must not apply in print (Prince parity). **Note: CORE-92
+  already landed the body-margin half** (UA_CSS body margin 8px → 0,
+  scoreboard at 3be65c5: Float Showcase 11→10, Letterhead 13.18→10.53, Prose
+  21.86→19.70, Report 16.70→14.54). CORE-95's remaining scope: heading/other
+  UA margins in print (h1 0.67em etc.) — probe-only effect on unstyled docs.
+- Hyphenation-density parity tracked by **CORE-94** (In Progress, line
+  breaking at high line-height; same root as this triage's driver 2).
+
+## Re-verification plan
+
+After CORE-95 lands: rebuild gallery, expect float-showcase to converge
+toward PR 8 pages, prose toward 11, and every fixture's text block to span
+the full 36→324 content box. Re-check with char-box geometry, not vision.
+

@@ -73,7 +73,8 @@
     "expected_deltas": [
       "Prince may resolve a different system font for the sans-serif stack",
       "Float placement may differ by a line where line-box heights diverge (CORE-90)",
-      "Prince hyphenation dictionary may differ inside float-wrapped segments"
+      "Prince hyphenation dictionary may differ inside float-wrapped segments",
+      "Page-count gap (TA 11 vs PR 8) attributed in CORE-93: UA body margin 8px narrows lines (CORE-95, engine) + hyphenation density (CORE-53 scope)"
     ]
   },
   {
