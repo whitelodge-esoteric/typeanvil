@@ -273,11 +273,11 @@ fn to_krilla_glyphs(
                 g.x_offset.to_f32() / font_size,
                 0.0,
                 0.0,
-                // `ShapedGlyph` carries no cluster offsets (spec contract), so
-                // every glyph maps to an empty range — valid (char-boundary)
-                // and panic-free; krilla only slices it for .notdef
-                // validation and copy-paste mapping.
-                0..0,
+                // `ShapedGlyph.range` is the byte range of the glyph's cluster
+                // in the run's text; krilla slices the text by it to build the
+                // PDF ToUnicode map (CORE-85). Empty ranges would produce an
+                // empty map and garbage text extraction.
+                g.range.clone(),
                 None,
             )
         })

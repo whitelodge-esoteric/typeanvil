@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-08-20
 sidebar_position: 4
 tags: [typography, line-breaking, knuth-plass, shaping, engine]
 spec_id: typography-layer
@@ -116,17 +116,25 @@ The engine shall:
    krilla's `draw_glyphs` (glyph ids + advances), not the high-level
    `draw_text` string path, so shaped widths, protrusion offsets, and
    expansion factors reach the output exactly as laid out.
-10. **Keep the fragment contract**: `TextRun` carries the shaped glyphs and
+10. **Map every glyph back to its source text**: each shaped glyph carries the
+    byte range of its cluster in the run's text (`ShapedGlyph.range`); the
+    PDF backend passes those ranges to krilla, which slices the text by them
+    to build the font's `/ToUnicode` CMap. Body text must therefore extract,
+    copy, and search as the source text (readable strings, no control
+    chars) in every emitted PDF (CORE-85). Empty ranges are prohibited — a
+    glyph with no text mapping yields an empty CMap entry and garbage
+    extraction.
+11. **Keep the fragment contract**: `TextRun` carries the shaped glyphs and
     resolved text; `Fragment`/`Fragmentainer`/break-token structure is
     unchanged. Margin boxes and generated content (single short lines) may
     keep the simple text path.
-11. **Stay deterministic**: shaping (fixed font bytes + size), K-P (pure
+12. **Stay deterministic**: shaping (fixed font bytes + size), K-P (pure
     function of widths/opportunities), protrusion, and expansion are all
     deterministic; no hash-order dependence; identical input yields
     byte-identical PDF.
-12. **Keep everything else green**: fragmentation (CORE-51) and paged-media
+13. **Keep everything else green**: fragmentation (CORE-51) and paged-media
     (CORE-52) acceptance tests pass unchanged.
-13. **Ship the demo**: a fixture (`typography-demo.html`) rendering a
+14. **Ship the demo**: a fixture (`typography-demo.html`) rendering a
     typography-sensitive paragraph set; a script produces the side-by-side
     spread (Typeanvil + Chromium now; Prince slot reserved).
 
@@ -139,6 +147,10 @@ ShapedGlyph         // one shaped glyph
   id: u32                     // glyph id in the embedded font
   x_advance: Scalar           // advance in points at the run's font size
   x_offset: Scalar            // optional positioning offset (kerning etc.)
+  range: Range<usize>         // byte range of the glyph's cluster in the
+                              // paired text (word text for ShapeRun glyphs,
+                              // line text for LineResult glyphs); feeds the
+                              // PDF /ToUnicode map (CORE-85)
 
 ShapeRun            // a shaped word/segment
   text: String                // original text (for the PDF text arg)
@@ -249,7 +261,15 @@ Given/When/Then, each mapping to a real test in `engine/tests/typography.rs`:
    PDF bytes are identical (`typography.rs::determinism_typography`).
 9. **Regression: fragmentation + paged-media** — the existing CORE-51/CORE-52
    tests pass unchanged (they consume `TextRun`).
-10. **Demo fixture** — Given `engine/tests/fixtures/typography-demo.html`, when
+10. **ToUnicode map** — Given a doc whose body text contains repeated letters,
+    ligature-friendly words, and a non-ASCII char (em dash), when rendered,
+    then the PDF's `/ToUnicode` CMap maps every distinct source char back to
+    readable text with no control chars
+    (`tounicode.rs::tounicode_map_extracts_source_text`), and every shaped
+    word's and line's glyph ranges cover their text exactly
+    (`tounicode.rs::shaped_word_ranges_cover_text`,
+    `tounicode.rs::line_ranges_cover_line_text`).
+11. **Demo fixture** — Given `engine/tests/fixtures/typography-demo.html`, when
     rendered, then it is multi-page, deterministic, and a side-by-side spread
     script produces a PNG with Typeanvil's render (`typography.rs::demo_fixture`,
     plus `scripts/render-typography-demo.sh` for the comparison image).
