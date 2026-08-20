@@ -15,7 +15,7 @@ use typeanvil::dom::{Dom, NodeKind};
 use typeanvil::frag::{Fragment, FragmentContent, Fragmentainer};
 use typeanvil::geom::{PageGeometry, Scalar};
 use typeanvil::layout::{layout, Layout};
-use typeanvil::typography::{break_paragraph, line_break_opportunities, shape_word};
+use typeanvil::typography::{allowed_hyphenation_breaks, break_paragraph, line_break_opportunities, shape_word};
 
 // --- helpers ---------------------------------------------------------------
 
@@ -348,6 +348,62 @@ fn hyphenation_breaks() {
         l.text.ends_with('-') && l.glyphs.iter().any(|g| g.id != 0)
     });
     assert!(has_hyphen_glyph, "a hyphenated line must carry a trailing hyphen glyph");
+}
+
+/// AC (CORE-97): every allowed hyphenation break leaves at least 2
+/// characters on the left (TeX `\lefthyphenmin`; Prince's smallest observed
+/// prefix is 2), and a 2-character-left boundary IS still a break.
+#[test]
+fn left_hyphenation_min_guard() {
+    // Invariant across words whose Liang patterns contain short syllables:
+    // no allowed break leaves fewer than LEFT_HYPHEN_MIN chars on the left.
+    for word in [
+        "documentation", // doc|u|men|ta|tion — mid-word 1-char syllable
+        "administration",
+        "hyphenation",
+        "evaluate", // eval|u|ate
+        "elegant", // el|e|gant
+        "ability", // abil|ity
+        "supercalifragilisticexpialidocious",
+    ] {
+        for off in allowed_hyphenation_breaks(word) {
+            let left = word[..off].chars().count();
+            assert!(
+                left >= 2,
+                "{word}: break at byte {off} leaves {left} chars on the left"
+            );
+        }
+    }
+    // The boundary itself is the floor: a 2-char-left break is legal
+    // (e.g. `op|er|ate` → break after "op").
+    let op_breaks = allowed_hyphenation_breaks("operate");
+    assert!(
+        op_breaks.iter().any(|&o| word_left_chars("operate", o) == 2),
+        "a 2-char-left break must be allowed, got {op_breaks:?}"
+    );
+    // Words under the 5-char minimum never hyphenate.
+    assert!(allowed_hyphenation_breaks("open").is_empty());
+}
+
+fn word_left_chars(word: &str, byte_offset: usize) -> usize {
+    word[..byte_offset].chars().count()
+}
+
+/// AC (CORE-97): the break offsets are valid byte positions that tile the
+/// word exactly (no text lost, no non-boundary cuts).
+#[test]
+fn hyphenation_breaks_are_boundaries() {
+    let word = "documentation";
+    for off in allowed_hyphenation_breaks(word) {
+        assert!(word.is_char_boundary(off), "break at non-boundary {off}");
+        assert!(off > 0 && off < word.len(), "break at edge {off}");
+    }
+    let expect = ["doc", "u", "men", "ta", "tion"]; // hypher Liang syllables
+    let offsets = allowed_hyphenation_breaks(word);
+    for (i, e) in expect.iter().enumerate().skip(1) {
+        let off: usize = expect[..i].iter().map(|s| s.len()).sum();
+        assert!(offsets.contains(&off), "missing Liang boundary at {off} ({e})");
+    }
 }
 
 // --- 5. Protrusion ---------------------------------------------------------
