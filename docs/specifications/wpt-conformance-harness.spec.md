@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: elijah
 created: 2026-08-16
-updated: 2026-08-20
+updated: 2026-08-21
 sidebar_position: 1
 tags: [harness, wpt, conformance, testing]
 spec_id: wpt-conformance-harness
@@ -60,7 +60,16 @@ The harness shall:
    when no WPT checkout exists (`--wpt` or the default `.wpt/`).
 3. **Enumerate**: identify print-reftest candidates as HTML files that end in
    `-print.html`, live under a `print/` directory, or declare a
-   `rel="match"`/`rel="mismatch"` link whose target exists.
+   `rel="match"`/`rel="mismatch"` link whose target exists. Additionally,
+   the curated css-multicol subset (`harness/multicol_subset.py`,
+   `MULTICOL_SUBSET`, CORE-77) is always enumerated even though those tests
+   are ordinary screen reftests: css-multicol keeps its coverage in screen
+   reftests, and the subset is hand-triaged to exercise only shipped engine
+   features (known-gap features — `column-fill: auto`, column rules,
+   floats/abspos/flex/grid inside multicol, percentage-height children,
+   overflow containers — stay out until their tickets land). The list grows
+   as features land; every entry must parse, be script-free, and have
+   resolvable references (unit-tested in `tests/test_multicol_subset.py`).
 4. **Parse metadata**: for each candidate, parse `rel` reference links
    (relative paths resolved against the test file, absolute `/...` paths
    against the WPT root), `<meta name="fuzzy">` tolerances (both `a-b` ranges
