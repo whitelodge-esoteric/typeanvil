@@ -1062,17 +1062,27 @@ impl<'a> Ctx<'a> {
                             let fits = y + fh <= bottom_limit;
                             let last_resort = !placed;
                             if !fits && !last_resort {
-                                // The float does not fit the remaining space:
-                                // suspend it; in-flow siblings continue here
-                                // (parallel flow, css-break-3). It resumes at
-                                // the top of the next fragmentainer.
-                                seen_all = false;
-                                outgoing_children.push(ChildToken {
-                                    index: i,
-                                    token: BreakToken::break_before(),
-                                });
-                                broke = true;
-                                break;
+                                // CORE-101: match Prince — place the float
+                                // when ANY room remains and fragment its
+                                // content, instead of deferring the whole
+                                // box. Exception: a monolithic float (no
+                                // text content to split across pages, or
+                                // `break-inside: avoid`) still defers whole.
+                                let avoid = cstyle.break_inside == BreakInside::Avoid;
+                                let splittable = self.float_is_splittable(*child);
+                                if avoid || !splittable {
+                                    seen_all = false;
+                                    outgoing_children.push(ChildToken {
+                                        index: i,
+                                        token: BreakToken::break_before(),
+                                    });
+                                    broke = true;
+                                    break;
+                                }
+                                // Fall through to placement below: the float
+                                // lays out at `y` against the real bottom
+                                // limit, its content fragments naturally, and
+                                // its continuation rides `pending_floats`.
                             }
                             let fx = match cstyle.float {
                                 Float::Left => inner_left,
@@ -1187,6 +1197,14 @@ impl<'a> Ctx<'a> {
                                     index: i,
                                     token: res.outgoing.unwrap(),
                                 });
+                            } else {
+                                // CORE-101: the float finished on this page —
+                                // drop its carry-over rectangle so it stops
+                                // intruding on later fragmentainers. Without
+                                // this, stale rects force every later page
+                                // into the segmented text path with no resume
+                                // offset, restarting paragraphs from zero.
+                                flow.pending_floats.retain(|f| f.id != *child);
                             }
                         }
                         // Advance the ITEM index explicitly (`continue` skips
@@ -2121,6 +2139,28 @@ impl<'a> Ctx<'a> {
         };
         let h = self.measure_block(id, w);
         (w, h)
+    }
+
+    /// Whether a float's content can usefully fragment across fragmentainers:
+    /// it must contain at least one text run somewhere in its subtree. A
+    /// float with no text (empty/decorative box) gains nothing from
+    /// fragmentation and defers whole (CORE-101).
+    fn float_is_splittable(&self, id: NodeId) -> bool {
+        for item in self.collect_items(id) {
+            match item {
+                Item::Text(text) => {
+                    if !text.trim().is_empty() {
+                        return true;
+                    }
+                }
+                Item::Block(child) => {
+                    if self.float_is_splittable(child) {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
     }
 
     /// Shrink-to-fit width: the widest line of the float's content (text or
