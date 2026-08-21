@@ -750,6 +750,18 @@ impl<'a> Ctx<'a> {
                 child.offset.x - origin.x,
                 child.offset.y - origin.y,
             );
+            // Bare-text line fragments keep their ABSOLUTE baselines (they
+            // were built directly at page coordinates in the Text branch
+            // above). Rebase them like the block path does, or the PDF
+            // emitter re-adds this column's origin and every glyph lands a
+            // second time offset right/down — the moz-multicol3 page-2
+            // geometry divergence (CORE-102).
+            if let FragmentContent::Text(run) = &mut child.content {
+                run.baseline = Point::new(
+                    run.baseline.x - origin.x,
+                    run.baseline.y - origin.y,
+                );
+            }
         }
         let mut frag = Fragment::block(origin, (col_w, height));
         frag.children = children;
