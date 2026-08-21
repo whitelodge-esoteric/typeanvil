@@ -75,6 +75,30 @@ pub struct Heading {
     pub page_index: usize,
 }
 
+/// One PDF link-annotation rect, in document paint order (CORE-104).
+#[derive(Clone, Debug)]
+pub struct PageLink {
+    /// Zero-based page index the rect sits on.
+    pub page_index: usize,
+    /// Rect in page coordinates (top-left origin, points): x, y, w, h.
+    pub x: Scalar,
+    pub y: Scalar,
+    pub w: Scalar,
+    pub h: Scalar,
+    /// Where the link goes.
+    pub target: LinkTarget,
+}
+
+/// The destination of a [`PageLink`].
+#[derive(Clone, Debug)]
+pub enum LinkTarget {
+    /// Verbatim URI action (external links).
+    Url(String),
+    /// Zero-based index of the destination page (internal links, resolved
+    /// from `#fragment` via the id → page map).
+    Page(usize),
+}
+
 /// The full paginated layout. `pages` *are* fragmentainers.
 #[derive(Clone, Debug)]
 pub struct Layout {
@@ -84,6 +108,8 @@ pub struct Layout {
     pub pages: Vec<Fragmentainer>,
     /// Heading outline for PDF bookmarks, in DOM order.
     pub headings: Vec<Heading>,
+    /// Link annotation records, in document paint order (CORE-104).
+    pub links: Vec<PageLink>,
 }
 
 /// The outcome of laying out one box into one fragmentainer.
@@ -101,10 +127,21 @@ struct BlockResult {
 
 /// One ordered piece of a block's content, in document order.
 enum Item {
-    /// A run of inline text (this block's own text between block children).
-    Text(String),
+    /// A run of inline text (this block's own text between block children),
+    /// with the `<a href>` link spans embedded in it (CORE-104). Byte
+    /// offsets are into the run's own text; `href` is the raw attribute.
+    Text(String, Vec<LinkSpan>),
     /// A block-level child element.
     Block(NodeId),
+}
+
+/// A recorded hyperlink source span inside an item's text (CORE-104):
+/// `[start_byte, end_byte)` of the anchor's folded text plus the raw href.
+#[derive(Clone, Debug)]
+struct LinkSpan {
+    start: usize,
+    end: usize,
+    href: String,
 }
 
 /// Mutable per-flow bookkeeping threaded through pagination in document order:
@@ -213,6 +250,13 @@ struct Ctx<'a> {
     /// `counter(pages)` reads this; margin-box text never affects pagination,
     /// so the second pass's count equals the first's and resolution converges.
     total_pages: usize,
+    /// Link-rect sink (CORE-104): appended in paint order during line
+    /// placement. Drained once, by `layout`, after the final pass. A
+    /// `RefCell` because the layout methods take `&self`.
+    links: &'a std::cell::RefCell<Vec<CollectedLink>>,
+    /// Zero-based index of the page currently being laid out (link rects are
+    /// tagged with it as lines are placed).
+    page_index: usize,
 }
 
 /// Run the pipeline stage: cascade, then paginate into fragmentainers.
@@ -237,6 +281,7 @@ pub fn layout(dom: &Dom, stylesheet: &Stylesheet, geometry: PageGeometry) -> Lay
             geometry,
             pages: vec![blank],
             headings: Vec::new(),
+            links: Vec::new(),
         };
     }
 
@@ -266,9 +311,21 @@ pub fn layout(dom: &Dom, stylesheet: &Stylesheet, geometry: PageGeometry) -> Lay
 
     let mut target_pages: BTreeMap<NodeId, usize> = BTreeMap::new();
     let mut total_pages: usize = 0;
+    let mut collected_links: Vec<CollectedLink> = Vec::new();
     let mut pages = Vec::new();
     for _ in 0..passes {
-        let (p, map) = paginate(dom, &styles, &page_rules, root, &geometry, &target_pages, total_pages);
+        let sink = std::cell::RefCell::new(Vec::new());
+        let (p, map) = paginate(
+            dom,
+            &styles,
+            &page_rules,
+            root,
+            &geometry,
+            &target_pages,
+            total_pages,
+            &sink,
+        );
+        collected_links = sink.into_inner();
         // Converged when the target map is unchanged between passes AND the
         // page count is stable: resolved page numbers are stable, so the next
         // pass would be identical. `counter(pages)` resolves against
@@ -283,15 +340,146 @@ pub fn layout(dom: &Dom, stylesheet: &Stylesheet, geometry: PageGeometry) -> Lay
     }
     // Build the heading outline from the final pass's element→page map.
     let headings = build_headings(dom, &target_pages);
+    // Resolve internal `#fragment` links against the FINAL pass's id → page
+    // map (the same map target-counter uses); unresolved ids drop silently.
+    let links = resolve_links(collected_links, dom, &target_pages);
     Layout {
         geometry,
         pages,
         headings,
+        links,
+    }
+}
+
+/// Resolve collected link rects into [`Layout::links`] (CORE-104).
+///
+/// `#fragment` hrefs resolve against the element id → page map built from the
+/// FINAL pagination pass (the same map target-counter reads); the first
+/// element in document order carrying the id wins (the map only inserts when
+/// absent). Any other href is a verbatim URI. Unresolved fragments drop the
+/// annotation silently (Behavior 4).
+fn resolve_links(
+    collected: Vec<CollectedLink>,
+    dom: &Dom,
+    target_pages: &BTreeMap<NodeId, usize>,
+) -> Vec<PageLink> {
+    // id string → NodeId of the first element carrying it, in document
+    // (pre-order) order. BTreeMap: deterministic construction, no hash order.
+    let mut id_pages: BTreeMap<&str, usize> = BTreeMap::new();
+    for (idx, node) in dom.nodes.iter().enumerate() {
+        if let Some(el) = node.kind.element() {
+            if let Some(id) = &el.id {
+                id_pages.entry(id.as_str()).or_insert_with(|| {
+                    target_pages
+                        .get(&idx)
+                        .copied()
+                        .unwrap_or(usize::MAX)
+                });
+            }
+        }
+    }
+    collected
+        .into_iter()
+        .filter_map(|c| {
+            let target = if let Some(frag) = c.href.strip_prefix('#') {
+                let page = *id_pages.get(frag)?;
+                if page == usize::MAX {
+                    // The id exists but its element produced no fragment on
+                    // any page (suppressed box): nothing to link to.
+                    return None;
+                }
+                LinkTarget::Page(page)
+            } else {
+                LinkTarget::Url(c.href)
+            };
+            Some(PageLink {
+                page_index: c.page_index,
+                x: c.x,
+                y: c.y,
+                w: c.w,
+                h: c.h,
+                target,
+            })
+        })
+        .collect()
+}
+
+/// A link rect still carrying its raw href (pre-`#fragment`-resolution).
+#[derive(Clone, Debug)]
+struct CollectedLink {
+    page_index: usize,
+    x: Scalar,
+    y: Scalar,
+    w: Scalar,
+    h: Scalar,
+    href: String,
+}
+
+/// Intersect a placed line's source span against its run's recorded link
+/// spans and append one rect per overlapping segment (CORE-104 Behavior 2).
+///
+/// `line_start` is the line's byte offset within the ITEM's text (the sum of
+/// `lr.consumed` of all preceding lines of the same break); glyph byte ranges
+/// are relative to the line's rebuilt text, which begins at that offset. The
+/// rect covers the glyphs whose clusters overlap the link span, at height
+/// `lh` with top edge `y`, on `page_index`.
+fn collect_line_links(
+    out: &mut Vec<CollectedLink>,
+    page_index: usize,
+    lr: &crate::typography::LineResult,
+    line_start: usize,
+    x: Scalar,
+    y: Scalar,
+    lh: Scalar,
+    link_spans: &[LinkSpan],
+) {
+    if link_spans.is_empty() {
+        return;
+    }
+    let line_end = line_start + lr.consumed;
+    for span in link_spans {
+        // Overlap of the link span with this line's source span. A link
+        // breaking across pages produces one overlap per line (Behavior 3).
+        let s = span.start.max(line_start);
+        let e = span.end.min(line_end);
+        if e <= s {
+            continue;
+        }
+        // Map the overlapping item-text bytes to glyph x extents. Glyph
+        // cluster ranges index the line's rebuilt text, which begins at the
+        // item-text offset `line_start`.
+        let mut x0 = f64::MAX;
+        let mut x1 = f64::MIN;
+        let mut cursor = 0.0f64;
+        let scale = 1.0 + lr.expansion;
+        for g in &lr.glyphs {
+            let g_start = line_start + g.range.start;
+            let g_end = line_start + g.range.end;
+            let adv = g.x_advance.get() * scale;
+            if g_end > s && g_start < e {
+                x0 = x0.min(cursor + g.x_offset.get());
+                x1 = x1.max(cursor + adv);
+            }
+            cursor += adv;
+        }
+        if x1 <= x0 {
+            continue;
+        }
+        out.push(CollectedLink {
+            page_index,
+            x: x + Scalar(x0),
+            y,
+            w: Scalar(x1 - x0),
+            h: lh,
+            href: span.href.clone(),
+        });
     }
 }
 
 /// One full pagination pass. Returns the pages and the element→page-index map
 /// (first fragmentainer each sourced element appears on, in `NodeId` order).
+/// Link rects (CORE-104) accumulate into `links` in paint order.
+#[allow(clippy::type_complexity)]
 fn paginate(
     dom: &Dom,
     styles: &[ComputedStyle],
@@ -300,6 +488,7 @@ fn paginate(
     cli: &PageGeometry,
     target_pages: &BTreeMap<NodeId, usize>,
     total_pages: usize,
+    links: &std::cell::RefCell<Vec<CollectedLink>>,
 ) -> (Vec<Fragmentainer>, BTreeMap<NodeId, usize>) {
     let mut pages: Vec<Fragmentainer> = Vec::new();
     let mut incoming = Some(BreakToken::break_before());
@@ -348,8 +537,9 @@ fn paginate(
             page_height: content.height,
             target_pages,
             total_pages,
+            links,
+            page_index,
         };
-
         let mut fragmentainer = Fragmentainer::new(page_index, spec.size);
         fragmentainer.background = spec.background;
         fragmentainer.page_orientation = spec.page_orientation;
@@ -749,7 +939,7 @@ impl<'a> Ctx<'a> {
             }
 
             match &items[i] {
-                Item::Text(text) => {
+                Item::Text(text, link_spans) => {
                     let child_tok = self.child_incoming(token, i);
                     let lh = line_height(style);
                     // Resume: a run that began beside a float resumes by source
@@ -762,6 +952,10 @@ impl<'a> Ctx<'a> {
                     let consumed_lines =
                         (child_tok.consumed_block_size.get() / lh.get()).round() as usize;
                     let mut li = consumed_lines;
+                    // Link rects placed by THIS fragment, keyed by line
+                    // index so an orphans/widows rewind can drop the
+                    // pulled-back lines' rects (CORE-104).
+                    let mut line_links: Vec<(usize, CollectedLink)> = Vec::new();
                     // Place as many lines as fit. A run that is the first thing
                     // on an otherwise-empty page places at least one line even
                     // when taller than the page (last resort → monolithic
@@ -777,6 +971,27 @@ impl<'a> Ctx<'a> {
                         let baseline = y + crate::typography::baseline_offset(style.font_size, lh, face);
                         let lr = &lines[li];
                         let x = self.aligned_x(inner_left, inner_width, lr.drawn_width(), style);
+                        // Link rect for this line (CORE-104): spans are
+                        // item-relative; the line's byte offset in the item
+                        // text is the sum of consumed bytes of all preceding
+                        // lines of the full-text break.
+                        let line_start: usize = lines[..li].iter().map(|l| l.consumed).sum();
+                        if !link_spans.is_empty() {
+                            let mut rects = Vec::new();
+                            collect_line_links(
+                                &mut rects,
+                                self.page_index,
+                                lr,
+                                line_start,
+                                x,
+                                y,
+                                lh,
+                                link_spans,
+                            );
+                            for r in rects {
+                                line_links.push((li, r));
+                            }
+                        }
                         let run = TextRun {
                             text: lr.text.clone(),
                             baseline: Point::new(x, baseline),
@@ -835,6 +1050,14 @@ impl<'a> Ctx<'a> {
                                 y = y - lh;
                             }
                         }
+                        // Flush this fragment's link rects, dropping any
+                        // pulled back by the rewind above (CORE-104).
+                        for (key, r) in line_links.drain(..) {
+                            if key >= split {
+                                continue;
+                            }
+                            self.links.borrow_mut().push(r);
+                        }
                         let consumed = lh * (split as f64);
                         seen_all = false;
                         outgoing_children.push(ChildToken {
@@ -850,6 +1073,13 @@ impl<'a> Ctx<'a> {
                         });
                         broke = true;
                         break;
+                    } else {
+                        // The whole run fit on this fragmentainer: flush its
+                        // link rects (no rewind happened, keys are all < li)
+                        // (CORE-104).
+                        for (_, r) in line_links.drain(..) {
+                            self.links.borrow_mut().push(r);
+                        }
                     }
                     } else {
                         // Floats are (or were) active: break the remaining text
@@ -884,6 +1114,9 @@ impl<'a> Ctx<'a> {
                             }
                             let mut li = 0usize;
                             let mut page_bottom_break = false;
+                            // Link rects for this segment, keyed by line
+                            // index within the segment (rewind-safe).
+                            let mut seg_links: Vec<(usize, CollectedLink)> = Vec::new();
                             while li < lines.len() {
                                 let fits = y + lh <= bottom_limit;
                                 // Last resort only on a genuinely empty
@@ -893,10 +1126,37 @@ impl<'a> Ctx<'a> {
                                     page_bottom_break = true;
                                     break;
                                 }
-                                let face = crate::fonts::face_for(style.font_weight, style.font_style);
-                                let baseline = y + crate::typography::baseline_offset(style.font_size, lh, face);
+                                let face =
+                                    crate::fonts::face_for(style.font_weight, style.font_style);
+                                let baseline = y + crate::typography::baseline_offset(
+                                    style.font_size,
+                                    lh,
+                                    face,
+                                );
                                 let lr = &lines[li];
                                 let x = self.aligned_x(seg_x, seg_w, lr.drawn_width(), style);
+                                // Link rect (CORE-104): the segment's text is
+                                // a slice starting at `src_offset`, so this
+                                // line's item-text byte offset is
+                                // src_offset + sum of preceding lines' bytes.
+                                let line_start =
+                                    src_offset + lines[..li].iter().map(|l| l.consumed).sum::<usize>();
+                                if !link_spans.is_empty() {
+                                    let mut rects = Vec::new();
+                                    collect_line_links(
+                                        &mut rects,
+                                        self.page_index,
+                                        lr,
+                                        line_start,
+                                        x,
+                                        y,
+                                        lh,
+                                        link_spans,
+                                    );
+                                    for r in rects {
+                                        seg_links.push((li, r));
+                                    }
+                                }
                                 let run = TextRun {
                                     text: lr.text.clone(),
                                     baseline: Point::new(x, baseline),
@@ -966,6 +1226,14 @@ impl<'a> Ctx<'a> {
                                         y = y - lh;
                                     }
                                 }
+                                // Flush the segment's link rects, dropping any
+                                // pulled back by the rewind above (CORE-104).
+                                for (key, r) in seg_links.drain(..) {
+                                    if key >= split {
+                                        continue;
+                                    }
+                                    self.links.borrow_mut().push(r);
+                                }
                                 run_broke = true;
                                 break 'segments;
                             }
@@ -975,6 +1243,11 @@ impl<'a> Ctx<'a> {
                             let (nx, nw) =
                                 self.segment_geometry(inner_left, inner_width, y, lh, flow);
                             if (nw - seg_w).get().abs() < 1e-9 && (nx - seg_x).get().abs() < 1e-9 {
+                                // Run finished: this segment's link rects are
+                                // final, flush them (CORE-104).
+                                for (_, r) in seg_links.drain(..) {
+                                    self.links.borrow_mut().push(r);
+                                }
                                 break;
                             }
                         }
@@ -2090,7 +2363,7 @@ impl<'a> Ctx<'a> {
         let mut h = style.margin_top + style.padding_top + style.padding_bottom + style.margin_bottom;
         for item in self.collect_items(id) {
             match item {
-                Item::Text(text) => {
+                Item::Text(text, _) => {
                     // The SAME breaker layout uses, so measured heights match
                     // laid-out heights (`break-inside: avoid` correctness).
                     let lines = self.break_paragraph(&text, inner_width, style);
@@ -2148,7 +2421,7 @@ impl<'a> Ctx<'a> {
     fn float_is_splittable(&self, id: NodeId) -> bool {
         for item in self.collect_items(id) {
             match item {
-                Item::Text(text) => {
+                Item::Text(text, _) => {
                     if !text.trim().is_empty() {
                         return true;
                     }
@@ -2170,7 +2443,7 @@ impl<'a> Ctx<'a> {
         let mut width = Scalar::ZERO;
         for item in self.collect_items(id) {
             match item {
-                Item::Text(text) => {
+                Item::Text(text, _) => {
                     let lines = self.break_paragraph(&text, max_width, style);
                     for line in &lines {
                         let w = line.drawn_width();
@@ -2240,17 +2513,26 @@ impl<'a> Ctx<'a> {
 
     /// Collect a block's children as an ordered item list: contiguous inline
     /// text becomes one `Text` item; each block child becomes a `Block` item.
+    /// Inline `<a href>` anchors record their folded-text byte span alongside
+    /// the run (CORE-104).
     fn collect_items(&self, id: NodeId) -> Vec<Item> {
         let mut items: Vec<Item> = Vec::new();
         let mut pending = String::new();
-        self.collect_items_rec(id, &mut items, &mut pending);
+        let mut spans: Vec<LinkSpan> = Vec::new();
+        self.collect_items_rec(id, &mut items, &mut pending, &mut spans);
         if !pending.trim().is_empty() {
-            items.push(Item::Text(std::mem::take(&mut pending)));
+            items.push(Item::Text(std::mem::take(&mut pending), spans));
         }
         items
     }
 
-    fn collect_items_rec(&self, id: NodeId, items: &mut Vec<Item>, pending: &mut String) {
+    fn collect_items_rec(
+        &self,
+        id: NodeId,
+        items: &mut Vec<Item>,
+        pending: &mut String,
+        spans: &mut Vec<LinkSpan>,
+    ) {
         for &child in &self.dom.nodes[id].children {
             match &self.dom.nodes[child].kind {
                 NodeKind::Text(t) => pending.push_str(t),
@@ -2274,21 +2556,53 @@ impl<'a> Ctx<'a> {
                                 | Display::InlineFlex
                         )
                     {
-                        if !pending.trim().is_empty() {
-                            items.push(Item::Text(std::mem::take(pending)));
+                        if !pending.trim().is_empty() || !spans.is_empty() {
+                            items.push(Item::Text(
+                                std::mem::take(pending),
+                                std::mem::take(spans),
+                            ));
                         } else {
                             pending.clear();
                         }
                         items.push(Item::Block(child));
                     } else {
+                        // A hyperlink anchor records its text span before its
+                        // content folds into the run (CORE-104). Nested inline
+                        // elements inside it fold under the same span.
+                        if self.dom.nodes[child]
+                            .kind
+                            .element()
+                            .is_some_and(|el| el.tag == "a")
+                        {
+                            if let Some(href) = self.dom.nodes[child]
+                                .kind
+                                .element()
+                                .and_then(|el| el.attr("href"))
+                            {
+                                let start = pending.len();
+                                self.collect_items_rec(child, items, pending, spans);
+                                // Whitespace-only anchors yield a zero-width
+                                // overlap later → no rect (spec edge case).
+                                let end = pending.len();
+                                if end > start {
+                                    spans.push(LinkSpan {
+                                        start,
+                                        end,
+                                        href: href.to_string(),
+                                    });
+                                }
+                                continue;
+                            }
+                        }
                         // Inline element: fold its text into the current run.
-                        self.collect_items_rec(child, items, pending);
+                        self.collect_items_rec(child, items, pending, spans);
                     }
                 }
                 NodeKind::Root => {}
             }
         }
     }
+
 
     /// Break a main-text run with the typography layer's Knuth-Plass breaker
     /// (real shaped widths, glue, hyphenation, justification). The `hyphens`

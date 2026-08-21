@@ -42,6 +42,16 @@ pub enum NodeKind {
     Text(String),
 }
 
+impl NodeKind {
+    /// The element payload, if this node is an element.
+    pub fn element(&self) -> Option<&Element> {
+        match self {
+            NodeKind::Element(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Node {
     pub kind: NodeKind,

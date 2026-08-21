@@ -121,7 +121,7 @@ pub fn render_with_metadata(layout: &Layout, meta: &DocumentMetadata) -> Result<
     };
     let mut document = Document::new_with(settings);
 
-    for page in &layout.pages {
+    for (page_idx, page) in layout.pages.iter().enumerate() {
         // Each fragmentainer carries its own resolved page size (an `@page`
         // rule may override the CLI default per page).
         let page_w = page.root.size.0.to_f32();
@@ -264,6 +264,57 @@ pub fn render_with_metadata(layout: &Layout, meta: &DocumentMetadata) -> Result<
         }
 
         surface.finish();
+        // Link annotations (CORE-104): added after the surface is finished —
+        // `surface()` holds a mutable borrow of the page for its lifetime.
+        for pl in layout.links.iter().filter(|pl| pl.page_index == page_idx) {
+            let (x0, y0, x1, y1) = (
+                pl.x.get(),
+                pl.y.get(),
+                pl.x.get() + pl.w.get(),
+                pl.y.get() + pl.h.get(),
+            );
+            let mapped: Vec<(f32, f32)> = if rotated {
+                let (sx, ky, kx, sy, tx, ty): (f64, f64, f64, f64, f64, f64) =
+                    match page.page_orientation {
+                        Some(crate::paged::PageOrientation::RotateRight) => {
+                            (0.0, 1.0, -1.0, 0.0, page_h as f64, 0.0)
+                        }
+                        Some(crate::paged::PageOrientation::RotateLeft) => {
+                            (0.0, -1.0, 1.0, 0.0, 0.0, page_w as f64)
+                        }
+                        _ => (-1.0, 0.0, 0.0, -1.0, page_w as f64, page_h as f64),
+                    };
+                [(x0, y0), (x1, y0), (x0, y1), (x1, y1)]
+                    .iter()
+                    .map(|&(x, y)| ((sx * x + kx * y + tx) as f32, (ky * x + sy * y + ty) as f32))
+                    .collect()
+            } else {
+                vec![(x0 as f32, y0 as f32), (x1 as f32, y1 as f32)]
+            };
+            let min_x = mapped.iter().map(|p| p.0).fold(f32::MAX, f32::min);
+            let min_y = mapped.iter().map(|p| p.1).fold(f32::MAX, f32::min);
+            let max_x = mapped.iter().map(|p| p.0).fold(f32::MIN, f32::max);
+            let max_y = mapped.iter().map(|p| p.1).fold(f32::MIN, f32::max);
+            let Some(rect) = Rect::from_xywh(min_x, min_y, max_x - min_x, max_y - min_y) else {
+                continue;
+            };
+            let target = match &pl.target {
+                crate::layout::LinkTarget::Url(u) => krilla::annotation::Target::Action(
+                    krilla::action::Action::Link(krilla::action::LinkAction::new(u.clone())),
+                ),
+                crate::layout::LinkTarget::Page(p) => {
+                    krilla::annotation::Target::Destination(krilla::destination::Destination::Xyz(
+                        krilla::destination::XyzDestination::new(
+                            *p,
+                            krilla::geom::Point::from_xy(0.0, 0.0),
+                        ),
+                    ))
+                }
+            };
+            pdf_page.add_annotation(krilla::annotation::Annotation::from(
+                krilla::annotation::LinkAnnotation::new(rect, target),
+            ));
+        }
         pdf_page.finish();
     }
 
