@@ -10,9 +10,10 @@
 //! our layout coordinate system, so no axis flip is needed.
 //!
 //! Determinism: krilla derives the PDF `/ID` from a stable content hash (no
-//! wall-clock), we set no `Metadata` (so no `CreationDate`), and we always
-//! embed the exact same font bytes. Identical input therefore yields identical
-//! output bytes.
+//! wall-clock), metadata is written only when the document declares it and is
+//! input-derived only — never `creation_date`, `creator`, or `producer` (so no
+//! `CreationDate` appears anywhere) — and we always embed the exact same font
+//! bytes. Identical input therefore yields identical output bytes.
 
 use anyhow::{anyhow, Context, Result};
 use krilla::color::rgb;
@@ -22,6 +23,7 @@ use krilla::page::PageSettings;
 use krilla::paint::{Fill, FillRule};
 use krilla::text::{Font, GlyphId, KrillaGlyph, TextDirection};
 use krilla::destination::XyzDestination;
+use krilla::metadata::Metadata;
 use krilla::outline::{Outline, OutlineNode};
 use krilla::{Document, SerializeSettings};
 use std::sync::LazyLock;
@@ -84,8 +86,32 @@ fn font_for(face: crate::fonts::FontFace) -> Result<&'static Font> {
         .ok_or_else(|| anyhow!("krilla failed to parse font {path}"))
 }
 
-/// Render a paginated layout to PDF bytes.
+/// Document-level metadata derived from the HTML input (CORE-105).
+///
+/// All fields are input-derived only: the engine never sets `creation_date`,
+/// `creator`, or `producer`, so identical input stays byte-identical.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct DocumentMetadata {
+    pub title: Option<String>,
+    pub authors: Vec<String>, // single author → vec![author]
+    pub subject: Option<String>,
+    pub keywords: Vec<String>,
+}
+
+/// Render a paginated layout to PDF bytes, without document metadata.
+///
+/// Existing callers keep this signature unchanged; behavior is identical to
+/// `render_with_metadata` with `DocumentMetadata::default()`.
 pub fn render(layout: &Layout) -> Result<Vec<u8>> {
+    render_with_metadata(layout, &DocumentMetadata::default())
+}
+
+/// Render a paginated layout to PDF bytes, applying document metadata.
+///
+/// When `meta` carries any non-empty field, it is written to the PDF's Info
+/// dict (Title/Author/Subject/Keywords) before finishing. `creation_date` is
+/// never set, keeping output deterministic.
+pub fn render_with_metadata(layout: &Layout, meta: &DocumentMetadata) -> Result<Vec<u8>> {
 
     // Disable tagging: the engine emits no semantic structure, and turning it
     // off keeps output smaller and free of an empty tag tree.
@@ -244,6 +270,30 @@ pub fn render(layout: &Layout) -> Result<Vec<u8>> {
     // PDF bookmarks: nest the DOM-order headings by level and emit them.
     if let Some(outline) = build_outline(layout) {
         document.set_outline(outline);
+    }
+
+    // Document metadata (CORE-105): written only when at least one field is
+    // non-empty — krilla then emits the Info dict. No `creation_date`,
+    // `creator`, or `producer` is ever set.
+    if meta.title.is_some()
+        || !meta.authors.is_empty()
+        || meta.subject.is_some()
+        || !meta.keywords.is_empty()
+    {
+        let mut m = Metadata::new();
+        if let Some(title) = &meta.title {
+            m = m.title(title.clone());
+        }
+        if !meta.authors.is_empty() {
+            m = m.authors(meta.authors.clone());
+        }
+        if let Some(subject) = &meta.subject {
+            m = m.description(subject.clone());
+        }
+        if !meta.keywords.is_empty() {
+            m = m.keywords(meta.keywords.clone());
+        }
+        document.set_metadata(m);
     }
 
     document

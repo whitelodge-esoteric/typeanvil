@@ -8,6 +8,7 @@
 //!     --margin-top 0.5in --margin-right 0.5in \
 //!     --margin-bottom 0.5in --margin-left 0.5in \
 //!     --base-url http://127.0.0.1:PORT/ \
+//!     --title "Q3 Report" --author "A. Author" \
 //!     -o <output.pdf>
 //! ```
 
@@ -54,6 +55,8 @@ struct RenderArgs {
     margin_left: Scalar,
     #[allow(dead_code)]
     base_url: String,
+    title: Option<String>,
+    author: Option<String>,
 }
 
 fn render(args: Vec<String>) -> Result<()> {
@@ -75,7 +78,8 @@ fn render(args: Vec<String>) -> Result<()> {
     };
 
     let laid_out = layout::layout(&dom, &stylesheet, geometry);
-    let bytes = pdf::render(&laid_out).context("rendering PDF")?;
+    let meta = typeanvil::metadata::extract_metadata(&dom, opts.title, opts.author);
+    let bytes = pdf::render_with_metadata(&laid_out, &meta).context("rendering PDF")?;
 
     std::fs::write(&opts.output, &bytes)
         .with_context(|| format!("writing output {}", opts.output.display()))?;
@@ -106,6 +110,8 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
     let mut margin_bottom: Option<Scalar> = None;
     let mut margin_left: Option<Scalar> = None;
     let mut base_url = String::new();
+    let mut title: Option<String> = None;
+    let mut author: Option<String> = None;
 
     let mut it = args.into_iter();
     while let Some(arg) = it.next() {
@@ -120,6 +126,8 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
             "--margin-bottom" => margin_bottom = Some(parse_length(&next_value(&mut it, &arg)?)?),
             "--margin-left" => margin_left = Some(parse_length(&next_value(&mut it, &arg)?)?),
             "--base-url" => base_url = next_value(&mut it, &arg)?,
+            "--title" => title = Some(next_value(&mut it, &arg)?),
+            "--author" => author = Some(next_value(&mut it, &arg)?),
             other if other.starts_with('-') => bail!("unknown flag `{other}`"),
             _ => {
                 if input.is_none() {
@@ -141,6 +149,8 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
         margin_bottom: margin_bottom.unwrap_or(Scalar::ZERO),
         margin_left: margin_left.unwrap_or(Scalar::ZERO),
         base_url,
+        title,
+        author,
     })
 }
 

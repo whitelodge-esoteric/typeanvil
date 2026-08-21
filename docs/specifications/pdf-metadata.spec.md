@@ -103,10 +103,11 @@ CLI (main.rs, hand-parsed like every flag):
 typeanvil render in.html [flags] --title "Q3 Report" --author "A. Author" -o out.pdf
 ```
 
-Extraction helper lives next to `extract_stylesheet` in main.rs:
+Extraction helper lives in `engine/src/metadata.rs`, shared by the CLI and
+integration tests (registered as `pub mod metadata` in `lib.rs`):
 
 ```rust
-fn extract_metadata(dom: &Dom, title_override: Option<String>, author_override: Option<String>) -> DocumentMetadata
+pub fn extract_metadata(dom: &Dom, title_override: Option<String>, author_override: Option<String>) -> DocumentMetadata
 ```
 
 ## Acceptance Criteria
