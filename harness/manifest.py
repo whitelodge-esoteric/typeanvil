@@ -357,7 +357,12 @@ def enumerate_tests(
     ``print_only``: if True, only include tests classified as print-reftests
         (``-print`` suffix or ``print/`` directory). If False, include any reftest
         with a resolvable reference (used for broader runs).
+
+    The curated css-multicol subset (:data:`harness.multicol_subset.MULTICOL_SUBSET`,
+    CORE-77) is always included regardless of the print-only gate: those tests are
+    ordinary screen reftests, hand-triaged to exercise shipped engine features.
     """
+    from .multicol_subset import MULTICOL_SUBSET
     from .wpt_fetch import TEST_PATHS
 
     dirs = dirs or TEST_PATHS
@@ -373,7 +378,11 @@ def enumerate_tests(
                 continue
             if _is_reference_file(path):
                 continue
-            if print_only and not _looks_like_print_test(path):
+            is_curated = (
+                d == "css/css-multicol"
+                and path.relative_to(wpt_root).as_posix() in MULTICOL_SUBSET
+            )
+            if print_only and not _looks_like_print_test(path) and not is_curated:
                 continue
             tc = parse_test(path, wpt_root)
             if tc is None:
