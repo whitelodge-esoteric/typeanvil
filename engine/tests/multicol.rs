@@ -6,7 +6,7 @@ use std::process::Command;
 
 use typeanvil::css::Stylesheet;
 use typeanvil::dom::{Dom, NodeId, NodeKind};
-use typeanvil::frag::{Fragment, FragmentKind};
+use typeanvil::frag::{Fragment, FragmentContent, FragmentKind};
 use typeanvil::geom::{PageGeometry, Scalar};
 use typeanvil::layout::{layout, Layout};
 
@@ -438,4 +438,43 @@ fn table_fragments_inside_multicol() {
         find_source(&page.root, last_row, &mut last_frags);
     }
     assert!(!last_frags.is_empty(), "last row laid (progress, no row-0 loop)");
+}
+
+/// Bare-text line fragments inside a column carry PARENT-RELATIVE baselines.
+///
+/// Regression (CORE-102): `fill_one_column` rebased each child fragment's
+/// `offset` into the column's coordinate space but left the child LINE
+/// fragment's `TextRun.baseline` at its ABSOLUTE page coordinates. The PDF
+/// emitter re-adds the accumulated parent origin, so every glyph in a bare
+/// text item landed a second time offset right/down by the column origin
+/// (e.g. words at x=72/144/216 instead of 36/72/108 — the moz-multicol3
+/// page-2 geometry divergence). Block children were unaffected because the
+/// block path rebases nested text baselines itself.
+#[test]
+fn bare_text_column_baselines_are_parent_relative() {
+    let html = r#"<html><head><style>
+        body { margin: 0; font-size: 12pt; line-height: 1.2; }
+        .mc { column-count: 3; }
+    </style></head>
+    <body><div class="mc">alpha beta gamma delta</div></body></html>"#;
+    let layout = lay(html);
+    let container = page_mc(&layout, 0);
+
+    // Every bare-text line inside every column must sit within its own
+    // column's box: baseline.x <= column width. Pre-fix, column 1's line
+    // carried an absolute baseline (~container width + column offset), far
+    // outside [0, col_w].
+    let col_w = container.children[0].size.0.get();
+    for (ci, col) in container.children.iter().enumerate() {
+        for child in &col.children {
+            if let FragmentContent::Text(run) = &child.content {
+                let bx = run.baseline.x.get();
+                assert!(
+                    bx >= -EPS && bx <= col_w + EPS,
+                    "column {ci}: text baseline x={bx} outside parent-relative \
+                     [0, {col_w}] — absolute baseline leaked through"
+                );
+            }
+        }
+    }
 }
