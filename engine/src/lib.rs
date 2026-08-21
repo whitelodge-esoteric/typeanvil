@@ -11,6 +11,7 @@ pub mod frag;
 pub mod fonts;
 pub mod geom;
 pub mod layout;
+pub mod metadata;
 pub mod paged;
 pub mod table;
 pub mod pdf;
