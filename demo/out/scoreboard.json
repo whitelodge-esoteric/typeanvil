@@ -1,14 +1,14 @@
 {
-  "generated": "2026-08-20T20:43:12Z",
-  "typeanvil_version": "5ec6c0d",
+  "generated": "2026-08-21T15:49:42Z",
+  "typeanvil_version": "aae47c3",
   "prince_version": "Prince 16.2",
   "docs": [
     {
       "name": "Float Showcase — Figure & Pull Quote",
       "file": "float-showcase.html",
-      "typeanvil_pages": 10,
+      "typeanvil_pages": 8,
       "prince_pages": 8,
-      "page_count_mismatch": true,
+      "page_count_mismatch": false,
       "pages": [
         {
           "page": 1,
@@ -16,34 +16,34 @@
         },
         {
           "page": 2,
-          "diff_percent": 17.05078125
+          "diff_percent": 14.917534722222223
         },
         {
           "page": 3,
-          "diff_percent": 25.29007523148148
+          "diff_percent": 20.66333912037037
         },
         {
           "page": 4,
-          "diff_percent": 22.81684027777778
+          "diff_percent": 24.00535300925926
         },
         {
           "page": 5,
-          "diff_percent": 26.121238425925924
+          "diff_percent": 33.1322337962963
         },
         {
           "page": 6,
-          "diff_percent": 26.41131365740741
+          "diff_percent": 31.959635416666664
         },
         {
           "page": 7,
-          "diff_percent": 22.708333333333332
+          "diff_percent": 27.545572916666668
         },
         {
           "page": 8,
-          "diff_percent": 21.510416666666668
+          "diff_percent": 12.26490162037037
         }
       ],
-      "overall_diff_percent": 21.984501591435187,
+      "overall_diff_percent": 22.30694806134259,
       "render_error": null
     },
     {
@@ -239,7 +239,7 @@
       "pages": [
         {
           "page": 1,
-          "diff_percent": 5.786313657407407
+          "diff_percent": 5.657552083333333
         },
         {
           "page": 2,
@@ -278,7 +278,7 @@
           "diff_percent": 3.5496238425925926
         }
       ],
-      "overall_diff_percent": 12.437499999999998,
+      "overall_diff_percent": 12.424623842592592,
       "render_error": null
     },
     {
