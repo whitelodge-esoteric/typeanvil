@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-16
-updated: 2026-08-20
+updated: 2026-08-21
 sidebar_position: 3
 tags: [css, paged-media, page, layout, engine]
 spec_id: paged-media-css
@@ -152,7 +152,12 @@ The engine shall:
    (deterministic either way).
 10. **Fill leaders**: `leader('.')` in an inline text run fills from the last
     character to the right content edge with the repeating character, at line
-    break time, deterministically.
+    break time, deterministically. The fill pitch is the leader character's
+    real shaped advance (CORE-99); the width RESERVED for the fixed text
+    parts is shaped at real width for literal pieces and uses a flat 0.5em
+    per-character estimate for resolved pieces (`counter`, `target-counter`),
+    so the fill count never depends on the resolved number glyphs and the
+    two-pass TOC still converges (§9).
 11. **Emit PDF bookmarks**: build an outline tree from `h1`–`h6` elements in
     DOM order (nested by heading level), each node titled with the heading's
     text content and targeted at the fragmentainer index where the heading

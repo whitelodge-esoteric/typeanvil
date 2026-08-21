@@ -428,6 +428,57 @@ fn toc_target_counter() {
     );
 }
 
+// --- 8b. Leader fill pitch uses the REAL '.' advance (CORE-99) --------------
+
+#[test]
+fn leader_fill_uses_real_dot_advance() {
+    // CORE-99: `leader('.')` filled at the flat 0.5em AVG_ADVANCE_EM
+    // heuristic, so dots were ~44% sparser than Prince's (report TOC: ~22
+    // dots vs Prince's ~28 at demo geometry) and the run stopped short of
+    // the right content edge. The fill pitch must be the shaped '.' advance;
+    // only the RESERVATION for resolved pieces stays glyph-independent
+    // (spec §9/§10 two-pass convergence).
+    let html = r##"<html><head><style>
+        @page { margin: 0.4in; }
+        body { margin: 0; }
+        .toc a { display: block; }
+        .e1 { content: "Chapter 1 " leader('.') target-counter(attr(href), page); }
+        .ch { display: block; break-before: page; }
+        h1 { font-size: 14px; }
+        p { font-size: 12px; }
+    </style></head><body>
+        <div class="toc">
+            <a class="e1" href="#ch1">Chapter 1</a>
+        </div>
+        <div class="ch"><h1 id="ch1">One</h1><p>Body one.</p></div>
+    </body></html>"##;
+    let layout = lay(html, geometry(5.0, 0.5, 0.4));
+    let toc = page_texts(&layout.pages[0]);
+    let e1 = toc.iter().find(|t| t.contains("Chapter 1")).expect("entry 1");
+    let dots = e1.chars().filter(|&c| c == '.').count() as f64;
+    assert!(e1.ends_with('2'), "entry wrong page number: {e1:?}");
+
+    // Independent expectation from the public shaping API. Body default is
+    // 16px = 12pt, regular face. Reservation: the literal at its real shaped
+    // width + the resolved page-number piece at the 0.5em heuristic.
+    let fs = typeanvil::geom::Scalar(12.0);
+    let face = typeanvil::fonts::FontFace::Regular;
+    let dot_w = typeanvil::typography::shape_word(".", fs, face).width.get();
+    let lit_w = typeanvil::typography::shape_word("Chapter 1 ", fs, face).width.get();
+    let content_w = inches(5.0 - 0.8).get();
+    let expected = ((content_w - lit_w - 0.5 * 12.0) / dot_w).floor();
+    assert!(
+        dots >= expected && dots <= expected + 1.0,
+        "leader dot count {dots} does not match real-advance fill {expected}: {e1:?}"
+    );
+    // The old 0.5em-pitch fill produced far fewer dots; pin the improvement.
+    let heuristic_dots = ((content_w - lit_w - 0.5 * 12.0) / (0.5 * 12.0)).floor();
+    assert!(
+        dots > heuristic_dots,
+        "fill regressed to the 0.5em heuristic: {dots} <= {heuristic_dots}"
+    );
+}
+
 // --- 9. PDF bookmarks ------------------------------------------------------
 
 #[test]

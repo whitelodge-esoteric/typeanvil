@@ -2296,32 +2296,57 @@ impl<'a> Ctx<'a> {
         style: &ComputedStyle,
         flow: &Flow,
     ) -> String {
-        let advance = style.font_size.get() * AVG_ADVANCE_EM;
+        // Width RESERVED for the fixed before/after text. Literal pieces are
+        // pass-invariant, so they are shaped at their REAL width; resolved
+        // pieces (`counter`, `target-counter`) keep the flat 0.5em
+        // per-character heuristic so the reservation never depends on the
+        // resolved glyphs — the property that makes the two-pass TOC converge
+        // (spec §9, §10).
+        let reserve_advance = style.font_size.get() * AVG_ADVANCE_EM;
+        let face = crate::fonts::face_for(style.font_weight, style.font_style);
+        let mut reserved_width = Scalar::ZERO;
+        let mut count_reserved = |s: &str, literal: bool| {
+            if literal {
+                reserved_width =
+                    reserved_width + crate::typography::shape_word(s, style.font_size, face).width;
+            } else {
+                reserved_width = reserved_width
+                    + Scalar(s.chars().count() as f64 * reserve_advance);
+            }
+        };
         // Resolve every non-leader piece to text; note the leader position.
         let mut before = String::new();
         let mut after = String::new();
         let mut leader_char: Option<char> = None;
         for piece in pieces {
             match piece {
-                ContentPiece::Literal(s) => push_side(&mut before, &mut after, leader_char, s),
+                ContentPiece::Literal(s) => {
+                    count_reserved(s, true);
+                    push_side(&mut before, &mut after, leader_char, s);
+                }
                 ContentPiece::StringRef(name) => {
                     let v = flow.running.get(name).to_string();
+                    count_reserved(&v, false);
                     push_side(&mut before, &mut after, leader_char, &v);
                 }
                 ContentPiece::CounterPage => {
                     let v = flow.page_number().to_string();
+                    count_reserved(&v, false);
                     push_side(&mut before, &mut after, leader_char, &v);
                 }
                 ContentPiece::CounterPages => {
                     let v = self.total_pages.to_string();
+                    count_reserved(&v, false);
                     push_side(&mut before, &mut after, leader_char, &v);
                 }
                 ContentPiece::CounterRef(_) => {
                     // Named counters are parsed but not tracked yet; render 0.
+                    count_reserved("0", false);
                     push_side(&mut before, &mut after, leader_char, "0");
                 }
                 ContentPiece::TargetCounter { attr } => {
                     let v = self.resolve_target(id, attr);
+                    count_reserved(&v, false);
                     push_side(&mut before, &mut after, leader_char, &v);
                 }
                 ContentPiece::Leader(ch) => leader_char = Some(*ch),
@@ -2332,10 +2357,22 @@ impl<'a> Ctx<'a> {
             Some(ch) => {
                 // Fill from the end of `before` to the right edge, leaving room
                 // for `after`. No room → no fill (spec edge case).
-                let used = (before.chars().count() + after.chars().count()) as f64 * advance;
+                //
+                // The fill PITCH is the leader char's real shaped advance
+                // (CORE-99): a '.' in Arial is ~0.28em, not the 0.5em
+                // heuristic, so filling at 0.5em both under-counts the dots
+                // and stops the run short of Prince's right-edge fill.
+                // The reservation stays literal-accurate / glyph-independent
+                // for resolved pieces, so the count never depends on the
+                // resolved number glyphs (spec §9, §10).
+                let fill_advance = crate::typography::shape_word(&ch.to_string(), style.font_size, face)
+                    .width
+                    .get()
+                    .max(0.01);
+                let used = reserved_width.get();
                 let room = inner_width.get() - used;
                 let count = if room > 0.0 {
-                    (room / advance).floor() as usize
+                    (room / fill_advance).floor() as usize
                 } else {
                     0
                 };
