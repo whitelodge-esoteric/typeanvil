@@ -2,7 +2,7 @@
 title: Font Resolution — @font-face, System Discovery, Family Stacks
 slug: /specifications/font-resolution
 type: spec
-status: in-review
+status: approved
 owner: elijah
 created: 2026-08-22
 updated: 2026-08-22
@@ -174,6 +174,24 @@ full stack, not just the first name. `clone_font_weight().value(): f32`,
 - Fonts unreadable at render time (permissions changed mid-session): shape/
   draw error surfaces as anyhow error, same as today's missing-Arial panic
   path, but scoped to the affected run.
+
+## Implementation notes (2026-08-22, landed commit b1a24e4)
+
+- **GENERIC GATE (deliberate deviation from Behavior 5):** generic families
+  resolve to the bundled Arial set, NOT concrete system faces. Reason: the
+  UA default `font-family` is stylo's initial value — bare `serif` — and
+  the WPT harness renders test AND reference through that same default;
+  mapping it to Times re-baselined every unstyled doc in the suite
+  (observed live: `fragmentation::orphans_widows` failed with
+  system-Times metrics before the gate was added). The fontdb mapping is
+  real and recorded above; flipping generics to concrete faces is a
+  one-line change in `family_candidates`, gated on a full-suite run and a
+  deliberate re-baseline decision.
+- Bundled Arial faces keep FIXED registry ids 0..4. Documents whose
+  families resolve to Arial/Helvetica/sans-serif render byte-identical to
+  pre-CORE-103 output.
+- @font-face url() sources resolve against the process CWD at cascade time;
+  document-relative resolution via `--base-url` rewriting is a follow-up.
 
 ## References
 
