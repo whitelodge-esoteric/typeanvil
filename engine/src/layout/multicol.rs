@@ -593,7 +593,7 @@ impl<'a> Ctx<'a> {
                         if !fits && !last_resort {
                             break;
                         }
-                        let face = crate::fonts::face_for(style.font_weight, style.font_style);
+                        let face = style.font_face;
                         let baseline = y + crate::typography::baseline_offset(style.font_size, lh, face);
                         let lr = &lines[li];
                         let lx = self.aligned_x(x, col_w, lr.drawn_width(), style);
@@ -602,7 +602,7 @@ impl<'a> Ctx<'a> {
                             baseline: Point::new(lx, baseline),
                             font_size: style.font_size,
                             color: style.color,
-                            font_face: crate::fonts::face_for(style.font_weight, style.font_style),
+                            font_face: style.font_face,
                             glyphs: lr.glyphs.clone(),
                             expansion: lr.expansion,
                             protrude_left: lr.protrude_left,

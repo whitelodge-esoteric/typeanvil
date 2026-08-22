@@ -462,7 +462,7 @@ fn leader_fill_uses_real_dot_advance() {
     // 16px = 12pt, regular face. Reservation: the literal at its real shaped
     // width + the resolved page-number piece at the 0.5em heuristic.
     let fs = typeanvil::geom::Scalar(12.0);
-    let face = typeanvil::fonts::FontFace::Regular;
+    let face = typeanvil::fonts::FACE_REGULAR;
     let dot_w = typeanvil::typography::shape_word(".", fs, face).width.get();
     let lit_w = typeanvil::typography::shape_word("Chapter 1 ", fs, face).width.get();
     let content_w = inches(5.0 - 0.8).get();

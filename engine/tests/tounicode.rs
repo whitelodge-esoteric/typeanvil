@@ -18,7 +18,7 @@ use std::ops::Range;
 use flate2::read::ZlibDecoder;
 use typeanvil::css::{cascade, ComputedStyle, Stylesheet};
 use typeanvil::dom::{Dom, NodeKind};
-use typeanvil::fonts::FontFace;
+use typeanvil::fonts::{FaceId, FACE_BOLD, FACE_BOLD_ITALIC, FACE_ITALIC, FACE_REGULAR};
 use typeanvil::geom::{PageGeometry, Scalar};
 use typeanvil::layout::layout;
 use typeanvil::pdf::render;
@@ -119,10 +119,10 @@ fn assert_ranges_cover(text: &str, glyphs: &[ShapedGlyph]) {
 #[test]
 fn shaped_word_ranges_cover_text() {
     let size = Scalar(11.0);
-    let run = shape_word("file", size, FontFace::Regular);
+    let run = shape_word("file", size, FACE_REGULAR);
     assert_ranges_cover(&run.text, &run.glyphs);
 
-    let run2 = shape_word("café —", size, FontFace::Regular);
+    let run2 = shape_word("café —", size, FACE_REGULAR);
     assert_ranges_cover(&run2.text, &run2.glyphs);
 }
 

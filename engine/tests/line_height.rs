@@ -348,7 +348,7 @@ fn first_baseline_uses_half_leading() {
 fn baseline_offset_matches_prince_formula() {
     // The pure function itself, against the Prince-verified numbers
     // (measured via pypdfium2 charbox bottoms on Prince 16.2 output).
-    let face = typeanvil::fonts::FontFace::Regular;
+    let face = typeanvil::fonts::FACE_REGULAR;
     let measured: &[(f64, f64, f64)] = &[
         (10.0, 10.0, 8.467),
         (10.0, 12.0, 9.467),

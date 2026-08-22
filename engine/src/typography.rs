@@ -33,8 +33,9 @@
 //! `GlyphInfo::glyph_id`; advances from `GlyphPosition::x_advance` (i32 design
 //! units).
 
+use std::collections::HashMap;
 use std::ops::Range;
-use std::sync::LazyLock;
+use std::sync::{LazyLock, Mutex};
 
 use harfrust::{Direction, FontRef, ShaperData, ShapeOptions, UnicodeBuffer};
 use hypher::Lang;
@@ -42,7 +43,7 @@ use read_fonts::TableProvider;
 use unicode_linebreak::{linebreaks, BreakOpportunity as UaxBreak};
 
 use crate::css::ComputedStyle;
-use crate::fonts::{face_path, FontFace};
+use crate::fonts::{face_path, FaceId, FACE_BOLD, FACE_BOLD_ITALIC, FACE_ITALIC, FACE_REGULAR};
 use crate::geom::Scalar;
 
 /// The K-P hyphen penalty (Typst's default, from Knuth-Plass §hyphenation).
@@ -62,21 +63,22 @@ const LEFT_HYPHEN_MIN: usize = 2;
 
 /// The embedded font bytes, loaded once per face. `'static` so a [`FontRef`]
 /// can borrow them for the whole process. The initializer is fixed, hence
-/// `LazyLock`.
+/// `LazyLock`. CORE-103: bundled faces keep their fixed ids 0..4; the
+/// registry serves any additional face (system or @font-face).
 static FACE_BYTES: [LazyLock<Vec<u8>>; 4] = [
     LazyLock::new(|| {
-        std::fs::read(face_path(FontFace::Regular))
+        std::fs::read(face_path(FACE_REGULAR))
             .expect("reading embedded font for shaping")
     }),
     LazyLock::new(|| {
-        std::fs::read(face_path(FontFace::Bold)).expect("reading embedded font for shaping")
+        std::fs::read(face_path(FACE_BOLD)).expect("reading embedded font for shaping")
     }),
     LazyLock::new(|| {
-        std::fs::read(face_path(FontFace::Italic))
+        std::fs::read(face_path(FACE_ITALIC))
             .expect("reading embedded font for shaping")
     }),
     LazyLock::new(|| {
-        std::fs::read(face_path(FontFace::BoldItalic))
+        std::fs::read(face_path(FACE_BOLD_ITALIC))
             .expect("reading embedded font for shaping")
     }),
 ];
@@ -86,33 +88,61 @@ static FACE_BYTES: [LazyLock<Vec<u8>>; 4] = [
 /// shaping never re-reads or re-parses the font.
 static FACE_SHAPERS: [LazyLock<(FontRef<'static>, ShaperData)>; 4] = [
     LazyLock::new(|| {
-        let bytes = &FACE_BYTES[FontFace::Regular as usize];
+        let bytes = &FACE_BYTES[FACE_REGULAR.0 as usize];
         let font = FontRef::new(bytes).expect("parsing embedded font for shaping");
         let data = ShaperData::new(&font);
         (font, data)
     }),
     LazyLock::new(|| {
-        let bytes = &FACE_BYTES[FontFace::Bold as usize];
+        let bytes = &FACE_BYTES[FACE_BOLD.0 as usize];
         let font = FontRef::new(bytes).expect("parsing embedded font for shaping");
         let data = ShaperData::new(&font);
         (font, data)
     }),
     LazyLock::new(|| {
-        let bytes = &FACE_BYTES[FontFace::Italic as usize];
+        let bytes = &FACE_BYTES[FACE_ITALIC.0 as usize];
         let font = FontRef::new(bytes).expect("parsing embedded font for shaping");
         let data = ShaperData::new(&font);
         (font, data)
     }),
     LazyLock::new(|| {
-        let bytes = &FACE_BYTES[FontFace::BoldItalic as usize];
+        let bytes = &FACE_BYTES[FACE_BOLD_ITALIC.0 as usize];
         let font = FontRef::new(bytes).expect("parsing embedded font for shaping");
         let data = ShaperData::new(&font);
         (font, data)
     }),
 ];
 
-fn face_shaper(face: FontFace) -> &'static (FontRef<'static>, ShaperData) {
-    &FACE_SHAPERS[face as usize]
+fn face_shaper(face: FaceId) -> &'static (FontRef<'static>, ShaperData) {
+    // CORE-103: bundled faces (ids 0..4) hit the fixed tables; any other id
+    // goes through the registry's shaper cache (leaked 'static bytes, so
+    // the FontRef borrow stays valid for the process).
+    if (face.0 as usize) < 4 {
+        &FACE_SHAPERS[face.0 as usize]
+    } else {
+        registry_shaper(face)
+    }
+}
+
+/// Registry-backed shaper cache for non-bundled faces. Leaks one cache
+/// entry per face id; entries are created once (deterministic: keyed by
+/// FaceId).
+fn registry_shaper(face: FaceId) -> &'static (FontRef<'static>, ShaperData) {
+    static EXTRA: LazyLock<Mutex<HashMap<u32, &'static (FontRef<'static>, ShaperData)>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
+    let mut cache = EXTRA.lock().unwrap();
+    if let Some(entry) = cache.get(&face.0) {
+        return entry;
+    }
+    let bytes = crate::fonts::face_bytes(face);
+    let font = match read_fonts::FontRef::from_index(bytes, crate::fonts::face_index(face)) {
+        Ok(f) => f,
+        Err(_) => read_fonts::FontRef::new(bytes).expect("parsing registered font"),
+    };
+    let data = ShaperData::new(&font);
+    let entry: &'static (FontRef<'static>, ShaperData) = Box::leak(Box::new((font, data)));
+    cache.insert(face.0, entry);
+    entry
 }
 
 /// The vertical metrics of a face, in fractions of the em square: (ascent,
@@ -120,7 +150,7 @@ fn face_shaper(face: FontFace) -> &'static (FontRef<'static>, ShaperData) {
 /// leading baseline: half the leading is split around ascent + descent).
 /// All bundled Arial faces share one hhea, but this reads per-face so a
 /// future font swap stays correct.
-pub fn font_metrics(face: FontFace) -> (f64, f64) {
+pub fn font_metrics(face: FaceId) -> (f64, f64) {
     let (font, _) = face_shaper(face);
     let hhea = font.hhea().expect("hhea table for font metrics");
     let upem = font.head().expect("head table").units_per_em() as f64;
@@ -136,7 +166,7 @@ pub fn font_metrics(face: FontFace) -> (f64, f64) {
 /// (ascent assumed = font size, no half-leading); Prince uses this formula,
 /// which is what CORE-90 proved. Line box HEIGHT is unchanged (still
 /// `line_height`); only the glyph baseline inside the box moves.
-pub fn baseline_offset(font_size: Scalar, line_height: Scalar, face: FontFace) -> Scalar {
+pub fn baseline_offset(font_size: Scalar, line_height: Scalar, face: FaceId) -> Scalar {
     let (asc_em, desc_em) = font_metrics(face);
     let ascent = font_size.get() * asc_em;
     let descent = font_size.get() * -desc_em;
@@ -242,7 +272,7 @@ pub struct LineResult {
 ///
 /// Returns a [`ShapeRun`] whose glyph advances are in points. Missing glyphs
 /// resolve to the font's `.notdef` deterministically (no crash).
-pub fn shape_word(word: &str, font_size: Scalar, face: FontFace) -> ShapeRun {
+pub fn shape_word(word: &str, font_size: Scalar, face: FaceId) -> ShapeRun {
     let (font, data) = face_shaper(face);
     let shaper = data.shaper(font).build();
     let upem = shaper.units_per_em() as f64;
@@ -363,7 +393,7 @@ enum Item {
 /// Space glue for the selected face at `font_size`: natural width is the space
 /// glyph advance; stretch/shrink are the classic TeX fractions of the space
 /// (1/2 stretch, 1/3 shrink) for a comfortable justified texture.
-fn space_glue(font_size: Scalar, face: FontFace) -> Glue {
+fn space_glue(font_size: Scalar, face: FaceId) -> Glue {
     let space = shape_word(" ", font_size, face).width;
     Glue {
         width: space,
@@ -386,7 +416,7 @@ fn space_glue(font_size: Scalar, face: FontFace) -> Glue {
 fn build_items(
     text: &str,
     font_size: Scalar,
-    face: FontFace,
+    face: FaceId,
     hyphenate: bool,
 ) -> (Vec<Item>, Vec<usize>) {
     let glue = space_glue(font_size, face);
@@ -477,7 +507,7 @@ fn push_word(
     font_size: Scalar,
     hyphenate: bool,
     hyphen_run: &ShapeRun,
-    face: FontFace,
+    face: FaceId,
 ) {
     if !hyphenate || word.chars().count() < 5 {
         items.push(Item::Box(shape_word(word, font_size, face)));
@@ -909,7 +939,7 @@ pub fn break_paragraph(
         return Vec::new();
     }
     let font_size = style.font_size;
-    let face = crate::fonts::face_for(style.font_weight, style.font_style);
+    let face = style.font_face;
     let (items, box_ends) = build_items(text, font_size, face, hyphenate);
     if items.is_empty() {
         return Vec::new();

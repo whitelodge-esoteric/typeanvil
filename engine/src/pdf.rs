@@ -26,7 +26,8 @@ use krilla::page::PageSettings;
 use krilla::paint::{Fill, FillRule};
 use krilla::text::{Font, GlyphId, KrillaGlyph, TextDirection};
 use krilla::{Document, SerializeSettings};
-use std::sync::LazyLock;
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
 
 use crate::css::Color;
 use crate::frag::{Fragment, FragmentContent};
@@ -50,28 +51,28 @@ fn solid_fill(c: Color) -> Fill {
 /// / use fontique for portable discovery.)
 static FACE_FONTS: [LazyLock<Option<Font>>; 4] = [
     LazyLock::new(|| {
-        let path = crate::fonts::face_path(crate::fonts::FontFace::Regular);
+        let path = crate::fonts::face_path(crate::fonts::FACE_REGULAR);
         std::fs::read(path)
             .with_context(|| format!("reading embedded font {path}"))
             .ok()
             .and_then(|data| Font::new(data.into(), 0))
     }),
     LazyLock::new(|| {
-        let path = crate::fonts::face_path(crate::fonts::FontFace::Bold);
+        let path = crate::fonts::face_path(crate::fonts::FACE_BOLD);
         std::fs::read(path)
             .with_context(|| format!("reading embedded font {path}"))
             .ok()
             .and_then(|data| Font::new(data.into(), 0))
     }),
     LazyLock::new(|| {
-        let path = crate::fonts::face_path(crate::fonts::FontFace::Italic);
+        let path = crate::fonts::face_path(crate::fonts::FACE_ITALIC);
         std::fs::read(path)
             .with_context(|| format!("reading embedded font {path}"))
             .ok()
             .and_then(|data| Font::new(data.into(), 0))
     }),
     LazyLock::new(|| {
-        let path = crate::fonts::face_path(crate::fonts::FontFace::BoldItalic);
+        let path = crate::fonts::face_path(crate::fonts::FACE_BOLD_ITALIC);
         std::fs::read(path)
             .with_context(|| format!("reading embedded font {path}"))
             .ok()
@@ -79,11 +80,34 @@ static FACE_FONTS: [LazyLock<Option<Font>>; 4] = [
     }),
 ];
 
-fn font_for(face: crate::fonts::FontFace) -> Result<&'static Font> {
-    let path = crate::fonts::face_path(face);
-    FACE_FONTS[face as usize]
-        .as_ref()
-        .ok_or_else(|| anyhow!("krilla failed to parse font {path}"))
+fn font_for(face: crate::fonts::FaceId) -> Result<&'static Font> {
+    // Bundled faces (ids 0..4) keep the fixed table; registry faces
+    // (@font-face / system, CORE-103) get a leaked krilla Font keyed by id.
+    if (face.0 as usize) < 4 {
+        let path = crate::fonts::face_path(face);
+        FACE_FONTS[face.0 as usize]
+            .as_ref()
+            .ok_or_else(|| anyhow!("krilla failed to parse font {path}"))
+    } else {
+        // Registry faces (@font-face / system, CORE-103): parse once per id
+        // and leak the Font (deterministic; one allocation per face).
+        static PARSED: LazyLock<Mutex<HashMap<u32, usize>>> =
+            LazyLock::new(|| Mutex::new(HashMap::new()));
+        let mut parsed = PARSED.lock().unwrap();
+        let ptr = *parsed.entry(face.0).or_insert_with(|| {
+            Font::new(
+                crate::fonts::face_bytes(face).into(),
+                crate::fonts::face_index(face),
+            )
+            .map(|font| Box::leak(Box::new(font)) as *const Font as usize)
+            .unwrap_or(0)
+        });
+        if ptr == 0 {
+            Err(anyhow!("krilla failed to parse registered font {face:?}"))
+        } else {
+            Ok(unsafe { &*(ptr as *const Font) })
+        }
+    }
 }
 
 /// Document-level metadata derived from the HTML input (CORE-105).
@@ -478,7 +502,7 @@ struct TextItem {
     y: f32,
     font_size: f32,
     color: Color,
-    font_face: crate::fonts::FontFace,
+    font_face: crate::fonts::FaceId,
     text: String,
     glyphs: Vec<ShapedGlyph>,
     expansion: f32,

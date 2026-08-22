@@ -153,7 +153,7 @@ pub struct TextRun {
     /// Fill color.
     pub color: Color,
     /// Resolved font face for this run (used by PDF emit).
-    pub font_face: crate::fonts::FontFace,
+    pub font_face: crate::fonts::FaceId,
     /// The shaped glyphs of the line (typography layer). All runs — body
     /// text, generated content, margin boxes — carry shaped glyphs with
     /// source-text ranges (CORE-85, CORE-83); empty only for degenerate runs.
