@@ -9,7 +9,7 @@
 
 use typeanvil::css::Stylesheet;
 use typeanvil::dom::{Dom, NodeKind};
-use typeanvil::fonts::FontFace;
+use typeanvil::fonts::{FaceId, FACE_BOLD, FACE_BOLD_ITALIC, FACE_ITALIC, FACE_REGULAR};
 use typeanvil::frag::{Fragment, FragmentContent, TextRun};
 use typeanvil::geom::{PageGeometry, Scalar};
 use typeanvil::layout::{layout, Layout};
@@ -193,12 +193,12 @@ p { font-family: Arial; font-size: 12pt; margin: 0; }
     assert!(runs.len() >= 2, "expected two runs, got {}", runs.len());
     assert_eq!(
         runs[0].font_face,
-        FontFace::Regular,
+        FACE_REGULAR,
         "weight 400 must resolve to the regular face"
     );
     assert_eq!(
         runs[1].font_face,
-        FontFace::Bold,
+        FACE_BOLD,
         "weight 600 must resolve to the bold face"
     );
 }
@@ -274,7 +274,7 @@ p { font-family: Arial; font-size: 12pt; margin: 0; }
     for run in &runs {
         assert_eq!(
             run.font_face,
-            FontFace::Regular,
+            FACE_REGULAR,
             "undecorated text must stay on the regular face"
         );
     }

@@ -277,6 +277,14 @@ pub struct ComputedStyle {
     pub font_weight: f32,
     /// The computed `font-style` (oblique folded into italic).
     pub font_style: FontStyle,
+    /// The resolved primary face for this element's `font-family` stack
+    /// (CORE-103). Bundled fallback when nothing resolves.
+    pub font_face: crate::fonts::FaceId,
+    /// Later stack members for per-character glyph fallback (spec
+    /// Behavior 8). Empty when the stack had one resolvable family.
+    pub font_fallbacks: Vec<crate::fonts::FaceId>,
+    /// The first computed family NAME (kept for diagnostics/tests; layout
+    /// and shaping read `font_face`).
     pub font_family: String,
     pub display: Display,
     /// The computed `float` value (css-box-3 §2). `Left`/`Right` take the
@@ -399,6 +407,8 @@ impl ComputedStyle {
             line_height: px_to_pt(16.0) * NORMAL_LINE_HEIGHT_FACTOR,
             font_weight: 400.0,
             font_style: FontStyle::Normal,
+            font_face: crate::fonts::FACE_REGULAR,
+            font_fallbacks: Vec::new(),
             font_family: "sans-serif".to_string(),
             display: Display::Inline,
             float: Float::None,
@@ -952,6 +962,11 @@ impl CascadeSession {
         let flex_column_gap = flex_gap(&position.clone_column_gap());
         let font_family = first_family_name(font.clone_font_family())
             .unwrap_or_else(|| "sans-serif".to_string());
+        let (font_face, font_fallbacks) = {
+            let specs = family_specs(font.clone_font_family());
+            let resolution = crate::fonts::resolve_font(&specs, font_weight, font_style);
+            (resolution.primary, resolution.fallbacks)
+        };
         let line_height = match font.clone_line_height() {
             LineHeight::Normal => font_size * NORMAL_LINE_HEIGHT_FACTOR,
             LineHeight::Number(n) => font_size * n.0 as f64,
@@ -981,6 +996,8 @@ impl CascadeSession {
             font_size,
             line_height,
             font_family,
+            font_face,
+            font_fallbacks,
             display,
             font_weight,
             font_style,
@@ -1076,6 +1093,210 @@ fn first_family_name(family: FontFamily) -> Option<String> {
     }
 }
 
+/// Convert a computed `font-family` list into registry [`FamilySpec`]s,
+/// preserving stack order (named families AND generics — CORE-103).
+fn family_specs(family: FontFamily) -> Vec<crate::fonts::FamilySpec> {
+    use style::values::computed::font::GenericFontFamily;
+    family
+        .families
+        .list
+        .iter()
+        .map(|f| match f {
+            SingleFontFamily::FamilyName(name) => {
+                crate::fonts::FamilySpec::Name(name.name.to_string())
+            }
+            SingleFontFamily::Generic(g) => match g {
+                GenericFontFamily::Serif => crate::fonts::FamilySpec::Serif,
+                GenericFontFamily::SansSerif => crate::fonts::FamilySpec::SansSerif,
+                GenericFontFamily::Monospace => crate::fonts::FamilySpec::Monospace,
+                GenericFontFamily::Cursive => crate::fonts::FamilySpec::Cursive,
+                GenericFontFamily::Fantasy => crate::fonts::FamilySpec::Fantasy,
+                _ => crate::fonts::FamilySpec::SansSerif,
+            },
+        })
+        .collect()
+}
+
+// --- @font-face (CORE-103) --------------------------------------------------
+
+/// One parsed `@font-face` rule.
+#[derive(Clone, Debug)]
+pub struct FontFaceRule {
+    /// The `font-family` descriptor: the family name this rule defines.
+    pub family: String,
+    /// Resolved `src` file paths, in declaration order (local()/url() both
+    /// resolve to files; network sources are dropped).
+    pub sources: Vec<String>,
+    /// `font-weight` descriptor (single value; default 400).
+    pub weight: f32,
+    /// `font-style: italic` descriptor (default false).
+    pub italic: bool,
+}
+
+/// Parse every `@font-face` rule out of a stylesheet. Balanced-brace scan
+/// over comment-stripped source (same technique as the break/page passes);
+/// char-safe iteration throughout (the CORE-83 lesson).
+pub fn parse_font_face_rules(css: &str) -> Vec<FontFaceRule> {
+    let css = breaks::strip_comments(css);
+    let mut rules = Vec::new();
+    let bytes = css.as_bytes();
+    let mut i = 0usize;
+    while let Some(at) = css[i..].find("@font-face") {
+        let start = i + at;
+        // The rule's opening brace must come before any '}' or ';' — an
+        // earlier brace belongs to a previous block we already consumed.
+        let Some(brace_rel) = css[start..].find('{') else {
+            break;
+        };
+        let brace = start + brace_rel;
+        // Find the balanced close.
+        let mut depth = 1usize;
+        let mut end = brace + 1;
+        while end < bytes.len() && depth > 0 {
+            match bytes[end] {
+                b'{' => depth += 1,
+                b'}' => depth -= 1,
+                _ => {}
+            }
+            end += 1;
+        }
+        if depth != 0 {
+            break; // unbalanced stylesheet tail; ignore the partial rule
+        }
+        if let Some(rule) = parse_one_font_face(&css[brace + 1..end - 1]) {
+            rules.push(rule);
+        }
+        i = end;
+    }
+    rules
+}
+
+/// Parse one `@font-face` body into a [`FontFaceRule`]. `None` when there
+/// is no usable `font-family` descriptor or no resolvable src.
+fn parse_one_font_face(body: &str) -> Option<FontFaceRule> {
+    let mut family: Option<String> = None;
+    let mut sources: Vec<String> = Vec::new();
+    let mut weight = 400.0f32;
+    let mut italic = false;
+    for decl in split_top_level_decls(body) {
+        let decl = decl.trim();
+        let Some((prop, value)) = decl.split_once(':') else {
+            continue;
+        };
+        let prop = prop.trim().to_ascii_lowercase();
+        let value = value.trim();
+        match prop.as_str() {
+            "font-family" => {
+                // Strip quotes; the descriptor takes ONE family name.
+                let name = value.trim().trim_matches(|c| c == '\'' || c == '"');
+                if !name.is_empty() {
+                    family = Some(name.to_string());
+                }
+            }
+            "src" => {
+                for part in split_src_list(value) {
+                    let part = part.trim();
+                    if let Some(p) = part.strip_prefix("url(") {
+                        if let Some(path) = p.strip_suffix(')') {
+                            sources.push(path.trim().trim_matches(|c| c == '\'' || c == '"').to_string());
+                        }
+                    } else if let Some(p) = part.strip_prefix("local(") {
+                        if let Some(name) = p.strip_suffix(')') {
+                            sources.push(format!("local:{}", name.trim()));
+                        }
+                    }
+                    // format() hints and other trailing tokens are ignored.
+                }
+            }
+            "font-weight" => {
+                weight = parse_font_weight_descriptor(value).unwrap_or(400.0);
+            }
+            "font-style" => {
+                italic = value.eq_ignore_ascii_case("italic")
+                    || value.eq_ignore_ascii_case("oblique");
+            }
+            _ => {}
+        }
+    }
+    let family = family?;
+    if sources.is_empty() {
+        return None;
+    }
+    Some(FontFaceRule { family, sources, weight, italic })
+}
+
+/// Split a declaration body on top-level `;` (ignoring parens, e.g. inside
+/// url(...)). Char-safe (byte-index based, ASCII delimiters only).
+fn split_top_level_decls(body: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let bytes = body.as_bytes();
+    let mut start = 0usize;
+    let mut depth = 0i32;
+    for (idx, &b) in bytes.iter().enumerate() {
+        match b {
+            b'(' => depth += 1,
+            b')' => depth -= 1,
+            b';' if depth == 0 => {
+                out.push(&body[start..idx]);
+                start = idx + 1;
+            }
+            _ => {}
+        }
+    }
+    if start < body.len() {
+        out.push(&body[start..]);
+    }
+    out
+}
+
+/// Split a `src` value's comma list, ignoring commas inside url(...).
+fn split_src_list(value: &str) -> Vec<&str> {
+    split_top_level_decls(value)
+}
+
+/// The `font-weight` descriptor: single number, named weights, or a range
+/// (`400 700` — take the lower bound).
+fn parse_font_weight_descriptor(value: &str) -> Option<f32> {
+    let first = value.split_whitespace().next()?;
+    match first.to_ascii_lowercase().as_str() {
+        "normal" => Some(400.0),
+        "bold" => Some(700.0),
+        n => n.parse::<f32>().ok().filter(|w| (1.0..=1000.0).contains(w)),
+    }
+}
+
+/// Register every `@font-face` rule's sources into the face registry, in
+/// stylesheet order. Sources resolve like `<img src>` (CORE-106): relative
+/// paths against `--base-url`, absolute paths pass through; `local(...)`
+/// entries match an installed family name via fontdb. Unreadable or
+/// unparseable sources are skipped deterministically.
+fn apply_font_face_rules(css_source: &str) {
+    for rule in parse_font_face_rules(css_source) {
+        for src in &rule.sources {
+            if let Some(local_name) = src.strip_prefix("local:") {
+                // local(): register every installed face of that family so
+                // weight/style matching can pick among them.
+                for face in crate::fonts::system_family_faces(local_name) {
+                    crate::fonts::register_system_face_pub(&face);
+                }
+            } else if let Some(bytes) = read_font_file(src) {
+                // url(): file bytes. Registration is idempotent per
+                // (family, weight, style, content).
+                crate::fonts::register_face_bytes(&rule.family, rule.weight, rule.italic, bytes);
+            }
+        }
+    }
+}
+
+/// Read a font file source. Relative paths are NOT resolved here — the
+/// engine has no base URL at cascade time, so relative paths resolve
+/// against the process CWD (matching how tests run from the repo root);
+/// document-relative resolution threads through `--base-url` at the CLI
+/// layer by rewriting `url()` before parse (see main.rs).
+fn read_font_file(path: &str) -> Option<Vec<u8>> {
+    std::fs::read(path).ok()
+}
+
 /// Recurse the DOM in pre-order, resolving each element with stylo.
 fn walk<'a>(
     backend: &'a TyBackend<'a>,
@@ -1128,6 +1349,10 @@ pub fn parse_css_color(s: &str) -> Option<Color> {
 /// This is the swap boundary between the engine and stylo: layout and PDF
 /// read only the returned `Vec<ComputedStyle>`.
 pub fn cascade(dom: &Dom, stylesheet: &Stylesheet, geometry: &crate::geom::PageGeometry) -> Vec<ComputedStyle> {
+    // @font-face registration (CORE-103) happens BEFORE any resolution so
+    // custom families shadow system fonts. Idempotent (content-hash dedup
+    // in the registry), so repeated cascades are safe.
+    apply_font_face_rules(stylesheet.source());
     let lock = SharedRwLock::new();
     let mut backend = TyBackend::new(dom, &lock);
     let mut session = CascadeSession::new(&lock, stylesheet.source(), geometry);

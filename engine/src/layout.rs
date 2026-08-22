@@ -838,7 +838,7 @@ impl<'a> Ctx<'a> {
             if info.broken && used_w.get() > 0.0 {
                 if let Some(alt) = el.and_then(|e| e.attr("alt")) {
                     if !alt.trim().is_empty() {
-                        let face = crate::fonts::face_for(style.font_weight, style.font_style);
+                        let face = style.font_face;
                         let lh = style.line_height;
                         let baseline =
                             box_top + crate::typography::baseline_offset(style.font_size, lh, face);
@@ -1173,7 +1173,7 @@ impl<'a> Ctx<'a> {
             let lh = line_height(style);
             if y + lh <= bottom_limit || !placed {
                 let text = self.resolve_content(id, &style.content, inner_width, style, flow);
-                let face = crate::fonts::face_for(style.font_weight, style.font_style);
+                let face = style.font_face;
                 let baseline = y + crate::typography::baseline_offset(style.font_size, lh, face);
                 // Shape the resolved content so non-ASCII (em dash, curly
                 // quotes, ·) renders as a real glyph with a ToUnicode mapping
@@ -1258,7 +1258,7 @@ impl<'a> Ctx<'a> {
                             if !fits && !last_resort {
                                 break;
                             }
-                            let face = crate::fonts::face_for(style.font_weight, style.font_style);
+                            let face = style.font_face;
                             let baseline =
                                 y + crate::typography::baseline_offset(style.font_size, lh, face);
                             let lr = &lines[li];
@@ -1290,10 +1290,7 @@ impl<'a> Ctx<'a> {
                                 baseline: Point::new(x, baseline),
                                 font_size: style.font_size,
                                 color: style.color,
-                                font_face: crate::fonts::face_for(
-                                    style.font_weight,
-                                    style.font_style,
-                                ),
+                                font_face: style.font_face,
                                 glyphs: lr.glyphs.clone(),
                                 expansion: lr.expansion,
                                 protrude_left: lr.protrude_left,
@@ -1422,7 +1419,7 @@ impl<'a> Ctx<'a> {
                                     break;
                                 }
                                 let face =
-                                    crate::fonts::face_for(style.font_weight, style.font_style);
+                                    style.font_face;
                                 let baseline = y + crate::typography::baseline_offset(
                                     style.font_size,
                                     lh,
@@ -1457,10 +1454,7 @@ impl<'a> Ctx<'a> {
                                     baseline: Point::new(x, baseline),
                                     font_size: style.font_size,
                                     color: style.color,
-                                    font_face: crate::fonts::face_for(
-                                        style.font_weight,
-                                        style.font_style,
-                                    ),
+                                    font_face: style.font_face,
                                     glyphs: lr.glyphs.clone(),
                                     expansion: lr.expansion,
                                     protrude_left: lr.protrude_left,
@@ -3010,7 +3004,7 @@ impl<'a> Ctx<'a> {
         // resolved glyphs — the property that makes the two-pass TOC converge
         // (spec §9, §10).
         let reserve_advance = style.font_size.get() * AVG_ADVANCE_EM;
-        let face = crate::fonts::face_for(style.font_weight, style.font_style);
+        let face = style.font_face;
         let mut reserved_width = Scalar::ZERO;
         let mut count_reserved = |s: &str, literal: bool| {
             if literal {
@@ -3382,7 +3376,7 @@ fn attach_margin_boxes(
         if text.is_empty() {
             continue;
         }
-        let face = crate::fonts::FontFace::Regular;
+        let face = crate::fonts::FACE_REGULAR;
         // Shape the resolved content so non-ASCII (em dash, curly quotes, ·)
         // renders as a real glyph with a ToUnicode mapping — never raw UTF-8
         // bytes (CORE-83). Margin boxes are one line; no microtypography.

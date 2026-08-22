@@ -175,7 +175,7 @@ fn measure_intrinsics(text: &str, style: &ComputedStyle) -> (Scalar, Scalar) {
     if text.trim().is_empty() {
         return (Scalar::ZERO, Scalar::ZERO);
     }
-    let face = fonts::face_for(style.font_weight, style.font_style);
+    let face = style.font_face;
     let font_size = style.font_size;
     let mut min_w = Scalar::ZERO;
     for word in text.split_whitespace() {

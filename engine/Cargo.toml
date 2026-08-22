@@ -42,6 +42,9 @@ harfrust = "0.13"
 read-fonts = "0.43"
 # Knuth-Liang hyphenation patterns (zero-alloc, pure Rust, data-only).
 hypher = "0.1"
+# System font discovery + css-fonts-4 matching (CORE-103). Pure Rust
+# (ttf-parser under the hood); loads once per process (~430ms, 1285 faces).
+fontdb = "0.23"
 # UAX #14 line-break opportunities (pure Rust). Deviation from the spec's
 # icu_segmenter: see typography.rs `line_break_opportunities` for rationale.
 unicode-linebreak = "0.1"

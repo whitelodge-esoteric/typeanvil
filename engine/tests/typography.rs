@@ -140,8 +140,8 @@ fn render_cli(html: &Path, out: &Path, w: &str, h: &str) {
 /// same font/size have different widths (W is wide, i is narrow).
 #[test]
 fn shaping_real_widths() {
-    let wide = shape_word("WWWW", Scalar(12.0), typeanvil::fonts::FontFace::Regular);
-    let narrow = shape_word("iiii", Scalar(12.0), typeanvil::fonts::FontFace::Regular);
+    let wide = shape_word("WWWW", Scalar(12.0), typeanvil::fonts::FACE_REGULAR);
+    let narrow = shape_word("iiii", Scalar(12.0), typeanvil::fonts::FACE_REGULAR);
     let w = wide.width.get();
     let n = narrow.width.get();
     assert!(
@@ -248,9 +248,9 @@ fn greedy_first_fit(
     let mut lines: Vec<Vec<&str>> = Vec::new();
     let mut cur: Vec<&str> = Vec::new();
     let mut cur_w = 0.0f64;
-    let space_w = shape_word(" ", style.font_size, typeanvil::fonts::FontFace::Regular).width.get();
+    let space_w = shape_word(" ", style.font_size, typeanvil::fonts::FACE_REGULAR).width.get();
     for w in words {
-        let ww = shape_word(w, style.font_size, typeanvil::fonts::FontFace::Regular).width.get();
+        let ww = shape_word(w, style.font_size, typeanvil::fonts::FACE_REGULAR).width.get();
         let added = if cur.is_empty() { ww } else { cur_w + space_w + ww };
         if !cur.is_empty() && added > max_width.get() {
             lines.push(std::mem::take(&mut cur));
@@ -271,7 +271,7 @@ fn greedy_first_fit(
     let mut out = Vec::new();
     for (i, lw) in lines.iter().enumerate() {
         let ltext = lw.join(" ");
-        let natural = shape_word(&ltext, style.font_size, typeanvil::fonts::FontFace::Regular).width.get();
+        let natural = shape_word(&ltext, style.font_size, typeanvil::fonts::FACE_REGULAR).width.get();
         let spaces = lw.len() as f64 - 1.0;
         let glue_w = space_w;
         let stretch = glue_w * 0.5 * spaces;
