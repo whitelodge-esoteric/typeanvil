@@ -39,8 +39,8 @@ use crate::css::{
 };
 use crate::dom::{Dom, NodeId, NodeKind};
 use crate::frag::{
-    BorderBox, BreakInside, BreakToken, ChildToken, Fragment, FragmentContent, Fragmentainer,
-    FragmentKind, TextRun,
+    BorderBox, BreakInside, BreakToken, ChildToken, Fragment, FragmentContent, FragmentKind,
+    Fragmentainer, TextRun,
 };
 use crate::geom::{PageGeometry, Point, Scalar};
 
@@ -110,6 +110,10 @@ pub struct Layout {
     pub headings: Vec<Heading>,
     /// Link annotation records, in document paint order (CORE-104).
     pub links: Vec<PageLink>,
+    /// Interned raster images (CORE-106), keyed by content hash. The PDF
+    /// emitter reads bytes through this store; layout fragments carry only
+    /// the key.
+    pub images: crate::images::ImageStore,
 }
 
 /// The outcome of laying out one box into one fragmentainer.
@@ -257,6 +261,21 @@ struct Ctx<'a> {
     /// Zero-based index of the page currently being laid out (link rects are
     /// tagged with it as lines are placed).
     page_index: usize,
+    /// Interned `<img>` info by source node id (CORE-106). Populated once,
+    /// before pagination, in document order.
+    image_infos: &'a BTreeMap<NodeId, ImageInfo>,
+}
+
+/// Interned `<img>` info for one source element (CORE-106). Layout reads the
+/// pixel dimensions for CSS2.1 replaced-element sizing; the PDF emitter reads
+/// the bytes through `Layout.images` by `key`.
+#[derive(Clone, Debug)]
+pub(crate) struct ImageInfo {
+    pub key: [u8; 32],
+    /// True when the source failed to load or decode (placeholder mode).
+    pub broken: bool,
+    pub width_px: u32,
+    pub height_px: u32,
 }
 
 /// Run the pipeline stage: cascade, then paginate into fragmentainers.
@@ -266,9 +285,40 @@ struct Ctx<'a> {
 /// state, attach margin boxes, and — when `target-counter` appears — run the
 /// bounded two-pass TOC resolution.
 pub fn layout(dom: &Dom, stylesheet: &Stylesheet, geometry: PageGeometry) -> Layout {
+    layout_with_images(dom, stylesheet, geometry, None)
+}
+
+/// [`layout`] with an explicit image base directory (CORE-106). Relative
+/// `<img src>` paths resolve against `base_url` (the CLI's `--base-url`
+/// value); `None` resolves against the process working directory.
+pub fn layout_with_images(
+    dom: &Dom,
+    stylesheet: &Stylesheet,
+    geometry: PageGeometry,
+    base_url: Option<&std::path::Path>,
+) -> Layout {
+    let mut images = crate::images::ImageStore::new();
+    layout_with_images_and_store(dom, stylesheet, geometry, base_url, &mut images)
+}
+
+/// [`layout`] with an explicit image store too (tests inspect interned
+/// entries through it).
+pub fn layout_with_images_and_store(
+    dom: &Dom,
+    stylesheet: &Stylesheet,
+    geometry: PageGeometry,
+    base_url: Option<&std::path::Path>,
+    images: &mut crate::images::ImageStore,
+) -> Layout {
     let styles = cascade(dom, stylesheet, &geometry);
     let page_rules = parse_page_rules(stylesheet.source());
     let root = dom.find_tag("body").unwrap_or(dom.root);
+
+    // Intern every <img> source ONCE before pagination (document order):
+    // layout then only reads the store through the shared info table. Keys
+    // are content hashes, so repeated references collapse for free.
+    let mut image_infos: BTreeMap<NodeId, ImageInfo> = BTreeMap::new();
+    collect_image_sources(dom, root, images, &mut image_infos, base_url);
 
     // A `display: none` on the document root (html) suppresses the whole
     // document: one valid empty page, no page-box chrome (CORE-66,
@@ -282,6 +332,7 @@ pub fn layout(dom: &Dom, stylesheet: &Stylesheet, geometry: PageGeometry) -> Lay
             pages: vec![blank],
             headings: Vec::new(),
             links: Vec::new(),
+            images: std::mem::take(images),
         };
     }
 
@@ -307,7 +358,11 @@ pub fn layout(dom: &Dom, stylesheet: &Stylesheet, geometry: PageGeometry) -> Lay
                 .any(|p| matches!(p, ContentPiece::CounterPages))
         })
     });
-    let passes = if needs_toc || needs_total { MAX_TOC_PASSES } else { 1 };
+    let passes = if needs_toc || needs_total {
+        MAX_TOC_PASSES
+    } else {
+        1
+    };
 
     let mut target_pages: BTreeMap<NodeId, usize> = BTreeMap::new();
     let mut total_pages: usize = 0;
@@ -324,6 +379,7 @@ pub fn layout(dom: &Dom, stylesheet: &Stylesheet, geometry: PageGeometry) -> Lay
             &target_pages,
             total_pages,
             &sink,
+            &image_infos,
         );
         collected_links = sink.into_inner();
         // Converged when the target map is unchanged between passes AND the
@@ -348,6 +404,7 @@ pub fn layout(dom: &Dom, stylesheet: &Stylesheet, geometry: PageGeometry) -> Lay
         pages,
         headings,
         links,
+        images: std::mem::take(images),
     }
 }
 
@@ -369,12 +426,9 @@ fn resolve_links(
     for (idx, node) in dom.nodes.iter().enumerate() {
         if let Some(el) = node.kind.element() {
             if let Some(id) = &el.id {
-                id_pages.entry(id.as_str()).or_insert_with(|| {
-                    target_pages
-                        .get(&idx)
-                        .copied()
-                        .unwrap_or(usize::MAX)
-                });
+                id_pages
+                    .entry(id.as_str())
+                    .or_insert_with(|| target_pages.get(&idx).copied().unwrap_or(usize::MAX));
             }
         }
     }
@@ -489,6 +543,7 @@ fn paginate(
     target_pages: &BTreeMap<NodeId, usize>,
     total_pages: usize,
     links: &std::cell::RefCell<Vec<CollectedLink>>,
+    image_infos: &BTreeMap<NodeId, ImageInfo>,
 ) -> (Vec<Fragmentainer>, BTreeMap<NodeId, usize>) {
     let mut pages: Vec<Fragmentainer> = Vec::new();
     let mut incoming = Some(BreakToken::break_before());
@@ -539,6 +594,7 @@ fn paginate(
             total_pages,
             links,
             page_index,
+            image_infos,
         };
         let mut fragmentainer = Fragmentainer::new(page_index, spec.size);
         fragmentainer.background = spec.background;
@@ -610,6 +666,212 @@ fn paginate(
 }
 
 impl<'a> Ctx<'a> {
+    /// Lay out an `<img>` as a monolithic replaced-element box (CORE-106).
+    ///
+    /// Sizing (spec Behavior 6): CSS width/height wins; then the HTML
+    /// attributes; then the intrinsic size at 96 dpi (1 px = 0.75 pt); one
+    /// specified dimension scales the other by the intrinsic ratio. A broken
+    /// source uses the same rules against the attribute sizes, falling back
+    /// to the CSS2.1 suggested size 300×150 px, and draws its alt text.
+    ///
+    /// Fragmentation (spec Behavior 8): monolithic. When the box doesn't fit
+    /// in the remaining fragmentainer space it defers whole (a break-before
+    /// token), with the empty-page last-resort exception used by text lines
+    /// (an over-tall image on an empty page overflows instead of looping).
+    /// Resolve an `<img>`'s used content-box size in points (CORE-106 spec
+    /// Behavior 6). Shared by [`Self::layout_image`] and
+    /// [`Self::measure_image`] so measured == laid-out.
+    fn image_used_size(
+        &self,
+        id: NodeId,
+        avail_width: Scalar,
+        style: &ComputedStyle,
+    ) -> (Scalar, Scalar, bool) {
+        let info = self.image_infos.get(&id);
+        let el = self.dom.nodes[id].kind.element();
+
+        // Attribute lengths are CSS px (HTML spec): 1 px = 0.75 pt.
+        let attr_w = el
+            .and_then(|e| e.attr("width"))
+            .and_then(parse_px_attr)
+            .map(|v| v * 0.75);
+        let attr_h = el
+            .and_then(|e| e.attr("height"))
+            .and_then(parse_px_attr)
+            .map(|v| v * 0.75);
+        // CSS percentages resolve against the containing block's content
+        // width; height percentages resolve to auto (v1).
+        let css_w = style
+            .width
+            .or_else(|| style.width_percent.map(|p| Scalar(p * avail_width.get())));
+        let css_h = style.height;
+
+        let intrinsic_w = info
+            .filter(|i| !i.broken)
+            .map(|i| Scalar(i.width_px as f64 * 0.75));
+        let intrinsic_h = info
+            .filter(|i| !i.broken)
+            .map(|i| Scalar(i.height_px as f64 * 0.75));
+        // Broken images: attribute size, else COLLAPSE to zero height (v1,
+        // CORE-106 gate finding). The CSS2.1 300×150 default suggestion is
+        // for visual placeholders; here a missing file must not inject a
+        // large box into documents that never expected the image to render
+        // (the engine ignores `position:absolute` inline styles, so WPT refs
+        // that lean on abspos images would gain a 112.5pt in-flow block and
+        // reflow). Alt text still draws (Behavior 7); an author who wants a
+        // visible placeholder sets explicit width/height.
+        let fallback_w = attr_w.map(Scalar).unwrap_or(Scalar::ZERO);
+        let fallback_h = attr_h.map(Scalar).unwrap_or(Scalar::ZERO);
+
+        let (used_w, used_h) = match (css_w, css_h) {
+            (Some(w), Some(h)) => (w, h),
+            (Some(w), None) => (
+                w,
+                match (intrinsic_w, intrinsic_h) {
+                    (Some(iw), Some(ih)) if iw.get() > 0.0 => Scalar(w.get() * ih.get() / iw.get()),
+                    _ => attr_h.map(Scalar).unwrap_or(fallback_h),
+                },
+            ),
+            (None, Some(h)) => (
+                match (intrinsic_w, intrinsic_h) {
+                    (Some(iw), Some(ih)) if ih.get() > 0.0 => Scalar(h.get() * iw.get() / ih.get()),
+                    _ => attr_w.map(Scalar).unwrap_or(fallback_w),
+                },
+                h,
+            ),
+            (None, None) => match (attr_w, attr_h) {
+                (Some(w), Some(h)) => (Scalar(w), Scalar(h)),
+                (Some(w), None) => (
+                    Scalar(w),
+                    match (intrinsic_w, intrinsic_h) {
+                        (Some(iw), Some(ih)) if iw.get() > 0.0 => Scalar(w * ih.get() / iw.get()),
+                        _ => fallback_h,
+                    },
+                ),
+                (None, Some(h)) => (
+                    match (intrinsic_w, intrinsic_h) {
+                        (Some(iw), Some(ih)) if ih.get() > 0.0 => Scalar(h * iw.get() / ih.get()),
+                        _ => fallback_w,
+                    },
+                    Scalar(h),
+                ),
+                (None, None) => (
+                    intrinsic_w.unwrap_or(fallback_w),
+                    intrinsic_h.unwrap_or(fallback_h),
+                ),
+            },
+        };
+        // Never exceed the available width (shrink, keep ratio).
+        if used_w.get() > avail_width.get() && used_w.get() > 0.0 {
+            let scale = avail_width.get() / used_w.get();
+            (avail_width, Scalar(used_h.get() * scale), true)
+        } else {
+            (used_w, used_h, false)
+        }
+    }
+
+    /// Greedy height measure of an `<img>` box for break-inside:avoid /
+    /// float measurement contexts (mirrors layout_image's placement).
+    fn measure_image(&self, id: NodeId, avail_width: Scalar) -> Scalar {
+        let style = &self.styles[id];
+        let (used_w, used_h, _) = self.image_used_size(id, avail_width, style);
+        style.margin_top + style.padding_top + used_h + style.padding_bottom + style.margin_bottom
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn layout_image(
+        &self,
+        id: NodeId,
+        origin_x: Scalar,
+        avail_width: Scalar,
+        top: Scalar,
+        bottom_limit: Scalar,
+        page_has_content: bool,
+        first_in_flow: bool,
+        style: &ComputedStyle,
+        flow: &mut Flow,
+    ) -> BlockResult {
+        let el = self.dom.nodes[id].kind.element();
+        let info = self.image_infos.get(&id);
+
+        // ---- resolve used width/height (points), shared with measure ----
+        let (used_w, used_h, _) = self.image_used_size(id, avail_width, style);
+
+        // Margins: fresh box at a fragmentainer start truncates top margin
+        // like any block (css-break-3 / CORE-95).
+        let fresh = true; // images never resume; they are monolithic
+        let margin_top = if fresh && first_in_flow {
+            Scalar::ZERO
+        } else {
+            style.margin_top
+        };
+        let box_top = top + margin_top;
+        let box_left = origin_x + style.margin_left;
+        let box_w = used_w + style.margin_left + style.margin_right;
+
+        // Monolithic placement: fits, or defer whole; on an empty page place
+        // anyway (last resort — never loop).
+        let fits = box_top + used_h <= bottom_limit;
+        let last_resort = !page_has_content;
+        if !fits && !last_resort {
+            return BlockResult {
+                fragment: Fragment::block(Point::new(origin_x, top), (avail_width, Scalar::ZERO)),
+                used: Scalar::ZERO,
+                outgoing: Some(BreakToken::break_before()),
+                empty: true,
+            };
+        }
+
+        let mut fragment = Fragment::block(Point::new(box_left, box_top), (box_w, used_h));
+        if let Some(info) = info {
+            fragment.content = FragmentContent::Image(crate::frag::ImageRun {
+                key: info.key,
+                alt: el.and_then(|e| e.attr("alt")).map(|s| s.to_string()),
+                broken: info.broken,
+            });
+            // Broken images draw their alt text inside the placeholder box
+            // (spec Behavior 7): one shaped line at the box's first baseline.
+            // v1 gate finding: only when the author gave the box explicit
+            // WIDTH space (a width attr/CSS size). A fully collapsed broken
+            // box draws nothing — documents that never expected the image to
+            // render must stay pixel-identical.
+            if info.broken && used_w.get() > 0.0 {
+                if let Some(alt) = el.and_then(|e| e.attr("alt")) {
+                    if !alt.trim().is_empty() {
+                        let face = crate::fonts::face_for(style.font_weight, style.font_style);
+                        let lh = style.line_height;
+                        let baseline =
+                            box_top + crate::typography::baseline_offset(style.font_size, lh, face);
+                        let shaped = crate::typography::shape_word(alt, style.font_size, face);
+                        let run = TextRun {
+                            text: shaped.text,
+                            baseline: Point::new(box_left, baseline),
+                            font_size: style.font_size,
+                            color: style.color,
+                            font_face: face,
+                            glyphs: shaped.glyphs,
+                            expansion: 0.0,
+                            protrude_left: Scalar::ZERO,
+                            protrude_right: Scalar::ZERO,
+                        };
+                        fragment.children.push(Fragment::line(
+                            Point::new(box_left, box_top),
+                            (used_w, lh),
+                            run,
+                        ));
+                    }
+                }
+            }
+        }
+
+        BlockResult {
+            used: used_h + margin_top,
+            fragment,
+            outgoing: None,
+            empty: false,
+        }
+    }
+
     /// Lay the root/body box directly into the page content box. The root box
     /// itself carries no page margin; its children flow from `content_top`.
     fn layout_root(
@@ -671,13 +933,38 @@ impl<'a> Ctx<'a> {
             };
         }
 
+        // Replaced element: `<img>` lays out as a monolithic block-level box
+        // (CORE-106 spec Behavior 2). Sizing per spec Behavior 6; a box that
+        // does not fit defers whole to the next fragmentainer (Behavior 8);
+        // broken sources render an alt-text placeholder (Behavior 7).
+        let is_img = self.dom.nodes[id]
+            .kind
+            .element()
+            .is_some_and(|el| el.tag == "img");
+        if is_img {
+            return self.layout_image(
+                id,
+                origin_x,
+                avail_width,
+                top,
+                bottom_limit,
+                page_has_content,
+                first_in_flow,
+                style,
+                flow,
+            );
+        }
+
         // Table-family boxes dispatch through layout_table_like, which keeps
         // `first_in_flow` for its layout_box fall-throughs (tables themselves
         // do not apply margins yet, so truncation only matters once their
         // cells delegate back into the block path).
         if matches!(
             style.display,
-            Display::Table | Display::TableRowGroup | Display::TableHeaderGroup | Display::TableFooterGroup
+            Display::Table
+                | Display::TableRowGroup
+                | Display::TableHeaderGroup
+                | Display::TableFooterGroup
         ) {
             return self.layout_table_like(
                 id,
@@ -757,7 +1044,11 @@ impl<'a> Ctx<'a> {
         } else {
             Scalar::ZERO
         };
-        let padding_top = if fresh { style.padding_top } else { Scalar::ZERO };
+        let padding_top = if fresh {
+            style.padding_top
+        } else {
+            Scalar::ZERO
+        };
 
         let box_top = top + margin_top;
         let inner_left = origin_x + style.margin_left + style.padding_left;
@@ -947,140 +1238,145 @@ impl<'a> Ctx<'a> {
                     // previous page's); otherwise the legacy line-count resume.
                     let resume_offset = child_tok.consumed_chars;
                     if flow.active_floats.is_empty() && resume_offset.is_none() {
-                    let lines = self.break_paragraph(text, inner_width, style);
-                    // How many lines already consumed by earlier fragments.
-                    let consumed_lines =
-                        (child_tok.consumed_block_size.get() / lh.get()).round() as usize;
-                    let mut li = consumed_lines;
-                    // Link rects placed by THIS fragment, keyed by line
-                    // index so an orphans/widows rewind can drop the
-                    // pulled-back lines' rects (CORE-104).
-                    let mut line_links: Vec<(usize, CollectedLink)> = Vec::new();
-                    // Place as many lines as fit. A run that is the first thing
-                    // on an otherwise-empty page places at least one line even
-                    // when taller than the page (last resort → monolithic
-                    // overflow, never sliced).
-                    while li < lines.len() {
-                        let fits = y + lh <= bottom_limit;
-                        // Last resort only on a genuinely empty fragmentainer.
-                        let last_resort = !placed && li == consumed_lines;
-                        if !fits && !last_resort {
-                            break;
-                        }
-                        let face = crate::fonts::face_for(style.font_weight, style.font_style);
-                        let baseline = y + crate::typography::baseline_offset(style.font_size, lh, face);
-                        let lr = &lines[li];
-                        let x = self.aligned_x(inner_left, inner_width, lr.drawn_width(), style);
-                        // Link rect for this line (CORE-104): spans are
-                        // item-relative; the line's byte offset in the item
-                        // text is the sum of consumed bytes of all preceding
-                        // lines of the full-text break.
-                        let line_start: usize = lines[..li].iter().map(|l| l.consumed).sum();
-                        if !link_spans.is_empty() {
-                            let mut rects = Vec::new();
-                            collect_line_links(
-                                &mut rects,
-                                self.page_index,
-                                lr,
-                                line_start,
-                                x,
-                                y,
-                                lh,
-                                link_spans,
-                            );
-                            for r in rects {
-                                line_links.push((li, r));
+                        let lines = self.break_paragraph(text, inner_width, style);
+                        // How many lines already consumed by earlier fragments.
+                        let consumed_lines =
+                            (child_tok.consumed_block_size.get() / lh.get()).round() as usize;
+                        let mut li = consumed_lines;
+                        // Link rects placed by THIS fragment, keyed by line
+                        // index so an orphans/widows rewind can drop the
+                        // pulled-back lines' rects (CORE-104).
+                        let mut line_links: Vec<(usize, CollectedLink)> = Vec::new();
+                        // Place as many lines as fit. A run that is the first thing
+                        // on an otherwise-empty page places at least one line even
+                        // when taller than the page (last resort → monolithic
+                        // overflow, never sliced).
+                        while li < lines.len() {
+                            let fits = y + lh <= bottom_limit;
+                            // Last resort only on a genuinely empty fragmentainer.
+                            let last_resort = !placed && li == consumed_lines;
+                            if !fits && !last_resort {
+                                break;
+                            }
+                            let face = crate::fonts::face_for(style.font_weight, style.font_style);
+                            let baseline =
+                                y + crate::typography::baseline_offset(style.font_size, lh, face);
+                            let lr = &lines[li];
+                            let x =
+                                self.aligned_x(inner_left, inner_width, lr.drawn_width(), style);
+                            // Link rect for this line (CORE-104): spans are
+                            // item-relative; the line's byte offset in the item
+                            // text is the sum of consumed bytes of all preceding
+                            // lines of the full-text break.
+                            let line_start: usize = lines[..li].iter().map(|l| l.consumed).sum();
+                            if !link_spans.is_empty() {
+                                let mut rects = Vec::new();
+                                collect_line_links(
+                                    &mut rects,
+                                    self.page_index,
+                                    lr,
+                                    line_start,
+                                    x,
+                                    y,
+                                    lh,
+                                    link_spans,
+                                );
+                                for r in rects {
+                                    line_links.push((li, r));
+                                }
+                            }
+                            let run = TextRun {
+                                text: lr.text.clone(),
+                                baseline: Point::new(x, baseline),
+                                font_size: style.font_size,
+                                color: style.color,
+                                font_face: crate::fonts::face_for(
+                                    style.font_weight,
+                                    style.font_style,
+                                ),
+                                glyphs: lr.glyphs.clone(),
+                                expansion: lr.expansion,
+                                protrude_left: lr.protrude_left,
+                                protrude_right: lr.protrude_right,
+                            };
+                            children.push(Fragment::line(
+                                Point::new(inner_left, y),
+                                (inner_width, lh),
+                                run,
+                            ));
+                            y += lh;
+                            li += 1;
+                            placed = true;
+                            first_in_flow = false;
+                            // A last-resort line that overflowed: stop here so the
+                            // rest of the run continues on the next fragmentainer.
+                            if last_resort && y > bottom_limit {
+                                break;
                             }
                         }
-                        let run = TextRun {
-                            text: lr.text.clone(),
-                            baseline: Point::new(x, baseline),
-                            font_size: style.font_size,
-                            color: style.color,
-                            font_face: crate::fonts::face_for(style.font_weight, style.font_style),
-                            glyphs: lr.glyphs.clone(),
-                            expansion: lr.expansion,
-                            protrude_left: lr.protrude_left,
-                            protrude_right: lr.protrude_right,
-                        };
-                        children.push(Fragment::line(
-                            Point::new(inner_left, y),
-                            (inner_width, lh),
-                            run,
-                        ));
-                        y += lh;
-                        li += 1;
-                        placed = true;
-                        first_in_flow = false;
-                        // A last-resort line that overflowed: stop here so the
-                        // rest of the run continues on the next fragmentainer.
-                        if last_resort && y > bottom_limit {
-                            break;
-                        }
-                    }
 
-                    if li < lines.len() {
-                        // The run breaks. `Tolerable` unless orphans/widows are
-                        // violated at the natural split, then `AvoidViolating`.
-                        let (split, _moved) = apply_orphans_widows(
-                            consumed_lines,
-                            li,
-                            lines.len(),
-                            style.orphans as usize,
-                            style.widows as usize,
-                        );
-                        // NEVER consume more lines than were placed on this
-                        // fragmentainer (CORE-97). `apply_orphans_widows` can
-                        // return split > li when the orphans bump would fix an
-                        // impossible violation (e.g. the paragraph starts with
-                        // 0 lines fitting at the page bottom: orphans=2 bumps
-                        // split to first+2, but nothing was placed). Claiming
-                        // those lines consumed drops real text — the next
-                        // fragmentainer resumes past them. Clamp to the lines
-                        // actually placed; the constraint is dropped when it
-                        // cannot be honored (css-break-3 §4.4).
-                        let split = split.min(li);
-                        // Natural split honored orphans/widows when `split ==
-                        // li`; otherwise the constraint pulled the break back.
-                        // If widows/orphans pulled the split back, drop the
-                        // now-excess lines from this page.
-                        if split < li {
-                            for _ in 0..(li - split) {
-                                children.pop();
-                                y = y - lh;
+                        if li < lines.len() {
+                            // The run breaks. `Tolerable` unless orphans/widows are
+                            // violated at the natural split, then `AvoidViolating`.
+                            let (split, _moved) = apply_orphans_widows(
+                                consumed_lines,
+                                li,
+                                lines.len(),
+                                style.orphans as usize,
+                                style.widows as usize,
+                            );
+                            // NEVER consume more lines than were placed on this
+                            // fragmentainer (CORE-97). `apply_orphans_widows` can
+                            // return split > li when the orphans bump would fix an
+                            // impossible violation (e.g. the paragraph starts with
+                            // 0 lines fitting at the page bottom: orphans=2 bumps
+                            // split to first+2, but nothing was placed). Claiming
+                            // those lines consumed drops real text — the next
+                            // fragmentainer resumes past them. Clamp to the lines
+                            // actually placed; the constraint is dropped when it
+                            // cannot be honored (css-break-3 §4.4).
+                            let split = split.min(li);
+                            // Natural split honored orphans/widows when `split ==
+                            // li`; otherwise the constraint pulled the break back.
+                            // If widows/orphans pulled the split back, drop the
+                            // now-excess lines from this page.
+                            if split < li {
+                                for _ in 0..(li - split) {
+                                    children.pop();
+                                    y = y - lh;
+                                }
+                            }
+                            // Flush this fragment's link rects, dropping any
+                            // pulled back by the rewind above (CORE-104).
+                            for (key, r) in line_links.drain(..) {
+                                if key >= split {
+                                    continue;
+                                }
+                                self.links.borrow_mut().push(r);
+                            }
+                            let consumed = lh * (split as f64);
+                            seen_all = false;
+                            outgoing_children.push(ChildToken {
+                                index: i,
+                                token: BreakToken {
+                                    consumed_block_size: consumed,
+                                    seen_all_children: false,
+                                    child_tokens: Vec::new(),
+                                    break_before: false,
+                                    consumed_chars: None,
+                                    flex: None,
+                                },
+                            });
+                            broke = true;
+                            break;
+                        } else {
+                            // The whole run fit on this fragmentainer: flush its
+                            // link rects (no rewind happened, keys are all < li)
+                            // (CORE-104).
+                            for (_, r) in line_links.drain(..) {
+                                self.links.borrow_mut().push(r);
                             }
                         }
-                        // Flush this fragment's link rects, dropping any
-                        // pulled back by the rewind above (CORE-104).
-                        for (key, r) in line_links.drain(..) {
-                            if key >= split {
-                                continue;
-                            }
-                            self.links.borrow_mut().push(r);
-                        }
-                        let consumed = lh * (split as f64);
-                        seen_all = false;
-                        outgoing_children.push(ChildToken {
-                            index: i,
-                            token: BreakToken {
-                                consumed_block_size: consumed,
-                                seen_all_children: false,
-                                child_tokens: Vec::new(),
-                                break_before: false,
-                                consumed_chars: None,
-                                flex: None,
-                            },
-                        });
-                        broke = true;
-                        break;
-                    } else {
-                        // The whole run fit on this fragmentainer: flush its
-                        // link rects (no rewind happened, keys are all < li)
-                        // (CORE-104).
-                        for (_, r) in line_links.drain(..) {
-                            self.links.borrow_mut().push(r);
-                        }
-                    }
                     } else {
                         // Floats are (or were) active: break the remaining text
                         // in segments, one per distinct available-width state.
@@ -1097,11 +1393,10 @@ impl<'a> Ctx<'a> {
                             if seg_w.get() <= 0.0 {
                                 // The float consumes the whole line area: jump
                                 // below the lowest float bottom.
-                                let below = flow
-                                    .active_floats
-                                    .iter()
-                                    .map(|f| f.bottom())
-                                    .fold(Scalar::ZERO, |a, b| if b.get() > a.get() { b } else { a });
+                                let below = flow.active_floats.iter().map(|f| f.bottom()).fold(
+                                    Scalar::ZERO,
+                                    |a, b| if b.get() > a.get() { b } else { a },
+                                );
                                 if below.get() > y.get() {
                                     y = below;
                                     continue;
@@ -1139,8 +1434,8 @@ impl<'a> Ctx<'a> {
                                 // a slice starting at `src_offset`, so this
                                 // line's item-text byte offset is
                                 // src_offset + sum of preceding lines' bytes.
-                                let line_start =
-                                    src_offset + lines[..li].iter().map(|l| l.consumed).sum::<usize>();
+                                let line_start = src_offset
+                                    + lines[..li].iter().map(|l| l.consumed).sum::<usize>();
                                 if !link_spans.is_empty() {
                                     let mut rects = Vec::new();
                                     collect_line_links(
@@ -1162,7 +1457,10 @@ impl<'a> Ctx<'a> {
                                     baseline: Point::new(x, baseline),
                                     font_size: style.font_size,
                                     color: style.color,
-                                    font_face: crate::fonts::face_for(style.font_weight, style.font_style),
+                                    font_face: crate::fonts::face_for(
+                                        style.font_weight,
+                                        style.font_style,
+                                    ),
                                     glyphs: lr.glyphs.clone(),
                                     expansion: lr.expansion,
                                     protrude_left: lr.protrude_left,
@@ -1220,9 +1518,7 @@ impl<'a> Ctx<'a> {
                                         lines[split..li].iter().map(|l| l.consumed).sum();
                                     src_offset -= rewound;
                                     for _ in 0..(li - split) {
-                                        children
-                                            .pop()
-                                            .expect("line fragment present");
+                                        children.pop().expect("line fragment present");
                                         y = y - lh;
                                     }
                                 }
@@ -1280,7 +1576,10 @@ impl<'a> Ctx<'a> {
                         // subtree. `position: fixed` resolves against the page
                         // content box; `absolute` against the nearest
                         // positioned ancestor's padding box (or the page).
-                        let page_cb = (Point::new(self.content_x, self.content_y), self.content_width);
+                        let page_cb = (
+                            Point::new(self.content_x, self.content_y),
+                            self.content_width,
+                        );
                         let (cb_origin, cb_width) = match cstyle.position {
                             Position::Fixed => page_cb,
                             _ => flow.abspos_cb.unwrap_or(page_cb),
@@ -1557,7 +1856,11 @@ impl<'a> Ctx<'a> {
         flow.abspos_cb = saved_abspos_cb;
 
         // Padding-bottom / margin-bottom only apply when the box finished.
-        let padding_bottom = if broke { Scalar::ZERO } else { style.padding_bottom };
+        let padding_bottom = if broke {
+            Scalar::ZERO
+        } else {
+            style.padding_bottom
+        };
         y += padding_bottom;
 
         let box_height = y - box_top;
@@ -1570,8 +1873,7 @@ impl<'a> Ctx<'a> {
         for child in &mut children {
             child.offset = Point::new(child.offset.x - origin.x, child.offset.y - origin.y);
             if let FragmentContent::Text(run) = &mut child.content {
-                run.baseline =
-                    Point::new(run.baseline.x - origin.x, run.baseline.y - origin.y);
+                run.baseline = Point::new(run.baseline.x - origin.x, run.baseline.y - origin.y);
             }
         }
 
@@ -1604,7 +1906,11 @@ impl<'a> Ctx<'a> {
         };
 
         // margin-bottom advances the *parent* cursor, not the box height.
-        let margin_bottom = if broke { Scalar::ZERO } else { style.margin_bottom };
+        let margin_bottom = if broke {
+            Scalar::ZERO
+        } else {
+            style.margin_bottom
+        };
         let used = (box_top - top) + box_height + margin_bottom;
 
         let empty = children_empty(&fragment) && outgoing.is_none() && box_height.get() <= 0.0;
@@ -1718,7 +2024,14 @@ impl<'a> Ctx<'a> {
             used,
             self.page_height,
         );
-        let widths = crate::table::measure_columns_scoped(self.dom, self.styles, table_id, avail_width, used, scope.clone());
+        let widths = crate::table::measure_columns_scoped(
+            self.dom,
+            self.styles,
+            table_id,
+            avail_width,
+            used,
+            scope.clone(),
+        );
         widths
     }
 
@@ -1752,9 +2065,7 @@ impl<'a> Ctx<'a> {
         // scope and the SAME frozen widths. The widths are threaded down to
         // rows, which no longer re-measure per row (also a CORE-89 perf win).
         let columns = self.frozen_table_columns(id, avail_width);
-        let children: Vec<NodeId> = self
-            .dom
-            .nodes[id]
+        let children: Vec<NodeId> = self.dom.nodes[id]
             .children
             .iter()
             .copied()
@@ -1791,9 +2102,7 @@ impl<'a> Ctx<'a> {
             .collect();
         let mut footer_height = Scalar::ZERO;
         for &fi in &footer_indices {
-            let footer_rows: Vec<NodeId> = self
-                .dom
-                .nodes[children[fi]]
+            let footer_rows: Vec<NodeId> = self.dom.nodes[children[fi]]
                 .children
                 .iter()
                 .copied()
@@ -1805,12 +2114,14 @@ impl<'a> Ctx<'a> {
             if footer_rows.is_empty() {
                 continue;
             }
-            let (heights, _) = measure_rows(self.dom, self.styles, &footer_rows, &columns, avail_width);
+            let (heights, _) =
+                measure_rows(self.dom, self.styles, &footer_rows, &columns, avail_width);
             for h in heights {
                 footer_height = footer_height + h;
             }
         }
-        let reserve_footer = footer_height.get() > 0.0 && footer_height.get() < self.page_height.get();
+        let reserve_footer =
+            footer_height.get() > 0.0 && footer_height.get() < self.page_height.get();
         let row_limit = if reserve_footer {
             bottom_limit - footer_height
         } else {
@@ -1846,7 +2157,10 @@ impl<'a> Ctx<'a> {
                 }
                 if let Some(tok) = res.outgoing {
                     seen_all = false;
-                    outgoing_children.push(ChildToken { index: i, token: tok });
+                    outgoing_children.push(ChildToken {
+                        index: i,
+                        token: tok,
+                    });
                 }
             }
         }
@@ -1874,19 +2188,17 @@ impl<'a> Ctx<'a> {
             }
             let child_tok = self.child_incoming(token, i);
             let res = match cd {
-                Display::TableHeaderGroup | Display::TableRowGroup => {
-                    self.layout_table_group(
-                        child,
-                        origin_x,
-                        avail_width,
-                        y,
-                        row_limit,
-                        placed,
-                        &child_tok,
-                        flow,
-                        &columns,
-                    )
-                }
+                Display::TableHeaderGroup | Display::TableRowGroup => self.layout_table_group(
+                    child,
+                    origin_x,
+                    avail_width,
+                    y,
+                    row_limit,
+                    placed,
+                    &child_tok,
+                    flow,
+                    &columns,
+                ),
                 Display::TableRow => self.layout_table_row(
                     child,
                     origin_x,
@@ -1908,7 +2220,10 @@ impl<'a> Ctx<'a> {
             }
             if let Some(tok) = res.outgoing {
                 seen_all = false;
-                outgoing_children.push(ChildToken { index: i, token: tok });
+                outgoing_children.push(ChildToken {
+                    index: i,
+                    token: tok,
+                });
                 break;
             }
         }
@@ -1939,7 +2254,10 @@ impl<'a> Ctx<'a> {
                 }
                 if let Some(tok) = res.outgoing {
                     seen_all = false;
-                    outgoing_children.push(ChildToken { index: fi, token: tok });
+                    outgoing_children.push(ChildToken {
+                        index: fi,
+                        token: tok,
+                    });
                 }
             }
         }
@@ -2003,9 +2321,7 @@ impl<'a> Ctx<'a> {
                 empty: true,
             };
         }
-        let rows: Vec<NodeId> = self
-            .dom
-            .nodes[id]
+        let rows: Vec<NodeId> = self.dom.nodes[id]
             .children
             .iter()
             .copied()
@@ -2050,7 +2366,10 @@ impl<'a> Ctx<'a> {
             }
             if let Some(tok) = res.outgoing {
                 seen_all = false;
-                outgoing_children.push(ChildToken { index: i, token: tok });
+                outgoing_children.push(ChildToken {
+                    index: i,
+                    token: tok,
+                });
                 break;
             }
         }
@@ -2106,7 +2425,10 @@ impl<'a> Ctx<'a> {
         let (row_heights, _) = measure_rows(self.dom, self.styles, &row_ids, columns, avail_width);
         let row_height = row_heights.first().copied().unwrap_or(Scalar::ZERO);
 
-        if top + row_height > bottom_limit && page_has_content && row_height.get() <= self.page_height.get() {
+        if top + row_height > bottom_limit
+            && page_has_content
+            && row_height.get() <= self.page_height.get()
+        {
             return BlockResult {
                 fragment: Fragment::block(Point::new(origin_x, top), (avail_width, Scalar::ZERO)),
                 used: Scalar::ZERO,
@@ -2130,12 +2452,7 @@ impl<'a> Ctx<'a> {
                 let span = crate::table::cell_colspan(self.dom, cell);
                 let mut col_w = Scalar::ZERO;
                 for j in 0..span {
-                    col_w = col_w
-                        + columns
-                            .widths
-                            .get(col + j)
-                            .copied()
-                            .unwrap_or(Scalar::ZERO);
+                    col_w = col_w + columns.widths.get(col + j).copied().unwrap_or(Scalar::ZERO);
                 }
                 let res = self.layout_table_cell(
                     cell,
@@ -2218,9 +2535,7 @@ impl<'a> Ctx<'a> {
         columns: &crate::table::ColumnWidths,
         avail_width: Scalar,
     ) -> TableGroupState {
-        let rows: Vec<NodeId> = self
-            .dom
-            .nodes[group_id]
+        let rows: Vec<NodeId> = self.dom.nodes[group_id]
             .children
             .iter()
             .copied()
@@ -2229,12 +2544,11 @@ impl<'a> Ctx<'a> {
                 _ => false,
             })
             .collect();
-        let (row_heights, cell_heights) = measure_rows(self.dom, self.styles, &rows, columns, avail_width);
+        let (row_heights, cell_heights) =
+            measure_rows(self.dom, self.styles, &rows, columns, avail_width);
         let mut out_rows = Vec::new();
         for (idx, row_id) in rows.iter().enumerate() {
-            let cells: Vec<NodeId> = self
-                .dom
-                .nodes[*row_id]
+            let cells: Vec<NodeId> = self.dom.nodes[*row_id]
                 .children
                 .iter()
                 .copied()
@@ -2360,7 +2674,8 @@ impl<'a> Ctx<'a> {
             - style.margin_right
             - style.padding_left
             - style.padding_right;
-        let mut h = style.margin_top + style.padding_top + style.padding_bottom + style.margin_bottom;
+        let mut h =
+            style.margin_top + style.padding_top + style.padding_bottom + style.margin_bottom;
         for item in self.collect_items(id) {
             match item {
                 Item::Text(text, _) => {
@@ -2382,6 +2697,13 @@ impl<'a> Ctx<'a> {
                     {
                         continue;
                     }
+                    // A monolithic `<img>` contributes its used box height
+                    // (CORE-106) — measured the same way layout_image places.
+                    let child_el = self.dom.nodes[child].kind.element();
+                    if child_el.is_some_and(|el| el.tag == "img") {
+                        h = h + self.measure_image(child, inner_width);
+                        continue;
+                    }
                     h = h + self.measure_block(child, inner_width);
                 }
             }
@@ -2394,6 +2716,20 @@ impl<'a> Ctx<'a> {
     /// that width, mirrors [`Ctx::measure_block`] so measured == laid-out).
     fn measure_float(&self, id: NodeId, inner_width: Scalar) -> (Scalar, Scalar) {
         let style = &self.styles[id];
+        // A monolithic `<img>` measures by its used box size, never
+        // shrink-to-fit (CORE-106).
+        if self.dom.nodes[id]
+            .kind
+            .element()
+            .is_some_and(|el| el.tag == "img")
+        {
+            let (used_w, used_h, _) = self.image_used_size(id, inner_width, style);
+            let w = used_w + style.margin_left + style.margin_right;
+            return (
+                w,
+                style.margin_top + style.padding_top + used_h + style.padding_bottom,
+            );
+        }
         let content_w = match style.width {
             Some(w) => {
                 if w.get() > inner_width.get() {
@@ -2543,7 +2879,17 @@ impl<'a> Ctx<'a> {
                     // text into the current run. Flex containers must be
                     // `Item::Block` or their children get folded into the
                     // parent's text run (CORE-65).
-                    if self.styles[child].display == Display::Block
+                    //
+                    // An `<img>` is a replaced element laid out as a
+                    // monolithic block-level box in v1 (CORE-106 spec
+                    // Behavior 2); it must reach layout_box as its own item
+                    // or it folds into the parent's text run and vanishes.
+                    let is_img = self.dom.nodes[child]
+                        .kind
+                        .element()
+                        .is_some_and(|el| el.tag == "img");
+                    if is_img
+                        || self.styles[child].display == Display::Block
                         || matches!(
                             self.styles[child].display,
                             Display::Table
@@ -2557,10 +2903,7 @@ impl<'a> Ctx<'a> {
                         )
                     {
                         if !pending.trim().is_empty() || !spans.is_empty() {
-                            items.push(Item::Text(
-                                std::mem::take(pending),
-                                std::mem::take(spans),
-                            ));
+                            items.push(Item::Text(std::mem::take(pending), std::mem::take(spans)));
                         } else {
                             pending.clear();
                         }
@@ -2603,14 +2946,18 @@ impl<'a> Ctx<'a> {
         }
     }
 
-
     /// Break a main-text run with the typography layer's Knuth-Plass breaker
     /// (real shaped widths, glue, hyphenation, justification). The `hyphens`
     /// and `text-align` computed values reach layout here: `hyphens: auto`
     /// enables Liang hyphenation, `text-align: justify` distributes glue on
     /// non-final lines. Generated content (TOC, margin boxes) does not go
     /// through this — it is shaped single-line via `shape_word` (CORE-83).
-    fn break_paragraph(&self, text: &str, max_width: Scalar, style: &ComputedStyle) -> Vec<LineResult> {
+    fn break_paragraph(
+        &self,
+        text: &str,
+        max_width: Scalar,
+        style: &ComputedStyle,
+    ) -> Vec<LineResult> {
         let hyphenate = style.hyphens == Hyphens::Auto;
         let justify = style.text_align == TextAlign::Justify;
         break_paragraph(text, max_width, style, hyphenate, justify)
@@ -2621,7 +2968,13 @@ impl<'a> Ctx<'a> {
     /// the margin by its left protrusion only when flush at the start edge.
     /// Justified lines fill the width (offset zero), so this only matters for
     /// the final (unjustified) line and non-justified alignment.
-    fn aligned_x(&self, inner_left: Scalar, inner_width: Scalar, drawn: Scalar, style: &ComputedStyle) -> Scalar {
+    fn aligned_x(
+        &self,
+        inner_left: Scalar,
+        inner_width: Scalar,
+        drawn: Scalar,
+        style: &ComputedStyle,
+    ) -> Scalar {
         let free = (inner_width.get() - drawn.get()).max(0.0);
         let off = match style.text_align {
             TextAlign::Start | TextAlign::Left | TextAlign::Justify => 0.0,
@@ -2664,8 +3017,8 @@ impl<'a> Ctx<'a> {
                 reserved_width =
                     reserved_width + crate::typography::shape_word(s, style.font_size, face).width;
             } else {
-                reserved_width = reserved_width
-                    + Scalar(s.chars().count() as f64 * reserve_advance);
+                reserved_width =
+                    reserved_width + Scalar(s.chars().count() as f64 * reserve_advance);
             }
         };
         // Resolve every non-leader piece to text; note the leader position.
@@ -2719,10 +3072,11 @@ impl<'a> Ctx<'a> {
                 // The reservation stays literal-accurate / glyph-independent
                 // for resolved pieces, so the count never depends on the
                 // resolved number glyphs (spec §9, §10).
-                let fill_advance = crate::typography::shape_word(&ch.to_string(), style.font_size, face)
-                    .width
-                    .get()
-                    .max(0.01);
+                let fill_advance =
+                    crate::typography::shape_word(&ch.to_string(), style.font_size, face)
+                        .width
+                        .get()
+                        .max(0.01);
                 let used = reserved_width.get();
                 let room = inner_width.get() - used;
                 let count = if room > 0.0 {
@@ -2938,6 +3292,57 @@ fn nth_block_child(
     None
 }
 
+/// Walk the DOM in document (pre-order) order and intern every `<img src>`.
+/// Fills `keys` with the store key for each image element. Relative file
+/// paths resolve against `base_url`.
+fn collect_image_sources(
+    dom: &Dom,
+    root: NodeId,
+    store: &mut crate::images::ImageStore,
+    infos: &mut BTreeMap<NodeId, ImageInfo>,
+    base_url: Option<&std::path::Path>,
+) {
+    collect_image_sources_rec(dom, root, store, infos, base_url);
+}
+
+fn collect_image_sources_rec(
+    dom: &Dom,
+    id: NodeId,
+    store: &mut crate::images::ImageStore,
+    infos: &mut BTreeMap<NodeId, ImageInfo>,
+    base_url: Option<&std::path::Path>,
+) {
+    if let Some(el) = dom.nodes[id].kind.element() {
+        if el.tag == "img" {
+            let src = el.attr("src").unwrap_or("").to_string();
+            let alt = el.attr("alt").map(|s| s.to_string());
+            // Interning is deterministic: identical sources collapse to one
+            // entry, and a broken source still gets a stable key.
+            if let Ok(key) = store.intern(&src, base_url, alt) {
+                let (broken, width_px, height_px) = match store.get(&key) {
+                    Some(crate::images::ImageEntry::Loaded(img)) => {
+                        (false, img.width_px, img.height_px)
+                    }
+                    _ => (true, 0, 0),
+                };
+                infos.insert(
+                    id,
+                    ImageInfo {
+                        key,
+                        broken,
+                        width_px,
+                        height_px,
+                    },
+                );
+            }
+            return; // void element — no children to walk
+        }
+    }
+    for &child in &dom.nodes[id].children {
+        collect_image_sources_rec(dom, child, store, infos, base_url);
+    }
+}
+
 /// Record the first fragmentainer index each sourced element appears on, into
 /// `map` (only inserting when absent so the *first* page wins).
 fn record_sources(frag: &Fragment, page_index: usize, map: &mut BTreeMap<NodeId, usize>) {
@@ -3044,7 +3449,11 @@ fn margin_box_slot(
 }
 
 /// Horizontal slot (x, width) for a top/bottom margin box.
-fn horizontal_slot(name: MarginBoxName, content: &crate::geom::Rect, third: Scalar) -> (Scalar, Scalar) {
+fn horizontal_slot(
+    name: MarginBoxName,
+    content: &crate::geom::Rect,
+    third: Scalar,
+) -> (Scalar, Scalar) {
     match name.align() {
         MarginAlign::Start => (content.x, third),
         MarginAlign::Center => (content.x + third, third),
@@ -3108,7 +3517,11 @@ fn collect_headings(
             _ => None,
         };
         if let Some(level) = level {
-            let title = dom.text_content(id).split_whitespace().collect::<Vec<_>>().join(" ");
+            let title = dom
+                .text_content(id)
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ");
             let page_index = target_pages.get(&id).copied().unwrap_or(0);
             out.push(Heading {
                 level,
@@ -3120,4 +3533,14 @@ fn collect_headings(
     for &child in &dom.nodes[id].children {
         collect_headings(dom, child, target_pages, out);
     }
+}
+
+/// Parse an HTML `width`/`height` attribute as a CSS px length (CORE-106).
+/// Integer or decimal digits only; percentages and invalid values are None.
+fn parse_px_attr(v: &str) -> Option<f64> {
+    let t = v.trim();
+    if t.is_empty() || t.ends_with('%') {
+        return None;
+    }
+    t.parse::<f64>().ok().filter(|n| n.is_finite() && *n >= 0.0)
 }
