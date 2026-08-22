@@ -17,14 +17,14 @@
 
 use anyhow::{anyhow, Context, Result};
 use krilla::color::rgb;
+use krilla::destination::XyzDestination;
 use krilla::geom::{Point, Rect};
+use krilla::metadata::Metadata;
 use krilla::num::NormalizedF32;
+use krilla::outline::{Outline, OutlineNode};
 use krilla::page::PageSettings;
 use krilla::paint::{Fill, FillRule};
 use krilla::text::{Font, GlyphId, KrillaGlyph, TextDirection};
-use krilla::destination::XyzDestination;
-use krilla::metadata::Metadata;
-use krilla::outline::{Outline, OutlineNode};
 use krilla::{Document, SerializeSettings};
 use std::sync::LazyLock;
 
@@ -112,7 +112,6 @@ pub fn render(layout: &Layout) -> Result<Vec<u8>> {
 /// dict (Title/Author/Subject/Keywords) before finishing. `creation_date` is
 /// never set, keeping output deterministic.
 pub fn render_with_metadata(layout: &Layout, meta: &DocumentMetadata) -> Result<Vec<u8>> {
-
     // Disable tagging: the engine emits no semantic structure, and turning it
     // off keeps output smaller and free of an empty tag tree.
     let settings = SerializeSettings {
@@ -151,20 +150,14 @@ pub fn render_with_metadata(layout: &Layout, meta: &DocumentMetadata) -> Result<
         // rotate-top/bottom: 180°, (x, y) -> (W - x, H - y).
         let rotated = if let Some(orient) = page.page_orientation {
             let (sx, ky, kx, sy, tx, ty) = match orient {
-                crate::paged::PageOrientation::RotateRight => {
-                    (0.0, 1.0, -1.0, 0.0, page_h, 0.0)
-                }
-                crate::paged::PageOrientation::RotateLeft => {
-                    (0.0, -1.0, 1.0, 0.0, 0.0, page_w)
-                }
+                crate::paged::PageOrientation::RotateRight => (0.0, 1.0, -1.0, 0.0, page_h, 0.0),
+                crate::paged::PageOrientation::RotateLeft => (0.0, -1.0, 1.0, 0.0, 0.0, page_w),
                 crate::paged::PageOrientation::RotateTop
                 | crate::paged::PageOrientation::RotateBottom => {
                     (-1.0, 0.0, 0.0, -1.0, page_w, page_h)
                 }
             };
-            surface.push_transform(&krilla::geom::Transform::from_row(
-                sx, ky, kx, sy, tx, ty,
-            ));
+            surface.push_transform(&krilla::geom::Transform::from_row(sx, ky, kx, sy, tx, ty));
             true
         } else {
             false
@@ -174,6 +167,8 @@ pub fn render_with_metadata(layout: &Layout, meta: &DocumentMetadata) -> Result<
         let mut backgrounds: Vec<(f32, f32, f32, f32, Color)> = Vec::new();
         let mut borders: Vec<(f32, f32, f32, f32, f32, f32, f32, f32, Color)> = Vec::new();
         let mut texts: Vec<TextItem> = Vec::new();
+        // (x, y, w, h, store key) — the rect is the fragment's own size.
+        let mut images: Vec<(f32, f32, f32, f32, [u8; 32])> = Vec::new();
         collect(
             &page.root,
             0.0,
@@ -181,6 +176,7 @@ pub fn render_with_metadata(layout: &Layout, meta: &DocumentMetadata) -> Result<
             &mut backgrounds,
             &mut borders,
             &mut texts,
+            &mut images,
         );
 
         for (x, y, w, h, color) in &backgrounds {
@@ -223,6 +219,41 @@ pub fn render_with_metadata(layout: &Layout, meta: &DocumentMetadata) -> Result<
             if *r > 0.0 {
                 side(*x + w - r, *y, *r, *h);
             }
+        }
+
+        // Images after backgrounds/borders, before text (CORE-106). The
+        // fragment rect IS the used box: CSS sizing was applied at layout
+        // time, so draw at exactly that size. Broken images carry no Image
+        // payload bytes and are skipped here; their alt text rides the
+        // normal text pass as a child line of the placeholder fragment.
+        // Each krilla `Image` is built once per unique content key per page;
+        // krilla dedupes embedded objects by its own content hash.
+        for (x, y, w, h, key) in &images {
+            let Some(stored) = layout.images.get(key) else {
+                continue;
+            };
+            let crate::images::ImageEntry::Loaded(img) = stored else {
+                continue;
+            };
+            if *w <= 0.0 || *h <= 0.0 {
+                continue;
+            }
+            let Some(size) = krilla::geom::Size::from_wh(*w, *h) else {
+                continue;
+            };
+            let raw = krilla::Data::from(img.original.clone());
+            let kimg = match img.kind {
+                crate::images::ImageKind::Png => krilla::image::Image::from_png(raw, false),
+                crate::images::ImageKind::Jpeg => krilla::image::Image::from_jpeg(raw, false),
+            };
+            let Ok(kimg) = kimg else {
+                continue;
+            };
+            surface.push_transform(&krilla::geom::Transform::from_row(
+                1.0, 0.0, 0.0, 1.0, *x, *y,
+            ));
+            surface.draw_image(kimg, size);
+            surface.pop();
         }
 
         for t in &texts {
@@ -465,6 +496,7 @@ fn collect(
     backgrounds: &mut Vec<(f32, f32, f32, f32, Color)>,
     borders: &mut Vec<(f32, f32, f32, f32, f32, f32, f32, f32, Color)>,
     texts: &mut Vec<TextItem>,
+    images: &mut Vec<(f32, f32, f32, f32, [u8; 32])>,
 ) {
     let abs_x = parent_x + frag.offset.x.to_f32();
     let abs_y = parent_y + frag.offset.y.to_f32();
@@ -507,10 +539,19 @@ fn collect(
                 protrude_right: run.protrude_right.to_f32(),
             });
         }
+        FragmentContent::Image(run) => {
+            images.push((
+                abs_x,
+                abs_y,
+                frag.size.0.to_f32(),
+                frag.size.1.to_f32(),
+                run.key,
+            ));
+        }
         FragmentContent::None => {}
     }
 
     for child in &frag.children {
-        collect(child, abs_x, abs_y, backgrounds, borders, texts);
+        collect(child, abs_x, abs_y, backgrounds, borders, texts, images);
     }
 }

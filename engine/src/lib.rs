@@ -7,13 +7,14 @@
 
 pub mod css;
 pub mod dom;
-pub mod frag;
 pub mod fonts;
+pub mod frag;
 pub mod geom;
+pub mod images;
 pub mod layout;
 pub mod metadata;
 pub mod paged;
-pub mod table;
 pub mod pdf;
 pub mod stylo_dom;
+pub mod table;
 pub mod typography;

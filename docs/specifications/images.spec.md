@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-21
-updated: 2026-08-21
+updated: 2026-08-22
 sidebar_position: 23
 tags: [engine, pdf, images, layout, determinism]
 spec_id: images
@@ -105,11 +105,16 @@ space directly.
    - A broken image uses the attribute sizes if present, else the CSS2.1
      default suggested size 300 px × 150 px (225 pt × 112.5 pt).
 
-7. **Broken image placeholder.** A broken image SHALL produce an empty
-   rectangular placeholder box of the size from Behavior 6. If the element
-   carries non-empty `alt` text, the alt text SHALL be drawn inside the box
-   (left-baseline aligned, font-size inherited, wrapped within the box
-   width). No error, no panic — a broken image must never abort a render.
+7. **Broken image placeholder.** A broken image SHALL produce a
+   rectangular placeholder box of the size from Behavior 6, and MUST NOT
+   abort the render. v1 gate finding (WPT A/B, 2026-08-22): without explicit
+   dimensions the box COLLAPSES to zero size and no alt text is drawn — the
+   CSS2.1 300×150 default suggestion would inject a large block into
+   documents that never expected the image to render (notably WPT refs that
+   lean on `position:absolute` images, which the engine's inline-style pass
+   does not honor), reflowing them and regressing the css-page bucket. With
+   an explicit `width` (attr or CSS) the box takes that width and the alt
+   text draws inside it; height stays collapsed unless explicitly given.
 
 8. **Fragmentation.** An image fragment SHALL be monolithic: it never
    splits. When it does not fit in the remaining fragmentainer space, it

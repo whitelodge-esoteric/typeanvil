@@ -110,6 +110,22 @@ pub enum FragmentContent {
     Border(BorderBox),
     /// A run of text drawn at the fragment's baseline.
     Text(TextRun),
+    /// An embedded raster image painted over the fragment's rect
+    /// (CORE-106). The fragment is monolithic — it never splits across
+    /// fragmentainers.
+    Image(ImageRun),
+}
+
+/// Rendering data for an `<img>` fragment (CORE-106).
+#[derive(Clone, Debug)]
+pub struct ImageRun {
+    /// Cache key (SHA-256 of the source bytes) indexing the engine's
+    /// image store.
+    pub key: [u8; 32],
+    /// Alt text, if any (drawn only for broken-image placeholders).
+    pub alt: Option<String>,
+    /// True when the source failed to load or decode (placeholder mode).
+    pub broken: bool,
 }
 
 /// Border rendering data for a table cell/row (border-collapse: collapse).
