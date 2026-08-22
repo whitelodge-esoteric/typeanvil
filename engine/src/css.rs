@@ -369,6 +369,10 @@ pub struct ComputedStyle {
     pub widows: u32,
     /// The `page` property: the named page this box switches to (paged-media).
     pub page: Option<String>,
+    /// True when `float: footnote` matched this element (CORE-107). The
+    /// element produces no in-flow box; it renders in its call page's
+    /// footnote area with a superscript call marker in the body text.
+    pub float_footnote: bool,
     /// `string-set` declarations: `(string name, value)` pairs.
     pub string_set: Vec<(String, StringSetValue)>,
     /// `counter-reset` declarations: `(counter name, value)` pairs.
@@ -457,6 +461,7 @@ impl ComputedStyle {
             counter_reset: Vec::new(),
             counter_increment: Vec::new(),
             content: Vec::new(),
+            float_footnote: false,
         }
     }
 
@@ -1055,6 +1060,7 @@ impl CascadeSession {
             counter_reset: Vec::new(),
             counter_increment: Vec::new(),
             content: Vec::new(),
+            float_footnote: false,
         }
     }
 }
@@ -1815,6 +1821,47 @@ mod breaks {
             }
         }
 
+        // Inline `style=""` declarations win over every stylesheet rule
+        // (same model as the border/paged passes; WPT fixtures and tests
+        // force breaks inline, e.g. `style="break-before: page"`).
+        let mut inline_order = 0u32;
+        for id in 0..dom.nodes.len() {
+            let NodeKind::Element(el) = &dom.nodes[id].kind else {
+                continue;
+            };
+            let Some(attr) = el.attr("style") else {
+                continue;
+            };
+            for (prop, value) in parse_inline_decls(attr) {
+                let Some(decl) = parse_decl(&prop, &value) else {
+                    continue;
+                };
+                let prio = (u32::MAX, inline_order);
+                inline_order += 1;
+                match decl {
+                    BreakDecl::Before(v) => {
+                        if won[id].before.is_none_or(|w| prio >= w) {
+                            styles[id].break_before = v;
+                            won[id].before = Some(prio);
+                        }
+                    }
+                    BreakDecl::After(v) => {
+                        if won[id].after.is_none_or(|w| prio >= w) {
+                            styles[id].break_after = v;
+                            won[id].after = Some(prio);
+                        }
+                    }
+                    BreakDecl::Inside(v) => {
+                        if won[id].inside.is_none_or(|w| prio >= w) {
+                            styles[id].break_inside = v;
+                            won[id].inside = Some(prio);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
         // orphans/widows/hyphens are inherited: propagate from parent in
         // pre-order for any node that did not set them explicitly.
         inherit(dom, dom.root, styles, &set_orphans, &set_widows, &set_hyphens);
@@ -2259,6 +2306,7 @@ mod paged_props {
     /// One paged-media declaration keyed to a field.
     enum PagedDecl {
         Page(Option<String>),
+        FloatFootnote(bool),
         StringSet(Vec<(String, StringSetValue)>),
         CounterReset(Vec<(String, i32)>),
         CounterIncrement(Vec<(String, i32)>),
@@ -2319,6 +2367,14 @@ mod paged_props {
                 }
             }
             "string-set" => Some(PagedDecl::StringSet(parse_string_set(value))),
+            "float" => {
+                let v = value.trim().to_ascii_lowercase();
+                if v == "footnote" {
+                    Some(PagedDecl::FloatFootnote(true))
+                } else {
+                    None
+                }
+            }
             "counter-reset" => Some(PagedDecl::CounterReset(parse_counters(value, 0))),
             "counter-increment" => Some(PagedDecl::CounterIncrement(parse_counters(value, 1))),
             "content" => Some(PagedDecl::Content(parse_content(value))),
@@ -2433,6 +2489,16 @@ mod paged_props {
                                     won[id].page = Some(prio);
                                 }
                             }
+                            PagedDecl::FloatFootnote(v) => {
+                                if won[id].content.is_none_or(|w| prio >= w) {
+                                    // Footnote floats share the `content` slot
+                                    // in `Won` (both are rare; a rule setting
+                                    // both on the same element is pathological).
+                                    // The bool itself always applies when the
+                                    // declaration matches.
+                                    styles[id].float_footnote = *v;
+                                }
+                            }
                             PagedDecl::StringSet(v) => {
                                 if won[id].string_set.is_none_or(|w| prio >= w) {
                                     styles[id].string_set = v.clone();
@@ -2480,6 +2546,9 @@ mod paged_props {
                 let prio = (u32::MAX, inline_order);
                 inline_order += 1;
                 match decl {
+                    PagedDecl::FloatFootnote(v) => {
+                        styles[id].float_footnote = v;
+                    }
                     PagedDecl::Page(v) => {
                         if won[id].page.is_none_or(|w| prio >= w) {
                             styles[id].page = v.clone();

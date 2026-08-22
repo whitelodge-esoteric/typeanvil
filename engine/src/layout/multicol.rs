@@ -360,7 +360,7 @@ impl<'a> Ctx<'a> {
         let mut h = Scalar::ZERO;
         for item in items {
             match item {
-                Item::Text(text, _) => {
+                Item::Text(text, _, _) => {
                     let lines = self.break_paragraph(text, col_w, style);
                     h = h + style.line_height * lines.len() as f64;
                 }
@@ -569,7 +569,7 @@ impl<'a> Ctx<'a> {
                 _ => &fallback,
             };
             match &items[i] {
-                Item::Text(text, _) => {
+                Item::Text(text, _, _) => {
                     let lh = style.line_height;
                     let resume_offset = child_tok.consumed_chars;
                     let mut src_offset = resume_offset.unwrap_or(0).min(text.len());

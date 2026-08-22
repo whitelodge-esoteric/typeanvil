@@ -134,7 +134,9 @@ enum Item {
     /// A run of inline text (this block's own text between block children),
     /// with the `<a href>` link spans embedded in it (CORE-104). Byte
     /// offsets are into the run's own text; `href` is the raw attribute.
-    Text(String, Vec<LinkSpan>),
+    /// The third field carries `(marker byte offset, footnote NodeId)` pairs
+    /// for footnote call markers spliced into the run text (CORE-107).
+    Text(String, Vec<LinkSpan>, Vec<(usize, NodeId)>),
     /// A block-level child element.
     Block(NodeId),
 }
@@ -179,6 +181,12 @@ struct Flow {
     /// fragmentainer root's children after each page (css-break-3: the
     /// fragmentainer is their parent, not the CSS containing block).
     abspos: Vec<(Option<i32>, Fragment)>,
+    /// Footnote elements registered during THIS page's body layout, in call
+    /// order (CORE-107). Registration happens when a marker's line actually
+    /// places (a call pushed to the next page takes its note along). Drained
+    /// after each page's body completes; the notes render in that page's
+    /// footnote area.
+    pending_footnotes: Vec<(usize, NodeId)>,
 }
 
 /// A placed float box: its rectangle in the fragmentainer and its side.
@@ -264,6 +272,10 @@ struct Ctx<'a> {
     /// Interned `<img>` info by source node id (CORE-106). Populated once,
     /// before pagination, in document order.
     image_infos: &'a BTreeMap<NodeId, ImageInfo>,
+    /// Footnote number per footnote-floated element id (CORE-107), assigned
+    /// once per pass in document order. Read by the item collector when it
+    /// splices call-marker digits; immune to layout retries within a pass.
+    fn_numbers: &'a BTreeMap<NodeId, usize>,
 }
 
 /// Interned `<img>` info for one source element (CORE-106). Layout reads the
@@ -364,11 +376,16 @@ pub fn layout_with_images_and_store(
         1
     };
 
+    let mut fn_numbers: BTreeMap<NodeId, usize> = BTreeMap::new();
     let mut target_pages: BTreeMap<NodeId, usize> = BTreeMap::new();
     let mut total_pages: usize = 0;
     let mut collected_links: Vec<CollectedLink> = Vec::new();
     let mut pages = Vec::new();
     for _ in 0..passes {
+        // Footnote numbers are per-PASS (CORE-107): document order is stable,
+        // so the numbers never change mid-pass even though individual pages
+        // may be re-laid-out by the footnote retry loop inside `paginate`.
+        fn_numbers = collect_footnote_numbers(dom, &styles);
         let sink = std::cell::RefCell::new(Vec::new());
         let (p, map) = paginate(
             dom,
@@ -380,6 +397,7 @@ pub fn layout_with_images_and_store(
             total_pages,
             &sink,
             &image_infos,
+            &fn_numbers,
         );
         collected_links = sink.into_inner();
         // Converged when the target map is unchanged between passes AND the
@@ -533,6 +551,166 @@ fn collect_line_links(
 /// One full pagination pass. Returns the pages and the element→page-index map
 /// (first fragmentainer each sourced element appears on, in `NodeId` order).
 /// Link rects (CORE-104) accumulate into `links` in paint order.
+///
+/// Collect footnote-floated elements in document (pre-order) order with
+/// their 1-based numbers (CORE-107). Computed ONCE per pagination pass so
+/// numbering is immune to layout retries within the pass.
+fn collect_footnote_numbers(dom: &Dom, styles: &[ComputedStyle]) -> BTreeMap<NodeId, usize> {
+    fn walk(
+        dom: &Dom,
+        id: NodeId,
+        styles: &[ComputedStyle],
+        next: &mut usize,
+        out: &mut BTreeMap<NodeId, usize>,
+    ) {
+        if styles[id].float_footnote {
+            *next += 1;
+            out.insert(id, *next);
+        }
+        for &child in &dom.nodes[id].children {
+            walk(dom, child, styles, next, out);
+        }
+    }
+    let mut next = 0usize;
+    let mut out = BTreeMap::new();
+    walk(dom, dom.root, styles, &mut next, &mut out);
+    out
+}
+
+/// Total height of the footnote band for one page's notes (CORE-107): the
+/// sum of each note's monolithic content height at the content width (notes
+/// never split — Prince probe 2). Empty notes contribute zero.
+fn footnote_area_height(
+    dom: &Dom,
+    styles: &[ComputedStyle],
+    notes: &[(usize, NodeId)],
+    content_width: Scalar,
+) -> Scalar {
+    let mut h = Scalar::ZERO;
+    for (_, id) in notes {
+        let style = &styles[*id];
+        if style.display == Display::None {
+            continue;
+        }
+        let inner = content_width - style.margin_left - style.margin_right;
+        let lines = break_paragraph(
+            &dom.text_content(*id),
+            inner,
+            style,
+            false,
+            false,
+        );
+        h += style.line_height * lines.len() as f64;
+    }
+    h
+}
+
+/// Attach a page's footnotes into the band above the bottom margin edge
+/// (CORE-107). Each note renders as hanging-indent lines bottom-up: the
+/// first line starts `MARKER_HANG` left of the content edge with an
+/// `"N."` marker; wrapped lines return to the content edge. Notes stack in
+/// call order starting at the band top.
+#[allow(clippy::too_many_arguments)]
+fn attach_footnotes(
+    fragmentainer: &mut Fragmentainer,
+    dom: &Dom,
+    styles: &[ComputedStyle],
+    notes: &[(usize, NodeId)],
+    content_x: Scalar,
+    content_width: Scalar,
+    content_bottom: Scalar,
+    area_height: Scalar,
+) {
+    const MARKER_HANG: f64 = 8.5;
+    let font_size = Scalar(9.0);
+    let lh_note = Scalar(13.45);
+    let face = crate::fonts::FACE_REGULAR;
+    let mut y = content_bottom - area_height;
+    for (num, id) in notes {
+        let style = &styles[*id];
+        if style.display == Display::None {
+            continue;
+        }
+        let text = dom.text_content(*id);
+        let inner = content_width - style.margin_left - style.margin_right;
+        // First line reserves room for the "N. " prefix.
+        let first_text_w = inner - Scalar(MARKER_HANG);
+        let rest_w = inner;
+        let first_lines =
+            break_paragraph(&text, first_text_w, style, false, false);
+        if first_lines.is_empty() {
+            continue;
+        }
+        // Lay the note's lines: first with the marker, rest full width. The
+        // note is monolithic — all its lines place inside the measured band.
+        for (li, lr) in first_lines.iter().enumerate() {
+            let (x, w) = if li == 0 {
+                (content_x - Scalar(MARKER_HANG), first_text_w)
+            } else {
+                (content_x, rest_w)
+            };
+            let run = if li == 0 {
+                // Marker "N. " shaped on its own; its glyph ranges already
+                // index the marker text, which is the PREFIX of the combined
+                // run text (ToUnicode stays correct). The body's first glyph
+                // carries the marker's advance as an x_offset so the body
+                // clears the marker.
+                let marker = format!("{}. ", num);
+                let m = crate::typography::shape_word(&marker, font_size, face);
+                let mut glyphs = m.glyphs.clone();
+                let marker_w = m.width;
+                let mut bg = lr.glyphs.clone();
+                if let Some(first) = bg.first_mut() {
+                    first.x_offset += marker_w;
+                }
+                for g in &mut bg {
+                    g.range.start += m.text.len();
+                    g.range.end += m.text.len();
+                }
+                glyphs.extend(bg);
+                let mut text_all = m.text;
+                text_all.push_str(&lr.text);
+                TextRun {
+                    text: text_all,
+                    baseline: Point::new(
+                        x,
+                        y + crate::typography::baseline_offset(font_size, lh_note, face),
+                    ),
+                    font_size,
+                    color: style.color,
+                    font_face: face,
+                    glyphs,
+                    expansion: 0.0,
+                    protrude_left: Scalar::ZERO,
+                    protrude_right: Scalar::ZERO,
+                }
+            } else {
+                TextRun {
+                    text: lr.text.clone(),
+                    baseline: Point::new(
+                        x,
+                        y + crate::typography::baseline_offset(font_size, lh_note, face),
+                    ),
+                    font_size,
+                    color: style.color,
+                    font_face: face,
+                    glyphs: lr.glyphs.clone(),
+                    expansion: lr.expansion,
+                    protrude_left: Scalar::ZERO,
+                    protrude_right: Scalar::ZERO,
+                }
+            };
+            let w_used = if li == 0 { inner } else { rest_w };
+            let w_final = if w_used.get() > w.get() { w_used } else { w };
+            fragmentainer
+                .root
+                .children
+                .push(Fragment::line(Point::new(x, y), (w_final, lh_note), run));
+            y += lh_note;
+        }
+    }
+}
+
 #[allow(clippy::type_complexity)]
 fn paginate(
     dom: &Dom,
@@ -544,6 +722,7 @@ fn paginate(
     total_pages: usize,
     links: &std::cell::RefCell<Vec<CollectedLink>>,
     image_infos: &BTreeMap<NodeId, ImageInfo>,
+    fn_numbers: &BTreeMap<NodeId, usize>,
 ) -> (Vec<Fragmentainer>, BTreeMap<NodeId, usize>) {
     let mut pages: Vec<Fragmentainer> = Vec::new();
     let mut incoming = Some(BreakToken::break_before());
@@ -555,6 +734,7 @@ fn paginate(
         pending_floats: Vec::new(),
         abspos_cb: None,
         abspos: Vec::new(),
+        pending_footnotes: Vec::new(),
     };
     // The named page in effect, carried across pages until an element switches
     // it (spec §4).
@@ -595,11 +775,66 @@ fn paginate(
             links,
             page_index,
             image_infos,
+            fn_numbers,
         };
         let mut fragmentainer = Fragmentainer::new(page_index, spec.size);
         fragmentainer.background = spec.background;
         fragmentainer.page_orientation = spec.page_orientation;
-        let res = ctx.layout_root(root, content.y, &token, &mut flow);
+
+        // CORE-107: lay the body full-height first, then reserve the footnote
+        // area if any call marker PLACED on this page (`pending_footnotes`).
+        // When the body ran past the reserved band, re-lay the page with the
+        // floor raised — Flow snapshots restore exactly, and the link sink
+        // truncates so rects from the discarded attempt do not leak. The
+        // retry places a strict SUBSET of the first attempt's lines, so the
+        // second attempt's registrations never exceed the first's and the
+        // measured band is always big enough.
+        let content_bottom = content.y + content.height;
+        let saved_flow = flow.clone();
+        let saved_links_len = links.borrow().len();
+        let mut res = ctx.layout_root(root, content.y, &token, &mut flow);
+        if !fn_numbers.is_empty() && !flow.pending_footnotes.is_empty() {
+            let area_h =
+                footnote_area_height(dom, styles, &flow.pending_footnotes, content.width);
+            if area_h.get() > 0.0 {
+                let area_top = content_bottom - area_h;
+                if content.y + res.used > area_top {
+                    flow = saved_flow.clone();
+                    links.borrow_mut().truncate(saved_links_len);
+                    let ctx2 = Ctx {
+                        dom,
+                        styles,
+                        content_x: content.x,
+                        content_width: content.width,
+                        content_y: content.y,
+                        page_height: area_top - content.y,
+                        target_pages,
+                        total_pages,
+                        links,
+                        page_index,
+                        image_infos,
+                        fn_numbers,
+                    };
+                    res = ctx2.layout_root(root, content.y, &token, &mut flow);
+                }
+                // Attach THIS page's notes (the post-retry registrations)
+                // into the band above the bottom margin.
+                attach_footnotes(
+                    &mut fragmentainer,
+                    dom,
+                    styles,
+                    &std::mem::take(&mut flow.pending_footnotes),
+                    content.x,
+                    content.width,
+                    content_bottom,
+                    area_h,
+                );
+            } else {
+                flow.pending_footnotes.clear();
+            }
+        } else {
+            flow.pending_footnotes.clear();
+        }
         if !res.empty {
             fragmentainer.root.children.push(res.fragment);
         }
@@ -1230,7 +1465,7 @@ impl<'a> Ctx<'a> {
             }
 
             match &items[i] {
-                Item::Text(text, link_spans) => {
+                Item::Text(text, link_spans, fn_markers) => {
                     let child_tok = self.child_incoming(token, i);
                     let lh = line_height(style);
                     // Resume: a run that began beside a float resumes by source
@@ -1301,6 +1536,11 @@ impl<'a> Ctx<'a> {
                                 (inner_width, lh),
                                 run,
                             ));
+                            // CORE-107: register call markers placed by THIS
+                            // line (item-relative byte → absolute span).
+                            let ls: usize = lines[..li].iter().map(|l| l.consumed).sum();
+                            let le = ls + lines[li].consumed;
+                            self.register_placed_markers(flow, fn_markers, 0, ls, le);
                             y += lh;
                             li += 1;
                             placed = true;
@@ -1465,6 +1705,13 @@ impl<'a> Ctx<'a> {
                                     (seg_w, lh),
                                     run,
                                 ));
+                                // CORE-107: register call markers placed by
+                                // THIS segment line (segment text starts at
+                                // `src_offset` in the item's text).
+                                let ls = src_offset
+                                    + lines[..li].iter().map(|l| l.consumed).sum::<usize>();
+                                let le = ls + lines[li].consumed;
+                                self.register_placed_markers(flow, fn_markers, 0, ls, le);
                                 y += lh;
                                 li += 1;
                                 // True source bytes consumed (CORE-91): rebuilt
@@ -2672,7 +2919,7 @@ impl<'a> Ctx<'a> {
             style.margin_top + style.padding_top + style.padding_bottom + style.margin_bottom;
         for item in self.collect_items(id) {
             match item {
-                Item::Text(text, _) => {
+                Item::Text(text, _, _) => {
                     // The SAME breaker layout uses, so measured heights match
                     // laid-out heights (`break-inside: avoid` correctness).
                     let lines = self.break_paragraph(&text, inner_width, style);
@@ -2751,12 +2998,11 @@ impl<'a> Ctx<'a> {
     fn float_is_splittable(&self, id: NodeId) -> bool {
         for item in self.collect_items(id) {
             match item {
-                Item::Text(text, _) => {
+                Item::Text(text, _, _) => {
                     if !text.trim().is_empty() {
                         return true;
                     }
-                }
-                Item::Block(child) => {
+                }                Item::Block(child) => {
                     if self.float_is_splittable(child) {
                         return true;
                     }
@@ -2773,7 +3019,7 @@ impl<'a> Ctx<'a> {
         let mut width = Scalar::ZERO;
         for item in self.collect_items(id) {
             match item {
-                Item::Text(text, _) => {
+                Item::Text(text, _, _) => {
                     let lines = self.break_paragraph(&text, max_width, style);
                     for line in &lines {
                         let w = line.drawn_width();
@@ -2845,15 +3091,54 @@ impl<'a> Ctx<'a> {
     /// text becomes one `Text` item; each block child becomes a `Block` item.
     /// Inline `<a href>` anchors record their folded-text byte span alongside
     /// the run (CORE-104).
+    ///
+    /// Footnote-floated elements (CORE-107) never fold their text into the
+    /// run: the collector splices a call-marker digit at the element's source
+    /// position and records `(marker byte offset, footnote NodeId)` pairs so
+    /// line placement can register notes on the page where their call lands.
     fn collect_items(&self, id: NodeId) -> Vec<Item> {
         let mut items: Vec<Item> = Vec::new();
         let mut pending = String::new();
         let mut spans: Vec<LinkSpan> = Vec::new();
-        self.collect_items_rec(id, &mut items, &mut pending, &mut spans);
-        if !pending.trim().is_empty() {
-            items.push(Item::Text(std::mem::take(&mut pending), spans));
+        let mut markers: Vec<(usize, NodeId)> = Vec::new();
+        self.collect_items_rec(id, &mut items, &mut pending, &mut spans, &mut markers);
+        if !pending.trim().is_empty() || !markers.is_empty() {
+            items.push(Item::Text(
+                std::mem::take(&mut pending),
+                std::mem::take(&mut spans),
+                std::mem::take(&mut markers),
+            ));
         }
         items
+    }
+
+    /// The assigned number for one footnote element (CORE-107). Elements
+    /// outside any laid-out flow get a stable fallback (0).
+    fn footnote_number(&self, id: NodeId) -> usize {
+        self.fn_numbers.get(&id).copied().unwrap_or(0)
+    }
+
+    /// Register every call marker whose byte span lies fully within
+    /// `[line_start, line_end)` as placed on THIS fragmentainer (CORE-107):
+    /// the note renders on the page where its marker's line landed.
+    fn register_placed_markers(
+        &self,
+        flow: &mut Flow,
+        markers: &[(usize, NodeId)],
+        item_line_start: usize,
+        line_start: usize,
+        line_end: usize,
+    ) {
+        if markers.is_empty() {
+            return;
+        }
+        for (byte_off, id) in markers {
+            let abs = item_line_start + *byte_off;
+            if abs >= line_start && abs < line_end && !flow.pending_footnotes.iter().any(|(_, n)| n == id)
+            {
+                flow.pending_footnotes.push((self.footnote_number(*id), *id));
+            }
+        }
     }
 
     fn collect_items_rec(
@@ -2862,11 +3147,22 @@ impl<'a> Ctx<'a> {
         items: &mut Vec<Item>,
         pending: &mut String,
         spans: &mut Vec<LinkSpan>,
+        markers: &mut Vec<(usize, NodeId)>,
     ) {
         for &child in &self.dom.nodes[id].children {
             match &self.dom.nodes[child].kind {
                 NodeKind::Text(t) => pending.push_str(t),
                 NodeKind::Element(_) => {
+                    // CORE-107: a footnote-floated element is replaced in the
+                    // run by its call-marker digit. Its own text never folds
+                    // into the body; layout registers the note when the line
+                    // carrying the marker places.
+                    if self.styles[child].float_footnote {
+                        let num = self.footnote_number(child);
+                        pending.push_str(&num.to_string());
+                        markers.push((pending.len() - num.to_string().len(), child));
+                        continue;
+                    }
                     // Block-level children (including the table family and
                     // flex containers) start a new item so their layout path
                     // is reached; everything else is inline and folds its
@@ -2896,8 +3192,12 @@ impl<'a> Ctx<'a> {
                                 | Display::InlineFlex
                         )
                     {
-                        if !pending.trim().is_empty() || !spans.is_empty() {
-                            items.push(Item::Text(std::mem::take(pending), std::mem::take(spans)));
+                        if !pending.trim().is_empty() || !spans.is_empty() || !markers.is_empty() {
+                            items.push(Item::Text(
+                                std::mem::take(pending),
+                                std::mem::take(spans),
+                                std::mem::take(markers),
+                            ));
                         } else {
                             pending.clear();
                         }
@@ -2917,7 +3217,7 @@ impl<'a> Ctx<'a> {
                                 .and_then(|el| el.attr("href"))
                             {
                                 let start = pending.len();
-                                self.collect_items_rec(child, items, pending, spans);
+                                self.collect_items_rec(child, items, pending, spans, markers);
                                 // Whitespace-only anchors yield a zero-width
                                 // overlap later → no rect (spec edge case).
                                 let end = pending.len();
@@ -2932,7 +3232,7 @@ impl<'a> Ctx<'a> {
                             }
                         }
                         // Inline element: fold its text into the current run.
-                        self.collect_items_rec(child, items, pending, spans);
+                        self.collect_items_rec(child, items, pending, spans, markers);
                     }
                 }
                 NodeKind::Root => {}
