@@ -322,6 +322,121 @@ fn running_header_string() {
     assert!(has_alpha && has_beta, "chapter headers missing");
 }
 
+// --- 6b. Running strings: css-gcpm-3 §7 keywords (CORE-108) ----------------
+
+/// Two chapters, one per page (forced breaks), with all five keyword slots in
+/// the margin boxes. Asserts the Prince-probed semantics table: first/last
+/// take this page's assignments, start takes the value entering the page,
+/// first-except is empty on pages WITH an assignment and carried elsewhere.
+#[test]
+fn string_keywords_first_last_start() {
+    let html = r#"<html><head><style>
+        @page { margin: 0.4in;
+            @top-left { content: "F:" string(chapter, first); }
+            @top-center { content: "S:" string(chapter, start); }
+            @top-right { content: "L:" string(chapter, last); } }
+        h1 { string-set: chapter content(); font-size: 14px; }
+        .c { display: block; break-before: page; }
+    </style></head><body>
+        <div class="c"><h1>Alpha</h1><p>a</p></div>
+        <div class="c"><h1>Beta</h1><p>b</p></div>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.4));
+    assert!(layout.pages.len() >= 2);
+    // Page 1 has an assignment (Alpha): F=Alpha, S empty (nothing entering),
+    // L=Alpha.
+    let p1 = page_texts(&layout.pages[0]).join("\n");
+    let p2 = page_texts(&layout.pages[1]).join("\n");
+    assert!(p1.contains("F:Alpha"), "page 1 first != Alpha: {p1:?}");
+    assert!(p1.contains("L:Alpha"), "page 1 last != Alpha: {p1:?}");
+    assert!(
+        p1.contains("S:") && !p1.contains("S:Alpha") && !p1.contains("S:Beta"),
+        "page 1 start must be EMPTY before any assignment: {p1:?}"
+    );
+    // Page 2 has an assignment (Beta): F=Beta but S=Alpha (the value ENTERING
+    // the page — Prince ignores even a top-of-page assignment for `start`).
+    assert!(p2.contains("F:Beta"), "page 2 first != Beta: {p2:?}");
+    assert!(p2.contains("S:Alpha"), "page 2 start != Alpha carry: {p2:?}");
+    assert!(p2.contains("L:Beta"), "page 2 last != Beta: {p2:?}");
+}
+
+/// A chapter assigned on page 1 only: pages without assignments show the
+/// CARRIED value for every keyword except that `first-except` shows it too
+/// (it is only empty on a page WITH an assignment).
+#[test]
+fn string_carry_over_and_first_except() {
+    let html = r#"<html><head><style>
+        @page { margin: 0.4in;
+            @top-left { content: "F:" string(chapter); }
+            @top-right { content: "X:" string(chapter, first-except); } }
+        h1 { string-set: chapter content(); font-size: 14px; break-after: page; }
+    </style></head><body>
+        <h1>Solo</h1>
+        <p>Filler.</p><p>Filler.</p><p>Filler.</p>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.4));
+    assert!(layout.pages.len() >= 2, "need a continuation page");
+    // Page 1 HAS the assignment → first-except empty; default(first) = Solo.
+    let p1 = page_texts(&layout.pages[0]).join("\n");
+    assert!(p1.contains("F:Solo"), "page 1 default != Solo: {p1:?}");
+    assert!(
+        !p1.contains("X:Solo"),
+        "page 1 first-except must be empty: {p1:?}"
+    );
+    // Page 2 has NO assignment → both show the carried value.
+    let p2 = page_texts(&layout.pages[1]).join("\n");
+    assert!(p2.contains("F:Solo"), "page 2 carry-over missing: {p2:?}");
+    assert!(p2.contains("X:Solo"), "page 2 first-except carry missing: {p2:?}");
+}
+
+/// Two assignments on ONE page (two h1s): `first` takes the earlier, `last`
+/// the later — the distinguishing case for the page assignment log's ORDER.
+#[test]
+fn string_first_vs_last_with_two_assignments_on_one_page() {
+    let html = r#"<html><head><style>
+        @page { margin: 0.4in;
+            @top-left { content: "F:" string(chapter, first); }
+            @top-right { content: "L:" string(chapter, last); } }
+        h1 { string-set: chapter content(); font-size: 14px; }
+    </style></head><body>
+        <h1>One</h1>
+        <p>filler</p>
+        <h1>Two</h1>
+        <p>filler</p>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.4));
+    let p1 = page_texts(&layout.pages[0]).join("\n");
+    assert!(p1.contains("F:One"), "first of two != One: {p1:?}");
+    assert!(p1.contains("L:Two"), "last of two != Two: {p1:?}");
+}
+
+/// The parser splits `string(name, keyword)` correctly: the name must not
+/// contain the argument list, and an unknown keyword falls back to `first`.
+#[test]
+fn string_reference_parses_name_and_keyword() {
+    use typeanvil::paged::{parse_content, ContentPiece, StringKeyword};
+    assert_eq!(
+        parse_content("string(chapter)"),
+        vec![ContentPiece::StringRef("chapter".into(), StringKeyword::First)]
+    );
+    assert_eq!(
+        parse_content("string(chapter, last)"),
+        vec![ContentPiece::StringRef("chapter".into(), StringKeyword::Last)]
+    );
+    assert_eq!(
+        parse_content("string(chapter, FIRST-EXCEPT)"),
+        vec![ContentPiece::StringRef(
+            "chapter".into(),
+            StringKeyword::FirstExcept
+        )]
+    );
+    // Malformed keyword falls back to First, name stays clean.
+    assert_eq!(
+        parse_content("string(chapter, bogus)"),
+        vec![ContentPiece::StringRef("chapter".into(), StringKeyword::First)]
+    );
+}
+
 // --- 7. Page counter -------------------------------------------------------
 
 #[test]

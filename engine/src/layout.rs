@@ -187,6 +187,11 @@ struct Flow {
     /// after each page's body completes; the notes render in that page's
     /// footnote area.
     pending_footnotes: Vec<(usize, NodeId)>,
+    /// Assignments made during THIS page's body layout: (name, value) in
+    /// capture order (spec §Behavior 2). Margin-box keyword resolution reads
+    /// this to distinguish first/last on the page; cleared after each page's
+    /// margin boxes attach.
+    page_string_sets: Vec<(String, String)>,
 }
 
 /// A placed float box: its rectangle in the fragmentainer and its side.
@@ -735,6 +740,7 @@ fn paginate(
         abspos_cb: None,
         abspos: Vec::new(),
         pending_footnotes: Vec::new(),
+        page_string_sets: Vec::new(),
     };
     // The named page in effect, carried across pages until an element switches
     // it (spec §4).
@@ -743,6 +749,11 @@ fn paginate(
     while let Some(token) = incoming.take() {
         let page_index = pages.len();
         flow.current_index = page_index;
+        // Snapshot the carried string values BEFORE this page's body lays out:
+        // `string(name, start)` must show the value entering the page (spec
+        // §Behavior 4; Prince-verified — a top-of-page assignment does not
+        // count). Margin boxes resolve against this snapshot.
+        let page_start_strings = flow.running.clone();
         // Each fragmentainer starts with only the carry-over floats: floats
         // that suspended at the previous page boundary resume at the content
         // top and keep intruding on this page's text. The abspos containing
@@ -840,7 +851,8 @@ fn paginate(
         }
 
         // Margin boxes resolve against the running-string / counter state now
-        // in effect at the end of this page's flow (spec §6, §7).
+        // in effect at the end of this page's flow (spec §6, §7); `start`
+        // reads the page-start snapshot.
         attach_margin_boxes(
             &mut fragmentainer,
             &spec,
@@ -850,7 +862,12 @@ fn paginate(
             dom,
             target_pages,
             total_pages,
+            &page_start_strings,
         );
+        // The page's assignment log is consumed: the next page's `first`/
+        // `last`/`first-except` must see only THEIR assignments; `running`
+        // keeps the carried values (spec §Behavior 5).
+        flow.page_string_sets.clear();
 
         // Out-of-flow fragments attach to the page root (css-break-3: the
         // fragmentainer is their parent, not the CSS containing block).
@@ -886,6 +903,7 @@ fn paginate(
             dom,
             target_pages,
             total_pages,
+            &flow.running,
         );
         pages.push(fragmentainer);
     }
@@ -1312,7 +1330,9 @@ impl<'a> Ctx<'a> {
             for (name, val) in &style.string_set {
                 match val {
                     StringSetValue::Content => {
-                        flow.running.set(name, self.dom.text_content(id));
+                        let v = self.dom.text_content(id);
+                        flow.page_string_sets.push((name.clone(), v.clone()));
+                        flow.running.set(name, v);
                     }
                 }
             }
@@ -3325,7 +3345,10 @@ impl<'a> Ctx<'a> {
                     count_reserved(s, true);
                     push_side(&mut before, &mut after, leader_char, s);
                 }
-                ContentPiece::StringRef(name) => {
+                ContentPiece::StringRef(name, _kw) => {
+                    // Element generated content reads the CURRENT value for
+                    // every keyword (spec §Interfaces deviation note); only
+                    // margin boxes get page-scoped keyword semantics.
                     let v = flow.running.get(name).to_string();
                     count_reserved(&v, false);
                     push_side(&mut before, &mut after, leader_char, &v);
@@ -3662,6 +3685,7 @@ fn attach_margin_boxes(
     _dom: &Dom,
     _target_pages: &BTreeMap<NodeId, usize>,
     total_pages: usize,
+    page_start: &RunningStrings,
 ) {
     if spec.margin_boxes.is_empty() {
         return;
@@ -3672,7 +3696,7 @@ fn attach_margin_boxes(
     let lh = font_size * NORMAL_LINE_HEIGHT_FACTOR;
 
     for (name, pieces) in &spec.margin_boxes {
-        let text = render_margin_content(pieces, flow, total_pages);
+        let text = render_margin_content(pieces, flow, total_pages, page_start);
         if text.is_empty() {
             continue;
         }
@@ -3768,12 +3792,62 @@ fn vertical_offset(name: MarginBoxName, band_height: Scalar, lh: Scalar) -> Scal
 /// not fill leaders (no line-break context) and have no target-counter in the
 /// demos; leader/target pieces are rendered inertly. `counter(pages)` reads
 /// the total page count from the previous layout pass.
-fn render_margin_content(pieces: &[ContentPiece], flow: &Flow, total_pages: usize) -> String {
+///
+/// `string(name, kw)` resolves with css-gcpm-3 §7 keyword semantics against
+/// the CURRENT page's assignment log (`flow.page_string_sets`) and the
+/// carried current value (`flow.running`); the semantics were probed against
+/// Prince 16.2 (see docs/research/css-gcpm/prince-string-keywords-probe.md
+/// and the string-set spec §Behavior 4).
+fn resolve_string_value(
+    name: &str,
+    kw: crate::paged::StringKeyword,
+    flow: &Flow,
+    page_start: &RunningStrings,
+) -> String {
+    let page_assignments: Vec<&String> = flow
+        .page_string_sets
+        .iter()
+        .filter(|(n, _)| n == name)
+        .map(|(_, v)| v)
+        .collect();
+    match kw {
+        crate::paged::StringKeyword::First => page_assignments
+            .first()
+            .cloned()
+            .cloned()
+            .unwrap_or_else(|| flow.running.get(name).to_string()),
+        crate::paged::StringKeyword::Last => page_assignments
+            .last()
+            .cloned()
+            .cloned()
+            .unwrap_or_else(|| flow.running.get(name).to_string()),
+        // Prince-verified: `start` is the value entering the page, even when
+        // an assignment sits at the very top of the page — resolve from the
+        // page-start snapshot, never the live map.
+        crate::paged::StringKeyword::Start => page_start.get(name).to_string(),
+        crate::paged::StringKeyword::FirstExcept => {
+            if page_assignments.is_empty() {
+                flow.running.get(name).to_string()
+            } else {
+                String::new()
+            }
+        }
+    }
+}
+
+fn render_margin_content(
+    pieces: &[ContentPiece],
+    flow: &Flow,
+    total_pages: usize,
+    page_start: &RunningStrings,
+) -> String {
     let mut out = String::new();
     for piece in pieces {
         match piece {
             ContentPiece::Literal(s) => out.push_str(s),
-            ContentPiece::StringRef(name) => out.push_str(flow.running.get(name)),
+            ContentPiece::StringRef(name, kw) => {
+                out.push_str(&resolve_string_value(name, *kw, flow, page_start))
+            }
             ContentPiece::CounterPage => out.push_str(&flow.page_number().to_string()),
             ContentPiece::CounterPages => out.push_str(&total_pages.to_string()),
             ContentPiece::CounterRef(_) => out.push('0'),

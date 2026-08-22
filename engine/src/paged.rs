@@ -128,14 +128,45 @@ pub enum MarginAlign {
     End,
 }
 
+/// The css-gcpm-3 §7 keyword of a `string(name, keyword)` reference.
+/// Semantics probed against Prince 16.2 (see
+/// `docs/research/css-gcpm/prince-string-keywords-probe.md`): with A = this
+/// page's assignments and C = the carried value entering the page,
+/// `first`/default → first of A else C; `last` → last of A else C;
+/// `start` → C always (a top-of-page element does NOT count);
+/// `first-except` → empty when A is non-empty, else C.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum StringKeyword {
+    #[default]
+    First,
+    Start,
+    Last,
+    FirstExcept,
+}
+
+impl StringKeyword {
+    fn parse(s: &str) -> StringKeyword {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "start" => StringKeyword::Start,
+            "last" => StringKeyword::Last,
+            "first-except" => StringKeyword::FirstExcept,
+            // "first" and anything malformed fall back to the default
+            // (spec §Behavior 1).
+            _ => StringKeyword::First,
+        }
+    }
+}
+
 /// One piece of generated content (the `content` property / margin-box
 /// `content`). A `content` value is a sequence of these, concatenated.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ContentPiece {
     /// A quoted literal string.
     Literal(String),
-    /// `string(name)` — the running string's per-page value.
-    StringRef(String),
+    /// `string(name[, keyword])` — the running string's value for this page,
+    /// with css-gcpm-3 §7 keyword semantics (default `first`; probed against
+    /// Prince 16.2, see docs/research/css-gcpm/prince-string-keywords-probe.md).
+    StringRef(String, StringKeyword),
     /// `counter(page)` — the decimal page counter.
     CounterPage,
     /// `counter(pages)` — the total page count, resolved by a bounded
@@ -629,7 +660,16 @@ pub fn parse_content(value: &str) -> Vec<ContentPiece> {
             }
         }
         match ident.to_ascii_lowercase().as_str() {
-            "string" => pieces.push(ContentPiece::StringRef(args.trim().to_string())),
+            "string" => {
+                // string(name[, keyword]) — split on the first comma; a
+                // missing or malformed keyword falls back to First (spec
+                // §Behavior 1).
+                let (name, kw) = match args.split_once(',') {
+                    Some((n, k)) => (n.trim(), StringKeyword::parse(k)),
+                    None => (args.trim(), StringKeyword::First),
+                };
+                pieces.push(ContentPiece::StringRef(name.to_string(), kw));
+            }
             "counter" => {
                 let name = args.split(',').next().unwrap_or("").trim();
                 if name.eq_ignore_ascii_case("page") {
