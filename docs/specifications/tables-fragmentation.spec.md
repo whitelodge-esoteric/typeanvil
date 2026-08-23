@@ -2,14 +2,14 @@
 title: Tables × Page Breaks
 slug: /specifications/tables-fragmentation
 type: spec
-status: draft
+status: approved
 owner: elijah
 created: 2026-08-17
 updated: 2026-08-23
 sidebar_position: 4
 tags: [layout, tables, fragmentation, css-tables, engine]
 spec_id: tables-fragmentation
-issue_id: CORE-61
+issue_id: CORE-61, CORE-116
 applies_to: engine 0.x
 dependencies: [fragmentation-core, paged-media-css, wpt-conformance-harness]
 ---
@@ -155,6 +155,17 @@ The engine SHALL implement the following, stated as "shall" rules:
     the next page; only when the row fits NO fragmentainer at all does it
     drop the row with "dropping unpackable block" — TypeAnvil instead
     force-places it, preferring visible overflow over silent content loss.)
+15. **Oversized-row cell continuation survives (CORE-116).** When a row
+    fragments because a cell crosses a fragmentainer boundary, the row SHALL
+    emit an outgoing break token carrying each laid-out cell's state:
+    continuations for cells still in flight and done-markers for cells that
+    finished. On the next fragmentainer the interrupted cell SHALL resume,
+    finished cells SHALL NOT re-render, cells after the break point SHALL
+    start fresh there, and rows following the fragmented row SHALL continue
+    at the resumed row's used height — no table content past an oversized
+    row may be dropped or duplicated. A CONTINUATION pass of a row that has
+    already split SHALL place immediately; deferring it would loop forever
+    against a repeating header (the CORE-109 trap).
 
 ## Acceptance Criteria
 
@@ -202,6 +213,12 @@ Each maps to a real test in `engine/tests/tables.rs` (new) or the WPT harness:
     (`test_giant_row_defers_at_most_once`). A row taller than any
     fragmentainer still places monolithically without hanging
     (`test_row_taller_than_page_still_places_monolithically`).
+11. **Oversized-row content survives (CORE-116)** — Given a cell taller than
+    one fragmentainer followed by more rows, when rendered, then every line
+    of every cell appears exactly once across pages and later rows render —
+    nothing dropped or duplicated
+    (`tests/core116_oversized_row.rs::oversized_row_cell_content_continues_across_pages`,
+    `::oversized_row_resume_does_not_duplicate_finished_cells`).
 
 ## Edge Cases
 
