@@ -1408,6 +1408,16 @@ impl<'a> Ctx<'a> {
 
         let start_index = if fresh {
             0
+        } else if token.seen_all_children && token.child_tokens.is_empty() {
+            // CORE-116: a resumed row whose cells ALL finished on an earlier
+            // fragmentainer. `start_index = items.len()` would skip the text
+            // entirely, but the block path would then treat "no child token
+            // for item 0" as a fresh start and RE-render it — so the row
+            // re-laid its first cell on every page (the `[first] [three]`
+            // duplication). Marking seen-all with an explicit past-the-end
+            // child token makes the resume walk emit nothing: the early-out
+            // above fires on the next pass, and this pass places no lines.
+            items.len()
         } else {
             // Resume at the first unfinished child (lowest index in the token).
             token
@@ -2687,18 +2697,37 @@ impl<'a> Ctx<'a> {
         flow: &mut Flow,
         columns: &crate::table::ColumnWidths,
     ) -> BlockResult {
+        let fresh = token.is_break_before();
+        // Cells in placement order. Outgoing tokens are indexed by CELL
+        // ORDINAL (position among the element children that are table cells),
+        // matching this loop — NOT the raw DOM child index, which includes
+        // whitespace text nodes between cells.
+        let cells: Vec<NodeId> = self.dom.nodes[id]
+            .children
+            .iter()
+            .copied()
+            .filter(|c| {
+                matches!(self.dom.nodes[*c].kind, NodeKind::Element(_))
+                    && self.styles[*c].display == Display::TableCell
+            })
+            .collect();
         let row_ids = [id];
         let (row_heights, _) = measure_rows(self.dom, self.styles, &row_ids, columns, avail_width);
         let row_height = row_heights.first().copied().unwrap_or(Scalar::ZERO);
 
+        // An UNSTARTED row that cannot fit here defers whole to the next
+        // fragmentainer. Three guards keep that from looping forever:
+        // - `deferred_once` (CORE-109): a repeating header/footer eats into
+        //   every page, so the second attempt force-places instead.
+        // - a row taller than a FULL fragmentainer never fits anywhere; it
+        //   takes the monolithic path right away.
+        // - CORE-116: a CONTINUATION (!fresh) of an already-split row must
+        //   place now. Deferring it would hit the same header wall as
+        //   CORE-109, and its remaining height only shrinks page over page.
         if top + row_height > bottom_limit
             && page_has_content
+            && fresh
             && row_height.get() <= self.page_height.get()
-            // CORE-109 deadlock guard: this row already deferred once. If it
-            // still cannot fit (a repeating header/footer eats into every
-            // page), deferring again would re-create the same break-before
-            // token on every page forever — place it here instead, even if
-            // it overflows past `bottom_limit` (monolithic-overflow rule).
             && !token.deferred_once
         {
             return BlockResult {
@@ -2711,42 +2740,111 @@ impl<'a> Ctx<'a> {
 
         let mut x = origin_x;
         let mut children = Vec::new();
-        // Cell ordinal, NOT the raw child index: DOM children include whitespace
-        // text nodes between cells, so enumerate() would misalign columns.
-        // CORE-96: a cell with `colspan` occupies that many column slots (its
-        // box spans the summed widths); the next cell starts after them.
+        // Tallest cell placement this fragmentainer (Scalar deliberately has
+        // no Ord — explicit compare).
+        let mut used_h = Scalar::ZERO;
+        // True when some cell broke inside and carries a real continuation.
+        let mut broke_inside = false;
+        // Per-cell outcome THIS pass, indexed by ordinal. Cells not laid this
+        // pass keep `None`; before emitting the token we backfill them from
+        // the incoming token so finished-cell markers SURVIVE the round trip
+        // (dropping them made every later page restart earlier cells — the
+        // `[first]` duplication).
+        let mut outcomes: Vec<Option<ChildToken>> = vec![None; cells.len()];
         let mut col = 0usize;
-        for &cell in self.dom.nodes[id].children.iter() {
-            if let NodeKind::Element(_) = &self.dom.nodes[cell].kind {
-                if self.styles[cell].display != Display::TableCell {
-                    continue;
+        for (ordinal, &cell) in cells.iter().enumerate() {
+            let span = crate::table::cell_colspan(self.dom, cell);
+            let mut col_w = Scalar::ZERO;
+            for j in 0..span {
+                col_w = col_w + columns.widths.get(col + j).copied().unwrap_or(Scalar::ZERO);
+            }
+            let cell_x = x;
+            x += col_w;
+            col += span;
+
+            // Resume bookkeeping: a cell with a DONE marker (seen-all, no
+            // pending children) finished on an earlier fragmentainer — skip
+            // it so it does not render twice (CORE-116). Its marker carries
+            // forward via the backfill below. Otherwise start it fresh or
+            // resume it with its own continuation token.
+            let cell_tok = self.child_incoming(token, ordinal);
+            if !cell_tok.is_break_before()
+                && cell_tok.seen_all_children
+                && cell_tok.child_tokens.is_empty()
+            {
+                continue;
+            }
+            let res = self.layout_table_cell(
+                cell,
+                cell_x,
+                col_w,
+                top,
+                bottom_limit,
+                page_has_content,
+                // Table cells do not participate in top-of-page margin
+                // truncation (tables are out of CORE-95 scope; cell
+                // content keeps its declared margins).
+                false,
+                &cell_tok,
+                flow,
+            );
+            if !res.empty {
+                children.push(res.fragment);
+            }
+            if res.used.get() > used_h.get() {
+                used_h = res.used;
+            }
+            if let Some(tok) = res.outgoing {
+                // The cell continues on the next fragmentainer; the row stops
+                // here (cells in a row fragment together — css-tables-3 §3.3).
+                broke_inside = true;
+                outcomes[ordinal] = Some(ChildToken {
+                    index: ordinal,
+                    token: tok,
+                });
+                break;
+            }
+            // Done marker: the cell finished on THIS fragmentainer. A bare
+            // break_before would RESTART it on resume; seen_all_children with
+            // no pending children is the engine-wide "finished" encoding.
+            outcomes[ordinal] = Some(ChildToken {
+                index: ordinal,
+                token: BreakToken {
+                    seen_all_children: true,
+                    ..BreakToken::default()
+                },
+            });
+        }
+
+        // Backfill: a cell this pass did NOT lay out (finished on an earlier
+        // page and skipped) keeps its incoming state, so its done marker
+        // survives into the outgoing token instead of being lost between
+        // passes. Cells before an in-flight one are all done; cells after it
+        // have not started (drop their entries entirely).
+        let mut outgoing_cells: Vec<ChildToken> = Vec::new();
+        if broke_inside {
+            for (ordinal, slot) in outcomes.into_iter().enumerate() {
+                match slot {
+                    Some(ct) => outgoing_cells.push(ct),
+                    None => {
+                        let inc = self.child_incoming(token, ordinal);
+                        if !inc.is_break_before() {
+                            outgoing_cells.push(ChildToken {
+                                index: ordinal,
+                                token: inc,
+                            });
+                        }
+                    }
                 }
-                let span = crate::table::cell_colspan(self.dom, cell);
-                let mut col_w = Scalar::ZERO;
-                for j in 0..span {
-                    col_w = col_w + columns.widths.get(col + j).copied().unwrap_or(Scalar::ZERO);
-                }
-                let res = self.layout_table_cell(
-                    cell,
-                    x,
-                    col_w,
-                    top,
-                    bottom_limit,
-                    page_has_content,
-                    // Table cells do not participate in top-of-page margin
-                    // truncation (tables are out of CORE-95 scope; cell
-                    // content keeps its declared margins).
-                    false,
-                    token,
-                    flow,
-                );
-                if !res.empty {
-                    children.push(res.fragment);
-                }
-                x += col_w;
-                col += span;
             }
         }
+
+        // A fresh row claims its measured height (the pre-CORE-116 contract:
+        // following rows position below the full row box). A resumed row
+        // claims only what its cells actually used on THIS fragmentainer —
+        // claiming the full measured height again would strand every
+        // following row alone on its own page.
+        let used = if fresh { row_height } else { used_h };
 
         let origin = Point::new(origin_x, top);
         for child in &mut children {
@@ -2755,14 +2853,30 @@ impl<'a> Ctx<'a> {
                 run.baseline = Point::new(run.baseline.x - origin.x, run.baseline.y - origin.y);
             }
         }
-        let mut fragment = Fragment::block(origin, (avail_width, row_height));
+        let mut fragment = Fragment::block(origin, (avail_width, used));
         fragment.children = children;
         fragment.source = Some(id);
+        let outgoing = if broke_inside {
+            let tok = BreakToken {
+                consumed_block_size: token.consumed_block_size + used,
+                seen_all_children: false,
+                child_tokens: outgoing_cells,
+                break_before: false,
+                consumed_chars: None,
+                flex: None,
+                deferred_once: false,
+            };
+            fragment.break_token = Some(tok.clone());
+            Some(tok)
+        } else {
+            None
+        };
+        let empty = used.get() <= 0.0 && outgoing.is_none();
         BlockResult {
             fragment,
-            used: row_height,
-            outgoing: None,
-            empty: row_height.get() <= 0.0,
+            used,
+            outgoing,
+            empty,
         }
     }
 
