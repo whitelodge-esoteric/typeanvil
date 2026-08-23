@@ -9,6 +9,7 @@
 //!     --margin-bottom 0.5in --margin-left 0.5in \
 //!     --base-url http://127.0.0.1:PORT/ \
 //!     --title "Q3 Report" --author "A. Author" \
+//!     [--license <path>] \
 //!     -o <output.pdf>
 //! ```
 
@@ -20,6 +21,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use typeanvil::css::Stylesheet;
 use typeanvil::dom::Dom;
 use typeanvil::geom::{PageGeometry, Scalar};
+use typeanvil::licensing::{self, LicenseState};
 use typeanvil::{dom, layout, pdf};
 
 fn main() -> ExitCode {
@@ -57,6 +59,7 @@ struct RenderArgs {
     base_url: String,
     title: Option<String>,
     author: Option<String>,
+    license: Option<PathBuf>,
 }
 
 fn render(args: Vec<String>) -> Result<()> {
@@ -79,7 +82,15 @@ fn render(args: Vec<String>) -> Result<()> {
 
     let laid_out = layout::layout(&dom, &stylesheet, geometry);
     let meta = typeanvil::metadata::extract_metadata(&dom, opts.title, opts.author);
-    let bytes = pdf::render_with_metadata(&laid_out, &meta).context("rendering PDF")?;
+
+    // License resolution (CORE-115): debug builds bypass entirely; release
+    // builds enforce. Missing → watermarked render (not an error); a
+    // found-but-broken file fails loudly here before any rendering.
+    let license_state = licensing::resolve(opts.license.as_deref())?;
+    let watermark = matches!(license_state, LicenseState::Missing);
+
+    let bytes =
+        pdf::render_with_metadata(&laid_out, &meta, watermark).context("rendering PDF")?;
 
     std::fs::write(&opts.output, &bytes)
         .with_context(|| format!("writing output {}", opts.output.display()))?;
@@ -112,6 +123,7 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
     let mut base_url = String::new();
     let mut title: Option<String> = None;
     let mut author: Option<String> = None;
+    let mut license: Option<PathBuf> = None;
 
     let mut it = args.into_iter();
     while let Some(arg) = it.next() {
@@ -128,6 +140,7 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
             "--base-url" => base_url = next_value(&mut it, &arg)?,
             "--title" => title = Some(next_value(&mut it, &arg)?),
             "--author" => author = Some(next_value(&mut it, &arg)?),
+            "--license" => license = Some(PathBuf::from(next_value(&mut it, &arg)?)),
             other if other.starts_with('-') => bail!("unknown flag `{other}`"),
             _ => {
                 if input.is_none() {
@@ -151,6 +164,7 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
         base_url,
         title,
         author,
+        license,
     })
 }
 

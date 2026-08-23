@@ -12,6 +12,7 @@ pub mod frag;
 pub mod geom;
 pub mod images;
 pub mod layout;
+pub mod licensing;
 pub mod metadata;
 pub mod paged;
 pub mod pdf;
