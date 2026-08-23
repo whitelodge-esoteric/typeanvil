@@ -51,7 +51,7 @@ fn lay(html: &str) -> Layout {
 
 fn pdf_bytes_with_metadata(html: &str, meta: &DocumentMetadata) -> Vec<u8> {
     let l = lay(html);
-    render_with_metadata(&l, meta).unwrap()
+    render_with_metadata(&l, meta, false).unwrap()
 }
 
 fn contains(bytes: &[u8], needle: &[u8]) -> bool {
