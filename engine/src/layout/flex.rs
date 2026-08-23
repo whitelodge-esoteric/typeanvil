@@ -538,6 +538,7 @@ impl<'a> Ctx<'a> {
                 break_before: false,
                 consumed_chars: None,
                 flex: Some(flex_state),
+                deferred_once: false,
             };
             fragment.break_token = Some(tok.clone());
             Some(tok)
@@ -741,6 +742,7 @@ impl<'a> Ctx<'a> {
                 break_before: false,
                 consumed_chars: None,
                 flex: None,
+                deferred_once: false,
             };
             fragment.break_token = Some(tok.clone());
             Some(tok)

@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-17
-updated: 2026-08-17
+updated: 2026-08-23
 sidebar_position: 4
 tags: [layout, tables, fragmentation, css-tables, engine]
 spec_id: tables-fragmentation
@@ -142,6 +142,19 @@ The engine SHALL implement the following, stated as "shall" rules:
     paged-media features: a table inside a page with margin boxes, running
     headers, or `target-counter` resolution renders correctly (regression
     guard: report + invoice demos, CORE-52 tests).
+14. **Row deferral is bounded (CORE-109).** A row that does not fit the
+    remaining space of the current fragmentainer, but fits one full
+    fragmentainer, SHALL defer to the next fragmentainer at most ONCE. If,
+    on the continuation fragmentainer, the row still does not fit (for
+    example a repeating `thead` consumes space on every page so no page can
+    ever hold the row), it SHALL be placed anyway and overflow past the
+    bottom edge (the monolithic-overflow rule) rather than defer again.
+    Deferring twice for the same row would re-create the same break-before
+    token on every page forever — pagination MUST terminate in bounded time
+    for every input. (Prince 16.2 probed 2026-08-23: it places such a row on
+    the next page; only when the row fits NO fragmentainer at all does it
+    drop the row with "dropping unpackable block" — TypeAnvil instead
+    force-places it, preferring visible overflow over silent content loss.)
 
 ## Acceptance Criteria
 
@@ -182,6 +195,13 @@ Each maps to a real test in `engine/tests/tables.rs` (new) or the WPT harness:
    table print-reftests (`css/css-break/table/`), then the previously failing
    table tests pass (baseline: 3 failing from CORE-60) and none of the
    currently-passing tests regress (gate on the CORE-60 baseline).
+10. **Giant-row deadlock guard (CORE-109)** — Given a table whose row fits a
+    full fragmentainer but not a fragmentainer shrunk by the repeating
+    header, when rendered, then pagination terminates in bounded time, the
+    row defers once and is then placed whole
+    (`test_giant_row_defers_at_most_once`). A row taller than any
+    fragmentainer still places monolithically without hanging
+    (`test_row_taller_than_page_still_places_monolithically`).
 
 ## Edge Cases
 

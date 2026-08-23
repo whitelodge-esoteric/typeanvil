@@ -334,6 +334,7 @@ impl<'a> Ctx<'a> {
                 break_before: false,
                 consumed_chars: None,
                 flex: None,
+                deferred_once: false,
             })
         };
 
@@ -634,6 +635,7 @@ impl<'a> Ctx<'a> {
                                 break_before: false,
                                 consumed_chars: Some(src_offset),
                                 flex: None,
+                deferred_once: false,
                             },
                         });
                         broke = true;

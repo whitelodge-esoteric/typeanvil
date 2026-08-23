@@ -251,6 +251,11 @@ pub struct BreakToken {
     /// Flex-container continuation state (CORE-65). `None` for non-flex
     /// boxes and for flex containers that have not fragmented yet.
     pub flex: Option<FlexToken>,
+    /// CORE-109 deadlock guard: the row that produced this token already
+    /// deferred once via break-before. A second defer would loop forever
+    /// when no fragmentainer can ever fit the row (e.g. a repeating header
+    /// eats into every page), so the row force-places instead.
+    pub deferred_once: bool,
 }
 
 impl BreakToken {
@@ -258,6 +263,16 @@ impl BreakToken {
     pub fn break_before() -> BreakToken {
         BreakToken {
             break_before: true,
+            ..BreakToken::default()
+        }
+    }
+
+    /// A start-fresh token that also marks the row as having deferred once
+    /// (CORE-109): the next fragmentainer must place it, never defer again.
+    pub fn break_before_deferred() -> BreakToken {
+        BreakToken {
+            break_before: true,
+            deferred_once: true,
             ..BreakToken::default()
         }
     }
