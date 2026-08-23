@@ -273,6 +273,89 @@ fn test_table_regression_guards() {
     assert!(!l.pages.is_empty());
 }
 
+// --- CORE-109 giant-row pagination deadlock ----------------------------------
+
+#[test]
+fn test_giant_row_defers_at_most_once() {
+    // A row that fits a FRESH fragmentainer but not one shrunk by the
+    // repeating header must defer once, then place. Pre-fix this re-created
+    // the same break-before token every page and paginated to MAX_PAGES.
+    let geo = geometry(3.0, 3.0, 0.5); // content height = 2in = 144pt
+    let html = r#"<!DOCTYPE html><style>
+        table { border-collapse: collapse; width: 100%; }
+        th, td { padding: 2pt; font-size: 9pt; }
+        /* Row height = cell content + padding (CSS height is not applied to
+           rows), so a giant row is built with padding-bottom. */
+        .giant { padding-bottom: 125pt; }
+    </style><table>
+      <thead><tr><th>HDR</th></tr></thead>
+      <tbody>
+        <tr><td class="giant">giant-row</td></tr>
+        <tr><td>after-row</td></tr>
+      </tbody>
+    </table>"#;
+    let l = lay(html, geo);
+    // Bounded pagination: the deadlock produced tens of thousands of pages.
+    assert!(
+        l.pages.len() <= 6,
+        "pagination must terminate quickly, got {} pages",
+        l.pages.len()
+    );
+    // The giant row is placed exactly once, whole (never sliced).
+    let total = l
+        .pages
+        .iter()
+        .enumerate()
+        .map(|(p, _)| count_text(&l, p, "giant-row"))
+        .sum::<usize>();
+    assert_eq!(total, 1, "giant row must appear exactly once, got {total}");
+    // It cannot share page 0 with the header (130pt row + header > 144pt),
+    // so it must appear on a LATER page than the first.
+    let page_of = (0..l.pages.len())
+        .find(|p| count_text(&l, *p, "giant-row") == 1)
+        .expect("giant row placed somewhere");
+    assert!(page_of >= 1, "giant row must defer past the first page");
+    // Content after the giant row survives.
+    let after = l
+        .pages
+        .iter()
+        .enumerate()
+        .map(|(p, _)| count_text(&l, p, "after-row"))
+        .sum::<usize>();
+    assert_eq!(after, 1, "content after the giant row must survive");
+}
+
+#[test]
+fn test_row_taller_than_page_still_places_monolithically() {
+    // A row taller than even a FULL fragmentainer bypasses the defer path
+    // (monolithic overflow, tables-fragmentation rule 11) and must not hang.
+    let geo = geometry(3.0, 3.0, 0.5); // content height = 144pt
+    let html = r#"<!DOCTYPE html><style>
+        table { border-collapse: collapse; width: 100%; }
+        th, td { padding: 2pt; font-size: 9pt; }
+        .huge { padding-bottom: 290pt; }
+    </style><table>
+      <thead><tr><th>HDR</th></tr></thead>
+      <tbody>
+        <tr><td class="huge">huge-row</td></tr>
+        <tr><td>after-row</td></tr>
+      </tbody>
+    </table>"#;
+    let l = lay(html, geo);
+    assert!(
+        l.pages.len() <= 6,
+        "pagination must terminate quickly, got {} pages",
+        l.pages.len()
+    );
+    let total = l
+        .pages
+        .iter()
+        .enumerate()
+        .map(|(p, _)| count_text(&l, p, "huge-row"))
+        .sum::<usize>();
+    assert_eq!(total, 1, "oversized row must appear exactly once");
+}
+
 // --- CORE-81 auto table layout acceptance tests ------------------------------
 // Each maps to an acceptance criterion in
 // `docs/specifications/auto-table-layout.spec.md`.
