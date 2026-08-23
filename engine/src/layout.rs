@@ -1622,6 +1622,7 @@ impl<'a> Ctx<'a> {
                                     break_before: false,
                                     consumed_chars: None,
                                     flex: None,
+                deferred_once: false,
                                 },
                             });
                             broke = true;
@@ -1819,6 +1820,7 @@ impl<'a> Ctx<'a> {
                                     break_before: false,
                                     consumed_chars: Some(src_offset),
                                     flex: None,
+                deferred_once: false,
                                 },
                             });
                             broke = true;
@@ -2159,6 +2161,7 @@ impl<'a> Ctx<'a> {
                 break_before: false,
                 consumed_chars: None,
                 flex: None,
+                deferred_once: false,
             };
             fragment.break_token = Some(tok.clone());
             Some(tok)
@@ -2544,6 +2547,7 @@ impl<'a> Ctx<'a> {
                 break_before: false,
                 consumed_chars: None,
                 flex: None,
+                deferred_once: false,
             };
             fragment.break_token = Some(tok.clone());
             Some(tok)
@@ -2655,6 +2659,7 @@ impl<'a> Ctx<'a> {
                 break_before: false,
                 consumed_chars: None,
                 flex: None,
+                deferred_once: false,
             };
             fragment.break_token = Some(tok.clone());
             Some(tok)
@@ -2689,11 +2694,17 @@ impl<'a> Ctx<'a> {
         if top + row_height > bottom_limit
             && page_has_content
             && row_height.get() <= self.page_height.get()
+            // CORE-109 deadlock guard: this row already deferred once. If it
+            // still cannot fit (a repeating header/footer eats into every
+            // page), deferring again would re-create the same break-before
+            // token on every page forever — place it here instead, even if
+            // it overflows past `bottom_limit` (monolithic-overflow rule).
+            && !token.deferred_once
         {
             return BlockResult {
                 fragment: Fragment::block(Point::new(origin_x, top), (avail_width, Scalar::ZERO)),
                 used: Scalar::ZERO,
-                outgoing: Some(BreakToken::break_before()),
+                outgoing: Some(BreakToken::break_before_deferred()),
                 empty: true,
             };
         }
