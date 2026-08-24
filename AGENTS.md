@@ -7,7 +7,9 @@ Typeanvil is an AI-first HTML/Markdown → PDF typesetting engine. Rust engine i
 
 1. `docs/README.md` — map of the docs.
 2. `docs/conventions/doc-conventions.md` — the rules of the house.
-3. `docs/conventions/frontmatter-schema.md` — the frontmatter contract.
+3. `docs/conventions/css-standards-alignment.md` — CSS spec wins over
+   PrinceXML, always. Read before any parity or compatibility decision.
+4. `docs/conventions/frontmatter-schema.md` — the frontmatter contract.
 
 ## How we work: spec-driven
 
