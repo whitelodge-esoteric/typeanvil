@@ -297,3 +297,67 @@ background/border/color-convergence question (see the skill's
 `pdf-verification-techniques` reference for the sibling char-box/ToUnicode
 techniques).
 
+---
+
+# CORE-110 — Fifth triage: float-showcase (22.31%) + academic-paper (22.22%) residuals
+
+Run: `bash scripts/build-demo.sh --keep-work` at commit `9d22125` (current
+main, CORE-111 landed). Prince 16.2 non-commercial. Geometry: 5in×3in,
+0.5in margins, 96 DPI raster. Scoreboard regenerated at `9d22125`: Float
+Showcase 22.31% (worst p5 33.1%), Academic Paper 22.22% (uniform 22–26%
+across pp. 2–10), invoice 13.32, letterhead 9.25, prose 14.45, report 12.42,
+table-stress 25.14. All seven page counts match.
+
+Method: char-box line clustering (`pypdfium2` get_charbox, baseline window
+±2.5pt) on every shared page pair; minimal repro probes through both engines;
+exact-color pixel scan of the pull-quote band. Vision confirmation was
+attempted at 216 DPI but skipped (vision backend 502s during the session);
+every finding below rests on char-box or pixel evidence.
+
+## Attribution table
+
+| Driver | Bucket | Affects | Evidence |
+|---|---|---|---|
+| D1. `@top-center`/`@bottom-center` clamps to start-align when text is wider than the middle-third slot | **engine bug → CORE-117** | paper, float-showcase, prose, invoice, table-stress (5 of 7 docs) | layout.rs `horizontal_slot` gives center boxes a 96pt slot (content 288pt / 3) and layout.rs ~3847 centers via `(slot_w − text_w).max(0)` — zero offset for wide heads, so they render left-aligned at the third-slot origin. Measured centers: paper TA 200.6 vs PR 180.2; float 206.7/147.7w vs 180.2; invoice 206.1/148.1w vs 179.0; prose 231.7/249.7w vs 180.0 (TA overflows past the right content edge, x=330.7 > 324); table-stress 212.4/159.4w vs 180.1. Prince centers on the true midline regardless of width. |
+| D2. Adjacent vertical margins sum instead of collapsing to the max (CSS 2.1 §8.3.1) | **engine bug → CORE-118** | paper (blockquote +6pt, h2 boundaries +7pt), float-showcase, prose, report — any doc with styled sibling blocks | Minimal probe (`collapse.html`, p{mb:7pt} + blockquote{mt:6pt}): TA p→quote baseline gap 28.10pt vs Prince 22.11pt (= max(7,6)+line remainder). Engine code path: layout.rs ~2197 advances the parent cursor by `box_height + margin_bottom`; the next box then adds its own full `margin_top` (~1302–1315). No `max()` collapse exists. In-corpus: paper p4 quote block sits 6.0pt higher in TA (y=66.07 vs 72.03) with identical x-span. |
+| D3. Line-break choice divergence (Prince hyphenates more eagerly; TA prefers space breaks) | **algorithm parity — accepted (CORE-53/CORE-94 scope)** | every body-text page | Paper p4: identical pitch (15.00 vs 15.03 median), identical x-span, same line count through line 6, then TA breaks one word earlier per line and Prince hyphenates ("end‑" at the measure). Paper p1 is GLYPH-IDENTICAL between engines except D1's head shift — proving font metrics are converged; what remains is choice, not measurement. |
+| D4. Cross-page continuation-line count differs by one (consequence of D3) | **consequence of D3** | float-showcase mid pages | FS p5/p6: Prince carries one extra wrapped line onto the page ("— or when the page runs out." at y=169.5), shifting the whole body block up ~14–21pt for the rest of the page. Same words, same styling — pure vertical cascade. |
+| D5. Pull-quote styling/margins diverge (CORE-110 starting hypothesis) | **disproven — pull-quote renders correctly** | float-showcase | Exact-color pixel scan of the left-half float band on FS p4: TA contains the #333 gray (104 px) and anti-aliased ramp matching Prince's (143 px); italics present both sides. CORE-101 float fragmentation machinery places and styles the pull quote correctly; the mid-page 33% diffs are D1+D2+D4. |
+
+### Hypothesis from the ticket: table-stress-style x-shift — RULED OUT
+
+Body text x-spans match between engines within 0.5pt on every sampled page of
+both docs ([36, 323.x] both sides, paper and float-showcase alike). The only
+horizontal divergence is D1's margin-box band. The positional-shift family
+does NOT explain these residuals.
+
+## Acceptance criteria for accepted residuals
+
+D3/D4 are accepted until the glue-model parity work (CORE-53 scope, tracked
+by CORE-94 for line-height interaction) changes the breaker's tie-breaking:
+
+- Per-page body line count within ±1 of Prince (currently met on 16 of 19
+  shared pages across the two docs).
+- Baseline pitch within 0.15pt (met: ≤0.11 observed).
+- Glyph positions identical when the wrap choice matches (proven by paper p1).
+- Accepted residual target after CORE-117+CORE-118 land: both docs ≤15%
+  overall (the head band + collapse shifts are worth roughly half the
+  measured diff by pixel share; re-measure after those fixes).
+
+## Follow-up tickets filed
+
+- **CORE-117** (engine): margin-box center alignment clamps to start-align
+  for text wider than the third-slot — center must be the true page midline
+  (Prince-verified), overflow allowed into adjacent slots.
+- **CORE-118** (engine): vertical margin collapsing between sibling blocks —
+  adjacent margins must collapse to max(), not sum; adjoinence rules for
+  empty boxes/padding can stay out of scope if documented.
+
+## Re-verification plan
+
+After CORE-117 and CORE-118 land: rebuild gallery; expect the running-head
+band to go dark-diff on five docs and blockquote/h2-following pages to drop
+several points. Then re-triage whatever remains of the two headline docs with
+char-box evidence only.
+
+
