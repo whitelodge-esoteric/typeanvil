@@ -1476,6 +1476,13 @@ impl<'a> Ctx<'a> {
             }
         }
 
+        // CORE-118: adjacent vertical margins collapse to the max
+        // (CSS 2.1 §8.3.1). The parent cursor is advanced by each in-flow
+        // sibling's margin-bottom (via `used`); a fresh following sibling
+        // would otherwise ADD its own full margin-top on top of it. Track
+        // the previous sibling's bottom margin so the overlap can be
+        // removed before the next fresh block lays out.
+        let mut prev_margin_bottom = Scalar::ZERO;
         let mut i = start_index;
         while i < items.len() {
             // Forced break-before on a block child starts a new fragmentainer.
@@ -1505,6 +1512,9 @@ impl<'a> Ctx<'a> {
 
             match &items[i] {
                 Item::Text(text, link_spans, fn_markers) => {
+                    // CORE-118: a text run between blocks is not an adjacent
+                    // block sibling — no collapse state carries across it.
+                    prev_margin_bottom = Scalar::ZERO;
                     let child_tok = self.child_incoming(token, i);
                     let lh = line_height(style);
                     // Resume: a run that began beside a float resumes by source
@@ -1908,6 +1918,11 @@ impl<'a> Ctx<'a> {
                         continue;
                     }
                     if cstyle.float != Float::None {
+                        // CORE-118: floats do not participate in margin
+                        // collapse (documented deviation, spec §Scope) — the
+                        // in-flow cursor does not advance past a float, so no
+                        // bottom-margin state can carry across one either.
+                        prev_margin_bottom = Scalar::ZERO;
                         if child_tok.is_break_before() {
                             // ---- float first placement ----
                             // Measure the float's margin box (width: explicit
@@ -2066,6 +2081,20 @@ impl<'a> Ctx<'a> {
                         i += 1;
                         continue;
                     }
+                    // CORE-118 margin collapse: the cursor already carries
+                    // the previous sibling's margin-bottom; a fresh sibling
+                    // adds its own full margin-top inside layout_box. Remove
+                    // the overlap so the gap is max(mb_prev, mt_this).
+                    if child_tok.is_break_before() && placed && prev_margin_bottom.get() > 0.0 {
+                        let mt = self.styles[*child].margin_top;
+                        let overlap = if mt.get() < prev_margin_bottom.get() {
+                            mt
+                        } else {
+                            prev_margin_bottom
+                        };
+                        y = y - overlap;
+                    }
+
                     let res = self.layout_box(
                         *child,
                         inner_left,
@@ -2104,6 +2133,9 @@ impl<'a> Ctx<'a> {
                     if !res.empty {
                         children.push(res.fragment);
                         y += res.used;
+                        // CORE-118: remember this sibling's bottom margin so
+                        // the next fresh sibling collapses against it.
+                        prev_margin_bottom = cstyle.margin_bottom;
                         placed = true;
                         // A non-empty in-flow block is no longer the first
                         // in-flow content: later siblings keep their margins.
