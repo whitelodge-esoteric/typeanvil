@@ -5,7 +5,7 @@ type: spec
 status: in-review
 owner: elijah
 created: 2026-08-18
-updated: 2026-08-20
+updated: 2026-08-24
 sidebar_position: 10
 tags: [engine, layout, css-flexbox, css-break, fragmentation]
 spec_id: flexbox-fragmentation
@@ -194,6 +194,34 @@ Each criterion maps to a test in `engine/tests/flex.rs` (helpers mirror
    container fragments; a single item line never slices;
    `break-inside: avoid` on an item moves the whole item to the next page.
 5. **WPT targets.** The flexbox print-reftests pass via the harness:
+   **12/31 passing after the CORE-114 propagation fixes (2026-08-24)** —
+   068a-d, 069a, 069b†, 069c, 069d†, 066, 080 — up from 11/27 at CORE-65
+   landing (069b/069d had silently regressed to failing; † = fixed by
+   CORE-114). The remaining failures are classified per test in the table
+   below; each row records the evidence-backed root cause and the action
+   taken or deferred:
+
+   | Test | Failure mode | Root cause (evidence) | Classification |
+   |---|---|---|---|
+   | 042 | page-1 pixel diff (~933 px) | Ref mocks flex with `position: relative` + `left/top` offsets on `height:`-declared items inside a `height: 2.5in` box; engine block path ignores declared height (CORE-66 auto-height model), so ref geometry collapses. Test itself needs fragmentation-aware cross-axis growth (item 3 pushed to page 2 lowers item 4). | Reference-limited (block-path `height` is a CORE-66-adjacent engine ticket) |
+   | 045 | test=3 pages vs ref=2 | Same ref family as 042: ref uses a plain block box with declared heights; test's flex container fragments differently because item heights are ignored inconsistently across paths. Table content (`thead` repeat) renders correctly on both sides. | Reference-limited (same root as 042) |
+   | 046 | page-2 pixel diff (~1474 px) | Text layout matches exactly (charbox-verified); residual is "After Flexbox" baseline y=111.0 vs ref 139.8 — the ref's trailing-margin handling after a forced mid-container break differs by one line box. | Engine gap (trailing margin/break interaction) — deferred, small |
+   | 060 | test=2 pages vs ref=1 | Ref mocks `row-gap` + item-3 `margin-top` with `.gap` divs of declared height; engine ignores those heights so ref fits 1 page while flex test paginates honestly at 2. | Reference-limited (same root as 042) |
+   | 063 | test=2 pages vs ref=1 | Ref replaces flex lines with gap divs; without honored heights all 6 items fit one page. Flex test's honest pagination gives 2. | Reference-limited (same root as 042) |
+   | 064 | page-1 pixel diff (~2514 px) | Ref uses `position: relative` offsets (`left: 1.75in`) to place items 3-2/3-1 out of source order; engine has no relative-offset painting for block/flex children, so positions differ structurally. | Engine gap (`position: relative` offset painting) — tracked separately |
+   | 065 | test=3 pages vs ref=2 | Test sets `display: column` (invalid → falls back) over `display: flex`; ref is a plain block with a table. Engine treats the whole table as monolithic (no table fragmentation yet), pushing it whole to page 2. | Engine gap (table fragmentation) — out of flex scope |
+   | 075 | page-1 pixel diff (~1316 px) | Ref mocks wrapped lines with abspos-positioned items in fixed-height divs; same height/offset family as 042/064. | Reference-limited (same roots as 042 + 064) |
+   | 076 | page-1 pixel diff (~1316 px) | Same as 075 (variant with different top offsets). | Reference-limited |
+   | 081a–d | small pixel diffs p1+p2 (~250–270 px each) | CORE-107 fixed inline break-before parsing, so page COUNTS now match. Residual: refs emulate flex items as `display: inline-block`, which the engine folds into text runs (CORE-65 finding) — border/box geometry differs slightly. | Engine gap (`display: inline-block`) — deferred |
+   | 082a–d | pixel diffs p1+p2 (~821/~3535 px) | Nested-flex tests whose refs use `display: inline-block` emulation AND an inline `break-before: page` on the nested wrapper. Break propagates correctly post-CORE-114; residual is inline-block geometry. | Engine gap (`display: inline-block`) — deferred |
+
+   Cluster summary (supersedes the three-cluster list below, kept for
+   history): **6 reference-limited** (042, 045, 060, 063, 075, 076 — all
+   blocked on block-path declared-`height`, deliberately out of scope),
+   **7 engine gaps deferred with named owners** (inline-block ×8 rows,
+   relative-offset ×2, table fragmentation ×1, margin-after-break ×1),
+   **2 fixed this issue** (069b, 069d — nested-container forced-break
+   propagation). The remaining failures were:
    **11/27 passing at CORE-65 landing** — 068a-d, 069a-d (column-reverse /
    column break propagation), 066, 080, 046 — up from 0/27 (no flex at all).
    The remaining 16 fail for engine-wide reasons OUTSIDE flex scope,
