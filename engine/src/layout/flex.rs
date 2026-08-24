@@ -595,6 +595,20 @@ impl<'a> Ctx<'a> {
             token.child_tokens.first().map(|c| c.index)
         };
         let start_pos = match start_block {
+            Some(bi) if bi >= items.len() => {
+                // Past-the-end resume marker (trailing forced break-after,
+                // CORE-116 encoding): every item finished on an earlier
+                // fragmentainer; this one gets an empty continuation.
+                return BlockResult {
+                    fragment: Fragment::block(
+                        Point::new(inner_left, top),
+                        (avail_width, Scalar::ZERO),
+                    ),
+                    used: Scalar::ZERO,
+                    outgoing: None,
+                    empty: true,
+                };
+            }
             Some(bi) => items
                 .iter()
                 .position(|it| it.block_index == bi)
@@ -630,10 +644,14 @@ impl<'a> Ctx<'a> {
             let cstyle = &self.styles[item.id];
             let child_fresh = child_tok.is_break_before();
 
-            // Forced break-before on the item (block path semantics).
+            // Forced break-before on the item (block path semantics). The
+            // first-item exemption holds ONLY at the top of a fragmentainer
+            // (`!placed`): mid-page, a forced break on the first item
+            // propagates to the container (css-flexbox-1 #pagination;
+            // WPT single-line-column-flex-fragmentation-069b/d).
             if child_fresh
                 && cstyle.break_before.is_forced()
-                && (!children.is_empty() || broke || oi > start_pos)
+                && (!children.is_empty() || broke || oi > start_pos || placed)
             {
                 seen_all = false;
                 outgoing_children.push(ChildToken {
@@ -665,6 +683,30 @@ impl<'a> Ctx<'a> {
                 &child_tok,
                 flow,
             );
+
+            // Propagation (css-flexbox-1 #pagination): a forced break
+            // demanded by the item's own content BEFORE the item placed
+            // anything moves the WHOLE item to the next fragmentainer
+            // (WPT single-line-column-flex-fragmentation-069b: a
+            // break-before on a nested container's first item propagates
+            // to that container's start edge — the box moves intact, no
+            // sliver stays behind). Guarded by `placed` so a fresh page
+            // cannot defer forever.
+            let item_placed_nothing = res.fragment.children.is_empty()
+                && !matches!(res.fragment.content, FragmentContent::Text(_));
+            if placed
+                && child_fresh
+                && item_placed_nothing
+                && res.outgoing.is_some()
+            {
+                seen_all = false;
+                outgoing_children.push(ChildToken {
+                    index: block_index,
+                    token: BreakToken::break_before(),
+                });
+                broke = true;
+                break;
+            }
 
             // break-inside: avoid — move the whole item to the next page
             // when it would fit fresh (bounded abort-and-defer).
@@ -699,9 +741,17 @@ impl<'a> Ctx<'a> {
                 break;
             }
             // Forced break-after: the NEXT item in placement order goes to
-            // the next page.
-            if cstyle.break_after.is_forced() && oi + 1 < order.len() {
-                let next_block = items[order[oi + 1]].block_index;
+            // the next page. On the LAST item the forced break propagates
+            // to the container's end edge (css-flexbox-1 #pagination;
+            // WPT single-line-column-flex-fragmentation-069d): emit a
+            // past-the-end child token so the container's continuation
+            // fragment terminates cleanly (CORE-116 encoding).
+            if cstyle.break_after.is_forced() {
+                let next_block = if oi + 1 < order.len() {
+                    items[order[oi + 1]].block_index
+                } else {
+                    items.len()
+                };
                 seen_all = false;
                 outgoing_children.push(ChildToken {
                     index: next_block,
