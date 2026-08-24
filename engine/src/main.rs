@@ -60,6 +60,10 @@ struct RenderArgs {
     title: Option<String>,
     author: Option<String>,
     license: Option<PathBuf>,
+    /// Emit a logical structure tree (CORE-111).
+    tagged: bool,
+    /// Additionally run krilla's PDF/UA-1 validator (implies tagged).
+    ua: bool,
 }
 
 fn render(args: Vec<String>) -> Result<()> {
@@ -89,8 +93,15 @@ fn render(args: Vec<String>) -> Result<()> {
     let license_state = licensing::resolve(opts.license.as_deref())?;
     let watermark = matches!(license_state, LicenseState::Missing);
 
-    let bytes =
-        pdf::render_with_metadata(&laid_out, &meta, watermark).context("rendering PDF")?;
+    let bytes = pdf::render_with_options(
+        &laid_out,
+        Some(&dom),
+        &meta,
+        watermark,
+        opts.tagged,
+        opts.ua,
+    )
+    .context("rendering PDF")?;
 
     std::fs::write(&opts.output, &bytes)
         .with_context(|| format!("writing output {}", opts.output.display()))?;
@@ -124,6 +135,8 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
     let mut title: Option<String> = None;
     let mut author: Option<String> = None;
     let mut license: Option<PathBuf> = None;
+    let mut tagged = false;
+    let mut ua = false;
 
     let mut it = args.into_iter();
     while let Some(arg) = it.next() {
@@ -141,6 +154,11 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
             "--title" => title = Some(next_value(&mut it, &arg)?),
             "--author" => author = Some(next_value(&mut it, &arg)?),
             "--license" => license = Some(PathBuf::from(next_value(&mut it, &arg)?)),
+            "--tagged" => tagged = true,
+            "--ua" => {
+                tagged = true;
+                ua = true;
+            }
             other if other.starts_with('-') => bail!("unknown flag `{other}`"),
             _ => {
                 if input.is_none() {
@@ -165,6 +183,8 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
         title,
         author,
         license,
+        tagged,
+        ua,
     })
 }
 

@@ -87,6 +87,9 @@ pub struct PageLink {
     pub h: Scalar,
     /// Where the link goes.
     pub target: LinkTarget,
+    /// The DOM node of the source `<a>` element (CORE-111): the tagged
+    /// emitter maps link annotations to their `Link` structure group.
+    pub node: NodeId,
 }
 
 /// The destination of a [`PageLink`].
@@ -148,6 +151,8 @@ struct LinkSpan {
     start: usize,
     end: usize,
     href: String,
+    /// The `<a>` element this span belongs to (CORE-111 tagging).
+    node: NodeId,
 }
 
 /// Mutable per-flow bookkeeping threaded through pagination in document order:
@@ -476,6 +481,7 @@ fn resolve_links(
                 w: c.w,
                 h: c.h,
                 target,
+                node: c.node,
             })
         })
         .collect()
@@ -490,6 +496,8 @@ struct CollectedLink {
     w: Scalar,
     h: Scalar,
     href: String,
+    /// The source `<a>` element (CORE-111).
+    node: NodeId,
 }
 
 /// Intersect a placed line's source span against its run's recorded link
@@ -549,6 +557,7 @@ fn collect_line_links(
             w: Scalar(x1 - x0),
             h: lh,
             href: span.href.clone(),
+            node: span.node,
         });
     }
 }
@@ -3371,6 +3380,7 @@ impl<'a> Ctx<'a> {
                                         start,
                                         end,
                                         href: href.to_string(),
+                                        node: child,
                                     });
                                 }
                                 continue;

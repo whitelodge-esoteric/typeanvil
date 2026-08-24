@@ -18,4 +18,5 @@ pub mod paged;
 pub mod pdf;
 pub mod stylo_dom;
 pub mod table;
+pub mod tags;
 pub mod typography;
