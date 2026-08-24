@@ -122,7 +122,10 @@ The engine shall:
    carries margin-box child fragments positioned in the page margin area
    (top row above the content box, bottom row below; corners and center/left/
    right per css-page-3), so the existing PDF fragment-tree walk draws them
-   with no separate pass.
+   with no separate pass. A center-aligned top/bottom box is centered on the
+   CONTENT-box midline `((left + right) / 2)`, never inside a fixed third
+   slot: text wider than a third spills into adjacent slots symmetrically
+   (css-page-3 margin-box geometry; matches Prince 16.2 — CORE-117).
 6. **Render margin-box content**: `content` values of literal text,
    `string(name)`, `counter(page)`, and `counter(<name>)` are resolved at
    fragmentainer build time; each margin box is one line, no wrapping,
@@ -318,6 +321,10 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     the following page does (`paged_media.rs::named_page_margin_box_suppression`).
     Also: a document whose FIRST element carries `page: <name>` activates the
     named page on page 1 (`paged_media.rs::named_page_first_page_activates`).
+17. **Margin-box centering** — Given `@top-center` content wider than the
+    middle-third slot, when rendered, then every page's head center sits on
+    the content midline ±0.5pt and inside the top margin band
+    (`paged_media.rs::margin_box_center_aligns_on_content_midline`).
 
 ## Edge Cases
 

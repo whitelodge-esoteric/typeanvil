@@ -183,6 +183,62 @@ fn margin_box_header() {
     }
 }
 
+// --- 3b. Margin-box centering (CORE-117) -------------------------------------
+
+#[test]
+fn margin_box_center_aligns_on_content_midline() {
+    // CORE-117: a @top-center head wider than the middle-third slot must stay
+    // centered on the CONTENT-box midline, spilling into adjacent slots
+    // symmetrically — never clamp to start-align. The invariant: the run's
+    // horizontal center equals (content_left + content_right) / 2 for every
+    // page, at any head width.
+    let html = r#"<html><head><style>
+        @page { margin: 0.5in; @top-center { content: "A Very Long Running Head That Exceeds Any Third Slot Width"; } }
+        p { font-size: 12px; }
+        .pb { break-before: page; }
+    </style></head><body>
+        <p>First page paragraph.</p>
+        <p class="pb">Second page paragraph.</p>
+    </body></html>"#;
+    let geo = geometry(5.0, 3.0, 0.5);
+    let layout = lay(html, geo);
+    assert!(layout.pages.len() >= 2, "expected multi-page");
+    let content = geo.content_rect();
+    let midline = (content.x.get() + (content.x.get() + content.width.get())) * 0.5;
+    for page in &layout.pages {
+        fn walk<'a>(frag: &'a Fragment, px: f64, py: f64) -> Option<(f64, f64, f64)> {
+            if let FragmentContent::Text(run) = &frag.content {
+                if run.text.contains("Running Head") {
+                    let x = px + run.baseline.x.get();
+                    // True shaped extent from per-glyph advances.
+                    let w: f64 = run.glyphs.iter().map(|g| g.x_advance.get()).sum();
+                    return Some((x, w, py + run.baseline.y.get()));
+                }
+            }
+            let ax = px + frag.offset.x.get();
+            let ay = py + frag.offset.y.get();
+            for child in &frag.children {
+                if let Some(hit) = walk(child, ax, ay) {
+                    return Some(hit);
+                }
+            }
+            None
+        }
+        let (x, w, y) = walk(&page.root, 0.0, 0.0)
+            .unwrap_or_else(|| panic!("page {} missing top-center head", page.index));
+        assert!(
+            y < inches(0.5).get(),
+            "head must sit in the top margin band"
+        );
+        let center = x + w * 0.5;
+        assert!(
+            (center - midline).abs() < 0.5,
+            "page {}: head center {center} not on content midline {midline}",
+            page.index
+        );
+    }
+}
+
 // --- 4. Named pages --------------------------------------------------------
 
 #[test]
