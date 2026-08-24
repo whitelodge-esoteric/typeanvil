@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-22
-updated: 2026-08-22
+updated: 2026-08-24
 sidebar_position: 15
 tags: [engine, css-gcpm, css-page, fragmentation, paged-media]
 spec_id: footnotes
@@ -73,7 +73,12 @@ Four fixtures rendered with `prince --page-size="letter" --page-margin="0.8in"
 Separator rule: pixel scans of the bottom band found no horizontal rule on
 any probe page. Prince draws **no separator by default** (the ticket's
 assumption was wrong; css-gcpm's UA suggestion of a short rule is not
-Prince's behavior).
+Prince's behavior). **Standards-alignment note:** css-gcpm-3 suggests a
+default separator for the UA stylesheet, but a UA-origin default is not
+spec-normative — following Prince here does not violate the
+css-standards-alignment convention. If a separator ships later, it should
+follow css-gcpm's rendering (`::footnote-separator` styling), not Prince's
+absence of one.
 
 Marker metrics (probe 1, letter geometry, content left = 57.6pt):
 

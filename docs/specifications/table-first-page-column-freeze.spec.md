@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-20
-updated: 2026-08-20
+updated: 2026-08-24
 sidebar_position: 14
 tags: [layout, tables, css-tables, engine, demo-parity]
 spec_id: table-first-page-column-freeze
@@ -41,10 +41,11 @@ and the WPT subset are byte-for-byte unchanged (the regression guard).
 
 **Conformance note:** css-tables-3 §10.4.1 defines table width from *all*
 rows; the first-page freeze is a deliberate, documented deviation to match
-Prince's observed behavior. The wedge is Prince-parity output, and this
-deviation is scoped to fragmented tables only — the same spirit as the
-CORE-81 UAX#14 glue note. The engine shall NOT apply the freeze to
-single-fragmentainer tables.
+Prince's observed behavior — filed under
+`docs/conventions/css-standards-alignment.md`. The wedge is Prince-parity
+output, and this deviation is scoped to fragmented tables only — the same
+spirit as the CORE-81 UAX#14 glue note. The engine shall NOT apply the
+freeze to single-fragmentainer tables.
 
 **Measured result (2026-08-20, CORE-89 landed):** table-stress moves
 21 → **42 pages** (Prince: 45) at the demo geometry; the Description column

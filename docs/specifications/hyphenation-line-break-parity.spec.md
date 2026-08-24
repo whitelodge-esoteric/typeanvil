@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: elijah
 created: 2026-08-20
-updated: 2026-08-20
+updated: 2026-08-24
 sidebar_position: 15
 tags: [engine, typography, hyphenation, line-breaking, parity]
 spec_id: hyphenation-line-break-parity
@@ -143,8 +143,12 @@ The engine shall:
 7. Never consume more lines at a fragmentainer break than were actually
    placed: `apply_orphans_widows`'s result is clamped with `split.min(li)`
    (CORE-97 orphans/widows text-loss fix).
-8. Default `widows` to 1 for unset paragraphs (Prince parity, probed); any
-   explicit author `widows` declaration overrides.
+8. Default `widows` to 1 for unset paragraphs; any explicit author `widows`
+   declaration overrides. **Standards-alignment note:** this deviates from
+   the css-break-3 initial value of 2, kept deliberately for Prince parity
+   (probed: Prince allows a 1-line widow). It is a documented exception to
+   `docs/conventions/css-standards-alignment.md`; a future breaking change
+   toward the CSS initial is acceptable and should be WPT-gated.
 9. Break non-justified lines at the LONGEST equal-cost fit: the K-P DP uses
    `<=` on the tie compare so the last (longest) equal candidate wins
    (CORE-97 ragged tie-break fix).

@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-20
-updated: 2026-08-20
+updated: 2026-08-24
 sidebar_position: 13
 tags: [layout, tables, css-tables, engine, demo-parity]
 spec_id: auto-table-layout
@@ -118,7 +118,11 @@ The engine SHALL implement the following, stated as "shall" rules:
    the width of "Disappearing/reappearing" (≈112pt at 9pt Arial) — the
    measured width of Prince's Description column on table-stress (verified
    2026-08-20). Empty cells SHALL contribute their padding + borders only
-   (CORE-61 rule).
+   (CORE-61 rule). **Standards-alignment note:** CSS sizing treats UAX #14
+   break opportunities as min-content break points, so the standard measure
+   is narrower; this rule deviates to match Prince's observed glue behavior.
+   It is a documented exception under
+   `docs/conventions/css-standards-alignment.md`.
 2. **Intrinsic max-content.** For each column, the max-content width SHALL be
    the maximum over its cells of (the widest line when the cell text takes
    **no soft breaks** — the whole text on one line, split only at mandatory
@@ -303,6 +307,8 @@ pipeline:
   column-measure part of; §Behavior #3).
 - css-tables-3 §10.4.2 (extra-width distribution), CSS2.1 §17.5.2.2 (auto
   table layout).
+- `docs/conventions/css-standards-alignment.md` — the house rule this spec's
+  UAX #14 min-content note is filed under (Behavior 1 deviation).
 - Prince ground truth: `/tmp/ts-prince-5x3.pdf` (demo geometry, 45 pages),
   `/tmp/probe-constrained-prince.pdf` (320pt probe split 293/23),
   `demo/scripts/col_words.py` (char-box word dumps, 2026-08-20).
