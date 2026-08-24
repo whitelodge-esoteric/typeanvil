@@ -214,6 +214,9 @@ class CliEngine:
             --margin-top 0.5in --margin-right 0.5in \\
             --margin-bottom 0.5in --margin-left 0.5in \\
             --base-url http://127.0.0.1:PORT/ \\
+            [--title "Q3 Report" --author "A. Author"] \\
+            [--license <path>] \\
+            [--diagnostics <json|text>] \\
             -o <output.pdf>
 
     Requirements on the engine:

@@ -6,6 +6,7 @@
 //! observing PDF bytes through the CLI.
 
 pub mod css;
+pub mod diagnostics;
 pub mod dom;
 pub mod fonts;
 pub mod frag;
