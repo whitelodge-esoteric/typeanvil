@@ -10,8 +10,13 @@
 //!     --base-url http://127.0.0.1:PORT/ \
 //!     --title "Q3 Report" --author "A. Author" \
 //!     [--license <path>] \
+//!     [--diagnostics <json|text>] \
 //!     -o <output.pdf>
-//! ```
+//!
+//! `--diagnostics json` prints one schema-versioned JSON document (see
+//! `docs/specifications/diagnostics.spec.md`, CORE-112) to stdout after the
+//! PDF is written; `--diagnostics text` prints one line per event to stderr.
+//! Without the flag, output is byte-identical to a plain render.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -64,6 +69,15 @@ struct RenderArgs {
     tagged: bool,
     /// Additionally run krilla's PDF/UA-1 validator (implies tagged).
     ua: bool,
+    /// CORE-112: emit machine-readable diagnostics (`json` or `text`).
+    diagnostics: Option<DiagnosticsMode>,
+}
+
+/// Output format for `--diagnostics`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DiagnosticsMode {
+    Json,
+    Text,
 }
 
 fn render(args: Vec<String>) -> Result<()> {
@@ -105,6 +119,23 @@ fn render(args: Vec<String>) -> Result<()> {
 
     std::fs::write(&opts.output, &bytes)
         .with_context(|| format!("writing output {}", opts.output.display()))?;
+
+    // Diagnostics (CORE-112): analyze the stylesheet only when asked. The
+    // render above is untouched either way — byte-stable PDFs, zero cost.
+    if let Some(mode) = opts.diagnostics {
+        let events = typeanvil::diagnostics::analyze(stylesheet.source());
+        match mode {
+            DiagnosticsMode::Json => print!("{}", typeanvil::diagnostics::to_json(&events)),
+            DiagnosticsMode::Text => {
+                for d in &events {
+                    eprintln!(
+                        "{}:{} {} [{}]: {}",
+                        d.line, d.column, d.severity, d.code, d.message
+                    );
+                }
+            }
+        }
+    }
     Ok(())
 }
 
@@ -137,6 +168,7 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
     let mut license: Option<PathBuf> = None;
     let mut tagged = false;
     let mut ua = false;
+    let mut diagnostics: Option<DiagnosticsMode> = None;
 
     let mut it = args.into_iter();
     while let Some(arg) = it.next() {
@@ -158,6 +190,14 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
             "--ua" => {
                 tagged = true;
                 ua = true;
+            }
+            "--diagnostics" => {
+                let value = next_value(&mut it, &arg)?;
+                diagnostics = Some(match value.as_str() {
+                    "json" => DiagnosticsMode::Json,
+                    "text" => DiagnosticsMode::Text,
+                    other => bail!("invalid --diagnostics mode `{other}` (expected json|text)"),
+                });
             }
             other if other.starts_with('-') => bail!("unknown flag `{other}`"),
             _ => {
@@ -185,6 +225,7 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
         license,
         tagged,
         ua,
+        diagnostics,
     })
 }
 
