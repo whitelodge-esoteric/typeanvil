@@ -273,10 +273,39 @@ pub struct LineResult {
 /// Returns a [`ShapeRun`] whose glyph advances are in points. Missing glyphs
 /// resolve to the font's `.notdef` deterministically (no crash).
 pub fn shape_word(word: &str, font_size: Scalar, face: FaceId) -> ShapeRun {
+    shape_word_with_features(word, font_size, face, &[])
+}
+
+/// Shape a single word with explicit OpenType features (CORE-113).
+///
+/// `features` is the resolved `(packed_tag, value)` list from
+/// `ComputedStyle::ot_features`; empty = engine defaults (HarfRust's own
+/// default plan: standard ligatures + kerning on for Latin). Missing glyphs
+/// resolve to the font's `.notdef` deterministically (no crash).
+pub fn shape_word_with_features(
+    word: &str,
+    font_size: Scalar,
+    face: FaceId,
+    features: &[(u32, u32)],
+) -> ShapeRun {
     let (font, data) = face_shaper(face);
     let shaper = data.shaper(font).build();
     let upem = shaper.units_per_em() as f64;
     let scale = font_size.get() / upem;
+
+    // Map the packed tags into HarfRust's Feature form. Full-buffer range
+    // (Feature::new's default `..`), applied in resolved order.
+    let hb_features: Vec<harfrust::Feature> = features
+        .iter()
+        .map(|&(tag, value)| {
+            harfrust::Feature::new(
+                harfrust::Tag::new(&tag.to_be_bytes()),
+                value,
+                ..,
+            )
+        })
+        .collect();
+    let options = ShapeOptions::new().features(&hb_features);
 
     let mut buffer = UnicodeBuffer::new();
     buffer.push_str(word);
@@ -284,7 +313,7 @@ pub fn shape_word(word: &str, font_size: Scalar, face: FaceId) -> ShapeRun {
     // NOT direction (it passes the buffer's direction into the shape plan
     // verbatim), so set it explicitly — a buffer without a direction panics.
     buffer.set_direction(Direction::LeftToRight);
-    let glyph_buffer = shaper.shape(buffer, ShapeOptions::default());
+    let glyph_buffer = shaper.shape(buffer, options);
 
     let infos = glyph_buffer.glyph_infos();
     let positions = glyph_buffer.glyph_positions();
@@ -402,6 +431,23 @@ fn space_glue(font_size: Scalar, face: FaceId) -> Glue {
     }
 }
 
+/// [`space_glue`] honoring OpenType features (CORE-113).
+fn space_glue_with_features(
+    font_size: Scalar,
+    face: FaceId,
+    features: &[(u32, u32)],
+) -> Glue {
+    if features.is_empty() {
+        return space_glue(font_size, face);
+    }
+    let space = shape_word_with_features(" ", font_size, face, features).width;
+    Glue {
+        width: space,
+        stretch: space * 0.5,
+        shrink: space * (1.0 / 3.0),
+    }
+}
+
 /// Tokenize a paragraph into the K-P item stream. Words are shaped; spaces
 /// become glue; `hyphenate` adds intra-word hyphen penalties from `hypher`.
 /// UAX #14 boundaries confirm where inter-word breaks are legal.
@@ -418,9 +464,10 @@ fn build_items(
     font_size: Scalar,
     face: FaceId,
     hyphenate: bool,
+    features: &[(u32, u32)],
 ) -> (Vec<Item>, Vec<usize>) {
-    let glue = space_glue(font_size, face);
-    let hyphen_run = shape_word("-", font_size, face);
+    let glue = space_glue_with_features(font_size, face, features);
+    let hyphen_run = shape_word_with_features("-", font_size, face, features);
     let mut items: Vec<Item> = Vec::new();
     let mut box_ends: Vec<usize> = Vec::new();
     // Walk words with their real byte offsets in `text` (split_whitespace
@@ -446,6 +493,7 @@ fn build_items(
             hyphenate,
             &hyphen_run,
             face,
+            features,
         );
         scan = start + word.len();
     }
@@ -508,9 +556,10 @@ fn push_word(
     hyphenate: bool,
     hyphen_run: &ShapeRun,
     face: FaceId,
+    features: &[(u32, u32)],
 ) {
     if !hyphenate || word.chars().count() < 5 {
-        items.push(Item::Box(shape_word(word, font_size, face)));
+        items.push(Item::Box(shape_word_with_features(word, font_size, face, features)));
         box_ends.push(start + word.len());
         return;
     }
@@ -518,7 +567,7 @@ fn push_word(
     // and place a hyphen penalty between consecutive syllables.
     let syllables: Vec<&str> = hypher::hyphenate(word, Lang::English).collect();
     if syllables.len() <= 1 {
-        items.push(Item::Box(shape_word(word, font_size, face)));
+        items.push(Item::Box(shape_word_with_features(word, font_size, face, features)));
         box_ends.push(start + word.len());
         return;
     }
@@ -550,7 +599,7 @@ fn push_word(
             });
             box_ends.push(0);
         }
-        items.push(Item::Box(shape_word(syl, font_size, face)));
+        items.push(Item::Box(shape_word_with_features(syl, font_size, face, features)));
         box_ends.push(syl_start + syl.len());
         syl_start += syl.len();
     }
@@ -940,13 +989,16 @@ pub fn break_paragraph(
     }
     let font_size = style.font_size;
     let face = style.font_face;
-    let (items, box_ends) = build_items(text, font_size, face, hyphenate);
+    // Resolve OpenType features ONCE per paragraph (CORE-113); every shaped
+    // box (words, hyphen glyph, spaces) sees the identical list.
+    let features = &style.ot_features[..];
+    let (items, box_ends) = build_items(text, font_size, face, hyphenate, features);
     if items.is_empty() {
         return Vec::new();
     }
     let breaks = knuth_plass(&items, max_width.get(), justify);
     // The inter-word space glyph, shaped once per paragraph.
-    let space_run = shape_word(" ", font_size, face);
+    let space_run = shape_word_with_features(" ", font_size, face, features);
     let mut lines = Vec::with_capacity(breaks.len());
     let mut start = 0usize;
     // Previous line's absolute source end; the current line's consumed delta

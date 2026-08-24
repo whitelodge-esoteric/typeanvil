@@ -394,6 +394,16 @@ pub struct ComputedStyle {
     /// `hyphens` computed value (typography layer). Filled by the author-CSS
     /// pass like the break longhands; inherited.
     pub hyphens: Hyphens,
+    /// Explicit OpenType feature settings (CORE-113): packed big-endian tag +
+    /// value pairs copied verbatim from stylo's computed
+    /// `font-feature-settings`. Empty for the default (`normal`).
+    pub feature_settings: Vec<(u32, i32)>,
+    /// Resolved OpenType features to apply at shaping time (CORE-113):
+    /// `(packed_tag, u32_value)` in application order. Combines the
+    /// `font-variant-*` longhand mappings with `feature_settings`
+    /// (which come last and win duplicates). Resolved once per style so
+    /// every shaping call sees an identical list; empty = engine defaults.
+    pub ot_features: Vec<(u32, u32)>,
 }
 
 impl ComputedStyle {
@@ -456,6 +466,8 @@ impl ComputedStyle {
             widows: 1,
             text_align: TextAlign::Start,
             hyphens: Hyphens::Manual,
+            feature_settings: Vec::new(),
+            ot_features: Vec::new(),
             page: None,
             string_set: Vec::new(),
             counter_reset: Vec::new(),
@@ -465,6 +477,173 @@ impl ComputedStyle {
         }
     }
 
+}
+
+// --- OpenType feature resolution (CORE-113) --------------------------------
+
+/// Pack four ASCII tag bytes big-endian (matches stylo's `FontTag` and
+/// HarfRust's `Tag([u8; 4])` layout).
+const fn tag4(b: &[u8; 4]) -> u32 {
+    ((b[0] as u32) << 24) | ((b[1] as u32) << 16) | ((b[2] as u32) << 8) | b[3] as u32
+}
+
+/// Resolve the computed font-variant longhands + explicit
+/// `font-feature-settings` into one ordered shaping feature list
+/// `(packed_tag, value)` (spec Behavior 2/5):
+/// ligatures → caps → numeric → east-asian, then explicit settings last
+/// (css-fonts-4 §10.3: low-level settings win). Duplicates collapse
+/// last-wins by tag; output order is deterministic.
+///
+/// Bit values mirror stylo's `FontVariantLigatures(u16)` /
+/// `FontVariantNumeric(u8)` / `FontVariantEastAsian(u16)` bitflags
+/// (verified in stylo 0.20 `values/specified/font.rs`, 2026-08-24).
+#[allow(clippy::too_many_arguments)]
+fn resolve_ot_features(
+    ligatures: u16,
+    caps_small: bool,
+    numeric: u8,
+    east_asian: u16,
+    feature_settings: &[(u32, i32)],
+) -> Vec<(u32, u32)> {
+    use style::values::specified::font::{
+        FontVariantEastAsian, FontVariantLigatures, FontVariantNumeric,
+    };
+    let _ = (
+        core::mem::size_of::<FontVariantLigatures>(),
+        core::mem::size_of::<FontVariantNumeric>(),
+        core::mem::size_of::<FontVariantEastAsian>(),
+    );
+
+    let mut out: Vec<(u32, u32)> = Vec::new();
+    // font-variant-ligatures.
+    const L_NONE: u16 = 1;
+    const L_COMMON: u16 = 1 << 1;
+    const L_NO_COMMON: u16 = 1 << 2;
+    const L_DISCRETIONARY: u16 = 1 << 3;
+    const L_NO_DISCRETIONARY: u16 = 1 << 4;
+    const L_HISTORICAL: u16 = 1 << 5;
+    const L_NO_HISTORICAL: u16 = 1 << 6;
+    const L_CONTEXTUAL: u16 = 1 << 7;
+    const L_NO_CONTEXTUAL: u16 = 1 << 8;
+    if ligatures & L_NONE != 0 {
+        // none disables ALL ligature/alternate features.
+        for t in [b"liga", b"clig", b"dlig", b"hlig", b"calt"] {
+            out.push((tag4(t), 0));
+        }
+    } else {
+        if ligatures & L_NO_COMMON != 0 && ligatures & L_COMMON == 0 {
+            out.push((tag4(b"liga"), 0));
+            out.push((tag4(b"clig"), 0));
+        }
+        if ligatures & L_DISCRETIONARY != 0 {
+            out.push((tag4(b"dlig"), 1));
+        }
+        if ligatures & L_NO_DISCRETIONARY != 0 {
+            out.push((tag4(b"dlig"), 0));
+        }
+        if ligatures & L_HISTORICAL != 0 {
+            out.push((tag4(b"hlig"), 1));
+        }
+        if ligatures & L_NO_HISTORICAL != 0 {
+            out.push((tag4(b"hlig"), 0));
+        }
+        if ligatures & L_CONTEXTUAL != 0 {
+            out.push((tag4(b"calt"), 1));
+        }
+        if ligatures & L_NO_CONTEXTUAL != 0 {
+            out.push((tag4(b"calt"), 0));
+        }
+    }
+    // font-variant-caps (servo build: normal | small-caps only).
+    if caps_small {
+        out.push((tag4(b"smcp"), 1));
+    }
+    // font-variant-numeric.
+    const N_LINING: u8 = 1 << 0;
+    const N_OLDSTYLE: u8 = 1 << 1;
+    const N_PROPORTIONAL: u8 = 1 << 2;
+    const N_TABULAR: u8 = 1 << 3;
+    const N_DIAGONAL_FRACTIONS: u8 = 1 << 4;
+    const N_STACKED_FRACTIONS: u8 = 1 << 5;
+    const N_SLASHED_ZERO: u8 = 1 << 6;
+    const N_ORDINAL: u8 = 1 << 7;
+    if numeric & N_LINING != 0 {
+        out.push((tag4(b"lnum"), 1));
+    }
+    if numeric & N_OLDSTYLE != 0 {
+        out.push((tag4(b"onum"), 1));
+    }
+    if numeric & N_PROPORTIONAL != 0 {
+        out.push((tag4(b"pnum"), 1));
+    }
+    if numeric & N_TABULAR != 0 {
+        out.push((tag4(b"tnum"), 1));
+    }
+    if numeric & N_DIAGONAL_FRACTIONS != 0 {
+        out.push((tag4(b"frac"), 1));
+    }
+    if numeric & N_STACKED_FRACTIONS != 0 {
+        out.push((tag4(b"afrc"), 1));
+    }
+    if numeric & N_SLASHED_ZERO != 0 {
+        out.push((tag4(b"zero"), 1));
+    }
+    if numeric & N_ORDINAL != 0 {
+        out.push((tag4(b"ordn"), 1));
+    }
+    // font-variant-east-asian.
+    const E_JIS78: u16 = 1 << 0;
+    const E_JIS83: u16 = 1 << 1;
+    const E_JIS90: u16 = 1 << 2;
+    const E_JIS04: u16 = 1 << 3;
+    const E_SIMPLIFIED: u16 = 1 << 4;
+    const E_TRADITIONAL: u16 = 1 << 5;
+    const E_FULL_WIDTH: u16 = 1 << 6;
+    const E_PROPORTIONAL_WIDTH: u16 = 1 << 7;
+    const E_RUBY: u16 = 1 << 8;
+    if east_asian & E_JIS78 != 0 {
+        out.push((tag4(b"jp78"), 1));
+    }
+    if east_asian & E_JIS83 != 0 {
+        out.push((tag4(b"jp83"), 1));
+    }
+    if east_asian & E_JIS90 != 0 {
+        out.push((tag4(b"jp90"), 1));
+    }
+    if east_asian & E_JIS04 != 0 {
+        out.push((tag4(b"jp04"), 1));
+    }
+    if east_asian & E_SIMPLIFIED != 0 {
+        out.push((tag4(b"smpl"), 1));
+    }
+    if east_asian & E_TRADITIONAL != 0 {
+        out.push((tag4(b"trad"), 1));
+    }
+    if east_asian & E_FULL_WIDTH != 0 {
+        out.push((tag4(b"fwid"), 1));
+    }
+    if east_asian & E_PROPORTIONAL_WIDTH != 0 {
+        out.push((tag4(b"pwid"), 1));
+    }
+    if east_asian & E_RUBY != 0 {
+        out.push((tag4(b"ruby"), 1));
+    }
+    // Explicit font-feature-settings last (wins duplicates).
+    for &(tag, value) in feature_settings {
+        out.push((tag, value.max(0) as u32));
+    }
+    // Dedup by tag, LAST entry wins (HarfBuzz semantics). Stable order:
+    // first occurrence position of each surviving tag.
+    let mut deduped: Vec<(u32, u32)> = Vec::with_capacity(out.len());
+    let mut seen: Vec<u32> = Vec::new();
+    for &(tag, value) in out.iter().rev() {
+        if !seen.contains(&tag) {
+            seen.push(tag);
+            deduped.push((tag, value));
+        }
+    }
+    deduped.reverse();
+    deduped
 }
 
 /// A parsed stylesheet.
@@ -871,6 +1050,29 @@ impl CascadeSession {
             s if s == StyloFontStyle::NORMAL => FontStyle::Normal,
             _ => FontStyle::Italic,
         };
+        // OpenType features (CORE-113): copy stylo's computed
+        // `font-feature-settings` (packed big-endian tag + i32 value), then
+        // resolve the full shaping list including the font-variant-* maps.
+        let feature_settings: Vec<(u32, i32)> = font
+            .clone_font_feature_settings()
+            .0
+            .iter()
+            .map(|f| (f.tag.0, f.value as i32))
+            .collect();
+        // Bitflag longhands convert via `.bits()`; caps is a keyword enum
+        // (`normal | small-caps` in the servo build).
+        let variant_ligatures = font.clone_font_variant_ligatures().bits();
+        let variant_caps_small = font.clone_font_variant_caps()
+            == style::properties::generated::longhands::font_variant_caps::computed_value::T::SmallCaps;
+        let variant_numeric = font.clone_font_variant_numeric().bits();
+        let variant_east_asian = font.clone_font_variant_east_asian().bits();
+        let ot_features = resolve_ot_features(
+            variant_ligatures,
+            variant_caps_small,
+            variant_numeric,
+            variant_east_asian,
+            &feature_settings,
+        );
         // column-gap resolves `normal` to 1em against the font size.
         let column_gap = match position.clone_column_gap() {
             StyloColumnGap::Normal => font_size,
@@ -1003,6 +1205,8 @@ impl CascadeSession {
             font_family,
             font_face,
             font_fallbacks,
+            feature_settings,
+            ot_features,
             display,
             font_weight,
             font_style,
