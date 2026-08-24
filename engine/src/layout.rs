@@ -3844,7 +3844,15 @@ fn attach_margin_boxes(
         let text_w = shaped.width;
         let x = match name.align() {
             MarginAlign::Start => slot_x,
-            MarginAlign::Center => slot_x + Scalar((slot_w.get() - text_w.get()).max(0.0) * 0.5),
+            // CORE-117: center-aligned boxes center on the CONTENT-box
+            // midline ((left+right)/2), not within a fixed third-slot.
+            // A wide running head then spills into adjacent slots
+            // symmetrically (css-page-3 margin-box geometry, matches
+            // Prince 16.2); a third-slot clamp degenerates any head wider
+            // than content_width/3 to start-align.
+            MarginAlign::Center => {
+                content.x + Scalar((content.width.get() - text_w.get()) * 0.5)
+            }
             MarginAlign::End => slot_x + Scalar((slot_w.get() - text_w.get()).max(0.0)),
         };
         let baseline = slot_y + crate::typography::baseline_offset(font_size, lh, face);
