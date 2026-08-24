@@ -670,7 +670,12 @@ fn attach_footnotes(
                 // carries the marker's advance as an x_offset so the body
                 // clears the marker.
                 let marker = format!("{}. ", num);
-                let m = crate::typography::shape_word(&marker, font_size, face);
+                let m = crate::typography::shape_word_with_features(
+                    &marker,
+                    font_size,
+                    face,
+                    &style.ot_features,
+                );
                 let mut glyphs = m.glyphs.clone();
                 let marker_w = m.width;
                 let mut bg = lr.glyphs.clone();
@@ -1104,7 +1109,12 @@ impl<'a> Ctx<'a> {
                         let lh = style.line_height;
                         let baseline =
                             box_top + crate::typography::baseline_offset(style.font_size, lh, face);
-                        let shaped = crate::typography::shape_word(alt, style.font_size, face);
+                        let shaped = crate::typography::shape_word_with_features(
+                            alt,
+                            style.font_size,
+                            face,
+                            &style.ot_features,
+                        );
                         let run = TextRun {
                             text: shaped.text,
                             baseline: Point::new(box_left, baseline),
@@ -1453,7 +1463,12 @@ impl<'a> Ctx<'a> {
                 // quotes, ·) renders as a real glyph with a ToUnicode mapping
                 // — never raw UTF-8 bytes (CORE-83). Generated content is one
                 // line; no microtypography.
-                let shaped = crate::typography::shape_word(&text, style.font_size, face);
+                let shaped = crate::typography::shape_word_with_features(
+                    &text,
+                    style.font_size,
+                    face,
+                    &style.ot_features,
+                );
                 let run = TextRun {
                     text: shaped.text,
                     baseline: Point::new(inner_left, baseline),
@@ -3495,8 +3510,14 @@ impl<'a> Ctx<'a> {
         let mut reserved_width = Scalar::ZERO;
         let mut count_reserved = |s: &str, literal: bool| {
             if literal {
-                reserved_width =
-                    reserved_width + crate::typography::shape_word(s, style.font_size, face).width;
+                reserved_width = reserved_width
+                    + crate::typography::shape_word_with_features(
+                        s,
+                        style.font_size,
+                        face,
+                        &style.ot_features,
+                    )
+                    .width;
             } else {
                 reserved_width =
                     reserved_width + Scalar(s.chars().count() as f64 * reserve_advance);
@@ -3557,10 +3578,15 @@ impl<'a> Ctx<'a> {
                 // for resolved pieces, so the count never depends on the
                 // resolved number glyphs (spec §9, §10).
                 let fill_advance =
-                    crate::typography::shape_word(&ch.to_string(), style.font_size, face)
-                        .width
-                        .get()
-                        .max(0.01);
+                    crate::typography::shape_word_with_features(
+                        &ch.to_string(),
+                        style.font_size,
+                        face,
+                        &style.ot_features,
+                    )
+                    .width
+                    .get()
+                    .max(0.01);
                 let used = reserved_width.get();
                 let room = inner_width.get() - used;
                 let count = if room > 0.0 {

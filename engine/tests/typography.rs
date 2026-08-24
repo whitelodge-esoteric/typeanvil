@@ -668,3 +668,107 @@ fn demo_fixture() {
     assert!(all.contains("Knuth"), "fixture text must survive layout");
     assert!(all.contains("hyphen"), "fixture text must survive layout");
 }
+
+// --- CORE-113: OpenType feature settings ------------------------------------
+
+use typeanvil::typography::shape_word_with_features;
+
+/// AC1 (parsing): `font-feature-settings` declarations land in
+/// `ComputedStyle.feature_settings` as packed-tag/value pairs, and the
+/// resolved `ot_features` list carries them (after any variant maps).
+#[test]
+fn feature_settings_parse_and_resolve() {
+    let style = p_style(
+        "<html><style>p { font-feature-settings: \"smcp\" 1, \"liga\" 0; }</style>\
+         <body><p>Text</p></body></html>",
+    );
+    // Packed tags: 's'=0x73,'m'=0x6d,'c'=0x63,'p'=0x70 big-endian; liga similar.
+    let packed = |b: [u8; 4]| u32::from_be_bytes(b);
+    let mut parsed = style.feature_settings.clone();
+    parsed.sort();
+    let mut expect = vec![(packed(*b"smcp"), 1), (packed(*b"liga"), 0)];
+    expect.sort();
+    assert_eq!(
+        parsed, expect,
+        "explicit settings must parse verbatim (any order)"
+    );
+    // Resolved list: explicit settings come last and win duplicates.
+    let liga_entry = style
+        .ot_features
+        .iter()
+        .find(|(t, _)| *t == packed(*b"liga"))
+        .expect("liga must appear in resolved list");
+    assert_eq!(liga_entry.1, 0, "liga=0 must win (last-wins)");
+    let smcp_entry = style
+        .ot_features
+        .iter()
+        .find(|(t, _)| *t == packed(*b"smcp"))
+        .expect("smcp must appear in resolved list");
+    assert_eq!(smcp_entry.1, 1);
+}
+
+/// AC1b: default style has NO features — byte-identical legacy behavior.
+#[test]
+fn feature_settings_default_empty() {
+    let style = p_style("<html><body><p>Text</p></body></html>");
+    assert!(style.feature_settings.is_empty());
+    assert!(style.ot_features.is_empty());
+}
+
+/// AC2: shaping width changes when a feature toggles. Kerning is the
+/// demonstrable pair feature on the bundled Arial face: `kern=0` widens a
+/// kerning-heavy word by disabling GPOS pair adjustments (probed 2026-08-24:
+/// AVAVA 72.91pt default → 80.04pt with kern off, same glyph count). The
+/// `liga` tag parses and threads identically but this face's Latin liga
+/// lookups don't change fi/fl advance widths, so kern is the width gate.
+#[test]
+fn feature_settings_toggle_changes_width() {
+    const FACE: typeanvil::fonts::FaceId = typeanvil::fonts::FACE_REGULAR;
+    let size = Scalar(24.0);
+    let word = "AVAVA";
+    let kern_off = [(u32::from_be_bytes(*b"kern"), 0u32)];
+    let default = shape_word_with_features(word, size, FACE, &[]);
+    let off = shape_word_with_features(word, size, FACE, &kern_off);
+    // Same glyph count — the toggle removes pair adjustments, not glyphs.
+    assert_eq!(default.glyphs.len(), off.glyphs.len());
+    assert!(
+        off.width.get() > default.width.get(),
+        "\"{word}\" must be wider with kern off ({:.2}pt) than default ({:.2}pt)",
+        off.width.get(),
+        default.width.get()
+    );
+}
+
+/// AC3 (variant mapping): font-variant longhands map to their canonical tags.
+#[test]
+fn font_variant_longhands_map_to_tags() {
+    let packed = |b: [u8; 4]| u32::from_be_bytes(b);
+    let style = p_style(
+        "<html><style>p { font-variant-caps: small-caps; \
+         font-variant-numeric: oldstyle-nums tabular-nums; }</style>\
+         <body><p>123</p></body></html>",
+    );
+    for tag in ["smcp", "onum", "tnum"] {
+        let want = packed(tag.as_bytes().try_into().unwrap());
+        assert!(
+            style.ot_features.iter().any(|(t, v)| *t == want && *v == 1),
+            "{tag}=1 must be in the resolved list, got {:?}",
+            style.ot_features
+        );
+    }
+}
+
+/// AC4 (determinism): two layouts of a feature-controlled doc produce
+/// identical text and page counts.
+#[test]
+fn feature_doc_layout_is_deterministic() {
+    let html = "<html><style>p { font-feature-settings: \"liga\" 0; line-height: 1.4; }\
+                </style><body><p>Effortless office fifths staffed fully.</p></body></html>";
+    let geo = geometry(5.0, 3.0, 0.5);
+    let a = lay(html, geo.clone());
+    let b = lay(&html.to_string(), geo);
+    assert_eq!(a.pages.len(), b.pages.len());
+    let ta: Vec<String> = a.pages.iter().flat_map(page_texts).collect();
+    let tb: Vec<String> = b.pages.iter().flat_map(page_texts).collect();
+    assert_eq!(ta, tb);
+}

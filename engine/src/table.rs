@@ -8,7 +8,7 @@ use crate::css::{ComputedStyle, Display, Hyphens, TextAlign};
 use crate::dom::{Dom, NodeId, NodeKind};
 use crate::fonts;
 use crate::geom::Scalar;
-use crate::typography::{break_paragraph, shape_word};
+use crate::typography::{break_paragraph, shape_word_with_features};
 
 /// Resolved per-column widths plus the intrinsic basis (CORE-81).
 #[derive(Clone, Debug, Default)]
@@ -175,18 +175,18 @@ fn measure_intrinsics(text: &str, style: &ComputedStyle) -> (Scalar, Scalar) {
     if text.trim().is_empty() {
         return (Scalar::ZERO, Scalar::ZERO);
     }
-    let face = style.font_face;
-    let font_size = style.font_size;
-    let mut min_w = Scalar::ZERO;
-    for word in text.split_whitespace() {
-        let w = shape_word(word, font_size, face).width;
-        if w.get() > min_w.get() {
-            min_w = w;
+        let face = style.font_face;
+        let font_size = style.font_size;
+        let mut min_w = Scalar::ZERO;
+        for word in text.split_whitespace() {
+            let w = shape_word_with_features(word, font_size, face, &style.ot_features).width;
+            if w.get() > min_w.get() {
+                min_w = w;
+            }
         }
+        let max_w = shape_word_with_features(text, font_size, face, &style.ot_features).width;
+        (min_w, max_w)
     }
-    let max_w = shape_word(text, font_size, face).width;
-    (min_w, max_w)
-}
 
 /// Pure css-tables-3 width distribution. Unit-testable with hand-built
 /// min/max vectors.
