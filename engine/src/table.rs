@@ -484,6 +484,66 @@ fn collect_cells(dom: &Dom, styles: &[ComputedStyle], row_id: NodeId) -> Vec<Nod
     cells
 }
 
+/// Collapse adjacent cell borders (CORE-119 #5, border-collapse: collapse).
+///
+/// With `border-collapse: collapse`, the shared edge between two adjacent
+/// cells must render ONCE. The layout draws each cell's four sides from its
+/// own ComputedStyle, so two neighboring cells that both declare `border`
+/// stroke the shared edge twice — interior lines read double-width against a
+/// single-width table frame (the CORE-119 screenshot defect). Walk every
+/// table's cell grid and zero the duplicate side on the LATER cell of each
+// adjacent pair (right neighbor loses `border-left`; the row below loses
+/// `border-top`). The surviving side keeps its full width, so the shared
+/// edge renders once at declared thickness.
+pub fn collapse_cell_borders(dom: &Dom, styles: &mut [ComputedStyle]) {
+    // Every table element in document order.
+    let tables: Vec<NodeId> = (0..dom.nodes.len())
+        .filter(|&id| {
+            matches!(dom.nodes[id].kind, NodeKind::Element(_))
+                && styles[id].display == Display::Table
+        })
+        .collect();
+    for table_id in tables {
+        // Rows in order across all groups (thead/tbody/tfoot + bare tr).
+        let mut rows: Vec<NodeId> = Vec::new();
+        for &child in &dom.nodes[table_id].children {
+            if !matches!(dom.nodes[child].kind, NodeKind::Element(_)) {
+                continue;
+            }
+            match styles[child].display {
+                Display::TableRowGroup
+                | Display::TableHeaderGroup
+                | Display::TableFooterGroup => {
+                    rows.extend(collect_rows(dom, styles, child));
+                }
+                Display::TableRow => rows.push(child),
+                _ => {}
+            }
+        }
+        let grid: Vec<Vec<NodeId>> = rows.iter().map(|&r| collect_cells(dom, styles, r)).collect();
+        for (ri, row) in grid.iter().enumerate() {
+            for ci in 0..row.len() {
+                // Horizontal adjacency: this cell's left border duplicates the
+                // previous cell's right border — keep the previous one.
+                if ci > 0 {
+                    styles[row[ci]].border_left = Scalar::ZERO;
+                }
+                // Vertical adjacency: this row's top border duplicates the
+                // row above's bottom border — keep the one above.
+                if ri > 0 && !grid[ri - 1].is_empty() {
+                    styles[row[ci]].border_top = Scalar::ZERO;
+                }
+            }
+            // Table frame: the first row's cells drop top borders duplicating
+            // the table's own top; first column drops left similarly.
+            if ri == 0 {
+                // handled by vertical rule above when ri>0 only; frame edges
+                // stay as declared (outer frame renders once).
+            }
+        }
+    }
+}
+
 fn measure_text_width(text: &str, style: &ComputedStyle, max_width: Scalar) -> Scalar {
     if text.trim().is_empty() {
         return Scalar::ZERO;

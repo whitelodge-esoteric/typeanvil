@@ -1469,6 +1469,21 @@ impl<'a> Ctx<'a> {
                     face,
                     &style.ot_features,
                 );
+                // A leader fill must land its trailing piece (the page
+                // number) FLUSH at the right content edge. The fill count is
+                // floored, so the natural dot run can stop up to one pitch
+                // short; distribute the exact residual over the run as font
+                // expansion (draw-time advance scaling, spec Behavior §8).
+                // Expansion is bounded at ±2% like justified text — a leader
+                // that would need more than that has no room (spec edge
+                // case: "no room → no flush guarantee").
+                let drawn = shaped.width.get();
+                let target = inner_width.get();
+                let expansion = if shaped.text.contains('\u{00b7}') || text.contains('.') && drawn < target {
+                    ((target - drawn) / drawn).clamp(-0.02, 0.02)
+                } else {
+                    0.0
+                };
                 let run = TextRun {
                     text: shaped.text,
                     baseline: Point::new(inner_left, baseline),
@@ -1476,7 +1491,7 @@ impl<'a> Ctx<'a> {
                     color: style.color,
                     font_face: face,
                     glyphs: shaped.glyphs,
-                    expansion: 0.0,
+                    expansion,
                     protrude_left: Scalar::ZERO,
                     protrude_right: Scalar::ZERO,
                 };
@@ -2830,7 +2845,7 @@ impl<'a> Ctx<'a> {
             {
                 continue;
             }
-            let res = self.layout_table_cell(
+            let mut res = self.layout_table_cell(
                 cell,
                 cell_x,
                 col_w,
@@ -2845,6 +2860,21 @@ impl<'a> Ctx<'a> {
                 flow,
             );
             if !res.empty {
+                // CORE-119 #4 (css-tables-3 §9.7): every cell fills its ROW's
+                // height. A fresh row knows its measured height up front; a
+                // single-line cell laid out shorter must STRETCH to it so
+                // its bottom border lands on the row edge instead of leaving
+                // a gap. Resumed rows keep per-cell heights (the row is split;
+                // cells on this fragmentainer hold only their own remainder).
+                if fresh {
+                    let target = row_height;
+                    if res.fragment.size.1 < target {
+                        res.fragment.size.1 = target;
+                    }
+                    if res.used < target {
+                        res.used = target;
+                    }
+                }
                 children.push(res.fragment);
             }
             if res.used.get() > used_h.get() {
@@ -3911,7 +3941,15 @@ fn attach_margin_boxes(
             MarginAlign::Center => {
                 content.x + Scalar((content.width.get() - text_w.get()) * 0.5)
             }
-            MarginAlign::End => slot_x + Scalar((slot_w.get() - text_w.get()).max(0.0)),
+            MarginAlign::End => {
+                // End-aligned margin boxes anchor their RIGHT edge at the
+                // content-box right edge and grow LEFTWARD into the middle
+                // slot when wider than one third (css-page-3 margin-box
+                // geometry; matches Prince 16.2). Right-aligning inside the
+                // fixed third slot instead lets wide running heads overflow
+                // past the page's right edge.
+                content.x + content.width - text_w
+            }
         };
         let baseline = slot_y + crate::typography::baseline_offset(font_size, lh, face);
         let run = TextRun {
