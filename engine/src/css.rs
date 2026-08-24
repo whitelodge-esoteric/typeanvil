@@ -1586,6 +1586,9 @@ pub fn cascade(dom: &Dom, stylesheet: &Stylesheet, geometry: &crate::geom::PageG
     // Fourth pass: fill border widths/colors (CORE-61 tables; the engine's
     // ComputedStyle carries borders for border-collapse rendering).
     borders::apply_border_properties(dom, stylesheet.source(), &mut styles);
+    // Fifth pass: collapse adjacent table-cell borders (CORE-119 #5) — the
+    // shared edge between two neighboring cells must stroke once.
+    crate::table::collapse_cell_borders(dom, &mut styles);
     styles
 }
 
