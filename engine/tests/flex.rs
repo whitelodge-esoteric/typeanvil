@@ -341,3 +341,83 @@ fn wrap_line_break_before_propagates() {
     assert!((cy - 0.0).abs() < EPS, "line 2 at the top of page 2");
     assert!((dy - cy).abs() < EPS, "items 3 and 4 share line 2");
 }
+
+// ---------------------------------------------------------------------------
+// Nested-container break propagation (WPT 069b/069d semantics)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn nested_column_first_item_break_before_propagates_to_container() {
+    // WPT single-line-column-flex-fragmentation-069b: an OUTER column flex
+    // holds a nested column flex whose FIRST inner item carries
+    // `break-before: page`. The forced break propagates to the nested
+    // container's start edge — the whole nested box moves to page 2; no
+    // empty sliver stays on page 1.
+    let html = r#"
+    <style>
+      @page { size: 5in 3in; margin: 0.5in; }
+      body { margin: 0; font-size: 12pt; }
+      .outer { display: flex; flex-direction: column; border: 4pt solid black; }
+      .nested { display: flex; flex-direction: column; border: 2pt solid gold; }
+      .page-before { break-before: page; }
+    </style>
+    <div class="outer">
+      <div class="nested first">
+        <div>a</div><div>b</div>
+      </div>
+      <div class="nested second">
+        <div class="page-before">c</div><div>d</div>
+      </div>
+    </div>
+    "#;
+    let out = lay(html);
+    let dom = dom_of(html);
+    let second = node_id_by_class(&dom, "second");
+    assert_eq!(out.pages.len(), 2, "the whole nested box moves to page 2");
+    // The second nested container must NOT appear on page 1 at all.
+    let mut on_page1 = Vec::new();
+    find_source(&out.pages[0].root, second, &mut on_page1);
+    assert!(
+        on_page1.is_empty(),
+        "no sliver of the deferred container may stay on page 1"
+    );
+}
+
+#[test]
+fn last_item_break_after_propagates_and_terminates() {
+    // WPT single-line-column-flex-fragmentation-069d: a forced break-after
+    // on the LAST item of a column flex container propagates past the end:
+    // the container fragments after that item (so following content starts
+    // on the next page) AND terminates cleanly with no spurious trailing
+    // page.
+    let html = r#"
+    <style>
+      @page { size: 5in 3in; margin: 0.5in; }
+      body { margin: 0; font-size: 12pt; }
+      .flex { display: flex; flex-direction: column; border: 4pt solid black; }
+      .page-after { break-after: page; }
+    </style>
+    <div>Before</div>
+    <div class="flex">
+      <div>a</div>
+      <div class="page-after">b</div>
+    </div>
+    <div>After</div>
+    "#;
+    let out = lay(html);
+    let dom = dom_of(html);
+    let after = node_id_by_class(&dom, "flex");
+    assert_eq!(
+        out.pages.len(),
+        2,
+        "content after the container starts on page 2, exactly one extra page"
+    );
+    // The container itself must terminate: it has a fragment on page 1 but
+    // no continuation fragment on page 2 (empty sliver would loop forever).
+    let mut on_page2 = Vec::new();
+    find_source(&out.pages[1].root, after, &mut on_page2);
+    assert!(
+        on_page2.iter().all(|f| f.size.1.get() == 0.0 && f.children.is_empty()),
+        "any page-2 fragment of the finished container is an empty terminator"
+    );
+}
