@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-22
-updated: 2026-08-22
+updated: 2026-08-24
 sidebar_position: 16
 tags: [engine, css-gcpm, css-page, paged-media]
 spec_id: string-set-running-headers
@@ -88,6 +88,10 @@ are normative for this implementation.
    - `first`: first of A if A non-empty, else C.
    - `start`: C always (Prince-verified: even an element placed at the very
      top of page P does NOT count for `start`; see research note).
+     **Standards-alignment note:** css-gcpm-3's prose reading would include
+     an assignment at the page start; this implementation follows Prince's
+     probed behavior instead and is a documented exception under
+     `docs/conventions/css-standards-alignment.md`.
    - `first-except`: empty string if A non-empty, else C.
 
 5. **Carry-over.** C for page N+1 shall equal the value map state after page N
