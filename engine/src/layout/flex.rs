@@ -236,7 +236,20 @@ impl<'a> Ctx<'a> {
             // (CORE-66 auto-height self-consistency) — WPT references render
             // through the same engine, so flex must match, or every
             // height-authored ref diverges (the CORE-66 trap).
-            item.cross_size = self.measure_block(item.id, item.main_size);
+            item.cross_size = {
+                let natural = self.measure_block(item.id, item.main_size);
+                // CORE-122: a resumed item (child token break_before:false)
+                // already consumed part of its block size on an earlier
+                // fragmentainer. Only the remainder occupies THIS
+                // fragmentainer; counting the full measure inflates the
+                // line's cross size and shifts following siblings (WPT 046).
+                let child_tok = self.child_incoming(token, item.block_index);
+                if child_tok.is_break_before() {
+                    natural
+                } else {
+                    Scalar((natural.get() - child_tok.consumed_block_size.get()).max(0.0))
+                }
+            };
         }
 
         // Grow/shrink resolution (nowrap only; wrap packs raw bases): free
@@ -365,6 +378,19 @@ impl<'a> Ctx<'a> {
                 0
             };
             let line_started = li == start_line && mid_line;
+
+            // CORE-122: a child token with break_before:false marks a child
+            // that RESUMES mid-box (it placed content on an earlier
+            // fragmentainer). That child's line is already in progress —
+            // the line must not defer or re-place from scratch.
+            let line_started = line_started
+                || lines[li].items.iter().any(|&i| {
+                    let bi = items[i].block_index;
+                    token
+                        .child_tokens
+                        .iter()
+                        .any(|c| c.index == bi && !c.token.is_break_before())
+                });
 
             if !line_started {
                 // Forced break-before on any item propagates to the line:

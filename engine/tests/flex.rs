@@ -421,3 +421,59 @@ fn last_item_break_after_propagates_and_terminates() {
         "any page-2 fragment of the finished container is an empty terminator"
     );
 }
+
+// ---------------------------------------------------------------------------
+// CORE-122 — trailing margin/height handling across a forced break: the
+// following sibling's position must be identical with and without the forced
+// break inside the container (css-break-3 §5; WPT 046).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn forced_break_inside_row_container_keeps_following_sibling_position() {
+    // The invariant: the container's resumed page-2 fragment has the SAME
+    // height whether the container is display:block or display:flex, so the
+    // following sibling lands at the same y in both (css-break-3 §5; WPT
+    // single-line-row-flex-fragmentation-046). Pre-fix, the resumed row
+    // flex path measured its line at the item's FULL block size instead of
+    // the un-consumed remainder, and the sibling landed one line box short.
+    let html = |disp: &str| {
+        format!(
+            r#"
+    <style>
+      @page {{ size: 5in 3in; margin: 0.5in; }}
+      body {{ margin: 0; }}
+      .c {{ display: {disp}; border: 0.25in solid black; }}
+    </style>
+    <div>Before</div>
+    <div class="c"><div><div>1</div><div style="break-after: page">2</div><div>3</div><div>4</div></div></div>
+    <div class="after">After</div>
+    "#
+        )
+    };
+    let dom_b = dom_of(&html("block"));
+    let out_b = lay(&html("block"));
+    let dom_f = dom_of(&html("flex"));
+    let out_f = lay(&html("flex"));
+    assert_eq!(out_b.pages.len(), 2, "block variant: two pages");
+    assert_eq!(out_f.pages.len(), 2, "flex variant: two pages");
+
+    // The container's page-2 fragment height must match between variants.
+    let c_b = node_id_by_class(&dom_b, "c");
+    let c_f = node_id_by_class(&dom_f, "c");
+    let (_, _, _, h_b) = box_of(&out_b, 1, c_b);
+    let (_, _, _, h_f) = box_of(&out_f, 1, c_f);
+    assert!(
+        (h_b - h_f).abs() < EPS,
+        "resumed container height must match the block reference: flex {h_f} vs block {h_b}"
+    );
+
+    // And therefore the following sibling starts at the same y in both.
+    let a_b = node_id_by_class(&dom_b, "after");
+    let a_f = node_id_by_class(&dom_f, "after");
+    let (_, y_b, _, _) = box_of(&out_b, 1, a_b);
+    let (_, y_f, _, _) = box_of(&out_f, 1, a_f);
+    assert!(
+        (y_b - y_f).abs() < EPS,
+        "following sibling position must not depend on display:flex inside the container: flex {y_f} vs block {y_b}"
+    );
+}
