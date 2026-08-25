@@ -924,6 +924,75 @@ fn test_cell_background_survives_border() {
 }
 
 #[test]
+fn test_row_background_paints_under_cell_backgrounds() {
+    // CORE-100 (row half): a `tr { background-color }` must paint as its own
+    // fill UNDER the cell fills. The row fragment carries the Background and
+    // the cell fragments (its children) carry theirs, so the pdf emitter's
+    // pre-order walk draws the row fill first (css-tables-3 paint order).
+    // Pre-fix the row had no Background fragment at all (`#00ff00` absent in
+    // the triage repro).
+    let html = r#"<!DOCTYPE html><style>
+        table { border-collapse: collapse; width: 100%; }
+        tr { background-color: #00ff00; }
+        th, td { background-color: #a8dadc; border: 0.5pt solid #aaa; font-size: 9pt; }
+    </style><table>
+      <tr><th>HDR</th><th>Qty</th></tr>
+      <tr><td>row</td><td>1</td></tr>
+    </table>"#;
+    let l = lay(html, geometry(5.0, 3.0, 0.5));
+    let frags = page_fragments(&l, 0);
+    // The row-level coexistence shape: a full-width Background fragment (the
+    // 288pt content box) carrying cell Background children. A lone cell bg is
+    // narrower (one column) and has no Background children.
+    let is_row_bg = |f: &&Fragment| {
+        matches!(f.content, FragmentContent::Background(_))
+            && (f.size.0.get() - 288.0).abs() < 0.5
+            && f
+                .children
+                .iter()
+                .any(|c| matches!(c.content, FragmentContent::Background(_)))
+    };
+    let row_bg_count = frags.iter().filter(|(f, _, _)| is_row_bg(f)).count();
+    assert_eq!(
+        row_bg_count, 2,
+        "both rows must carry a full-width Background fill above their cells"
+    );
+}
+
+#[test]
+fn test_group_background_paints_under_rows() {
+    // CORE-100 (group half): `thead`/`tbody`/`tfoot` backgrounds must paint
+    // as the group fragment's own fill, under the row and cell fills.
+    let html = r#"<!DOCTYPE html><style>
+        table { border-collapse: collapse; width: 100%; }
+        thead { background-color: #ff0000; }
+        th, td { background-color: #a8dadc; border: 0.5pt solid #aaa; font-size: 9pt; }
+    </style><table>
+      <thead><tr><th>HDR</th></tr></thead>
+      <tbody><tr><td>row</td></tr></tbody>
+    </table>"#;
+    let l = lay(html, geometry(5.0, 3.0, 0.5));
+    let frags = page_fragments(&l, 0);
+    // The group shape: a full-width Background fragment (thead fill) whose
+    // child row fragments carry cell Background descendants. Only the thead
+    // has a background-color, so exactly one such fragment may exist.
+    let is_group_bg = |f: &&Fragment| {
+        matches!(f.content, FragmentContent::Background(_))
+            && (f.size.0.get() - 288.0).abs() < 0.5
+            && f.children.iter().any(|row| {
+                row.children
+                    .iter()
+                    .any(|cell| matches!(cell.content, FragmentContent::Background(_)))
+            })
+    };
+    let group_bg_count = frags.iter().filter(|(f, _, _)| is_group_bg(f)).count();
+    assert_eq!(
+        group_bg_count, 1,
+        "expected exactly one full-width Background fragment (thead fill) above row/cell fills"
+    );
+}
+
+#[test]
 fn test_row_height_includes_collapsed_border() {
     // CORE-96: measure_rows adds the collapsed row-start border to the row
     // height (border-collapse: collapse, spec rule 9). Prince's rows measure
