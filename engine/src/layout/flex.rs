@@ -108,7 +108,13 @@ impl<'a> Ctx<'a> {
             style.position,
             Position::Relative | Position::Absolute | Position::Fixed
         ) {
-            flow.abspos_cb = Some((Point::new(inner_left, box_top), inner_width));
+            // A relative container's abspos descendants resolve against the
+            // SHIFTED origin (css-position-3 §6.2); absolute/fixed resolve
+            // via their own insets, untouched by this shift.
+            flow.abspos_cb = Some((
+                RelativeInsetShift::resolve(style).point(Point::new(inner_left, box_top)),
+                inner_width,
+            ));
         }
 
         let items = self.collect_flex_items(id);
@@ -145,6 +151,11 @@ impl<'a> Ctx<'a> {
                 top,
             ),
         };
+        // css-position-3 §6.2: the container's own paint shift lands on its
+        // fragment; the parent cursor advanced via `used`, so siblings never
+        // reflow.
+        let mut result = result;
+        RelativeInsetShift::resolve(style).apply(&mut result.fragment);
         flow.abspos_cb = saved_abspos_cb;
         result
     }

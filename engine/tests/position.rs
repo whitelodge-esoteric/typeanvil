@@ -48,9 +48,9 @@ fn lay(html: &str, geo: PageGeometry) -> Layout {
 fn node_id_by_class(dom: &Dom, class: &str) -> NodeId {
     dom.nodes
         .iter()
-        .position(|n| {
-            matches!(&n.kind, NodeKind::Element(el) if el.classes.iter().any(|c| c == class))
-        })
+        .position(
+            |n| matches!(&n.kind, NodeKind::Element(el) if el.classes.iter().any(|c| c == class)),
+        )
         .expect("element with class must exist") as NodeId
 }
 
@@ -71,18 +71,20 @@ fn page_abspos_fragments<'a>(layout: &'a Layout, page: usize, id: NodeId) -> Vec
 }
 
 /// Collect (x, y) of all line fragments in a fragment tree.
-fn collect_lines(frag: &Fragment, out: &mut Vec<(Scalar, Scalar)>) {
+fn collect_lines(frag: &Fragment, abs: (f64, f64), out: &mut Vec<(Scalar, Scalar)>) {
+    let here = (abs.0 + frag.offset.x.get(), abs.1 + frag.offset.y.get());
     if let typeanvil::frag::FragmentContent::Text(_) = &frag.content {
-        out.push((frag.offset.x, frag.offset.y));
+        // Page-absolute line origin (offsets are parent-relative).
+        out.push((Scalar(here.0), Scalar(here.1)));
     }
     for c in &frag.children {
-        collect_lines(c, out);
+        collect_lines(c, here, out);
     }
 }
 
 fn page_lines(layout: &Layout, page: usize) -> Vec<(Scalar, Scalar)> {
     let mut out = Vec::new();
-    collect_lines(&layout.pages[page].root, &mut out);
+    collect_lines(&layout.pages[page].root, (0.0, 0.0), &mut out);
     out
 }
 
@@ -114,7 +116,10 @@ fn absolute_lands_on_containing_block_page() {
     let dom = dom_of(html);
     let aid = node_id_by_class(&dom, "a");
     let layout = lay(html, geometry(5.0, 3.0, 0.5));
-    assert!(layout.pages.len() >= 2, "document must paginate to at least 2 pages");
+    assert!(
+        layout.pages.len() >= 2,
+        "document must paginate to at least 2 pages"
+    );
 
     // Page 1: the filler's page — no abspos fragment.
     assert!(
@@ -151,7 +156,11 @@ fn offsets_from_cb_padding_edge() {
     let frags = page_abspos_fragments(&layout, 0, aid);
     assert!(!frags.is_empty(), "abspos fragment placed");
     // cb padding-box origin = content origin + padding (12pt, 0pt).
-    assert_close(frags[0].offset.x, Scalar(12.0), "x = cb padding-box origin (padding-left 12pt)");
+    assert_close(
+        frags[0].offset.x,
+        Scalar(12.0),
+        "x = cb padding-box origin (padding-left 12pt)",
+    );
     assert_close(frags[0].offset.y, Scalar(0.0), "y = cb padding-box top");
 }
 
@@ -175,7 +184,11 @@ fn nearest_positioned_ancestor_wins() {
     let frags = page_abspos_fragments(&layout, 0, aid);
     assert!(!frags.is_empty(), "abspos fragment placed");
     // The inner (not outer) is the containing block: offset = inner's padding.
-    assert_close(frags[0].offset.x, Scalar(8.0), "x = inner padding-box origin (8pt)");
+    assert_close(
+        frags[0].offset.x,
+        Scalar(8.0),
+        "x = inner padding-box origin (8pt)",
+    );
     assert_close(frags[0].offset.y, Scalar(0.0), "y = inner padding-box top");
 }
 
@@ -201,14 +214,22 @@ fn right_and_bottom_offsets() {
     // Initial containing block = page content box (36,36) size (288,144).
     let r = page_abspos_fragments(&layout, 0, rid);
     assert!(!r.is_empty(), "right-inset fragment placed");
-    assert_close(r[0].offset.x, Scalar(288.0 - 72.0), "right:0 flushes to the CB's right edge");
+    assert_close(
+        r[0].offset.x,
+        Scalar(288.0 - 72.0),
+        "right:0 flushes to the CB's right edge",
+    );
     assert_close(r[0].offset.y, Scalar(0.0), "top:0 keeps the CB's top");
     let b = page_abspos_fragments(&layout, 0, bid);
     assert!(!b.is_empty(), "bottom-inset fragment placed");
     // fh = one 12pt line at line-height 1.2 = 14.4pt; bottom:0 flushes to the
     // fragmentainer content bottom (the CB-height approximation).
     assert_close(b[0].offset.x, Scalar(0.0), "left:0 keeps the CB's left");
-    assert_close(b[0].offset.y, Scalar(144.0 - 14.4), "bottom:0 flushes to the content bottom");
+    assert_close(
+        b[0].offset.y,
+        Scalar(144.0 - 14.4),
+        "bottom:0 flushes to the content bottom",
+    );
 }
 
 // --- 5. No cursor advance, no in-flow height ---------------------------------
@@ -231,10 +252,16 @@ fn out_of_flow_does_not_advance_cursor() {
     assert!(!frags.is_empty(), "abspos fragment placed");
     assert_close(frags[0].offset.x, Scalar(0.0), "static x = CB origin");
     assert_close(frags[0].offset.y, Scalar(0.0), "static y = CB origin");
-    // The paragraph still starts at the very top of the content area.
+    // The paragraph still starts at the very top of the content area
+    // (content top = 36pt margin). Out-of-flow boxes paint after in-flow
+    // ones, so the FIRST line belongs to the paragraph.
     let lines = page_lines(&layout, 0);
-    assert!(!lines.is_empty(), "paragraph produced lines");
-    assert_close(lines[0].1, Scalar(0.0), "following text starts at the same y (no cursor advance)");
+    assert!(lines.len() >= 2, "paragraph produced lines");
+    assert_close(
+        lines[0].1,
+        Scalar(36.0),
+        "following text starts at the content top (no cursor advance)",
+    );
 }
 
 // --- 6. Fixed anchors to the page box ---------------------------------------
@@ -257,8 +284,16 @@ fn fixed_anchors_to_page() {
     assert!(!frags.is_empty(), "fixed fragment placed");
     // Fixed ignores the relative containing block (1in margin) — the page
     // content box origin is (0,0) relative to the body.
-    assert_close(frags[0].offset.x, Scalar(0.0), "fixed x = page content origin, not the CB");
-    assert_close(frags[0].offset.y, Scalar(0.0), "fixed y = page content origin");
+    assert_close(
+        frags[0].offset.x,
+        Scalar(0.0),
+        "fixed x = page content origin, not the CB",
+    );
+    assert_close(
+        frags[0].offset.y,
+        Scalar(0.0),
+        "fixed y = page content origin",
+    );
 }
 
 // --- 7. No position -> unchanged ---------------------------------------------
@@ -304,6 +339,114 @@ fn output_is_deterministic_with_abspos() {
     let ba = std::fs::read(&a).unwrap();
     let bb = std::fs::read(&b).unwrap();
     assert_eq!(ba, bb, "PDF output is not byte-identical across runs");
+}
+
+// --- 9. Relative inset offsets: paint-time shift, no sibling reflow --------
+
+/// css-position-3 §6.2: a relatively-positioned box paints at its static
+/// position plus its insets; siblings keep their flow positions.
+#[test]
+fn relative_top_shifts_fragment_not_sibling() {
+    let html = r#"<html><head><style>
+        body { margin: 0; font-size: 12pt; line-height: 1.2; }
+        div { margin: 0; padding: 0; height: 20pt; }
+        .rel { position: relative; top: 20pt; }
+    </style></head>
+    <body>
+        <div class="rel">A</div>
+        <div>B</div>
+    </body></html>"#;
+    let dom = dom_of(html);
+    let rel_id = node_id_by_class(&dom, "rel");
+    // The unshifted reference: identical document without the relative box.
+    let base = lay(
+        r#"<html><head><style>
+            body { margin: 0; font-size: 12pt; line-height: 1.2; }
+            div { margin: 0; padding: 0; height: 20pt; }
+        </style></head>
+        <body>
+            <div>A</div>
+            <div>B</div>
+        </body></html>"#,
+        geometry(5.0, 3.0, 0.5),
+    );
+
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+
+    // Sibling B: collect line positions per page for the second block.
+    let shifted_lines = page_lines(&layout, 0);
+    let static_lines = page_lines(&base, 0);
+    assert_eq!(shifted_lines.len(), static_lines.len(), "same line count");
+
+    // First line belongs to A (shifted by top: 20pt); the rest to B (static).
+    assert_close(
+        shifted_lines[0].1,
+        static_lines[0].1 + Scalar(20.0),
+        "A y += top (20pt)",
+    );
+    for k in 1..shifted_lines.len() {
+        assert_close(
+            shifted_lines[k].1,
+            static_lines[k].1,
+            "B keeps its static y",
+        );
+    }
+}
+
+#[test]
+fn relative_left_shifts_x_only() {
+    let html = r#"<html><head><style>
+        body { margin: 0; font-size: 12pt; line-height: 1.2; }
+        div { margin: 0; padding: 0; height: 20pt; }
+        .rel { position: relative; left: 15pt; }
+    </style></head>
+    <body>
+        <div class="rel">A</div>
+        <div>B</div>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    let lines = page_lines(&layout, 0);
+    assert!(lines.len() >= 2, "two blocks render");
+    // A shifts right 15pt; B's x is the content-box left edge (36pt margin).
+    assert_close(lines[0].0, lines[1].0 + Scalar(15.0), "A x += left (15pt)");
+    assert_close(lines[1].0, Scalar(36.0), "B x unchanged at content left");
+}
+
+#[test]
+fn relative_right_negative_and_over_constrained() {
+    // right: 10pt mirrors to dx = -10pt.
+    let html = r#"<html><head><style>
+        body { margin: 0; font-size: 12pt; line-height: 1.2; }
+        div { margin: 0; padding: 0; height: 20pt; }
+        .neg { position: relative; right: 10pt; }
+        .over { position: relative; left: 15pt; right: 99pt; top: 5pt; bottom: 77pt; }
+    </style></head>
+    <body>
+        <div class="neg">N</div>
+        <div class="over">O</div>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    let lines = page_lines(&layout, 0);
+    assert!(lines.len() >= 2, "two blocks render");
+    // N: right-only pair resolves dx = -10pt (mirrored), dy = 0.
+    assert_close(
+        lines[0].0,
+        Scalar(36.0) - Scalar(10.0),
+        "N x -= right (10pt)",
+    );
+    // O: over-constrained — left/top win over right/bottom (LTR, §6.2).
+    assert_close(
+        lines[1].0,
+        Scalar(36.0) + Scalar(15.0),
+        "O x += left (left wins)",
+    );
+    // Line pitch between the two single-line blocks is 14.4pt (12pt × 1.2);
+    // `top: 5pt` adds on top of it.
+    assert_close(
+        lines[1].1,
+        lines[0].1 + Scalar(14.4) + Scalar(5.0),
+        "O y += top (top wins)",
+    );
 }
 
 fn bin() -> &'static str {

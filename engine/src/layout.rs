@@ -932,6 +932,67 @@ fn paginate(
     (pages, map)
 }
 
+/// Paint-time offset of a relatively-positioned box (css-position-3 §6.2):
+/// a relative box shifts its PAINTED position by its insets without moving
+/// its flow position — sibling layout advances past the box's static spot.
+///
+/// Over-constrained pairs resolve LTR/top-first: `left` beats `right`,
+/// `top` beats `bottom`; an absent side leaves that axis unshifted.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RelativeInsetShift {
+    /// Horizontal paint shift (points; positive = right).
+    dx: Scalar,
+    /// Vertical paint shift (points; positive = down).
+    dy: Scalar,
+}
+
+impl RelativeInsetShift {
+    /// Resolve the (dx, dy) pair from the computed insets. Zero when the box
+    /// is not relatively positioned, so every caller can apply it
+    /// unconditionally.
+    pub(crate) fn resolve(style: &ComputedStyle) -> RelativeInsetShift {
+        if style.position != Position::Relative {
+            return RelativeInsetShift {
+                dx: Scalar::ZERO,
+                dy: Scalar::ZERO,
+            };
+        }
+        // left wins over-constrained cases (LTR); else mirror right.
+        let dx = match style.inset_left {
+            Some(l) => l,
+            None => match style.inset_right {
+                Some(r) => Scalar::ZERO - r,
+                None => Scalar::ZERO,
+            },
+        };
+        // top wins over-constrained cases; else mirror bottom.
+        let dy = match style.inset_top {
+            Some(t) => t,
+            None => match style.inset_bottom {
+                Some(b) => Scalar::ZERO - b,
+                None => Scalar::ZERO,
+            },
+        };
+        RelativeInsetShift { dx, dy }
+    }
+
+    /// Shift a point by the resolved pair (used for the abspos containing
+    /// block origin: a relative box's positioned descendants resolve against
+    /// its SHIFTED position — css-position-3 §6.2 plus the containing-block
+    /// rule for `position: relative` ancestors).
+    pub(crate) fn point(&self, p: Point) -> Point {
+        Point::new(p.x + self.dx, p.y + self.dy)
+    }
+
+    /// Additively shift a fragment's parent-relative origin. Every FRAGMENT
+    /// of the box gets the same shift (each page slice lays out through the
+    /// same exit), so a box broken across pages paints all slices shifted.
+    pub(crate) fn apply(&self, frag: &mut Fragment) {
+        frag.offset.x += self.dx;
+        frag.offset.y += self.dy;
+    }
+}
+
 impl<'a> Ctx<'a> {
     /// Lay out an `<img>` as a monolithic replaced-element box (CORE-106).
     ///
@@ -1136,6 +1197,11 @@ impl<'a> Ctx<'a> {
             }
         }
 
+        // css-position-3 §6.2: a relatively-positioned replaced element
+        // paints at its static position plus its insets; the parent cursor
+        // advanced via `used`, so following content never reflows.
+        RelativeInsetShift::resolve(style).apply(&mut fragment);
+
         BlockResult {
             used: used_h + margin_top,
             fragment,
@@ -1168,6 +1234,7 @@ impl<'a> Ctx<'a> {
             flow,
         )
     }
+
 
     /// Lay one block into the current fragmentainer.
     ///
@@ -1402,7 +1469,14 @@ impl<'a> Ctx<'a> {
             style.position,
             Position::Relative | Position::Absolute | Position::Fixed
         ) {
-            flow.abspos_cb = Some((Point::new(inner_left, box_top), inner_width));
+            // A relative box's abspos descendants resolve against the
+            // box's SHIFTED origin (css-position-3 §6.2): the paint shift
+            // moves the containing block with it. Absolute/fixed resolve
+            // against their own insets here, never through this shift.
+            flow.abspos_cb = Some((
+                RelativeInsetShift::resolve(style).point(Point::new(inner_left, box_top)),
+                inner_width,
+            ));
         }
 
         // Multi-column: a box with `column-count`/`column-width` engaging >= 2
@@ -2260,6 +2334,12 @@ impl<'a> Ctx<'a> {
 
         let empty = children_empty(&fragment) && outgoing.is_none() && box_height.get() <= 0.0;
 
+        // css-position-3 §6.2: a relatively-positioned box paints at its
+        // static position plus its insets. The shift lands on the FRAGMENT
+        // only — the parent cursor advanced via `used`, so siblings and
+        // following content never reflow.
+        RelativeInsetShift::resolve(style).apply(&mut fragment);
+
         BlockResult {
             fragment,
             used,
@@ -2636,6 +2716,9 @@ impl<'a> Ctx<'a> {
             None
         };
         let empty = height.get() <= 0.0 && outgoing.is_none();
+        // css-position-3 §6.2: paint-only shift; the parent cursor advanced
+        // via `used`, so rows and following content keep their flow spots.
+        RelativeInsetShift::resolve(&self.styles[id]).apply(&mut fragment);
         BlockResult {
             fragment,
             used: height,
@@ -2757,6 +2840,9 @@ impl<'a> Ctx<'a> {
             None
         };
         let empty = height.get() <= 0.0 && outgoing.is_none();
+        // css-position-3 §6.2: paint-only shift; the parent cursor advanced
+        // via `used`, so following rows keep their flow spots.
+        RelativeInsetShift::resolve(&self.styles[id]).apply(&mut fragment);
         BlockResult {
             fragment,
             used: height,
@@ -2989,6 +3075,10 @@ impl<'a> Ctx<'a> {
                 fragment.content = FragmentContent::Background(bg);
             }
         }
+
+        // css-position-3 §6.2: paint-only shift; the parent cursor advanced
+        // via `used`, so following rows keep their flow spots.
+        RelativeInsetShift::resolve(&self.styles[id]).apply(&mut fragment);
         BlockResult {
             fragment,
             used,
