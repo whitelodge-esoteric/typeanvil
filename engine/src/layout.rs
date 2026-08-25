@@ -2869,6 +2869,16 @@ impl<'a> Ctx<'a> {
                 if fresh {
                     let target = row_height;
                     if res.fragment.size.1 < target {
+                        // The border child was sized to the PRE-stretch cell
+                        // height (CORE-119 follow-up: layout_table_cell
+                        // attaches it before we see the row height). Stretch
+                        // it too, or its bottom edge floats above the true
+                        // row bottom — the header-row gap in CORE-119's
+                        // follow-up screenshot.
+                        let delta = target - res.fragment.size.1;
+                        for child in &mut res.fragment.children {
+                            child.size.1 = child.size.1 + delta;
+                        }
                         res.fragment.size.1 = target;
                     }
                     if res.used < target {

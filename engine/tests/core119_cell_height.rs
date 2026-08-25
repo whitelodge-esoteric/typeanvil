@@ -64,7 +64,8 @@ fn bordered_cells(l: &Layout) -> Vec<(f64, f64)> {
 
 const WRAP_ROW_HTML: &str = r#"<!DOCTYPE html><html><head><style>
 table { border-collapse: collapse; width: 100%; }
-td { border: 0.5pt solid #bbb; padding: 2pt 4pt; font-size: 10pt; }
+td { border: 0.5pt solid #bbb; padding: 2pt 4pt; font-size: 10pt;
+     background-color: #eef; }
 </style></head><body>
 <table>
 <tr><td>short</td><td>anvil standard one hundred fifty pound with a long description that wraps to several lines in a narrow column for sure</td></tr>
@@ -90,5 +91,45 @@ fn single_line_cell_stretches_to_row_height() {
     assert_eq!(
         h0, h1,
         "sibling cells must share the row height (CORE-119 #4)"
+    );
+}
+
+/// The border CHILD inside a stretched cell must reach the row's bottom edge
+/// too. When the cell carries a background (CORE-100), layout_table_cell
+/// attaches the border as a child fragment sized to the PRE-stretch cell
+/// height; stretching only the parent left the border floating ~one text
+/// line above the row bottom (CORE-119 follow-up: header cells with wrapped
+/// two-line siblings showed short verticals + an inset bottom border).
+#[test]
+fn border_child_reaches_row_bottom_in_mixed_height_row() {
+    let l = lay(WRAP_ROW_HTML);
+    fn check(f: &Fragment, py: f64, failures: &mut Vec<String>) {
+        // A cell fragment with a background carries its border as a child of
+        // the same size. After the stretch, the child must equal the parent.
+        if matches!(f.content, FragmentContent::Background(_)) {
+            for c in &f.children {
+                if matches!(c.content, FragmentContent::Border(_)) {
+                    let ph = f.size.1.get();
+                    let ch = c.size.1.get();
+                    if (ph - ch).abs() > 0.5 {
+                        failures.push(format!(
+                            "border child height {ch} != cell height {ph}"
+                        ));
+                    }
+                }
+            }
+        }
+        for c in &f.children {
+            check(c, py + f.offset.y.get(), failures);
+        }
+    }
+
+    let mut failures: Vec<String> = Vec::new();
+    for p in &l.pages {
+        check(&p.root, 0.0, &mut failures);
+    }
+    assert!(
+        failures.is_empty(),
+        "stretched cells must stretch their border children: {failures:?}"
     );
 }
