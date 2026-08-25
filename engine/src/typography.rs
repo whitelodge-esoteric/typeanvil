@@ -33,9 +33,10 @@
 //! `GlyphInfo::glyph_id`; advances from `GlyphPosition::x_advance` (i32 design
 //! units).
 
-use std::collections::HashMap;
+use std::collections::hash_map::Entry;
+use std::collections::{HashMap, VecDeque};
 use std::ops::Range;
-use std::sync::{LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 
 use harfrust::{Direction, FontRef, ShaperData, ShapeOptions, UnicodeBuffer};
 use hypher::Lang;
@@ -276,13 +277,119 @@ pub fn shape_word(word: &str, font_size: Scalar, face: FaceId) -> ShapeRun {
     shape_word_with_features(word, font_size, face, &[])
 }
 
+// ---------------------------------------------------------------------------
+// Word-shape memoization (CORE-124)
+// ---------------------------------------------------------------------------
+// Profiling (CORE-123) put ~81% of table-stress runtime in intrinsic column
+// measurement, with HarfRust shaping in ~89% of samples: table cells re-shape
+// the same words on every freeze pass and row measurement. Shaping is a pure
+// function of (font bytes, text, size, feature list), so a process-wide
+// bounded cache lets every caller of `shape_word_with_features` hit instead
+// of re-shaping.
+//
+// The key is (text, face, exact font-size bits, feature list). `features`
+// are almost always empty and an empty `Vec` allocates nothing, so the common
+// path builds the key with a single `Arc::from(word)` allocation. Values are
+// the full `ShapeRun`, cloned out on hit — byte-identical to a fresh shape.
+// Eviction is FIFO once the cap is reached; correctness never depends on hit
+// rate.
+
+/// Maximum cached (text, face, size, features) shapes. Bounded so even a
+/// pathological many-word document adds only a few MiB of heap (see the
+/// CORE-124 verification numbers: a full table stays near the low single-digit
+/// MiB, comfortably under the ~18 MiB peak RSS).
+const SHAPE_CACHE_CAP: usize = 16_384;
+
+/// Cache key. Owned so `HashMap` can compare directly. The word is an
+/// `Arc<str>` shared with the eviction FIFO, so there is one string
+/// allocation per distinct key.
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct ShapeKey {
+    word: Arc<str>,
+    /// Empty on the common path (`Vec::new` does not allocate).
+    features: Vec<(u32, u32)>,
+    face: FaceId,
+    /// Exact `f64` bits of the font size. Two sizes are equal iff their bits
+    /// are equal; the engine re-derives the same `Scalar` on every pass, so
+    /// re-measurements hit.
+    size_bits: u64,
+}
+
+/// The bounded shape map plus its FIFO eviction order.
+struct ShapeCache {
+    map: HashMap<ShapeKey, ShapeRun>,
+    /// Insertion order for eviction; entries share the key's `Arc` (a cheap
+    /// refcount bump, no string copy).
+    order: VecDeque<ShapeKey>,
+}
+
+impl ShapeCache {
+    fn new() -> Self {
+        ShapeCache { map: HashMap::new(), order: VecDeque::new() }
+    }
+
+    /// Store a shape under `key`, evicting the oldest entry once the cap is
+    /// exceeded. A duplicate key is a no-op (the existing shape wins; it is
+    /// deterministic, so the stored run is identical to the one being
+    /// inserted).
+    fn insert(&mut self, key: ShapeKey, run: ShapeRun) {
+        if let Entry::Vacant(slot) = self.map.entry(key.clone()) {
+            slot.insert(run);
+            self.order.push_back(key);
+            if self.order.len() > SHAPE_CACHE_CAP {
+                if let Some(old) = self.order.pop_front() {
+                    self.map.remove(&old);
+                }
+            }
+        }
+    }
+}
+
+/// The process-wide word-shape cache. Follows the
+/// `static REGISTRY: LazyLock<Mutex<...>>` convention in `fonts.rs`.
+static WORD_SHAPE_CACHE: LazyLock<Mutex<ShapeCache>> =
+    LazyLock::new(|| Mutex::new(ShapeCache::new()));
+
 /// Shape a single word with explicit OpenType features (CORE-113).
 ///
 /// `features` is the resolved `(packed_tag, value)` list from
 /// `ComputedStyle::ot_features`; empty = engine defaults (HarfRust's own
 /// default plan: standard ligatures + kerning on for Latin). Missing glyphs
 /// resolve to the font's `.notdef` deterministically (no crash).
+///
+/// Results are memoized process-wide (CORE-124): shaping is a pure function of
+/// (font bytes, text, size, features), and table-heavy documents re-measure
+/// the same words across every freeze pass and row. The cache is bounded and
+/// correctness never depends on hit rate — a miss shapes exactly as before.
 pub fn shape_word_with_features(
+    word: &str,
+    font_size: Scalar,
+    face: FaceId,
+    features: &[(u32, u32)],
+) -> ShapeRun {
+    let key = ShapeKey {
+        word: Arc::from(word),
+        features: if features.is_empty() {
+            Vec::new()
+        } else {
+            features.to_vec()
+        },
+        face,
+        size_bits: font_size.0.to_bits(),
+    };
+
+    let mut cache = WORD_SHAPE_CACHE.lock().unwrap();
+    if let Some(run) = cache.map.get(&key) {
+        return run.clone();
+    }
+    let run = shape_word_uncached(word, font_size, face, features);
+    cache.insert(key, run.clone());
+    run
+}
+
+/// The actual HarfRust shaping (CORE-124): unchanged logic, invoked only on a
+/// cache miss.
+fn shape_word_uncached(
     word: &str,
     font_size: Scalar,
     face: FaceId,
