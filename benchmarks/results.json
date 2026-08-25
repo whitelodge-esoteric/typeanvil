@@ -1,0 +1,212 @@
+{
+  "schema": 1,
+  "issue": "CORE-123",
+  "environment": {
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "python": "3.11.15",
+    "date_utc": "2026-08-25T03:16:52Z",
+    "cpu": "Apple M4",
+    "ram_bytes": 17179869184
+  },
+  "typeanvil_version": "b595351",
+  "prince_version": "Prince 16.2",
+  "typeanvil_profile": "release",
+  "config": {
+    "warmup_runs": 1,
+    "timed_runs": 5
+  },
+  "corpus": [
+    [
+      "Invoice",
+      "invoice.html"
+    ],
+    [
+      "Quarterly Report",
+      "report.html"
+    ],
+    [
+      "Academic Paper",
+      "paper.html"
+    ],
+    [
+      "Letterhead",
+      "letterhead.html"
+    ],
+    [
+      "Inventory Ledger \u2014 Table Fragmentation Stress",
+      "table-stress.html"
+    ],
+    [
+      "Float Showcase \u2014 Figure & Pull Quote",
+      "float-showcase.html"
+    ],
+    [
+      "Prose Showcase",
+      "prose.html"
+    ]
+  ],
+  "engines": [
+    "ta",
+    "prince"
+  ],
+  "results": {
+    "ta": {
+      "Invoice": {
+        "runs": 5,
+        "failures": [],
+        "median_s": 0.026,
+        "min_s": 0.0256,
+        "max_s": 0.0267,
+        "peak_rss_mib": 13.4,
+        "peak_rss_median_mib": 13.3,
+        "pages": 5,
+        "pdf_kib": 48.6
+      },
+      "Quarterly Report": {
+        "runs": 5,
+        "failures": [],
+        "median_s": 0.0215,
+        "min_s": 0.0215,
+        "max_s": 0.0217,
+        "peak_rss_mib": 13.9,
+        "peak_rss_median_mib": 13.8,
+        "pages": 10,
+        "pdf_kib": 55.8
+      },
+      "Academic Paper": {
+        "runs": 5,
+        "failures": [],
+        "median_s": 0.0323,
+        "min_s": 0.032,
+        "max_s": 0.0328,
+        "peak_rss_mib": 14.5,
+        "peak_rss_median_mib": 14.5,
+        "pages": 11,
+        "pdf_kib": 71.4
+      },
+      "Letterhead": {
+        "runs": 5,
+        "failures": [],
+        "median_s": 0.0221,
+        "min_s": 0.0217,
+        "max_s": 0.0223,
+        "peak_rss_mib": 13.1,
+        "peak_rss_median_mib": 13.0,
+        "pages": 8,
+        "pdf_kib": 46.3
+      },
+      "Inventory Ledger \u2014 Table Fragmentation Stress": {
+        "runs": 5,
+        "failures": [],
+        "median_s": 0.2259,
+        "min_s": 0.2224,
+        "max_s": 0.2316,
+        "peak_rss_mib": 17.7,
+        "peak_rss_median_mib": 17.6,
+        "pages": 43,
+        "pdf_kib": 138.0
+      },
+      "Float Showcase \u2014 Figure & Pull Quote": {
+        "runs": 5,
+        "failures": [],
+        "median_s": 0.024,
+        "min_s": 0.0234,
+        "max_s": 0.0246,
+        "peak_rss_mib": 14.6,
+        "peak_rss_median_mib": 14.5,
+        "pages": 8,
+        "pdf_kib": 64.0
+      },
+      "Prose Showcase": {
+        "runs": 5,
+        "failures": [],
+        "median_s": 0.0288,
+        "min_s": 0.0286,
+        "max_s": 0.0293,
+        "peak_rss_mib": 14.6,
+        "peak_rss_median_mib": 14.6,
+        "pages": 11,
+        "pdf_kib": 67.5
+      }
+    },
+    "prince": {
+      "Invoice": {
+        "runs": 5,
+        "failures": [],
+        "median_s": 0.0436,
+        "min_s": 0.0433,
+        "max_s": 0.0437,
+        "peak_rss_mib": 45.4,
+        "peak_rss_median_mib": 45.2,
+        "pages": 5,
+        "pdf_kib": 47.4
+      },
+      "Quarterly Report": {
+        "runs": 5,
+        "failures": [],
+        "median_s": 0.0457,
+        "min_s": 0.045,
+        "max_s": 0.0462,
+        "peak_rss_mib": 46.2,
+        "peak_rss_median_mib": 46.1,
+        "pages": 10,
+        "pdf_kib": 54.7
+      },
+      "Academic Paper": {
+        "runs": 5,
+        "failures": [],
+        "median_s": 0.049,
+        "min_s": 0.0487,
+        "max_s": 0.0492,
+        "peak_rss_mib": 48.9,
+        "peak_rss_median_mib": 48.8,
+        "pages": 11,
+        "pdf_kib": 67.6
+      },
+      "Letterhead": {
+        "runs": 5,
+        "failures": [],
+        "median_s": 0.0489,
+        "min_s": 0.0486,
+        "max_s": 0.0493,
+        "peak_rss_mib": 49.5,
+        "peak_rss_median_mib": 49.5,
+        "pages": 8,
+        "pdf_kib": 55.8
+      },
+      "Inventory Ledger \u2014 Table Fragmentation Stress": {
+        "runs": 5,
+        "failures": [],
+        "median_s": 0.0661,
+        "min_s": 0.0657,
+        "max_s": 0.0664,
+        "peak_rss_mib": 50.7,
+        "peak_rss_median_mib": 50.7,
+        "pages": 45,
+        "pdf_kib": 106.6
+      },
+      "Float Showcase \u2014 Figure & Pull Quote": {
+        "runs": 5,
+        "failures": [],
+        "median_s": 0.0481,
+        "min_s": 0.0479,
+        "max_s": 0.0485,
+        "peak_rss_mib": 50.9,
+        "peak_rss_median_mib": 49.9,
+        "pages": 8,
+        "pdf_kib": 69.3
+      },
+      "Prose Showcase": {
+        "runs": 5,
+        "failures": [],
+        "median_s": 0.0487,
+        "min_s": 0.0482,
+        "max_s": 0.0491,
+        "peak_rss_mib": 48.9,
+        "peak_rss_median_mib": 48.9,
+        "pages": 11,
+        "pdf_kib": 64.1
+      }
+    }
+  }
+}
