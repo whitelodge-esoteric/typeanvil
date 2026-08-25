@@ -1,200 +1,104 @@
 ---
-title: Licensing Resolution and Watermark Seam
+title: Licensing and Distribution (Open Core / AGPL)
 slug: /specifications/licensing-resolution
 type: spec
 status: draft
 owner: elijah
 created: 2026-08-21
-updated: 2026-08-21
+updated: 2026-08-25
 sidebar_position: 24
-tags: [engine, licensing, cli, pdf, distribution]
+tags: [engine, licensing, agpl, distribution]
 spec_id: licensing-resolution
 issue_id: CORE-115
 applies_to: engine 0.x
 dependencies: []
 ---
 
-# Licensing Resolution and Watermark Seam
+# Licensing and Distribution (Open Core / AGPL)
 
 ## Overview
 
-Typeanvil ships as a commercial closed-source binary. Customers activate a
-self-hosted install by providing a license file; unlicensed installs still
-render but stamp a visible watermark on every page (Prince's model — see the
-research brief `docs/research/licensing/licensing-and-distribution.md`).
+Typeanvil is distributed as **free, open-source software under the GNU
+Affero General Public License v3 (AGPL-3.0)**. The runtime renders with no
+watermark, no license check, and no feature gating. Revenue comes from the
+hosted cloud service (`docs/specifications/typeanvil-cloud-service.spec.md`),
+not from selling the binary.
 
-This spec covers **iteration one only**: the license *resolution* paths, a
-mocked verifier (no cryptographic verification yet), and the watermark seam
-in the PDF emitter. Real Ed25519-signed license files are a later issue;
-this issue exists so the call-site shape, lookup order, error semantics,
-and watermark rendering land early and get exercised by tests before any
-commercial release depends on them.
+This spec supersedes the previous commercial closed-source design
+(license resolution chain + unlicensed watermark), decided against on
+2026-08-25. The prior watermark seam work from CORE-115 iteration one is
+dropped; this issue now covers the distribution model instead.
 
-Two properties make this low-risk now:
-
-- The engine is never compiled from source by customers, so
-  `#[cfg(debug_assertions)]` gives developers a fully licensed build while
-  no customer ever holds a debug build.
-- The watermark lives at PDF-emission level (`pdf.rs`), drawn after page
-  content on every page, where author CSS cannot suppress or cover it.
+**Why AGPL:** the license adds a network-use clause to GPL — anyone who
+modifies Typeanvil and offers it as a service must publish their modified
+source. This prevents a competitor from forking the engine and hosting a
+proprietary clone of our own cloud product. As copyright holder, we can
+also offer a separate commercial license to companies that need to embed
+the engine in proprietary software (dual licensing) — optional, later.
 
 ## Goals / Non-Goals
 
 **Goals**
 
-- One resolution function with a fixed lookup order:
-  `--license <path>` CLI arg → `TYPEANVIL_LICENSE` env var →
-  `license.dat` adjacent to the executable → not found.
-- Iteration one mocks verification: resolution always yields a valid
-  license regardless of what it finds. The types, call site, and error
-  path exist and are tested; only the body is fake.
-- Debug builds (`#[cfg(debug_assertions)]`) bypass resolution entirely
-  and are treated as licensed.
-- Unlicensed release builds render normally except for a watermark line
-  on every page ("Unlicensed — TypeAnvil").
-- A *malformed* license file (unparsable) fails loudly with a nonzero
-  exit code. A *missing* license does not fail.
-- Determinism preserved: identical input + identical license state →
-  byte-identical output.
-- The harness CLI contract stays stable; `--license` is additive.
+- Single license file (`LICENSE`, AGPL-3.0 text) at repo root.
+- Copyright headers carry the AGPL notice in `engine/` source files.
+- The engine renders identically regardless of environment: no license
+  lookup code paths exist anywhere.
+- `Cargo.toml` declares `license = "AGPL-3.0-only"` (or `-or-later` — see
+  Open Questions).
+- Distribution via crates.io / GitHub releases of source; container images
+  published publicly for cloud use.
 
-**Non-Goals** (deferred)
+**Non-Goals**
 
-- Cryptographic license verification (Ed25519 signature, embedded public
-  key), expiry checks, edition/seat fields — later issue.
-- Phone-home activation of any kind — explicitly rejected for broad use;
-  possibly opt-in enterprise-only much later.
-- Private registry distribution gating — separate layer, separate decision.
-- Watermark styling beyond a single fixed line (position, tiling,
-  diagonal stamps).
-- A license management subcommand (`typeanvil license activate ...`).
+- License resolution, license files, Ed25519 verification, activation —
+  all dropped with the commercial model.
+- Watermark rendering in `pdf.rs` — dropped.
+- Phone-home telemetry of any kind.
+- A `typeanvil license` subcommand — dropped.
 
 ## Behavior
 
-The engine shall:
-
-1. **Resolve the license through one function.** `licensing::resolve()`
-   inspects sources in this exact order and stops at the first hit:
-   1. `--license <path>` named argument on the `render` subcommand.
-   2. `TYPEANVIL_LICENSE` environment variable holding a filesystem path.
-   3. `license.dat` in the same directory as the running executable
-      (resolved from `std::env::current_exe()`, never the working
-      directory).
-   4. Nothing found → `LicenseState::Missing`.
-2. **Mock verification in iteration one.** `resolve()` shall return a
-   hardcoded valid license (`LicenseState::Valid(MockLicense)`) for any
-   found source, and `Valid(MockLicense)` for `Missing` as well — the
-   mock treats every install as licensed. The enum shapes the real
-   branches so swapping in signature verification touches only this
-   function's body.
-3. **Bypass in debug builds.** When compiled with `debug_assertions`,
-   resolution short-circuits to licensed without touching the
-   filesystem or environment. Release builds enforce.
-4. **Watermark unlicensed output.** When resolution yields
-   `LicenseState::Missing` in a release build, rendering proceeds
-   normally and the PDF emitter draws the text `Unlicensed — TypeAnvil`
-   once per page, after page content, at a fixed position near the page
-   bottom-right margin corner. The watermark is paint-level, not CSS:
-   author stylesheets cannot remove, recolor, or reposition it.
-5. **Fail loudly on malformed licenses.** If a source was found but its
-   contents cannot be read or parsed into a license structure, the CLI
-   prints `typeanvil: error: <reason>` and exits with a failure code.
-   Missing vs broken are distinct outcomes: missing → watermarked render,
-   broken → hard error.
-6. **Keep determinism.** The watermark string, face, size, and position
-   are constants. No timestamp, no randomness. Identical input and
-   identical license state produce byte-identical PDFs.
-7. **Preserve the existing CLI contract.** All current flags keep their
-   meaning. `--license <path>` is new and optional. The Python harness
-   adapter (`harness/engine.py`) passes no license flag today and must
-   continue working unchanged.
-
-## Interfaces
-
-**New module** `engine/src/licensing.rs`:
-
-```text
-pub enum LicenseState {
-    Valid(License),
-    Missing,
-}
-
-pub struct License {
-    pub customer: String,        // mock: "development"
-    pub edition: Edition,        // mock: Edition::Trial
-}
-
-pub enum Edition { Trial, Standard, Enterprise }  // fields reserved; unused in v1
-
-pub fn resolve(cli_path: Option<&Path>) -> Result<LicenseState, LicenseError>
-pub enum LicenseError {
-    Unreadable { path: PathBuf, reason: String },
-    Malformed { path: PathBuf, reason: String },
-}
-```
-
-`resolve()` takes the already-parsed `--license` value rather than reading
-global argv, so tests drive it directly.
-
-**`engine/src/main.rs`** — `RenderArgs` gains `license: Option<PathBuf>`;
-the render entry calls `resolve()` and threads the result into
-`pdf::render` via a small options struct (additive parameter; existing
-callers updated in the same PR).
-
-**`engine/src/pdf.rs`** — the emitter accepts a watermark flag. When set,
-after painting each page's fragment tree it draws the constant watermark
-line using the regular Arial face already embedded (no new font source).
-
-**Environment**: `TYPEANVIL_LICENSE` — absolute or relative path to a
-license file; relative resolves against the process CWD (documented
-deviation from rule 1.3's exe-relative default, matching how users type
-paths).
+1. **No enforcement code.** The engine shall contain no license resolution,
+   watermarking, or gating logic. Rendering output depends only on input.
+2. **AGPL compliance surface.** The repository shall ship: the full AGPL
+   license text, a README section stating the license and pointing at the
+   cloud service, and source notices per the AGPL's requirements.
+3. **Determinism preserved unchanged.** Identical input → byte-identical
+   PDF, with no environment-dependent branches introduced by licensing
+   (there are none).
+4. **Dependency audit.** All engine dependencies shall remain compatible
+   with AGPL distribution (Apache-2.0/MIT/BSD/MPL are compatible; no
+   additional constraints were imposed by the old model either).
+5. **Trademark separation.** "Typeanvil" name/logo are not licensed under
+   AGPL; forks shall not use the marks (standard open-core trademark
+   carve-out, enforced informally until trademark registration).
 
 ## Acceptance Criteria
 
-All live in a new `engine/tests/licensing.rs` unless noted.
-
-1. **Lookup order — arg beats env beats adjacent.** Given all three
-   sources present, `resolve(Some(arg))` reports the arg's source;
-   given env + adjacent file, it reports the env source; given only an
-   adjacent file, it reports the adjacent source. (Sources are
-   distinguishable via the returned provenance field on `LicenseState`
-   in test builds.)
-2. **Adjacent file uses the executable directory.** With CWD set to a
-   temp dir containing `license.dat` and the executable elsewhere, no
-   adjacent-file hit occurs. (Test runs resolution against an injected
-   exe-path parameter; the production wrapper passes `current_exe()`.)
-3. **Debug build bypass.** A test compiled under `debug_assertions`
-   asserts resolution returns licensed without any source present.
-4. **Missing license renders watermarked.** Render a minimal document
-   with forced-missing license state; extract each page's text layer
-   (`pypdfium2`) and assert the watermark string appears exactly once
-   per page.
-5. **Licensed output is clean.** Same document, valid license: no
-   watermark string anywhere in the text layer.
-6. **Malformed license fails loudly.** A found-but-garbage file yields
-   `LicenseError::Malformed`; the CLI exits nonzero printing
-   `typeanvil: error:`.
-7. **Determinism with watermark.** Two watermarked renders of the same
-   input produce byte-identical files.
-8. **Harness contract unchanged.** Existing engine acceptance suites
-   pass without modification (they exercise debug-build bypass).
+1. Repo root contains the complete AGPL-3.0 license text; the validator
+   or CI checks its presence and first-line hash prefix.
+2. `cargo build && cargo test` pass with zero licensing-related modules;
+   grep confirms no `licensing` module, no `--license` flag, no watermark
+   string exists in `engine/src/`.
+3. Rendering a minimal document produces byte-identical output before and
+   after the licensing-code removal PR (regression proof that no behavior
+   changed).
+4. `cargo package --list` succeeds and `cargo publish --dry-run` reports
+   `license = "AGPL-*"` metadata.
 
 ## Edge Cases
 
-- `--license` pointing at a directory → `Unreadable`, hard error.
-- `TYPEANVIL_LICENSE` set to an empty string → treated as unset.
-- Executable path unavailable (`current_exe()` errors) → skip the
-  adjacent-file probe, fall through to `Missing`.
-- License file containing valid UTF-8 garbage (parses as text, not a
-  license) → `Malformed`, hard error — never silently watermarked,
-  because the user believed they were licensed.
-- Future signed-license swap must keep these semantics: the enum and
-  error shapes here are the stable surface.
+- Contributor CLA: needed only if we later want to dual-license or
+  relicense; decide before outside contributions arrive.
+- Cloud service itself: we are the copyright holder, so AGPL's network
+  clause never obligates us to publish our platform modifications.
+- Enterprise embedding requests: handled case-by-case under a future
+  commercial license; does not change the OSS default.
 
 ## References
 
-- Research brief: `docs/research/licensing/licensing-and-distribution.md`
-  (scheme rationale, Prince precedent, dependency-license constraints).
-- CLI contract: module doc comment in `engine/src/main.rs`; mirrored by
-  `harness/engine.py`.
+- Cloud service spec: `docs/specifications/typeanvil-cloud-service.spec.md`
+- Prior research brief (historical context):
+  `docs/research/licensing/licensing-and-distribution.md`
+- AGPL-3.0 text: https://www.gnu.org/licenses/agpl-3.0.txt
