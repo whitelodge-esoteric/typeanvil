@@ -22,6 +22,17 @@ architecture, operations runbooks, lessons, and research. Start at
 - `brain/Projects/Typeanvil/Architecture.md` — architecture sketch (Rust, wrap-vs-build, fragmentation-first)
 - `docs/research/` — research briefs (LayoutNG fragmentation, Rust ecosystem, WPT harness)
 
+## License
+
+Typeanvil is free, open-source software under the **GNU Affero General
+Public License v3.0 (AGPL-3.0-only)**. You may use, modify, and host it
+freely; modifications offered as a network service must be published under
+the same license. See [LICENSE](LICENSE) and
+[docs/specifications/licensing-resolution.spec.md](docs/specifications/licensing-resolution.spec.md).
+
+Contributions are welcome — by opening a pull request you agree to the
+terms in [CLA.md](CLA.md).
+
 ## Status
 
 Named 2026-08-13. Pre-code. Open next steps:

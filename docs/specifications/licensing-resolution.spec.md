@@ -44,8 +44,7 @@ the engine in proprietary software (dual licensing) — optional, later.
 - Copyright headers carry the AGPL notice in `engine/` source files.
 - The engine renders identically regardless of environment: no license
   lookup code paths exist anywhere.
-- `Cargo.toml` declares `license = "AGPL-3.0-only"` (or `-or-later` — see
-  Open Questions).
+- `Cargo.toml` declares `license = "AGPL-3.0-only"` (decided 2026-08-25).
 - Distribution via crates.io / GitHub releases of source; container images
   published publicly for cloud use.
 
