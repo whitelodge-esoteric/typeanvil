@@ -365,7 +365,7 @@ impl<'a> Ctx<'a> {
                     let lines = self.break_paragraph(text, col_w, style);
                     h = h + style.line_height * lines.len() as f64;
                 }
-                Item::Block(child) => {
+                Item::Atomic(child) | Item::Block(child) => {
                     let cs = &self.styles[*child];
                     if cs.column_span == ColumnSpan::All || cs.float != crate::css::Float::None
                         || matches!(cs.position, Position::Absolute | Position::Fixed)
@@ -643,7 +643,9 @@ impl<'a> Ctx<'a> {
                     }
                     i += 1;
                 }
-                Item::Block(child) => {
+                Item::Atomic(child) | Item::Block(child) => {
+                    // An inline-block inside a column lays out like any
+                    // block child (v1 simplification; CORE-120).
                     let cs = &self.styles[*child];
                     if cs.column_span == ColumnSpan::All {
                         // A spanner ends the set (defensive; segmentation

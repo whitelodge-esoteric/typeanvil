@@ -142,6 +142,9 @@ enum Item {
     Text(String, Vec<LinkSpan>, Vec<(usize, NodeId)>),
     /// A block-level child element.
     Block(NodeId),
+    /// An inline-block child element: atomic on the line, flow inside
+    /// (CORE-120).
+    Atomic(NodeId),
 }
 
 /// A recorded hyperlink source span inside an item's text (CORE-104):
@@ -1448,7 +1451,7 @@ impl<'a> Ctx<'a> {
 
         // Resume bookkeeping: which child index to start from, and its token.
         // `child_tokens` come positionally; a break-before child token means
-        // "start that child fresh here".
+        // start that child fresh there.
         // `HasSeenAllChildren` with no pending child tokens means this box
         // finished every child on an earlier fragmentainer: nothing remains,
         // so terminate rather than emit a spurious trailing page.
@@ -1587,6 +1590,14 @@ impl<'a> Ctx<'a> {
         // the previous sibling's bottom margin so the overlap can be
         // removed before the next fresh block lays out.
         let mut prev_margin_bottom = Scalar::ZERO;
+        // Inline-level atomic items (CORE-120) share the current line:
+        // `pen_x` is the next placement x, `line_top` the top of the line
+        // box, `line_h` its grown height. Declared OUTSIDE the item loop so
+        // consecutive atomic items pack side by side on one line.
+        let mut atomic_pen_x = inner_left;
+        let mut atomic_line_top = y;
+        let mut atomic_line_h = Scalar::ZERO;
+        let mut atomic_line_active = false;
         let mut i = start_index;
         while i < items.len() {
             // Forced break-before on a block child starts a new fragmentainer.
@@ -1596,7 +1607,7 @@ impl<'a> Ctx<'a> {
             // name (resolved at page starts by `active_page_name`) is all the
             // page geometry needs. (Tried forcing breaks on name change for
             // CORE-66; it regressed 38 page-name tests.)
-            if let Item::Block(child) = &items[i] {
+            if let Item::Block(child) | Item::Atomic(child) = &items[i] {
                 let cstyle = &self.styles[*child];
                 let child_fresh = self.child_incoming(token, i).is_break_before();
                 if child_fresh
@@ -1614,18 +1625,35 @@ impl<'a> Ctx<'a> {
                 }
             }
 
+            // Inline-level atomic items (CORE-120) share the current line:
+            // `pen_x`/`line_top`/`line_h` alias the loop-persistent atomic
+            // line state so consecutive items pack side by side.
+            let lh = line_height(style);
+            if !atomic_line_active {
+                atomic_pen_x = inner_left;
+                atomic_line_top = y;
+                atomic_line_h = lh;
+                atomic_line_active = true;
+            }
+            let mut pen_x = atomic_pen_x;
+            let line_top = atomic_line_top;
+            let mut line_h = atomic_line_h;
             match &items[i] {
                 Item::Text(text, link_spans, fn_markers) => {
                     // CORE-118: a text run between blocks is not an adjacent
                     // block sibling — no collapse state carries across it.
-                    prev_margin_bottom = Scalar::ZERO;
                     let child_tok = self.child_incoming(token, i);
-                    let lh = line_height(style);
                     // Resume: a run that began beside a float resumes by source
                     // offset (its page's available width may differ from the
                     // previous page's); otherwise the legacy line-count resume.
                     let resume_offset = child_tok.consumed_chars;
-                    if flow.active_floats.is_empty() && resume_offset.is_none() {
+                    if flow.active_floats.is_empty()
+                        && resume_offset.is_none()
+                        // A run after atomic items on the same line must
+                        // continue beside them (segmented path), not start a
+                        // fresh full-width line at the left edge.
+                        && !atomic_line_active
+                    {
                         let lines = self.break_paragraph(text, inner_width, style);
                         // How many lines already consumed by earlier fragments.
                         let consumed_lines =
@@ -1960,6 +1988,176 @@ impl<'a> Ctx<'a> {
                             break;
                         }
                     }
+                }
+                Item::Atomic(child) => {
+                    // ---- inline-block (atomic inline-level) placement
+                    // (CORE-120) ----
+                    let child_tok = self.child_incoming(token, i);
+                    let cstyle = &self.styles[*child];
+                    if matches!(cstyle.position, Position::Absolute | Position::Fixed) {
+                        i += 1;
+                        continue;
+                    }
+                    // Forced break-before propagates to the line: rest of the
+                    // items go to the next fragmentainer.
+                    if child_tok.is_break_before()
+                        && cstyle.break_before.is_forced()
+                        && (!children.is_empty() || broke || i > start_index)
+                    {
+                        seen_all = false;
+                        outgoing_children.push(ChildToken {
+                            index: i,
+                            token: BreakToken::break_before(),
+                        });
+                        broke = true;
+                        break;
+                    }
+
+
+                    // Measure the atomic box's margin box at its used width
+                    // (explicit width / percentage, else shrink-to-fit).
+                    let (_, avail_w) =
+                        self.segment_geometry(inner_left, inner_width, y, lh, flow);
+                    let max_w = if avail_w.get() < inner_width.get() {
+                        avail_w
+                    } else {
+                        inner_width
+                    };
+                    let style_w = cstyle.width.or_else(|| {
+                        cstyle.width_percent.map(|p| Scalar(p * inner_width.get()))
+                    });
+                    // `box-sizing: border-box` (css-ui-3): the declared width
+                    // includes padding + border, so subtract them to get the
+                    // content width handed to the block layout path.
+                    let style_w = style_w.map(|w| {
+                        if cstyle.box_sizing == crate::css::StyloBoxSizing::BorderBox {
+                            let chrome =
+                                cstyle.padding_left + cstyle.padding_right
+                                    + cstyle.border_left + cstyle.border_right;
+                            if w.get() > chrome.get() {
+                                w - chrome
+                            } else {
+                                Scalar::ZERO
+                            }
+                        } else {
+                            w
+                        }
+                    });
+                    let content_w = match style_w {
+                        Some(w) => {
+                            if w.get() > max_w.get() {
+                                max_w
+                            } else {
+                                w
+                            }
+                        }
+                        None => self.shrink_to_fit(*child, inner_width),
+                    };
+                    let aw = content_w + cstyle.margin_left + cstyle.margin_right;
+                    let ah = self.measure_block(*child, content_w)
+                        + cstyle.margin_top
+                        + cstyle.padding_top
+                        + cstyle.padding_bottom
+                        + cstyle.margin_bottom;
+                    // An explicit CSS `height` wins over the measured content
+                    // height (the block measure path ignores declared height,
+                    // CORE-66 model) — the deferral decision needs the real
+                    // box height.
+                    let ah = cstyle.height.map_or(ah, |h| {
+                        h + cstyle.margin_top
+                            + cstyle.padding_top
+                            + cstyle.padding_bottom
+                            + cstyle.margin_bottom
+                    });
+                    // Whitespace between inline-blocks collapses per normal
+                    // inline whitespace processing; the pen never carries
+                    // trailing space across an atomic box.
+                    let fits_line = (pen_x.get() - inner_left.get()) + aw.get() <= max_w.get();
+                    if !fits_line && placed {
+                        // Wrap to a new line below everything placed so far.
+                        y = line_top + line_h;
+                        pen_x = inner_left;
+                    }
+                    // Monolithic deferral (spec Behavior 5): a box taller than
+                    // the remaining page space defers whole — unless this page
+                    // is genuinely empty (last resort: overflow, never loop).
+                    let fits_page = y + ah <= bottom_limit;
+                    let last_resort = !placed;
+                    if !fits_page && !last_resort {
+                        seen_all = false;
+                        outgoing_children.push(ChildToken {
+                            index: i,
+                            token: BreakToken::break_before(),
+                        });
+                        broke = true;
+                        break;
+                    }
+
+                    // Lay the box through the block path at the resolved x:
+                    // border/padding/background paint for free. Its own
+                    // content lays without intrusion from sibling atomics on
+                    // the same line (like float first placement).
+                    let saved_floats = std::mem::take(&mut flow.active_floats);
+                    let mut res = self.layout_box(
+                        *child,
+                        pen_x + cstyle.margin_left,
+                        content_w,
+                        y + cstyle.margin_top,
+                        Scalar(f64::MAX),
+                        placed,
+                        first_in_flow,
+                        &child_tok,
+                        flow,
+                    );
+                    // The block path ignores declared `height` (CORE-66
+                    // model); size the box fragment to the resolved margin
+                    // box so the painted border/background covers it.
+                    let inner_h = ah - cstyle.margin_top - cstyle.margin_bottom;
+                    res.fragment.size.1 = inner_h;
+                    flow.active_floats = saved_floats;
+
+                    // Baseline alignment: the surrounding text baseline sits
+                    // `baseline_offset` into the line box; the box's bottom
+                    // margin edge aligns to baseline + descent (spec Behavior
+                    // 6 fallback). Shift the whole subtree by the delta.
+                    let (_, desc_em) = crate::typography::font_metrics(style.font_face);
+                    let base_y = line_top
+                        + crate::typography::baseline_offset(
+                            style.font_size,
+                            lh,
+                            style.font_face,
+                        );
+                    let shift = base_y + Scalar(style.font_size.get() * -desc_em)
+                        - (y + cstyle.margin_top + ah);
+                    fn rebase_subtree(fragment: &mut Fragment, shift: Scalar) {
+                        fragment.offset.y = fragment.offset.y + shift;
+                        if let FragmentContent::Text(run) = &mut fragment.content {
+                            run.baseline.y = run.baseline.y + shift;
+                        }
+                        for child in &mut fragment.children {
+                            rebase_subtree(child, shift);
+                        }
+                    }
+                    if shift.get() != 0.0 {
+                        rebase_subtree(&mut res.fragment, shift);
+                    }
+
+                    children.push(res.fragment);
+                    y += cstyle.margin_top + ah;
+
+                    // Advance the pen past the margin box and grow the line.
+                    // Write back through the loop-persistent atomic state so
+                    // the NEXT atomic item packs beside this one.
+                    atomic_pen_x = pen_x + aw;
+                    let bh = y + cstyle.margin_top + ah - line_top;
+                    if bh.get() > line_h.get() {
+                        atomic_line_h = bh;
+                    }
+                    placed = true;
+                    first_in_flow = false;
+                    prev_margin_bottom = Scalar::ZERO;
+                    i += 1;
+                    continue;
                 }
                 Item::Block(child) => {
                     let child_tok = self.child_incoming(token, i);
@@ -3277,7 +3475,7 @@ impl<'a> Ctx<'a> {
                     let lines = self.break_paragraph(&text, inner_width, style);
                     h = h + style.line_height * (lines.len() as f64);
                 }
-                Item::Block(child) => {
+                Item::Atomic(child) | Item::Block(child) => {
                     // A float does not add in-flow height: its own fragment
                     // carries it, and text wraps around it rather than below.
                     // An abspos box is likewise out of flow (no in-flow
@@ -3354,7 +3552,7 @@ impl<'a> Ctx<'a> {
                     if !text.trim().is_empty() {
                         return true;
                     }
-                }                Item::Block(child) => {
+                } Item::Atomic(child) | Item::Block(child) => {
                     if self.float_is_splittable(child) {
                         return true;
                     }
@@ -3380,7 +3578,7 @@ impl<'a> Ctx<'a> {
                         }
                     }
                 }
-                Item::Block(child) => {
+                Item::Atomic(child) | Item::Block(child) => {
                     let w = self.shrink_to_fit(child, max_width);
                     if w.get() > width.get() {
                         width = w;
@@ -3542,6 +3740,7 @@ impl<'a> Ctx<'a> {
                                 | Display::TableCell
                                 | Display::Flex
                                 | Display::InlineFlex
+                                | Display::InlineBlock
                         )
                     {
                         if !pending.trim().is_empty() || !spans.is_empty() || !markers.is_empty() {
@@ -3553,7 +3752,11 @@ impl<'a> Ctx<'a> {
                         } else {
                             pending.clear();
                         }
-                        items.push(Item::Block(child));
+                        if self.styles[child].display == Display::InlineBlock {
+                            items.push(Item::Atomic(child));
+                        } else {
+                            items.push(Item::Block(child));
+                        }
                     } else {
                         // A hyperlink anchor records its text span before its
                         // content folds into the run (CORE-104). Nested inline

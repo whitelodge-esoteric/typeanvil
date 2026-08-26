@@ -45,6 +45,7 @@ use style::values::computed::align::{
     SelfAlignment as StyloSelfAlignment,
 };
 use style::values::computed::box_::Float as StyloFloat;
+pub use style::properties::longhands::box_sizing::computed_value::T as StyloBoxSizing;
 use style::values::computed::column::ColumnCount as StyloColumnCount;
 use style::values::computed::flex::FlexBasis as StyloFlexBasis;
 use style::values::computed::font::{FontFamily, LineHeight, SingleFontFamily};
@@ -95,6 +96,9 @@ pub enum Display {
     /// Inline-level flex container; treated as a block-level flex container
     /// in paged flow (spec Goal 1 — true inline-fragment behavior deferred).
     InlineFlex,
+    /// Inline-level block container (`display: inline-block`,
+    /// css-display-3 §2.3): atomic on the outside, flow inside.
+    InlineBlock,
 }
 /// The computed `column-span` value (css-multicol-1 §4).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -306,6 +310,10 @@ pub struct ComputedStyle {
     /// The raw `height` percentage as a 0..=1 fraction, kept for flex item
     /// sizing against the flex line's cross size / container height.
     pub height_percent: Option<f64>,
+    /// The computed `box-sizing` (css-ui-3). `border-box` makes `width`/
+    /// `height` include padding + border; the inline-block placement uses it
+    /// to convert the declared width into a content width (CORE-120).
+    pub box_sizing: StyloBoxSizing,
     /// The computed `position` value. `Absolute`/`Fixed` take the element out
     /// of flow; the fragment attaches to the fragmentainer.
     pub position: Position,
@@ -430,6 +438,7 @@ impl ComputedStyle {
             width_percent: None,
             height: None,
             height_percent: None,
+            box_sizing: StyloBoxSizing::ContentBox,
             position: Position::Static,
             inset_top: None,
             inset_right: None,
@@ -940,6 +949,14 @@ impl CascadeSession {
                     // Column boxes are unsupported; fall back to block.
                     Display::Block
                 }
+                DisplayInside::FlowRoot => {
+                    if matches!(d.outside(), DisplayOutside::Inline) {
+                        // `inline-block` — atomic inline-level box.
+                        Display::InlineBlock
+                    } else {
+                        Display::Block
+                    }
+                }
                 _ => {
                     if matches!(
                         d.outside(),
@@ -953,6 +970,7 @@ impl CascadeSession {
             },
         };
         let position = values.get_position();
+        let box_sizing = position.clone_box_sizing();
         let float = match box_.clone_float() {
             StyloFloat::None => Float::None,
             StyloFloat::Left => Float::Left,
@@ -1192,6 +1210,7 @@ impl CascadeSession {
         ComputedStyle {
             color,
             background_color,
+            box_sizing,
             // Borders default to none here; filled by
             // `apply_border_properties` from a targeted author-CSS parse
             // (see `cascade`).

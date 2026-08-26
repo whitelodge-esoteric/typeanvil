@@ -166,7 +166,7 @@ impl<'a> Ctx<'a> {
     fn collect_flex_items(&self, id: NodeId) -> Vec<FlexItem> {
         let mut out = Vec::new();
         for (i, item) in self.collect_items(id).into_iter().enumerate() {
-            if let Item::Block(child) = item {
+            if let Item::Atomic(child) | Item::Block(child) = item {
                 let cs = &self.styles[child];
                 if cs.display == Display::None {
                     continue;
