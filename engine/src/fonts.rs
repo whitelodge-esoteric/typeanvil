@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! Runtime font registry: system discovery + @font-face + resolution.
 //!
 //! Replaces the CORE-80 hardcoded 4-face Arial bundle (CORE-103). The

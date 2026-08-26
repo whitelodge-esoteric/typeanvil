@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! Typeanvil engine library.
 //!
 //! The CLI (`src/main.rs`) is a thin driver over these modules. Exposing them
@@ -13,7 +15,6 @@ pub mod frag;
 pub mod geom;
 pub mod images;
 pub mod layout;
-pub mod licensing;
 pub mod metadata;
 pub mod paged;
 pub mod pdf;

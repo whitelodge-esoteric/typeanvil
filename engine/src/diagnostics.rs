@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! Structured machine-readable diagnostics (CORE-112).
 //!
 //! Iteration one covers the stylesheet surface: this module scans the SAME

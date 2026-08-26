@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! Minimal DOM: parse HTML with html5ever, then lower markup5ever's `RcDom`
 //! into our own arena-based tree so the rest of the engine never touches
 //! markup5ever types.

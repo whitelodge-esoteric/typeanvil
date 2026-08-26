@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! PDF export via krilla.
 //!
 //! One PDF page per fragmentainer. The emitter is a plain pre-order walk of the
@@ -156,7 +158,7 @@ pub struct DocumentMetadata {
 /// Existing callers keep this signature unchanged; behavior is identical to
 /// `render_with_metadata` with `DocumentMetadata::default()`.
 pub fn render(layout: &Layout) -> Result<Vec<u8>> {
-    render_with_metadata(layout, &DocumentMetadata::default(), false)
+    render_with_metadata(layout, &DocumentMetadata::default())
 }
 
 /// Render a paginated layout to PDF bytes, applying document metadata.
@@ -164,17 +166,8 @@ pub fn render(layout: &Layout) -> Result<Vec<u8>> {
 /// When `meta` carries any non-empty field, it is written to the PDF's Info
 /// dict (Title/Author/Subject/Keywords) before finishing. `creation_date` is
 /// never set, keeping output deterministic.
-///
-/// `watermark` (CORE-115): when true, every page additionally carries the
-/// fixed "Unlicensed — TypeAnvil" line, painted after page content. The
-/// watermark's string, face, size, position, and color are constants —
-/// identical input + identical license state stays byte-identical.
-pub fn render_with_metadata(
-    layout: &Layout,
-    meta: &DocumentMetadata,
-    watermark: bool,
-) -> Result<Vec<u8>> {
-    render_with_options(layout, None, meta, watermark, false, false)
+pub fn render_with_metadata(layout: &Layout, meta: &DocumentMetadata) -> Result<Vec<u8>> {
+    render_with_options(layout, None, meta, false, false)
 }
 
 /// Render with full control (CORE-111): tagging and the PDF/UA validator are
@@ -188,7 +181,6 @@ pub fn render_with_options(
     layout: &Layout,
     dom: Option<&crate::dom::Dom>,
     meta: &DocumentMetadata,
-    watermark: bool,
     tagged: bool,
     ua: bool,
 ) -> Result<Vec<u8>> {
@@ -474,21 +466,6 @@ pub fn render_with_options(
             }
         }
 
-        // Watermark (CORE-115): painted AFTER all page content so author CSS
-        // cannot cover or suppress it. Shaped with the already-embedded
-        // regular Arial face; anchored near the bottom-right margin corner.
-        if watermark {
-            if tagged {
-                surface.start_tagged(ContentTag::Artifact(Artifact::with_kind(
-                    ArtifactType::Watermark,
-                )));
-                draw_watermark(&mut surface, page_w, page_h)?;
-                surface.end_tagged();
-            } else {
-                draw_watermark(&mut surface, page_w, page_h)?;
-            }
-        }
-
         // Pop any pushed graphics state (page-orientation rotation) before
         // finishing the page — krilla asserts a balanced push/pop.
         if rotated {
@@ -675,50 +652,6 @@ fn to_krilla_glyphs(
         last.x_advance = adv + protrude_right / font_size;
     }
     out
-}
-
-// --- CORE-115: unlicensed watermark -----------------------------------------
-
-/// Watermark text, drawn once per page on unlicensed release renders.
-const WATERMARK_TEXT: &str = "Unlicensed \u{2014} TypeAnvil";
-/// Watermark size (pt) and inset from the page's bottom-right corner.
-const WATERMARK_FONT_SIZE: f32 = 9.0;
-const WATERMARK_INSET: f32 = 18.0;
-/// Mid-gray so it reads on any background without dominating the page.
-fn watermark_color() -> Color {
-    Color {
-        r: 0x88,
-        g: 0x88,
-        b: 0x88,
-    }
-}
-
-/// Draw the fixed unlicensed line once at the page's bottom-right margin
-/// corner, after all content. Shaped via the regular embedded face and drawn
-/// through the same shaped-glyph path as body text, so ToUnicode stays real
-/// (the string extracts) — paint-level, author CSS has no say in it.
-fn draw_watermark(surface: &mut krilla::surface::Surface, page_w: f32, page_h: f32) -> Result<()> {
-    let font = font_for(crate::fonts::FACE_REGULAR)?;
-    let run = crate::typography::shape_word(
-        WATERMARK_TEXT,
-        crate::geom::Scalar(WATERMARK_FONT_SIZE as f64),
-        crate::fonts::FACE_REGULAR,
-    );
-    let width = run.width.to_f32() as f32;
-    let x = (page_w - WATERMARK_INSET - width).max(0.0);
-    // Baseline sits one line-height above the bottom edge.
-    let y = (page_h - WATERMARK_INSET).max(WATERMARK_FONT_SIZE);
-    surface.set_fill(Some(solid_fill(watermark_color())));
-    let glyphs = to_krilla_glyphs(&run.glyphs, WATERMARK_FONT_SIZE, 0.0, 0.0);
-    surface.draw_glyphs(
-        Point::from_xy(x, y),
-        &glyphs,
-        font.clone(),
-        &run.text,
-        WATERMARK_FONT_SIZE,
-        false,
-    );
-    Ok(())
 }
 
 /// One text draw call, resolved to absolute page coordinates.

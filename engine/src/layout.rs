@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! Block fragmentation: layout as a pure function producing a fragment tree.
 //!
 //! LayoutNG's model, greenfield. Layout is

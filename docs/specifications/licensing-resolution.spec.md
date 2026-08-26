@@ -5,11 +5,11 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-21
-updated: 2026-08-25
+updated: 2026-08-26
 sidebar_position: 24
 tags: [engine, licensing, agpl, distribution]
 spec_id: licensing-resolution
-issue_id: CORE-115
+issue_id: CORE-125
 applies_to: engine 0.x
 dependencies: []
 ---
@@ -105,3 +105,13 @@ the engine in proprietary software (dual licensing) — optional, later.
 - Prior research brief (historical context):
   `docs/research/licensing/licensing-and-distribution.md`
 - AGPL-3.0 text: https://www.gnu.org/licenses/agpl-3.0.txt
+- Dependency license audit (2026-08-26, CORE-125): all 182 normal-scope
+  dependencies of the engine verified via `cargo tree -e normal` + registry
+  `Cargo.toml` inspection. License families present: MIT (+ "Unlicense OR
+  MIT"), Apache-2.0 (with LLVM/ISC exceptions on derive crates), BSD-2/3,
+  MPL-2.0 (servo/stylo stack: stylo, cssparser, selectors, app_units,
+  to_shmem, uluru), Unicode-3.0 (icu4x family), Zlib (slotmap). Every one
+  is compatible with AGPL-3.0-only distribution; no copyleft-incompatible
+  or unknown-license dependency exists. Re-audit command:
+  `cargo tree -e normal --prefix none | sort -u`, then check each crate's
+  `license` field.

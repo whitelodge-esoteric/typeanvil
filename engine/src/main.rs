@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! Typeanvil CLI — walking skeleton.
 //!
 //! Contract (driven by the Python harness, `harness/engine.py`):
@@ -9,7 +11,6 @@
 //!     --margin-bottom 0.5in --margin-left 0.5in \
 //!     --base-url http://127.0.0.1:PORT/ \
 //!     --title "Q3 Report" --author "A. Author" \
-//!     [--license <path>] \
 //!     [--diagnostics <json|text>] \
 //!     -o <output.pdf>
 //!
@@ -26,7 +27,6 @@ use anyhow::{anyhow, bail, Context, Result};
 use typeanvil::css::Stylesheet;
 use typeanvil::dom::Dom;
 use typeanvil::geom::{PageGeometry, Scalar};
-use typeanvil::licensing::{self, LicenseState};
 use typeanvil::{dom, layout, pdf};
 
 fn main() -> ExitCode {
@@ -64,7 +64,6 @@ struct RenderArgs {
     base_url: String,
     title: Option<String>,
     author: Option<String>,
-    license: Option<PathBuf>,
     /// Emit a logical structure tree (CORE-111).
     tagged: bool,
     /// Additionally run krilla's PDF/UA-1 validator (implies tagged).
@@ -101,17 +100,10 @@ fn render(args: Vec<String>) -> Result<()> {
     let laid_out = layout::layout(&dom, &stylesheet, geometry);
     let meta = typeanvil::metadata::extract_metadata(&dom, opts.title, opts.author);
 
-    // License resolution (CORE-115): debug builds bypass entirely; release
-    // builds enforce. Missing → watermarked render (not an error); a
-    // found-but-broken file fails loudly here before any rendering.
-    let license_state = licensing::resolve(opts.license.as_deref())?;
-    let watermark = matches!(license_state, LicenseState::Missing);
-
     let bytes = pdf::render_with_options(
         &laid_out,
         Some(&dom),
         &meta,
-        watermark,
         opts.tagged,
         opts.ua,
     )
@@ -165,7 +157,6 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
     let mut base_url = String::new();
     let mut title: Option<String> = None;
     let mut author: Option<String> = None;
-    let mut license: Option<PathBuf> = None;
     let mut tagged = false;
     let mut ua = false;
     let mut diagnostics: Option<DiagnosticsMode> = None;
@@ -185,7 +176,6 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
             "--base-url" => base_url = next_value(&mut it, &arg)?,
             "--title" => title = Some(next_value(&mut it, &arg)?),
             "--author" => author = Some(next_value(&mut it, &arg)?),
-            "--license" => license = Some(PathBuf::from(next_value(&mut it, &arg)?)),
             "--tagged" => tagged = true,
             "--ua" => {
                 tagged = true;
@@ -222,7 +212,6 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
         base_url,
         title,
         author,
-        license,
         tagged,
         ua,
         diagnostics,

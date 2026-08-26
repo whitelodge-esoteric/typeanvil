@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! Image interning for `<img>` elements (CORE-106).
 //!
 //! The engine decodes nothing itself: krilla 0.8 parses PNG/JPEG headers and

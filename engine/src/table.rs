@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! Table layout helpers (CORE-61 tables × page breaks; CORE-89 first-page
 //! column freeze).
 //!

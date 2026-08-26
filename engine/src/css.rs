@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! CSS cascade — driven by Servo's `stylo` engine.
 //!
 //! [`ComputedStyle`] is the output contract: layout and PDF read only this.

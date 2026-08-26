@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! Arithmetic and geometry primitives.
 //!
 //! ## Arithmetic decision (walking skeleton)

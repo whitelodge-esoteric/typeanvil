@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! Multi-column layout (css-multicol-1) — CORE-63.
 //!
 //! A box with `column-count: > 1` (or `column-width` set) lays its items into

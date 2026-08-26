@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! PDF document metadata extraction from the parsed DOM (CORE-105).
 //!
 //! Values come only from the document (or explicit CLI overrides) — never

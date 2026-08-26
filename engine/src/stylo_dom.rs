@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! Servo stylo DOM trait family over Typeanvil's arena DOM.
 //!
 //! Implements the `TDocument` / `TNode` / `TElement` / `TShadowRoot` traits

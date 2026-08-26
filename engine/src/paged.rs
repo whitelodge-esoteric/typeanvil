@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! Paged-media CSS: `@page` rules, margin boxes, running strings, counters,
 //! and generated content — the wedge features layered on top of the CORE-51
 //! fragment tree.

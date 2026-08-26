@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! The fragment tree: the sole, immutable output of layout.
 //!
 //! LayoutNG's model, greenfield. Layout is a pure function

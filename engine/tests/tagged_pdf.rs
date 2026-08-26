@@ -50,8 +50,8 @@ fn laid_out(html: &str) -> (Dom, typeanvil::layout::Layout) {
 fn untagged_path_is_byte_stable() {
     let (_dom, layout) = laid_out(DOC);
     let meta = DocumentMetadata::default();
-    let old = render_with_metadata(&layout, &meta, false).unwrap();
-    let new = render_with_options(&layout, None, &meta, false, false, false).unwrap();
+    let old = render_with_metadata(&layout, &meta).unwrap();
+    let new = render_with_options(&layout, None, &meta, false, false).unwrap();
     assert_eq!(old, new);
 }
 
@@ -63,11 +63,11 @@ fn tagged_render_is_deterministic() {
         title: Some("T".into()),
         ..DocumentMetadata::default()
     };
-    let a = render_with_options(&layout, Some(&dom), &meta, false, true, false).unwrap();
-    let b = render_with_options(&layout, Some(&dom), &meta, false, true, false).unwrap();
+    let a = render_with_options(&layout, Some(&dom), &meta, true, false).unwrap();
+    let b = render_with_options(&layout, Some(&dom), &meta, true, false).unwrap();
     assert_eq!(a, b);
     // Tagged output differs from untagged (structure objects exist).
-    let plain = render_with_metadata(&layout, &meta, false).unwrap();
+    let plain = render_with_metadata(&layout, &meta).unwrap();
     assert_ne!(a, plain);
 }
 
@@ -113,7 +113,7 @@ fn ua_validator_gates_conformance() {
     let bad = "<html><body><p>No metadata here.</p></body></html>";
     let (dom, layout) = laid_out(bad);
     let meta = DocumentMetadata::default();
-    let err = render_with_options(&layout, Some(&dom), &meta, false, true, true);
+    let err = render_with_options(&layout, Some(&dom), &meta, true, true);
     assert!(err.is_err(), "incomplete document must fail UA validation");
 
     // Completed: title (both <title> and metadata) + lang + real content.
@@ -125,7 +125,7 @@ fn ua_validator_gates_conformance() {
         title: Some("Complete".into()),
         ..DocumentMetadata::default()
     };
-    if let Err(e) = render_with_options(&layout2, Some(&dom2), &meta2, false, true, true) {
+    if let Err(e) = render_with_options(&layout2, Some(&dom2), &meta2, true, true) {
         panic!("complete document should pass UA validation: {e:?}");
     }
 }

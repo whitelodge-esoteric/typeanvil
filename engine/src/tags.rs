@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! Logical structure tagging (CORE-111): HTML semantics → PDF structure tree.
 //!
 //! Two halves:
@@ -10,7 +12,7 @@
 //! `start_tagged(ContentTag::Other)` pair and records `(page, Identifier,
 //! resolved owner)`. The owner is the nearest ancestor fragment with a
 //! non-None `source` NodeId; unsourced subtrees (margin boxes, page
-//! background, watermark) are Artifacts and carry no entry here.
+//! background) are Artifacts and carry no entry here.
 
 use crate::dom::{Dom, Element, NodeId, NodeKind};
 use krilla::tagging::{Identifier, TableHeaderScope, TagKind, TagTree};

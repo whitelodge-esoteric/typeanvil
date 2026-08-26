@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! Typography: real text shaping + Knuth-Plass total-fit line breaking.
 //!
 //! This module replaces the skeleton's greedy first-fit breaker and its

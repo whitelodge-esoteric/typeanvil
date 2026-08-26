@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
 //! Flex layout (css-flexbox-1) — CORE-65.
 //!
 //! A box with `display: flex` / `inline-flex` lays its in-flow children as
