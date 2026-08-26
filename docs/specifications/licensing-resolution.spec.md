@@ -55,6 +55,10 @@ the engine in proprietary software (dual licensing) — optional, later.
 - Watermark rendering in `pdf.rs` — dropped.
 - Phone-home telemetry of any kind.
 - A `typeanvil license` subcommand — dropped.
+- License-checking code for a future commercial license — a commercial
+  license (use without AGPL obligations) is a legal contract + billing
+  channel, delivered as permission, not a key. It never lives in the
+  runtime; enforcement is legal + the cloud API gateway.
 
 ## Behavior
 

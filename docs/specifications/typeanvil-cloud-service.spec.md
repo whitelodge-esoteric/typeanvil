@@ -85,6 +85,15 @@ The platform shall:
 6. **Keep the OSS runtime fully capable standalone.** The cloud adds no
    engine capability that is withheld from the open-source build; paid
    value is hosting, parallelism, collaboration, and integrations.
+7. **Apply free-tier watermarks at the cloud layer, never in the runtime.**
+   Preview/free renders get a watermark injected by the platform (an
+   injected `@page` margin-box rule or post-process), enabled per plan.
+   Paid tiers render clean. Author-requested watermarks are a normal CSS
+   `@page` margin-box feature and need no platform involvement.
+8. **Enforce entitlements only at the API gateway.** There is no license
+   check in the runtime; AGPL governs the free engine and API keys govern
+   the paid service. Commercial licensing (if offered later) is a legal +
+   billing channel, not a runtime feature.
 
 ## Acceptance Criteria
 
