@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="typeanvil-wordmark-dark.svg">
-    <img src="typeanvil-wordmark.svg" alt="Typeanvil" width="340" />
+    <source media="(prefers-color-scheme: dark)" srcset="typeanvil-lockup-white.svg">
+    <img src="typeanvil-lockup.svg" alt="Typeanvil" width="340" />
   </picture>
 </p>
 
