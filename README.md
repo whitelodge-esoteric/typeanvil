@@ -84,7 +84,7 @@ Full methodology, per-fixture tables, and reproduction steps:
 Build from source (current stable Rust):
 
 ```bash
-git clone https://github.com/elijahboston/typeanvil
+git clone https://github.com/whitelodge-esoteric/typeanvil
 cd typeanvil/engine
 cargo build --release
 ```
