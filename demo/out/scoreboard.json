@@ -1,6 +1,6 @@
 {
-  "generated": "2026-08-25T01:21:55Z",
-  "typeanvil_version": "ebaf14e",
+  "generated": "2026-08-31T14:37:56Z",
+  "typeanvil_version": "fd43280",
   "prince_version": "Prince 16.2",
   "docs": [
     {
@@ -275,10 +275,10 @@
         },
         {
           "page": 10,
-          "diff_percent": 2.165798611111111
+          "diff_percent": 1.0850694444444444
         }
       ],
-      "overall_diff_percent": 7.982783564814815,
+      "overall_diff_percent": 7.874710648148148,
       "render_error": null
     },
     {

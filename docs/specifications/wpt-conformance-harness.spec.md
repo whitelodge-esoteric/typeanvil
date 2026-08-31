@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: elijah
 created: 2026-08-16
-updated: 2026-08-21
+updated: 2026-08-31
 sidebar_position: 1
 tags: [harness, wpt, conformance, testing]
 spec_id: wpt-conformance-harness
@@ -198,6 +198,56 @@ Given/When/Then, each mapping to a real test in `tests/`:
 - **Worker dies** → `ERROR` (`worker crash`), run continues.
 - **Filter matches nothing** → an empty run is recorded, not an error.
 - **Missing fuzzy per-ref key** → falls back to the test-level fuzzy budget.
+
+## Conformance baselines
+
+The engine's first recorded baselines (scoring section above defines the
+pass semantics; runs live in `history.sqlite`, per-run details in
+`wptreport.json` at the repo root):
+
+**First full-suite run — 2026-08-31, run #23, engine `fd43280`.** The
+enumerable suite is 283 tests; earlier recorded runs used subsets
+(css-page 25, css-break 63) and are not comparable to full-suite numbers.
+
+| Bucket | Pass | Rate |
+|---|---|---|
+| css-break (core) | 15/22 | 68% |
+| css-break/flexbox | 11/27 | 41% |
+| css-break/table | 8/13 | 62% |
+| css-multicol | 4/5 | 80% |
+| css-page (excl. margin-boxes) | 77/174 | 44% |
+| css-page/margin-boxes | 0/37 | 0% |
+| **Total** | **117/283** | **41.3%** |
+
+Named residual drivers (attribution follows `demo/TRIAGE.md` conventions):
+
+- **Margin-box styling layer missing** (0/37): all 16 margin-box positions
+  render with correct content, but `@page` font inheritance, margin-box
+  width/height/auto-margin geometry, borders, backgrounds, and
+  `vertical-align` are unimplemented — **CORE-126**.
+- **css-page core families** (~97 fails): `page-name-*` propagation/selection
+  (~30), `fixedpos-*` page repetition (10), page-box/page-size/page-margin
+  completeness + misc tail (~50) — **CORE-127**.
+- **css-break/flexbox** (16 fails): 8 inline-block geometry residuals
+  (081a–d/082a–d; page counts already match post-CORE-120), 4
+  reference-limited tests (refs depend on block-path declared-height,
+  unpassable by design until that feature lands), 063/060/065/045
+  page-count mismatches.
+- **css-break/table** (5 fails): `table-fragmentation-002a–d` pixel-budget
+  (deferred, unowned) + `fixedpos-in-footer-forced-break`.
+
+Reproduce the baseline:
+
+```sh
+cargo build --manifest-path engine/Cargo.toml
+.venv/bin/python -m harness run --engine cli \
+    --cli-cmd "engine/target/debug/typeanvil render"
+```
+
+Run with the repo venv (`.venv/bin/python`): the system python lacks
+Pillow/pypdfium2 and every test errors at rasterization. `--cli-cmd` is
+required — without it every test fails as `worker crash`/`AssertionError`
+(observed 2026-08-31, runs #20–#21).
 
 ## References
 
