@@ -1,0 +1,162 @@
+# Release CI (CORE-135): tag → cross-platform binaries → GitHub Releases.
+#
+# Trigger: push of a tag `v*`. Version is CalVer (YYYY.0M.PATCH), decided on
+# CORE-133; the tag is the single source of truth — engine/Cargo.toml is
+# stamped from the tag at build time and never hand-edited.
+#
+# DETERMINISM (do not change without reading docs/specifications/release-ci.spec.md):
+# The repo's [profile.release] in engine/Cargo.toml pins `lto = "thin"` and
+# relies on rustc defaults (no fast-math, no reassociation, IEEE-754 semantics
+# preserved; FMA contraction forbidden at call sites). This workflow must NOT
+# add RUSTFLAGS that alter float semantics (e.g. -C target-feature=+fma,
+# -C float-fast-math) or override LTO.
+#
+# DECIDED 2026-09-03: hand-rolled build matrix (not cargo-dist) — see the
+# spec's Decision section for rationale.
+
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  derive-version:
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - name: Derive CalVer version from tag
+        id: v
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          # CalVer: YYYY.0M.PATCH — year, zero-padded month, patch.
+          if ! echo "$version" | grep -Eq '^[0-9]{4}\.[0-9]{2}\.[0-9]+$'; then
+            echo "::error::Tag $TAG is not CalVer (expected vYYYY.0M.PATCH, e.g. v2026.9.0)"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: build ${{ matrix.target }}
+    needs: derive-version
+    runs-on: ${{ matrix.runs-on }}
+    # Re-runnability: a failed target must not block the others (Behavior 8).
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            runs-on: macos-14
+          - target: x86_64-apple-darwin
+            runs-on: macos-13
+          - target: x86_64-unknown-linux-gnu
+            runs-on: ubuntu-22.04
+          - target: x86_64-unknown-linux-musl
+            runs-on: ubuntu-22.04
+          - target: aarch64-unknown-linux-gnu
+            runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # aarch64-linux cross-compile via zig as the linker/cross toolchain
+      # (cargo-zigbuild). No QEMU run needed: we only build, not run tests.
+      - name: Install cargo-zigbuild (aarch64-linux only)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: pipx install cargo-zigbuild && pipx ensurepath
+
+      - name: Stamp engine version from tag
+        env:
+          VERSION: ${{ needs.derive-version.outputs.version }}
+        run: |
+          cd engine
+          # Rewrite [package].version from the tag (Behavior 3). The pattern
+          # matches exactly one line in Cargo.toml (verified: only the
+          # package version is anchored at line start).
+          sed -i.bak -E 's/^version = ".*"/version = "'"$VERSION"'"/' Cargo.toml
+          rm Cargo.toml.bak
+          grep '^version' Cargo.toml
+
+      - name: Build (release)
+        env:
+          VERSION: ${{ needs.derive-version.outputs.version }}
+        run: |
+          cd engine
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
+            export PATH="$HOME/.local/pipx/venvs/cargo-zigbuild/bin:$PATH"
+            cargo zigbuild --release --target aarch64-unknown-linux-gnu
+          else
+            cargo build --release --target ${{ matrix.target }}
+          fi
+
+      - name: Verify --version matches tag
+        env:
+          VERSION: ${{ needs.derive-version.outputs.version }}
+        run: |
+          BIN="engine/target/${{ matrix.target }}/release/typeanvil"
+          ACTUAL=$("$BIN" --version)
+          EXPECTED="typeanvil $VERSION"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::--version mismatch: got '$ACTUAL', expected '$EXPECTED'"
+            exit 1
+          fi
+          echo "version check ok: $ACTUAL"
+
+      - name: Package artifact
+        env:
+          VERSION: ${{ needs.derive-version.outputs.version }}
+        run: |
+          STAGING="typeanvil-$VERSION-${{ matrix.target }}"
+          mkdir -p "$STAGING"
+          cp "engine/target/${{ matrix.target }}/release/typeanvil" "$STAGING/"
+          cp scripts/release-README.md "$STAGING/README.md"
+          tar -czf "$STAGING.tar.gz" "$STAGING"
+          echo "ARTIFACT=$STAGING.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.derive-version.outputs.version }}-${{ matrix.target }}
+          path: typeanvil-*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    needs: [derive-version, build]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+
+      - name: Generate SHA256SUMS
+        env:
+          VERSION: ${{ needs.derive-version.outputs.version }}
+        run: |
+          cd dist
+          # Hash only this release's tarballs (Behavior 6).
+          sha256sum typeanvil-"$VERSION"-*.tar.gz > SHA256SUMS
+
+      - name: Attach to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Create the release if missing, then upload (idempotent re-runs).
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --title "$TAG" --generate-notes
+          gh release upload "$TAG" dist/* --clobber
