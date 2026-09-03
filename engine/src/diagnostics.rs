@@ -19,6 +19,32 @@
 
 use std::fmt::Write as _;
 
+/// Broken-anchor events collected during layout (CORE-128): elements that
+/// carry a `bookmark-*` declaration but resolve to no destination. Appended
+/// by `layout::collect_headings`; drained by `main.rs` when `--diagnostics`
+/// is active, and only then (zero cost on a plain render). A `Vec` with
+/// single-threaded layout keeps this deterministic.
+static BROKEN_ANCHORS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+/// Record one `bookmark-anchor-unresolved` event: `element` describes the
+/// node (tag + id/class if present). Called from layout; the message is
+/// appended to the diagnostics stream when `--diagnostics` runs.
+pub fn report_bookmark_anchor_unresolved(element: String) {
+    if let Ok(mut v) = BROKEN_ANCHORS.lock() {
+        v.push(element);
+    }
+}
+
+/// Drain the collected broken-anchor events (in report order). Empty when no
+/// render produced any (or this is a plain render that never drained).
+pub fn take_broken_anchors() -> Vec<String> {
+    if let Ok(mut v) = BROKEN_ANCHORS.lock() {
+        std::mem::take(&mut *v)
+    } else {
+        Vec::new()
+    }
+}
+
 /// One diagnostic event. Schema 1 fields only — see the spec's JSON schema.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Diagnostic {
@@ -41,6 +67,9 @@ const SUPPORTED_PROPERTIES: &[&str] = &[
     "align-items",
     "align-self",
     "background-color",
+    "bookmark-label",
+    "bookmark-level",
+    "bookmark-state",
     "border",
     "border-bottom",
     "border-bottom-color",

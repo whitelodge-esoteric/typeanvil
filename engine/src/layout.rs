@@ -64,17 +64,23 @@ const MAX_PAGES: usize = 100_000;
 /// last pass wins whether or not page numbers converged.
 const MAX_TOC_PASSES: usize = 3;
 
-/// A document-outline entry, in DOM order (nesting by `level` is resolved at
-/// PDF-emit time). Built from `h1`–`h6` elements, each targeted at the page
-/// its heading fragment landed on.
+/// A document-outline entry (CORE-128), in DOM order. Built during layout
+/// from elements whose computed `bookmark-level` is set (UA defaults give
+/// `h1`–`h6` levels 1–6); nesting by level resolves at PDF-emit time.
 #[derive(Clone, Debug)]
 pub struct Heading {
-    /// Heading level 1–6.
+    /// Outline level 1–6 (from `bookmark-level`).
     pub level: u8,
-    /// The heading's text content (the outline entry title).
+    /// The resolved `bookmark-label` (defaults to the element's text).
     pub title: String,
-    /// Zero-based page index the heading landed on.
+    /// `bookmark-state`: `true` = open (children visible).
+    pub state_open: bool,
+    /// Zero-based page index the heading's first fragment landed on.
     pub page_index: usize,
+    /// The first fragment's top y within its page (points, top-left origin).
+    /// `None` = the element produced no fragment (anchor unresolved — the
+    /// entry is dropped with a diagnostic, spec Behavior 8).
+    pub y: Option<f64>,
 }
 
 /// One PDF link-annotation rect, in document paint order (CORE-104).
@@ -202,6 +208,11 @@ struct Flow {
     /// this to distinguish first/last on the page; cleared after each page's
     /// margin boxes attach.
     page_string_sets: Vec<(String, String)>,
+    /// Named counter values (`counter-reset`/`counter-increment` on non-`page`
+    /// names, CORE-128): threaded in document order, read by
+    /// `bookmark-label: ... counter(name)` resolution. A sorted Vec keeps any
+    /// iteration deterministic (same shape as `RunningStrings`).
+    counters: Vec<(String, i32)>,
 }
 
 /// A placed float box: its rectangle in the fragmentainer and its side.
@@ -291,6 +302,10 @@ struct Ctx<'a> {
     /// once per pass in document order. Read by the item collector when it
     /// splices call-marker digits; immune to layout retries within a pass.
     fn_numbers: &'a BTreeMap<NodeId, usize>,
+    /// Named-counter snapshot sink (CORE-128): each bookmarked element's
+    /// counter state captured when its box starts, for `bookmark-label`
+    /// resolution after the pass. A `RefCell` like `links`.
+    counter_snaps: &'a std::cell::RefCell<BTreeMap<NodeId, Vec<(String, i32)>>>,
 }
 
 /// Interned `<img>` info for one source element (CORE-106). Layout reads the
@@ -396,13 +411,14 @@ pub fn layout_with_images_and_store(
     let mut total_pages: usize = 0;
     let mut collected_links: Vec<CollectedLink> = Vec::new();
     let mut pages = Vec::new();
+    let mut final_counters: BTreeMap<NodeId, Vec<(String, i32)>> = BTreeMap::new();
     for _ in 0..passes {
         // Footnote numbers are per-PASS (CORE-107): document order is stable,
         // so the numbers never change mid-pass even though individual pages
         // may be re-laid-out by the footnote retry loop inside `paginate`.
         fn_numbers = collect_footnote_numbers(dom, &styles);
         let sink = std::cell::RefCell::new(Vec::new());
-        let (p, map) = paginate(
+        let (p, map, counters) = paginate(
             dom,
             &styles,
             &page_rules,
@@ -423,12 +439,13 @@ pub fn layout_with_images_and_store(
         pages = p;
         target_pages = map;
         total_pages = pages.len();
+        final_counters = counters;
         if converged {
             break;
         }
     }
-    // Build the heading outline from the final pass's element→page map.
-    let headings = build_headings(dom, &target_pages);
+    // Build the bookmark outline from the final pass's element→page map.
+    let headings = build_headings(dom, &styles, &pages, &target_pages, &final_counters);
     // Resolve internal `#fragment` links against the FINAL pass's id → page
     // map (the same map target-counter uses); unresolved ids drop silently.
     let links = resolve_links(collected_links, dom, &target_pages);
@@ -747,7 +764,11 @@ fn paginate(
     links: &std::cell::RefCell<Vec<CollectedLink>>,
     image_infos: &BTreeMap<NodeId, ImageInfo>,
     fn_numbers: &BTreeMap<NodeId, usize>,
-) -> (Vec<Fragmentainer>, BTreeMap<NodeId, usize>) {
+) -> (
+    Vec<Fragmentainer>,
+    BTreeMap<NodeId, usize>,
+    BTreeMap<NodeId, Vec<(String, i32)>>,
+) {
     let mut pages: Vec<Fragmentainer> = Vec::new();
     let mut incoming = Some(BreakToken::break_before());
     let mut flow = Flow {
@@ -760,7 +781,11 @@ fn paginate(
         abspos: Vec::new(),
         pending_footnotes: Vec::new(),
         page_string_sets: Vec::new(),
+        counters: Vec::new(),
     };
+    // CORE-128: per-element counter snapshots, filled as bookmarked boxes
+    // start (read by `build_headings` after the pass).
+    let counter_snaps = std::cell::RefCell::new(BTreeMap::new());
     // The named page in effect, carried across pages until an element switches
     // it (spec §4).
     let mut current_name: Option<String> = None;
@@ -806,6 +831,7 @@ fn paginate(
             page_index,
             image_infos,
             fn_numbers,
+            counter_snaps: &counter_snaps,
         };
         let mut fragmentainer = Fragmentainer::new(page_index, spec.size);
         fragmentainer.background = spec.background;
@@ -844,6 +870,7 @@ fn paginate(
                         page_index,
                         image_infos,
                         fn_numbers,
+                        counter_snaps: &counter_snaps,
                     };
                     res = ctx2.layout_root(root, content.y, &token, &mut flow);
                 }
@@ -934,7 +961,12 @@ fn paginate(
         record_sources(&page.root, page.index, &mut map);
     }
 
-    (pages, map)
+    // CORE-128: capture the named-counter state at the END of the pass (the
+    // final values of every `counter-reset`/`counter-increment`-touched
+    // counter) for `bookmark-label` resolution.
+    let final_counters = flow.counters.clone();
+
+    (pages, map, counter_snaps.into_inner())
 }
 
 /// Paint-time offset of a relatively-positioned box (css-position-3 §6.2):
@@ -1437,12 +1469,37 @@ impl<'a> Ctx<'a> {
             for (name, n) in &style.counter_reset {
                 if name.eq_ignore_ascii_case("page") {
                     flow.page_base = *n - flow.current_index as i32;
+                } else {
+                    // CORE-128: named counters for `bookmark-label` resolution.
+                    match flow.counters.iter_mut().find(|(k, _)| k == name) {
+                        Some((_, v)) => *v = *n,
+                        None => flow.counters.push((name.clone(), *n)),
+                    }
                 }
             }
             for (name, n) in &style.counter_increment {
                 if name.eq_ignore_ascii_case("page") {
                     flow.page_base += *n;
+                } else {
+                    match flow.counters.iter_mut().find(|(k, _)| k == name) {
+                        Some((_, v)) => *v += *n,
+                        None => flow.counters.push((name.clone(), *n)),
+                    }
                 }
+            }
+            // CORE-128: a bookmarked element's label may read `counter(name)`;
+            // snapshot the counter state at its box start. The LAST snapshot
+            // wins (a box that starts on multiple pages keeps its label at the
+            // final pass's first-fragment state — the fragment-level map in
+            // `record_anchor` uses first occurrence, so the earliest snapshot
+            // survives here via entry-or-insert semantics).
+            if !matches!(style.bookmark_level, crate::css::BookmarkLevel::None)
+                || !style.bookmark_label.is_empty()
+            {
+                self.counter_snaps
+                    .borrow_mut()
+                    .entry(id)
+                    .or_insert_with(|| flow.counters.clone());
             }
         }
 
@@ -4510,49 +4567,161 @@ fn render_margin_content(
     out
 }
 
-/// Collect `h1`–`h6` headings in DOM (pre-order / document) order, each with
-/// its text content and the page its fragment landed on. Headings whose box
-/// was suppressed (no fragment) fall back to page 0 so a bookmark still emits
-/// (spec edge case).
-fn build_headings(dom: &Dom, target_pages: &BTreeMap<NodeId, usize>) -> Vec<Heading> {
+/// Collect bookmark outline entries (CORE-128) in DOM (pre-order / document)
+/// order: every element whose computed `bookmark-level` is set. Each entry
+/// carries its resolved `bookmark-label`, `bookmark-state`, and the page +
+/// y-anchor of the element's first fragment. An element with a bookmark
+/// declaration but NO fragment on any page (suppressed box) emits a
+/// `bookmark-anchor-unresolved` diagnostic and no entry (spec Behavior 8).
+fn build_headings(
+    dom: &Dom,
+    styles: &[ComputedStyle],
+    pages: &[Fragmentainer],
+    target_pages: &BTreeMap<NodeId, usize>,
+    counter_snaps: &BTreeMap<NodeId, Vec<(String, i32)>>,
+) -> Vec<Heading> {
+    // Element → (page, y) from the fragment trees: same walk as
+    // `record_sources`, plus the accumulated y-offset of the first fragment.
+    let mut anchors: BTreeMap<NodeId, (usize, f64)> = BTreeMap::new();
+    for page in pages {
+        record_anchor(&page.root, page.index, 0.0, &mut anchors);
+    }
+
     let mut out = Vec::new();
-    collect_headings(dom, dom.root, target_pages, &mut out);
+    collect_headings(
+        dom,
+        dom.root,
+        styles,
+        target_pages,
+        &anchors,
+        counter_snaps,
+        &mut out,
+    );
     out
 }
 
+/// Accumulate each sourced element's first-fragment page + top y. Fragment
+/// offsets are parent-relative, so the walk accumulates down the tree
+/// (CORE-121 lesson); the first (document-order) occurrence wins.
+fn record_anchor(
+    frag: &Fragment,
+    page_index: usize,
+    parent_y: f64,
+    map: &mut BTreeMap<NodeId, (usize, f64)>,
+) {
+    let abs_y = parent_y + frag.offset.y.get();
+    if let Some(src) = frag.source {
+        map.entry(src).or_insert((page_index, abs_y));
+    }
+    for child in &frag.children {
+        record_anchor(child, page_index, abs_y, map);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn collect_headings(
     dom: &Dom,
     id: NodeId,
+    styles: &[ComputedStyle],
     target_pages: &BTreeMap<NodeId, usize>,
+    anchors: &BTreeMap<NodeId, (usize, f64)>,
+    counter_snaps: &BTreeMap<NodeId, Vec<(String, i32)>>,
     out: &mut Vec<Heading>,
 ) {
-    if let NodeKind::Element(el) = &dom.nodes[id].kind {
-        let level = match el.tag.as_str() {
-            "h1" => Some(1),
-            "h2" => Some(2),
-            "h3" => Some(3),
-            "h4" => Some(4),
-            "h5" => Some(5),
-            "h6" => Some(6),
-            _ => None,
+    if let NodeKind::Element(_) = &dom.nodes[id].kind {
+        let style = &styles[id];
+        let level = match style.bookmark_level {
+            crate::css::BookmarkLevel::None => None,
+            crate::css::BookmarkLevel::Level(n) => Some(n),
         };
         if let Some(level) = level {
-            let title = dom
-                .text_content(id)
-                .split_whitespace()
-                .collect::<Vec<_>>()
-                .join(" ");
-            let page_index = target_pages.get(&id).copied().unwrap_or(0);
-            out.push(Heading {
-                level,
-                title,
-                page_index,
-            });
+            match target_pages.get(&id) {
+                Some(&page_index) => {
+                    // Resolved label: `bookmark-label` pieces, or the element's
+                    // own text when unset (the `contents()` default).
+                    let title = if style.bookmark_label.is_empty() {
+                        dom.text_content(id)
+                            .split_whitespace()
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    } else {
+                        resolve_bookmark_label(style, id, counter_snaps)
+                    };
+                    let y = anchors.get(&id).map(|(_, y)| *y).unwrap_or(0.0);
+                    out.push(Heading {
+                        level,
+                        title,
+                        state_open: !style.bookmark_closed,
+                        page_index,
+                        y: Some(y),
+                    });
+                }
+                None => {
+                    // Spec Behavior 8: a bookmark declaration that resolves to
+                    // no destination (the element produced no fragment) is a
+                    // warning and no entry — never an invalid destination
+                    // (krilla panics on out-of-range page indexes). The
+                    // event drains through `--diagnostics` in main.rs.
+                    let el = &dom.nodes[id];
+                    let desc = match &el.kind {
+                        NodeKind::Element(e) => {
+                            let mut s = format!("<{}", e.tag);
+                            if let Some(id_attr) = &e.id {
+                                s.push_str(&format!(" id=\"{id_attr}\""));
+                            }
+                            if !e.classes.is_empty() {
+                                s.push_str(&format!(" class=\"{}\"", e.classes.join(" ")));
+                            }
+                            s.push('>');
+                            s
+                        }
+                        _ => "element".to_string(),
+                    };
+                    crate::diagnostics::report_bookmark_anchor_unresolved(format!(
+                        "bookmark-anchor-unresolved: {desc} has bookmark-* declarations but resolves to no destination"
+                    ));
+                }
+            }
         }
     }
     for &child in &dom.nodes[id].children {
-        collect_headings(dom, child, target_pages, out);
+        collect_headings(dom, child, styles, target_pages, anchors, counter_snaps, out);
     }
+}
+
+/// Resolve a `bookmark-label` content list to the outline entry text
+/// (CORE-128). Literals pass through; `counter(name)` reads the counter state
+/// captured at the element's box start (`counter_snaps`); the other piece
+/// kinds (`string()`, `counter(page|pages)`, `target-counter`, `leader()`)
+/// contribute nothing — page state is not retained per element (documented
+/// residual; literal + counter covers the css-gcpm examples).
+fn resolve_bookmark_label(
+    style: &ComputedStyle,
+    id: NodeId,
+    counter_snaps: &BTreeMap<NodeId, Vec<(String, i32)>>,
+) -> String {
+    let mut out = String::new();
+    for piece in &style.bookmark_label {
+        match piece {
+            crate::paged::ContentPiece::Literal(s) => out.push_str(s),
+            crate::paged::ContentPiece::CounterRef(name) => {
+                if let Some(snaps) = counter_snaps.get(&id) {
+                    let val = snaps
+                        .iter()
+                        .find(|(k, _)| k == name)
+                        .map(|(_, v)| *v)
+                        .unwrap_or(0);
+                    out.push_str(&val.to_string());
+                }
+            }
+            crate::paged::ContentPiece::StringRef(..) => {}
+            crate::paged::ContentPiece::CounterPage => {}
+            crate::paged::ContentPiece::CounterPages => {}
+            crate::paged::ContentPiece::TargetCounter { .. } => {}
+            crate::paged::ContentPiece::Leader(_) => {}
+        }
+    }
+    out
 }
 
 /// Parse an HTML `width`/`height` attribute as a CSS px length (CORE-106).

@@ -246,6 +246,17 @@ pub enum FontStyle {
     Italic,
 }
 
+/// The computed `bookmark-level` value (css-gcpm-3 §Bookmarks, CORE-128).
+/// `None` suppresses the outline entry; `Level(1..=6)` sets the entry's
+/// nesting depth (UA default maps `h1`–`h6` to levels 1–6).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BookmarkLevel {
+    /// No outline entry for this box.
+    None,
+    /// Outline level 1–6.
+    Level(u8),
+}
+
 /// The value of a single `string-set` assignment.
 ///
 /// Only `content()` (the element's own text content) is modeled; `attr()` and
@@ -389,6 +400,15 @@ pub struct ComputedStyle {
     pub counter_reset: Vec<(String, i32)>,
     /// `counter-increment` declarations: `(counter name, delta)` pairs.
     pub counter_increment: Vec<(String, i32)>,
+    /// `bookmark-level` (css-gcpm-3, CORE-128). `None` suppresses the
+    /// outline entry; `Level(1..=6)` sets the nesting depth.
+    pub bookmark_level: BookmarkLevel,
+    /// `bookmark-label` as an ordered content-piece list (parsed by the
+    /// same parser as `content`). Empty = `contents()` (element text).
+    pub bookmark_label: Vec<crate::paged::ContentPiece>,
+    /// Whether a `bookmark-state: closed` declaration won the cascade
+    /// (default `false` = open, the css-gcpm initial).
+    pub bookmark_closed: bool,
     /// The `content` property, as an ordered generated-content piece list
     /// (empty when unset). Used by the TOC:
     /// `content: leader('.') target-counter(attr(href), page)`.
@@ -483,11 +503,16 @@ impl ComputedStyle {
             string_set: Vec::new(),
             counter_reset: Vec::new(),
             counter_increment: Vec::new(),
+            // Initial = "not bookmarked" (suppressed). The UA sheet's heading
+            // rules set the real defaults through `apply_paged_properties`;
+            // non-heading elements without an author declaration stay None.
+            bookmark_level: BookmarkLevel::None,
+            bookmark_label: Vec::new(),
+            bookmark_closed: false,
             content: Vec::new(),
             float_footnote: false,
         }
     }
-
 }
 
 // --- OpenType feature resolution (CORE-113) --------------------------------
@@ -713,7 +738,7 @@ impl FontMetricsProvider for SkeletonFontMetrics {
 /// seeded with the author stylesheet, and the lock that guards the parsed
 /// rules. The [`TyBackend`] (element-data arena) lives alongside at the call
 /// site so its `'a`-tied references don't fight the session's own borrows.
-struct CascadeSession {
+pub(crate) struct CascadeSession {
     stylist: Stylist,
     _lock: SharedRwLock,
 }
@@ -721,7 +746,7 @@ struct CascadeSession {
 impl CascadeSession {
     /// Minimal UA stylesheet: the HTML default block layout the engine needs.
     /// (Stylo ships no defaults; without this, h1/p/etc. compute as inline.)
-    const UA_CSS: &'static str = r#"
+    pub(crate) const UA_CSS: &'static str = r#"
         html, body, div, p, h1, h2, h3, h4, h5, h6, ul, ol, li, dl, dt, dd,
         blockquote, pre, section, article,
         header, footer, nav, main, aside, figure, figcaption { display: block; }
@@ -749,6 +774,19 @@ impl CascadeSession {
         h4 { font-size: 12pt; margin: 16pt 0; }
         h5 { font-size: 10pt; margin: 16.5pt 0; }
         h6 { font-size: 8pt; margin: 21pt 0; }
+        /* CORE-128: Prince html.css maps headings to bookmark levels 1-6
+           with label contents() and open state. The label default is
+           contents() (empty piece list), so only level + state are declared.
+           NOTE: comment text must not contain a `/*` marker pair, because the
+           author-CSS strip_comments skips from the FIRST comment open to the
+           FIRST close (CORE-95: a stray `//` line comment poisons stylo's
+           rule stream; the same scanner consumes the paged pass). */
+        h1 { bookmark-level: 1; bookmark-state: open; }
+        h2 { bookmark-level: 2; bookmark-state: open; }
+        h3 { bookmark-level: 3; bookmark-state: open; }
+        h4 { bookmark-level: 4; bookmark-state: open; }
+        h5 { bookmark-level: 5; bookmark-state: open; }
+        h6 { bookmark-level: 6; bookmark-state: open; }
         p { margin: 1.12em 0; }
         ul, ol { padding-left: 40pt; margin: 1.12em 0; }
         // CORE-92: Prince applies no default body margin in print (probe
@@ -1284,6 +1322,12 @@ impl CascadeSession {
             string_set: Vec::new(),
             counter_reset: Vec::new(),
             counter_increment: Vec::new(),
+            // Bookmark defaults come from the UA sheet via the paged pass
+            // (h1-h6 levels 1-6, open). Initial here = suppressed: a
+            // `Level(1)` initial would bookmark every element.
+            bookmark_level: BookmarkLevel::None,
+            bookmark_label: Vec::new(),
+            bookmark_closed: false,
             content: Vec::new(),
             float_footnote: false,
         }
@@ -1602,8 +1646,14 @@ pub fn cascade(dom: &Dom, stylesheet: &Stylesheet, geometry: &crate::geom::PageG
     // Second pass: fill the css-break longhands stylo's servo build omits.
     breaks::apply_break_properties(dom, stylesheet.source(), &mut styles);
     // Third pass: fill paged-media properties (page / string-set / counters /
-    // content).
-    paged_props::apply_paged_properties(dom, stylesheet.source(), &mut styles);
+    // content / bookmark-*). The UA sheet's element rules (CORE-128 heading
+    // bookmark defaults) join at UA origin — any author rule wins.
+    paged_props::apply_paged_properties(
+        dom,
+        stylesheet.source(),
+        CascadeSession::UA_CSS,
+        &mut styles,
+    );
     // Fourth pass: fill border widths/colors (CORE-61 tables; the engine's
     // ComputedStyle carries borders for border-collapse rendering).
     borders::apply_border_properties(dom, stylesheet.source(), &mut styles);
@@ -2539,6 +2589,13 @@ mod paged_props {
         CounterReset(Vec<(String, i32)>),
         CounterIncrement(Vec<(String, i32)>),
         Content(Vec<ContentPiece>),
+        /// `bookmark-level: none | <integer>` (CORE-128).
+        BookmarkLevel(super::BookmarkLevel),
+        /// `bookmark-label: <content-list>` — parsed by the same parser as
+        /// `content`.
+        BookmarkLabel(Vec<ContentPiece>),
+        /// `bookmark-state: open | closed` — `true` when `closed`.
+        BookmarkState(bool),
     }
 
     /// Parse `string-set: name content();` (comma-separated pairs).
@@ -2606,6 +2663,36 @@ mod paged_props {
             "counter-reset" => Some(PagedDecl::CounterReset(parse_counters(value, 0))),
             "counter-increment" => Some(PagedDecl::CounterIncrement(parse_counters(value, 1))),
             "content" => Some(PagedDecl::Content(parse_content(value))),
+            "bookmark-level" => {
+                let v = value.trim();
+                if v.eq_ignore_ascii_case("none") {
+                    Some(PagedDecl::BookmarkLevel(super::BookmarkLevel::None))
+                } else if let Ok(n) = v.parse::<u8>() {
+                    // css-gcpm-3: 1..=6; out-of-range integers are invalid and
+                    // the whole declaration is ignored (UA default survives).
+                    if (1..=6).contains(&n) {
+                        Some(PagedDecl::BookmarkLevel(super::BookmarkLevel::Level(n)))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            "bookmark-label" => {
+                let pieces = parse_content(value);
+                // Malformed/empty labels fall back to `contents()` (empty
+                // piece list = element text, spec Behavior 3).
+                Some(PagedDecl::BookmarkLabel(pieces))
+            }
+            "bookmark-state" => {
+                let v = value.trim().to_ascii_lowercase();
+                match v.as_str() {
+                    "open" => Some(PagedDecl::BookmarkState(false)),
+                    "closed" => Some(PagedDecl::BookmarkState(true)),
+                    _ => None,
+                }
+            }
             _ => None,
         }
     }
@@ -2686,8 +2773,32 @@ mod paged_props {
 
     /// Apply paged-media element rules onto the cascaded styles. Later /
     /// more-specific matches win (same priority model as [`breaks`]).
-    pub fn apply_paged_properties(dom: &Dom, css: &str, styles: &mut [ComputedStyle]) {
-        let rules = parse_rules(css);
+    /// `ua_css` carries the UA sheet's own element rules (CORE-128: the
+    /// heading bookmark defaults live there, at UA origin — an author rule
+    /// wins the cascade slot by construction since UA rules are applied
+    /// first and any later match with prio >= an UA match overwrites).
+    pub fn apply_paged_properties(dom: &Dom, css: &str, ua_css: &str, styles: &mut [ComputedStyle]) {
+        let mut rules = parse_rules(css);
+        let mut ua_rules = parse_rules(ua_css);
+        // UA origin loses to any author rule. Renumber UA rules to 0..n so
+        // their priorities sit BELOW every author rule, then shift author
+        // orders up by the UA count: an author rule's (spec, order) always
+        // compares >= a UA rule's whenever both matched (same-shape guard
+        // as the `>= w` write below), so the later (author) write wins.
+        // NOTE: renumber rather than reuse the scanned order values —
+        // `parse_rules` bumps `order` for every block it scans (including
+        // font-size etc. rules the paged parser drops), so UA order values
+        // run ~20+ while `ua_rules.len()` is only 6.
+        let ua_count = ua_rules.len() as u32;
+        for (i, r) in ua_rules.iter_mut().enumerate() {
+            r.order = i as u32;
+        }
+        for r in rules.iter_mut() {
+            r.order = r.order.saturating_add(ua_count);
+        }
+        let mut all: Vec<Rule> = ua_rules;
+        all.extend(rules);
+        let rules = all;
 
         #[derive(Clone, Copy, Default)]
         struct Won {
@@ -2696,6 +2807,9 @@ mod paged_props {
             counter_reset: Option<(u32, u32)>,
             counter_increment: Option<(u32, u32)>,
             content: Option<(u32, u32)>,
+            bookmark_level: Option<(u32, u32)>,
+            bookmark_label: Option<(u32, u32)>,
+            bookmark_state: Option<(u32, u32)>,
         }
         let mut won = vec![Won::default(); styles.len()];
 
@@ -2749,6 +2863,24 @@ mod paged_props {
                                 if won[id].content.is_none_or(|w| prio >= w) {
                                     styles[id].content = v.clone();
                                     won[id].content = Some(prio);
+                                }
+                            }
+                            PagedDecl::BookmarkLevel(v) => {
+                                if won[id].bookmark_level.is_none_or(|w| prio >= w) {
+                                    styles[id].bookmark_level = *v;
+                                    won[id].bookmark_level = Some(prio);
+                                }
+                            }
+                            PagedDecl::BookmarkLabel(v) => {
+                                if won[id].bookmark_label.is_none_or(|w| prio >= w) {
+                                    styles[id].bookmark_label = v.clone();
+                                    won[id].bookmark_label = Some(prio);
+                                }
+                            }
+                            PagedDecl::BookmarkState(v) => {
+                                if won[id].bookmark_state.is_none_or(|w| prio >= w) {
+                                    styles[id].bookmark_closed = *v;
+                                    won[id].bookmark_state = Some(prio);
                                 }
                             }
                         }
@@ -2805,6 +2937,24 @@ mod paged_props {
                         if won[id].content.is_none_or(|w| prio >= w) {
                             styles[id].content = v.clone();
                             won[id].content = Some(prio);
+                        }
+                    }
+                    PagedDecl::BookmarkLevel(v) => {
+                        if won[id].bookmark_level.is_none_or(|w| prio >= w) {
+                            styles[id].bookmark_level = v;
+                            won[id].bookmark_level = Some(prio);
+                        }
+                    }
+                    PagedDecl::BookmarkLabel(v) => {
+                        if won[id].bookmark_label.is_none_or(|w| prio >= w) {
+                            styles[id].bookmark_label = v.clone();
+                            won[id].bookmark_label = Some(prio);
+                        }
+                    }
+                    PagedDecl::BookmarkState(v) => {
+                        if won[id].bookmark_state.is_none_or(|w| prio >= w) {
+                            styles[id].bookmark_closed = v;
+                            won[id].bookmark_state = Some(prio);
                         }
                     }
                 }

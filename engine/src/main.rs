@@ -159,7 +159,18 @@ fn render(args: Vec<String>) -> Result<()> {
     // Diagnostics (CORE-112): analyze the stylesheet only when asked. The
     // render above is untouched either way — byte-stable PDFs, zero cost.
     if let Some(mode) = opts.diagnostics {
-        let events = typeanvil::diagnostics::analyze(stylesheet.source());
+        let mut events = typeanvil::diagnostics::analyze(stylesheet.source());
+        // CORE-128: broken bookmark anchors collected during layout join the
+        // stream as trailing warning events (no source position — 0,0).
+        for msg in typeanvil::diagnostics::take_broken_anchors() {
+            events.push(typeanvil::diagnostics::Diagnostic {
+                code: "bookmark-anchor-unresolved".to_string(),
+                severity: "warning".to_string(),
+                message: msg,
+                line: 0,
+                column: 0,
+            });
+        }
         match mode {
             DiagnosticsMode::Json => print!("{}", typeanvil::diagnostics::to_json(&events)),
             DiagnosticsMode::Text => {

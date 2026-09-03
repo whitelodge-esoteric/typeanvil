@@ -571,10 +571,13 @@ pub fn render_with_options(
         .map_err(|e| anyhow!("krilla export failed: {e:?}"))
 }
 
-/// Build a krilla [`Outline`] from the heading structure, nesting entries by
-/// level (an `h2` after an `h1` becomes the `h1`'s child, etc.). Deeper-than-6
-/// levels cannot occur (only `h1`–`h6` are collected). Returns `None` when the
-/// document has no headings.
+/// Build a krilla [`Outline`] from the heading structure (CORE-128), nesting
+/// entries by level (an `h2` after an `h1` becomes the `h1`'s child, etc.).
+/// Each entry targets its heading's first fragment (page + y, PDF top-left
+/// origin — krilla converts to PDF coordinates); collapse state comes from
+/// `bookmark-state` via `with_open` (leaf nodes ignore it). Deeper-than-6
+/// levels cannot occur (levels are 1..=6 by construction). Returns `None`
+/// when the document has no entries.
 fn build_outline(layout: &Layout) -> Option<Outline> {
     if layout.headings.is_empty() {
         return None;
@@ -587,8 +590,9 @@ fn build_outline(layout: &Layout) -> Option<Outline> {
     let mut stack: Vec<(u8, OutlineNode)> = Vec::new();
 
     for h in &layout.headings {
-        let dest = XyzDestination::new(h.page_index, Point::from_xy(0.0, 0.0));
-        let node = OutlineNode::new(h.title.clone(), dest);
+        let y = h.y.unwrap_or(0.0);
+        let dest = XyzDestination::new(h.page_index, Point::from_xy(0.0, y as f32));
+        let node = OutlineNode::new(h.title.clone(), dest).with_open(h.state_open);
         // Pop deeper-or-equal entries off the stack, attaching each to the one
         // below it (or to roots).
         while let Some((lvl, _)) = stack.last() {
