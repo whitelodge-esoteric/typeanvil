@@ -134,7 +134,14 @@ fn render(args: Vec<String>) -> Result<()> {
         margin_left: opts.margin_left,
     };
 
-    let laid_out = layout::layout(&dom, &stylesheet, geometry);
+    // `--base-url` (CORE-106 contract): relative image paths resolve against
+    // it; absent, they resolve against the process working directory.
+    let base_url = if opts.base_url.is_empty() {
+        None
+    } else {
+        Some(std::path::PathBuf::from(opts.base_url.as_str()))
+    };
+    let laid_out = layout::layout_with_images(&dom, &stylesheet, geometry, base_url.as_deref());
     let meta = typeanvil::metadata::extract_metadata(&dom, opts.title, opts.author);
 
     let bytes = pdf::render_with_options(

@@ -13,6 +13,7 @@
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 /// A successfully interned raster image.
 #[derive(Clone, Debug)]
@@ -28,10 +29,13 @@ pub struct StoredImage {
 }
 
 /// Supported image formats (spec Non-Goal 2: everything else is broken).
+/// `Svg` is the CORE-131 rasterizer bridge: the source SVG is rasterized
+/// once at intern time and `original` carries the PNG raster bytes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ImageKind {
     Png,
     Jpeg,
+    Svg,
 }
 
 /// An interned image that failed to load; renders as an alt-text
@@ -76,23 +80,30 @@ impl ImageStore {
         alt: Option<String>,
     ) -> anyhow::Result<[u8; 32]> {
         let bytes = load_bytes(src, base_url);
-        let key = sha256(bytes.as_deref().unwrap_or(src.as_bytes()));
-        // A data URI with identical bytes to a file's contents is the same
-        // image (key is content-derived); its alt text is irrelevant for
-        // loaded images, so first-intern wins deterministically (single
-        // pass, document order).
-        self.entries.entry(key).or_insert_with(|| match bytes {
-            Some(b) => match sniff(&b) {
-                Some((w, h, kind)) => ImageEntry::Loaded(StoredImage {
+        self.intern_bytes(bytes.unwrap_or_else(|| src.as_bytes().to_vec()), alt)
+    }
+
+    /// Intern already-loaded image bytes (CORE-131 inline `<svg>`: the DOM
+    /// subtree is serialized to SVG text and fed here). Keyed by content
+    /// hash like [`ImageStore::intern`]; empty/undecodable bytes intern as
+    /// [`ImageEntry::Broken`].
+    pub fn intern_bytes(
+        &mut self,
+        bytes: Vec<u8>,
+        alt: Option<String>,
+    ) -> anyhow::Result<[u8; 32]> {
+        let key = sha256(&bytes);
+        self.entries
+            .entry(key)
+            .or_insert_with(|| match sniff(&bytes) {
+                Some((w, h, kind, stored)) => ImageEntry::Loaded(StoredImage {
                     width_px: w,
                     height_px: h,
                     kind,
-                    original: b,
+                    original: stored,
                 }),
                 None => ImageEntry::Broken(BrokenImage { alt }),
-            },
-            None => ImageEntry::Broken(BrokenImage { alt }),
-        });
+            });
         Ok(key)
     }
 
@@ -236,12 +247,21 @@ fn decode_base64(bytes: &[u8]) -> Option<Vec<u8>> {
     Some(out)
 }
 
-/// Sniff a byte stream into (width, height, kind) via codec headers.
-fn sniff(b: &[u8]) -> Option<(u32, u32, ImageKind)> {
+/// Sniff a byte stream into (width, height, kind, stored bytes) via codec
+/// headers. PNG/JPEG embed the source stream as-is; SVG rasterizes once and
+/// stores the PNG raster. The layout-time contract is unchanged:
+/// `width_px`/`height_px` are CSS pixels at the 96 DPI baseline
+/// (1px = 0.75pt), same for every format.
+fn sniff(b: &[u8]) -> Option<(u32, u32, ImageKind, Vec<u8>)> {
     if is_png(b) {
-        png_dimensions(b).map(|(w, h)| (w, h, ImageKind::Png))
+        png_dimensions(b).map(|(w, h)| (w, h, ImageKind::Png, b.to_vec()))
     } else if is_jpeg(b) {
-        jpeg_dimensions(b).map(|(w, h)| (w, h, ImageKind::Jpeg))
+        jpeg_dimensions(b).map(|(w, h)| (w, h, ImageKind::Jpeg, b.to_vec()))
+    } else if is_svg(b) {
+        // `rasterize_svg` returns (intrinsic_w_px, intrinsic_h_px, png_bytes):
+        // the raster becomes `original` at emit time; the intrinsic CSS px
+        // drive replaced-element sizing exactly like a PNG/JPEG header.
+        rasterize_svg(b).map(|(w, h, png)| (w, h, ImageKind::Svg, png))
     } else {
         None
     }
@@ -381,4 +401,74 @@ pub fn sha256(data: &[u8]) -> [u8; 32] {
         out[i * 4..i * 4 + 4].copy_from_slice(&word.to_be_bytes());
     }
     out
+}
+
+// --- SVG rasterizer bridge (CORE-131) --------------------------------------
+
+/// Sniff SVG by content prefix: an XML prolog or an `<svg` element tag.
+/// Deliberately lax — a mis-sniff costs one usvg parse failure and the
+/// image falls back to Broken.
+fn is_svg(b: &[u8]) -> bool {
+    let t = b.trim_ascii();
+    t.starts_with(b"<?xml") || t.starts_with(b"<svg")
+}
+
+/// Rasterize an SVG byte stream to PNG at a fixed 1× scale (96 DPI: 1 SVG
+/// user unit = 1 CSS px), returning `(intrinsic_w_px, intrinsic_h_px, png)`.
+///
+/// Determinism contract (CORE-105): no timestamps, no environment reads, a
+/// fixed rasterization scale and a fixed default font family — identical
+/// input bytes give identical raster bytes on every run and machine.
+fn rasterize_svg(b: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
+    let text = std::str::from_utf8(b).ok()?;
+
+    let mut opts = resvg::usvg::Options::default();
+    // Deterministic text: one fixed family lookup, our bundled Arial via a
+    // process-wide fontdb (system fonts + the four bundled faces). usvg
+    // matches fontdb faces deterministically (weight/style match is a pure
+    // function of the database, same registry model as fonts.rs).
+    opts.fontdb = svg_fontdb();
+    opts.font_family = "Arial".into();
+
+    let tree = resvg::usvg::Tree::from_str(text, &opts).ok()?;
+    let size = tree.size();
+    let (w, h) = (size.width().round() as u32, size.height().round() as u32);
+    if w == 0 || h == 0 || w > 16_384 || h > 16_384 {
+        return None;
+    }
+
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(w, h)?;
+    // 1×: identity transform — the tree renders at its own intrinsic size.
+    // Transparent background (alpha preserved into PNG).
+    resvg::render(
+        &tree,
+        resvg::tiny_skia::Transform::identity(),
+        &mut pixmap.as_mut(),
+    );
+    let png = pixmap.encode_png().ok()?;
+    Some((w, h, png))
+}
+
+/// Process-wide font database for SVG text rasterization. System fonts plus
+/// the four bundled Arial faces so `default_font_family` resolves even on a
+/// bare machine. Same model as fonts.rs (a LazyLock fontdb), kept separate
+/// so the SVG path can never mutate the text-engine registry.
+static SVG_FONTDB: LazyLock<fontdb::Database> = LazyLock::new(|| {
+    let mut db = fontdb::Database::new();
+    db.load_system_fonts();
+    for path in [
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+        "/System/Library/Fonts/Supplemental/Arial Italic.ttf",
+        "/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf",
+    ] {
+        if let Ok(bytes) = std::fs::read(path) {
+            db.load_font_data(bytes);
+        }
+    }
+    db
+});
+
+fn svg_fontdb() -> std::sync::Arc<fontdb::Database> {
+    std::sync::Arc::new(SVG_FONTDB.clone())
 }
