@@ -166,6 +166,10 @@ jobs:
     needs: [derive-version, build]
     runs-on: ubuntu-22.04
     steps:
+      # gh resolves the repo from git remote state; the release job touches
+      # no other repo content but must be inside a checkout for gh to work.
+      - uses: actions/checkout@v4
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
