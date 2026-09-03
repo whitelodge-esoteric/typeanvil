@@ -79,9 +79,9 @@ jobs:
 
       # aarch64-linux cross-compile via zig as the linker/cross toolchain
       # (cargo-zigbuild). No QEMU run needed: we only build, not run tests.
-      - name: Install cargo-zigbuild (aarch64-linux only)
+      - name: Install cargo-zigbuild + zig (aarch64-linux only)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: pipx install cargo-zigbuild && pipx ensurepath
+        run: pipx install cargo-zigbuild && pipx install ziglang && pipx ensurepath
 
       - name: Stamp engine version from tag
         env:
