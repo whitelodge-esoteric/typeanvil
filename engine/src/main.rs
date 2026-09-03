@@ -41,14 +41,51 @@ fn main() -> ExitCode {
 
 fn run() -> Result<()> {
     let mut args = std::env::args().skip(1);
-    let subcommand = args
+    let first = args
         .next()
         .ok_or_else(|| anyhow!("missing subcommand (expected `render`)"))?;
-    match subcommand.as_str() {
+    match first.as_str() {
+        // First-argument-only flags (CORE-134): wrapper scripts (npm shim,
+        // Homebrew formula, release-CI tag check) rely on the exit codes.
+        "--version" | "-V" => {
+            println!("typeanvil {}", env!("CARGO_PKG_VERSION"));
+            Ok(())
+        }
+        "--help" | "-h" => {
+            print!("{HELP}");
+            Ok(())
+        }
         "render" => render(args.collect()),
         other => bail!("unknown subcommand `{other}` (expected `render`)"),
     }
 }
+
+const HELP: &str = "\
+typeanvil — AI-first HTML/Markdown to PDF typesetting engine
+
+Usage: typeanvil render <input.html> [flags] -o <output.pdf>
+       typeanvil --version
+       typeanvil --help
+
+Subcommands:
+  render        Render an HTML document to a paged PDF
+
+Flags (render):
+  -o, --output <path>       Output PDF path (required)
+      --page-width <len>    Page width (in|pt|px|cm|mm) (required)
+      --page-height <len>   Page height (required)
+      --margin-<side> <len> Top/right/bottom/left page margins
+      --base-url <url>      Base URL for resolving document URLs
+      --title <text>        PDF metadata title
+      --author <text>       PDF metadata author
+      --tagged              Emit a logical structure tree (tagged PDF)
+      --ua                  Tagged PDF + PDF/UA-1 validation
+      --diagnostics <mode>  css diagnostics: json (stdout) | text (stderr)
+  -h, --help                Print this help
+  -V, --version             Print version
+
+Flags are honored as the first argument only for --help and --version.
+";
 
 /// Parsed CLI options for `render`.
 struct RenderArgs {
