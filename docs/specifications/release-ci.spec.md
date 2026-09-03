@@ -47,8 +47,13 @@ matrix grows past ~8 targets or per-target quirks multiply.
 
 ## Versioning: CalVer
 
-Releases use calendar versioning `YYYY.0M.PATCH` (e.g. `2026.9.0`), decided on
-CORE-133. Tags are `vYYYY.0M.PATCH` (e.g. `v2026.9.0`).
+Releases use calendar versioning `YYYY.M.PATCH` (e.g. `2026.9.0`), decided on
+CORE-133. Tags are `vYYYY.M.PATCH` (e.g. `v2026.9.0`).
+
+Correction (2026-09-03, found during CI bring-up): the epic's original
+"zero-padded month" idea is wrong. node-semver rejects leading zeros, so
+`2026.09.0` would be invalid on npm; the plain month `2026.9.0` is the valid
+form and matches the epic's own examples.
 
 The workflow stamps the version from the tag at build time:
 

@@ -1,7 +1,8 @@
 # Release CI (CORE-135): tag → cross-platform binaries → GitHub Releases.
 #
-# Trigger: push of a tag `v*`. Version is CalVer (YYYY.0M.PATCH), decided on
-# CORE-133; the tag is the single source of truth — engine/Cargo.toml is
+# Trigger: push of a tag `v*`. Version is CalVer (YYYY.M.PATCH — plain month;
+# zero-padded month is not npm-semver-valid), decided on CORE-133; the tag is
+# the single source of truth — engine/Cargo.toml is
 # stamped from the tag at build time and never hand-edited.
 #
 # DETERMINISM (do not change without reading docs/specifications/release-ci.spec.md):
@@ -36,9 +37,14 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           version="${TAG#v}"
-          # CalVer: YYYY.0M.PATCH — year, zero-padded month, patch.
-          if ! echo "$version" | grep -Eq '^[0-9]{4}\.[0-9]{2}\.[0-9]+$'; then
-            echo "::error::Tag $TAG is not CalVer (expected vYYYY.0M.PATCH, e.g. v2026.9.0)"
+          # CalVer: YYYY.M.PATCH — year, plain (non-zero-padded) month, patch.
+          # Zero-padding (2026.09.0) is NOT npm-semver-valid: node-semver
+          # rejects leading zeros. Plain month (2026.9.0) sorts fine for
+          # CalVer because the year+month ordering matches lexicographic
+          # order within a year, and cross-year ordering is dominated by
+          # the year itself.
+          if ! echo "$version" | grep -Eq '^[0-9]{4}\.[0-9]{1,2}\.[0-9]+$'; then
+            echo "::error::Tag $TAG is not CalVer (expected vYYYY.M.PATCH, e.g. v2026.9.0)"
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
