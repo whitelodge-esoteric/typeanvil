@@ -81,16 +81,20 @@ jobs:
 
       # aarch64-linux cross-compile via zig as the linker/cross toolchain
       # (cargo-zigbuild). No QEMU run needed: we only build, not run tests.
-      # zig comes from its setup action (the ziglang PyPI wheel's console
-      # script is not reliably visible to cargo-zigbuild); setup-zig puts it
-      # on PATH for all later steps via GITHUB_PATH.
-      - name: Install zig (aarch64-linux only)
+      # zig is downloaded directly (pinned 0.13.0 — supported by
+      # cargo-zigbuild 0.23) instead of via setup-zig/pipx: both proved
+      # flaky in bring-up (mirror 404/502s; wheel console script not found).
+      - name: Install zig 0.13.0 (aarch64-linux only)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
-        uses: mlugg/setup-zig@v1
+        run: |
+          curl -fsSL https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz -o /tmp/zig.tar.xz
+          mkdir -p "$HOME/.zig"
+          tar -xJf /tmp/zig.tar.xz --strip-components=1 -C "$HOME/.zig"
+          echo "$HOME/.zig" >> "$GITHUB_PATH"
 
       - name: Install cargo-zigbuild (aarch64-linux only)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: pipx install cargo-zigbuild
+        run: pipx install cargo-zigbuild && echo "/opt/pipx_bin" >> "$GITHUB_PATH"
 
       - name: Stamp engine version from tag
         env:
