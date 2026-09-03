@@ -47,6 +47,10 @@ fontdb = "0.23"
 # UAX #14 line-break opportunities (pure Rust). Deviation from the spec's
 # icu_segmenter: see typography.rs `line_break_opportunities` for rationale.
 unicode-linebreak = "0.1"
+# SVG rasterization bridge (CORE-131): usvg parse + tiny-skia raster, pure
+# Rust. The engine rasterizes SVG to PNG at a fixed deterministic scale and
+# embeds the raster via krilla (see images.rs).
+resvg = "0.45"
 # Errors.
 anyhow = "1"
 

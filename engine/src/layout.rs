@@ -1010,6 +1010,15 @@ impl<'a> Ctx<'a> {
     /// Fragmentation (spec Behavior 8): monolithic. When the box doesn't fit
     /// in the remaining fragmentainer space it defers whole (a break-before
     /// token), with the empty-page last-resort exception used by text lines
+    /// True when `id` is a replaced image element: `<img>`, or an inline
+    /// `<svg>` (CORE-131) that went through the rasterizer bridge.
+    fn is_replaced_image(&self, id: NodeId) -> bool {
+        self.dom.nodes[id]
+            .kind
+            .element()
+            .is_some_and(|el| el.tag == "img" || el.tag == "svg")
+    }
+
     /// (an over-tall image on an empty page overflows instead of looping).
     /// Resolve an `<img>`'s used content-box size in points (CORE-106 spec
     /// Behavior 6). Shared by [`Self::layout_image`] and
@@ -1277,14 +1286,12 @@ impl<'a> Ctx<'a> {
             };
         }
 
-        // Replaced element: `<img>` lays out as a monolithic block-level box
-        // (CORE-106 spec Behavior 2). Sizing per spec Behavior 6; a box that
-        // does not fit defers whole to the next fragmentainer (Behavior 8);
-        // broken sources render an alt-text placeholder (Behavior 7).
-        let is_img = self.dom.nodes[id]
-            .kind
-            .element()
-            .is_some_and(|el| el.tag == "img");
+        // Replaced element: `<img>` and inline `<svg>` (CORE-131) lay out as
+        // a monolithic block-level box (CORE-106 spec Behavior 2). Sizing per
+        // spec Behavior 6; a box that does not fit defers whole to the next
+        // fragmentainer (Behavior 8); broken sources render an alt-text
+        // placeholder (Behavior 7).
+        let is_img = self.is_replaced_image(id);
         if is_img {
             return self.layout_image(
                 id,
@@ -3490,10 +3497,11 @@ impl<'a> Ctx<'a> {
                     {
                         continue;
                     }
-                    // A monolithic `<img>` contributes its used box height
-                    // (CORE-106) — measured the same way layout_image places.
+                    // A monolithic `<img>`/`<svg>` contributes its used box
+                    // height (CORE-106/CORE-131) — measured the same way
+                    // layout_image places.
                     let child_el = self.dom.nodes[child].kind.element();
-                    if child_el.is_some_and(|el| el.tag == "img") {
+                    if child_el.is_some_and(|el| el.tag == "img" || el.tag == "svg") {
                         h = h + self.measure_image(child, inner_width);
                         continue;
                     }
@@ -3509,13 +3517,9 @@ impl<'a> Ctx<'a> {
     /// that width, mirrors [`Ctx::measure_block`] so measured == laid-out).
     fn measure_float(&self, id: NodeId, inner_width: Scalar) -> (Scalar, Scalar) {
         let style = &self.styles[id];
-        // A monolithic `<img>` measures by its used box size, never
-        // shrink-to-fit (CORE-106).
-        if self.dom.nodes[id]
-            .kind
-            .element()
-            .is_some_and(|el| el.tag == "img")
-        {
+        // A monolithic `<img>`/`<svg>` measures by its used box size, never
+        // shrink-to-fit (CORE-106, CORE-131).
+        if self.is_replaced_image(id) {
             let (used_w, used_h, _) = self.image_used_size(id, inner_width, style);
             let w = used_w + style.margin_left + style.margin_right;
             return (
@@ -3722,14 +3726,12 @@ impl<'a> Ctx<'a> {
                     // `Item::Block` or their children get folded into the
                     // parent's text run (CORE-65).
                     //
-                    // An `<img>` is a replaced element laid out as a
-                    // monolithic block-level box in v1 (CORE-106 spec
-                    // Behavior 2); it must reach layout_box as its own item
-                    // or it folds into the parent's text run and vanishes.
-                    let is_img = self.dom.nodes[child]
-                        .kind
-                        .element()
-                        .is_some_and(|el| el.tag == "img");
+                    // An `<img>` or inline `<svg>` is a replaced element laid
+                    // out as a monolithic block-level box in v1 (CORE-106
+                    // spec Behavior 2, CORE-131); it must reach layout_box as
+                    // its own item or it folds into the parent's text run
+                    // and vanishes.
+                    let is_img = self.is_replaced_image(child);
                     if is_img
                         || self.styles[child].display == Display::Block
                         || matches!(
@@ -4185,27 +4187,112 @@ fn collect_image_sources_rec(
             // Interning is deterministic: identical sources collapse to one
             // entry, and a broken source still gets a stable key.
             if let Ok(key) = store.intern(&src, base_url, alt) {
-                let (broken, width_px, height_px) = match store.get(&key) {
-                    Some(crate::images::ImageEntry::Loaded(img)) => {
-                        (false, img.width_px, img.height_px)
-                    }
-                    _ => (true, 0, 0),
-                };
-                infos.insert(
-                    id,
-                    ImageInfo {
-                        key,
-                        broken,
-                        width_px,
-                        height_px,
-                    },
-                );
+                record_image_info(id, key, store, infos);
             }
             return; // void element — no children to walk
+        }
+        // Inline `<svg>` (CORE-131): serialize the subtree back to SVG bytes
+        // and feed the same rasterizer bridge. The serialized subtree is a
+        // pure function of the DOM, so the intern key is content-stable.
+        if el.tag == "svg" {
+            let bytes = serialize_svg_subtree(dom, id);
+            if let Ok(key) = store.intern_bytes(bytes, None) {
+                record_image_info(id, key, store, infos);
+            }
+            return; // the subtree is consumed — no children to walk
         }
     }
     for &child in &dom.nodes[id].children {
         collect_image_sources_rec(dom, child, store, infos, base_url);
+    }
+}
+
+/// Record an interned image's info for `id` (the broken/loaded branch both
+/// collectors share).
+fn record_image_info(
+    id: NodeId,
+    key: [u8; 32],
+    store: &crate::images::ImageStore,
+    infos: &mut BTreeMap<NodeId, ImageInfo>,
+) {
+    let (broken, width_px, height_px) = match store.get(&key) {
+        Some(crate::images::ImageEntry::Loaded(img)) => (false, img.width_px, img.height_px),
+        _ => (true, 0, 0),
+    };
+    infos.insert(
+        id,
+        ImageInfo {
+            key,
+            broken,
+            width_px,
+            height_px,
+        },
+    );
+}
+
+/// Serialize an inline `<svg>` subtree back to SVG text (CORE-131). Pure
+/// function of the DOM: elements emit as `<tag attr="value">`, text as
+/// escaped text content, self-closing for empty non-text elements. Casing
+/// survives — html5ever keeps camelCase attributes (`viewBox`) on SVG
+/// foreign content — so the round-trip preserves the geometry attributes.
+fn serialize_svg_subtree(dom: &Dom, id: NodeId) -> Vec<u8> {
+    let mut out = String::new();
+    serialize_svg_rec(dom, id, &mut out);
+    out.into_bytes()
+}
+
+fn serialize_svg_rec(dom: &Dom, id: NodeId, out: &mut String) {
+    match &dom.nodes[id].kind {
+        NodeKind::Element(el) => {
+            out.push('<');
+            out.push_str(&el.tag);
+            for (k, v) in &el.attrs {
+                out.push(' ');
+                out.push_str(k);
+                out.push_str("=\"");
+                escape_svg_attr(v, out);
+                out.push('"');
+            }
+            if dom.nodes[id].children.is_empty() {
+                out.push_str("/>");
+            } else {
+                out.push('>');
+                for &child in &dom.nodes[id].children {
+                    serialize_svg_rec(dom, child, out);
+                }
+                out.push_str("</");
+                out.push_str(&el.tag);
+                out.push('>');
+            }
+        }
+        NodeKind::Text(t) => escape_svg_text(t, out),
+        NodeKind::Root => {}
+    }
+}
+
+/// Minimal XML escaping — the five characters that must never appear raw
+/// in text or attribute content. SVG text is plain UTF-8 otherwise.
+fn escape_svg_text(s: &str, out: &mut String) {
+    for c in s.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            _ => out.push(c),
+        }
+    }
+}
+
+fn escape_svg_attr(s: &str, out: &mut String) {
+    for c in s.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&apos;"),
+            _ => out.push(c),
+        }
     }
 }
 

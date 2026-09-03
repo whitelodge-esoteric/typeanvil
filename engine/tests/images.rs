@@ -466,3 +466,163 @@ fn duplicate_images_embed_once() {
     assert_eq!(image_objects, 1, "one embedded image object");
     // All three references share the one XObject name in the resource dict.
 }
+
+// --- CORE-131: SVG images ------------------------------------------------------
+
+const SAMPLE_SVG: &str = r##"<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80" viewBox="0 0 120 80">
+  <rect x="0" y="0" width="120" height="80" fill="#336699"/>
+  <circle cx="60" cy="40" r="20" fill="#ffcc00"/>
+</svg>"##;
+
+/// An `<img src="x.svg">` interns as a Loaded image whose intrinsic size is
+/// the SVG's width/height attributes (CSS px at the 96 DPI baseline), and the
+/// layout box honors that size like any raster image.
+#[test]
+fn svg_img_intrinsic_size_from_attributes() {
+    let dir = TempDir::new().unwrap();
+    let p = write_fixture(&dir, "chart.svg", SAMPLE_SVG.as_bytes());
+    let q = p.display();
+    let html = format!(
+        "<html><head><style>body{{margin:0}}</style></head>\
+         <body><img src=\"{q}\"><p>x</p></body></html>"
+    );
+    let lay = lay_in(&html, Some(&dir));
+
+    let frags = image_fragments(&lay);
+    assert_eq!(frags.len(), 1, "the svg renders as an image fragment");
+    // 120px × 0.75 = 90pt, 80px × 0.75 = 60pt.
+    let (_, _, _, w, h) = frags[0];
+    assert!((w - 90.0).abs() < 0.5, "svg width 120px = 90pt, got {w}");
+    assert!((h - 60.0).abs() < 0.5, "svg height 80px = 60pt, got {h}");
+
+    // Store entry: kind Svg, loaded, intrinsic px carried.
+    let mut loaded = None;
+    for (_, entry) in lay.images.entries_iter() {
+        if let ImageEntry::Loaded(img) = entry {
+            loaded = Some(img);
+        }
+    }
+    let img = loaded.expect("svg interned as Loaded");
+    assert_eq!(img.kind, typeanvil::images::ImageKind::Svg);
+    assert_eq!((img.width_px, img.height_px), (120, 80));
+    // The stored bytes are the rasterized PNG (sniffs as PNG).
+    assert_eq!(&img.original[..8], &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]);
+}
+
+/// An inline `<svg>` element renders through the same bridge: one image
+/// fragment at the SVG's intrinsic size.
+#[test]
+fn inline_svg_element_renders() {
+    let html = "<html><head><style>body{margin:0}</style></head>\
+         <body>\
+         <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"50\">\
+         <rect x=\"0\" y=\"0\" width=\"100\" height=\"50\" fill=\"#008000\"/>\
+         <text x=\"10\" y=\"30\" font-size=\"16\">Tag</text>\
+         </svg>\
+         <p>x</p></body></html>";
+    let lay = lay_in(html, None);
+
+    let frags = image_fragments(&lay);
+    assert_eq!(frags.len(), 1, "inline svg renders as an image fragment");
+    let (_, _, _, w, h) = frags[0];
+    assert!((w - 75.0).abs() < 0.5, "100px = 75pt, got {w}");
+    assert!((h - 37.5).abs() < 0.5, "50px = 37.5pt, got {h}");
+}
+
+/// Two runs of the same SVG-bearing document produce byte-identical PDFs
+/// (the rasterization is a pure function of the SVG bytes).
+#[test]
+fn svg_render_is_deterministic() {
+    let dir = TempDir::new().unwrap();
+    let p = write_fixture(&dir, "chart.svg", SAMPLE_SVG.as_bytes());
+    let q = p.display();
+    let html = format!(
+        "<html><head><style>body{{margin:0}}</style></head>\
+         <body><img src=\"{q}\"><p>x</p></body></html>"
+    );
+
+    let render = || {
+        let lay = lay_in(&html, Some(&dir));
+        typeanvil::pdf::render(&lay).unwrap()
+    };
+    let a = render();
+    let b = render();
+    assert_eq!(a, b, "identical SVG input must give byte-identical PDFs");
+}
+
+/// A viewBox-only SVG (no width/height attributes) sizes from the viewBox —
+/// usvg treats the viewBox as the intrinsic viewport, matching SVG2
+/// intrinsic-size practice.
+#[test]
+fn svg_viewbox_only_uses_viewbox_size() {
+    let dir = TempDir::new().unwrap();
+    let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100"><rect width="200" height="100" fill="red"/></svg>"##;
+    let p = write_fixture(&dir, "vb.svg", svg.as_bytes());
+    let q = p.display();
+    let html = format!(
+        "<html><head><style>body{{margin:0}}</style></head>\
+         <body><img src=\"{q}\"><p>x</p></body></html>"
+    );
+    let lay = lay_in(&html, Some(&dir));
+    let frags = image_fragments(&lay);
+    assert_eq!(frags.len(), 1, "viewBox-only svg still renders");
+    // viewBox 200×100: 200px = 150pt, 100px = 75pt.
+    let (_, _, _, w, h) = frags[0];
+    assert!((w - 150.0).abs() < 0.5, "viewBox width 200px = 150pt, got {w}");
+    assert!((h - 75.0).abs() < 0.5, "viewBox height 100px = 75pt, got {h}");
+}
+
+/// Identical inline SVG subtrees (same serialization) intern once — three
+/// references share one store entry and one embedded PDF object.
+#[test]
+fn duplicate_inline_svgs_embed_once() {
+    let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\">\
+               <circle cx=\"20\" cy=\"20\" r=\"18\" fill=\"blue\"/></svg>";
+    let html = format!(
+        "<html><head><style>body{{margin:0}}</style></head><body>{svg}<p>a</p>{svg}<p>b</p>{svg}</body></html>"
+    );
+    let lay = lay_in(&html, None);
+    assert_eq!(image_fragments(&lay).len(), 3, "three image fragments");
+    assert_eq!(lay.images.entries_len(), 1, "one interned entry");
+
+    let bytes = typeanvil::pdf::render(&lay).unwrap();
+    let hay = String::from_utf8_lossy(&bytes);
+    let image_objects =
+        hay.matches("/Subtype/Image").count() + hay.matches("/Subtype /Image").count();
+    // 2 objects: the image XObject plus its alpha SMask (the rasterized PNG
+    // carries alpha); krilla still dedupes the three references to one pair.
+    assert_eq!(image_objects, 2, "one image + one smask, deduped");
+}
+
+/// A genuinely malformed SVG (bytes that are neither valid UTF-8 nor a
+/// parseable SVG document) falls back to the broken-image path, not a
+/// panic — same contract as broken PNG/JPEG sources.
+#[test]
+fn broken_svg_falls_back_to_broken_entry() {
+    let dir = TempDir::new().unwrap();
+    // 0xFF bytes: fails UTF-8 decoding, so usvg can never parse it —
+    // while NOT sniffing as PNG/JPEG.
+    let svg: Vec<u8> = vec![0xFF, 0xFE, 0x3C, 0x73, 0x76, 0x67, 0x3E, 0xFF];
+    let p = write_fixture(&dir, "bad.svg", &svg);
+    let q = p.display();
+    let html = format!(
+        "<html><head><style>body{{margin:0}}</style></head>\
+         <body><img src=\"{q}\" alt=\"d\" width=\"50\" height=\"20\"><p>x</p></body></html>"
+    );
+    let lay = lay_in(&html, Some(&dir));
+    let mut broken = false;
+    for (_, entry) in lay.images.entries_iter() {
+        if matches!(entry, ImageEntry::Broken(_)) {
+            broken = true;
+        }
+    }
+    assert!(broken, "malformed svg interns as Broken");
+    // With explicit attrs the placeholder box still lays out, but carries
+    // the broken flag and embeds no raster payload in the PDF.
+    let bytes = typeanvil::pdf::render(&lay).unwrap();
+    let hay = String::from_utf8_lossy(&bytes);
+    let image_objects =
+        hay.matches("/Subtype/Image").count() + hay.matches("/Subtype /Image").count();
+    assert_eq!(image_objects, 0, "broken svg embeds no raster");
+}

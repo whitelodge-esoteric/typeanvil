@@ -386,8 +386,11 @@ pub fn render_with_options(
             };
             let raw = krilla::Data::from(img.original.clone());
             let kimg = match img.kind {
+                // CORE-131: SVG is rasterized to PNG at intern time (see
+                // images.rs); `original` already carries the PNG raster.
                 crate::images::ImageKind::Png => krilla::image::Image::from_png(raw, false),
                 crate::images::ImageKind::Jpeg => krilla::image::Image::from_jpeg(raw, false),
+                crate::images::ImageKind::Svg => krilla::image::Image::from_png(raw, false),
             };
             let Ok(kimg) = kimg else {
                 continue;
