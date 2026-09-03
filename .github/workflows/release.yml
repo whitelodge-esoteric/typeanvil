@@ -81,9 +81,16 @@ jobs:
 
       # aarch64-linux cross-compile via zig as the linker/cross toolchain
       # (cargo-zigbuild). No QEMU run needed: we only build, not run tests.
-      - name: Install cargo-zigbuild + zig (aarch64-linux only)
+      # zig comes from its setup action (the ziglang PyPI wheel's console
+      # script is not reliably visible to cargo-zigbuild); setup-zig puts it
+      # on PATH for all later steps via GITHUB_PATH.
+      - name: Install zig (aarch64-linux only)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: pipx install cargo-zigbuild && pipx install ziglang && pipx ensurepath
+        uses: mlugg/setup-zig@v1
+
+      - name: Install cargo-zigbuild (aarch64-linux only)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: pipx install cargo-zigbuild
 
       - name: Stamp engine version from tag
         env:
@@ -103,11 +110,9 @@ jobs:
         run: |
           cd engine
           if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
-            # pipx ensurepath only edits shell rc files, which GH Actions
-            # steps never source (--noprofile --norc), so add the pipx bin
-            # dirs explicitly. Ubuntu runners use /opt/pipx_bin; the pipx
-            # venvs also hold the binaries directly.
-            export PATH="/opt/pipx_bin:$HOME/.local/pipx/venvs/cargo-zigbuild/bin:$HOME/.local/pipx/venvs/ziglang/bin:$HOME/.local/bin:$PATH"
+            # pipx bin dir is not on PATH for GH Actions steps (rc files are
+            # never sourced); add it explicitly.
+            export PATH="/opt/pipx_bin:$HOME/.local/pipx/venvs/cargo-zigbuild/bin:$HOME/.local/bin:$PATH"
             cargo zigbuild --release --target aarch64-unknown-linux-gnu
           else
             cargo build --release --target ${{ matrix.target }}
