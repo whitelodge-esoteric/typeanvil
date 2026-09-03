@@ -127,7 +127,15 @@ jobs:
           VERSION: ${{ needs.derive-version.outputs.version }}
         run: |
           BIN="engine/target/${{ matrix.target }}/release/typeanvil"
-          ACTUAL=$("$BIN" --version)
+          # Cross-compiled ARM64 Linux binaries cannot execute on the x86_64
+          # runner directly; run them under qemu-user-static with the arm64
+          # glibc sysroot (Behavior 7 still verified by real execution).
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq qemu-user-static libc6-arm64-cross > /dev/null
+            ACTUAL=$(qemu-aarch64-static -L /usr/aarch64-linux-gnu "$BIN" --version)
+          else
+            ACTUAL=$("$BIN" --version)
+          fi
           EXPECTED="typeanvil $VERSION"
           if [ "$ACTUAL" != "$EXPECTED" ]; then
             echo "::error::--version mismatch: got '$ACTUAL', expected '$EXPECTED'"
