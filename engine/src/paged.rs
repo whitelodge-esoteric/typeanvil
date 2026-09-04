@@ -493,6 +493,16 @@ fn apply_page_decl(rule: &mut PageRule, decl: &str) {
         "margin-right" => rule.margin_right = parse_page_length(value),
         "margin-bottom" => rule.margin_bottom = parse_page_length(value),
         "margin-left" => rule.margin_left = parse_page_length(value),
+        // Logical margins in page context (css-page-3 §5.1, css-logical-1).
+        // The engine's page context is horizontal-tb ltr (vertical writing
+        // modes are a non-goal), so inline = left/right, block = top/bottom.
+        // The two-value `margin-inline`/`margin-block` shorthands are NOT
+        // handled (single-value parser); the four longhands cover the WPT
+        // fixtures.
+        "margin-inline-start" => rule.margin_left = parse_page_length(value),
+        "margin-inline-end" => rule.margin_right = parse_page_length(value),
+        "margin-block-start" => rule.margin_top = parse_page_length(value),
+        "margin-block-end" => rule.margin_bottom = parse_page_length(value),
         "background" | "background-color" => rule.background = crate::css::parse_css_color(value),
         "page-orientation" => rule.page_orientation = parse_page_orientation(value),
         _ => {}

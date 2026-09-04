@@ -896,7 +896,8 @@ fn paginate(
         let content_bottom = content.y + content.height;
         let saved_flow = flow.clone();
         let saved_links_len = links.borrow().len();
-        let mut res = ctx.layout_root(root, content.y, &token, &mut flow);
+        let mut res =
+            ctx.layout_root(root, content.y, &token, &mut flow, page_index == 0);
         if !fn_numbers.is_empty() && !flow.pending_footnotes.is_empty() {
             let area_h =
                 footnote_area_height(dom, styles, &flow.pending_footnotes, content.width);
@@ -921,7 +922,7 @@ fn paginate(
                         fn_numbers,
                         counter_snaps: &counter_snaps,
                     };
-                    res = ctx2.layout_root(root, content.y, &token, &mut flow);
+                    res = ctx2.layout_root(root, content.y, &token, &mut flow, page_index == 0);
                 }
                 // Attach THIS page's notes (the post-retry registrations)
                 // into the band above the bottom margin.
@@ -1430,11 +1431,21 @@ impl<'a> Ctx<'a> {
         content_top: Scalar,
         token: &BreakToken,
         flow: &mut Flow,
+        document_start: bool,
     ) -> BlockResult {
         // The root is laid out like any block, positioned at the content-box
         // origin. `bottom_limit` is the absolute y of the content-box bottom.
+        // The root box's own top margin truncates at CONTINUATION fragmentainer
+        // starts (CORE-95) but APPLIES at the document start: page 1 begins
+        // the document, which is not a break (css-break-3 §3.1) — Chromium
+        // keeps the body margin there (page-size-006: page-1 content sits at
+        // @page margin + body 8px; page 2+ at @page margin alone). In-body
+        // first-in-flow margins still truncate at every page top. Applied as
+        // a post-layout subtree shift (layout_box truncates first-in-flow
+        // margins internally); parent-child margin collapse is not modeled
+        // (documented deviation).
         let bottom_limit = content_top + self.page_height;
-        self.layout_box(
+        let mut res = self.layout_box(
             id,
             self.content_x,
             self.content_width,
@@ -1444,7 +1455,20 @@ impl<'a> Ctx<'a> {
             true,
             token,
             flow,
-        )
+        );
+        if document_start && !res.empty {
+            let mt = self.styles[id].margin_top;
+            if mt.get() > 0.0 {
+                // Offsets are PARENT-relative (CORE-121): shifting the root
+                // fragment's own offset shifts the whole painted subtree
+                // exactly once. A recursive shift would compound at every
+                // nesting depth. The body box is a block (no own Text run),
+                // so no baseline adjustment is needed.
+                res.fragment.offset.y = res.fragment.offset.y + mt;
+                res.used = res.used + mt;
+            }
+        }
+        res
     }
 
 
@@ -1566,9 +1590,6 @@ impl<'a> Ctx<'a> {
                     flow,
                 );
             }
-        }
-        if id == 7 {
-            eprintln!("LAYOUT_BOX id7 display={:?} gridcols={}", style.display, style.grid_columns.len());
         }
         // Grid containers (css-grid-1, CORE-139): items auto-place into
         // track cells; rows fragment monolithically like flex lines.
@@ -2758,6 +2779,39 @@ impl<'a> Ctx<'a> {
                             broke = true;
                             break;
                         }
+                    }
+                    // CORE-142: an empty first fragment defers whole. If the
+                    // child STARTED on this page but placed no line content
+                    // (only padding/background sliced onto the page bottom —
+                    // its first line did not fit) and it fits a fresh page,
+                    // move it whole to the next page (css-break-3 §3.3: a box
+                    // whose first fragment would be empty does not split;
+                    // Chromium/Prince behavior on page-size-006). Same
+                    // once-per-flow bound as the avoid-defer above: on the
+                    // next page the first line fits (the box fits fresh), so
+                    // it cannot defer forever.
+                    let placed_nothing = res.fragment.children.is_empty()
+                        && !matches!(res.fragment.content, FragmentContent::Text(_));
+                    // The fragment must be page-sized or smaller: a monolithic
+                    // overflow box (taller than the page, placed with
+                    // overflow) also "places nothing" on later fragmentainers
+                    // and must keep flowing, not re-defer (monolithic-
+                    // overflow-007).
+                    let not_huge = res.fragment.size.1.get() <= self.page_height.get();
+                    if res.outgoing.is_some()
+                        && child_tok.is_break_before()
+                        && placed
+                        && placed_nothing
+                        && not_huge
+                        && self.block_fits_fresh(*child, inner_width)
+                    {
+                        seen_all = false;
+                        outgoing_children.push(ChildToken {
+                            index: i,
+                            token: BreakToken::break_before(),
+                        });
+                        broke = true;
+                        break;
                     }
 
                     if !res.empty {
