@@ -176,9 +176,19 @@ pub enum ContentPiece {
     CounterPages,
     /// `counter(name)` — a named counter (decimal).
     CounterRef(String),
-    /// `target-counter(attr(href), page)` — the page of the element the
-    /// `href` fragment points at. Carries the attribute name to read (`href`).
-    TargetCounter { attr: String },
+    /// `target-counter(<target>, <counter-name>)` — the value of
+    /// `<counter-name>` on the PAGE the target element lands on (css-gcpm-3
+    /// §7 / CORE-129). The target is an `attr(name)` reference (the attribute
+    /// of the element carrying the `content` — typically `href="#anchor"`);
+    /// the counter is one of the built-ins (`page`, `pages`) or a named
+    /// document counter (`chapter`, `section`, ...). The default
+    /// `counter(page)` is recorded as `"page"`.
+    TargetCounter { attr: String, counter: String },
+    /// `target-text(<target>)` — the text content of the target element
+    /// (css-gcpm-3 §7.1 / CORE-129). Same target grammar as `TargetCounter`;
+    /// the text is the element's full text content (first-line model kept
+    /// simple: the whole subtree text, whitespace-normalised by the DOM).
+    TargetText { attr: String },
     /// `leader('.')` — fill to the content edge with a repeating character.
     Leader(char),
 }
@@ -601,7 +611,16 @@ pub fn parse_length(s: &str) -> Option<Scalar> {
     Some(Scalar(pt))
 }
 
-/// Parse a `content` value into an ordered piece list. Understands quoted
+/// Extract the attribute name from a `target-counter`/`target-text` argument
+/// list (`attr(href)` → `href`). Absent/malformed → `None` (callers fall back
+/// to `href`, the overwhelmingly common form).
+fn parse_target_attr(args: &str) -> Option<String> {
+    let pos = args.find("attr(")?;
+    let rest = &args[pos + 5..];
+    rest.find(')').map(|end| rest[..end].trim().to_string())
+}
+
+/// Parse a `content` property value into an ordered piece list: quoted
 /// literals, `string(name)`, `counter(page)`/`counter(pages)`/`counter(name)`,
 /// `target-counter(attr(href), page)`, and `leader('.')`. Unknown tokens are
 /// skipped.
@@ -683,15 +702,28 @@ pub fn parse_content(value: &str) -> Vec<ContentPiece> {
                 }
             }
             "target-counter" => {
-                // target-counter(attr(href), page): grab the attr name.
-                let attr = args
-                    .find("attr(")
-                    .and_then(|p| {
-                        let rest = &args[p + 5..];
-                        rest.find(')').map(|e| rest[..e].trim().to_string())
-                    })
-                    .unwrap_or_else(|| "href".to_string());
-                pieces.push(ContentPiece::TargetCounter { attr });
+                // target-counter(attr(href)[, counter-name]) — the first arg
+                // names the attribute to read; the optional second arg names
+                // the counter (default `page`). Split on the FIRST comma only
+                // (the same argument-splitting rule as `string(name, kw)`):
+                // counter names contain no commas, so a split_anywhere split
+                // is safe, but split_once keeps the two functions symmetrical.
+                let attr = parse_target_attr(&args).unwrap_or_else(|| "href".to_string());
+                let counter = match args.split_once(',') {
+                    Some((_, rest)) => rest.trim().to_string(),
+                    None => "page".to_string(),
+                };
+                let counter = if counter.is_empty() {
+                    "page".to_string()
+                } else {
+                    counter
+                };
+                pieces.push(ContentPiece::TargetCounter { attr, counter });
+            }
+            "target-text" => {
+                // target-text(attr(href)) — the target element's text content.
+                let attr = parse_target_attr(&args).unwrap_or_else(|| "href".to_string());
+                pieces.push(ContentPiece::TargetText { attr });
             }
             "leader" => {
                 let ch = args
@@ -1072,7 +1104,8 @@ mod tests {
         assert_eq!(
             pieces[1],
             ContentPiece::TargetCounter {
-                attr: "href".to_string()
+                attr: "href".to_string(),
+                counter: "page".to_string(),
             }
         );
     }
