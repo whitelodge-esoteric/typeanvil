@@ -390,6 +390,10 @@ pub struct ComputedStyle {
     pub widows: u32,
     /// The `page` property: the named page this box switches to (paged-media).
     pub page: Option<String>,
+    /// True when an explicit `writing-mode` declaration applied to this
+    /// element (CORE-127: orthogonal-flow suppression for page-change
+    /// breaks — the engine renders every flow horizontally in v1).
+    pub writing_mode_declared: bool,
     /// True when `float: footnote` matched this element (CORE-107). The
     /// element produces no in-flow box; it renders in its call page's
     /// footnote area with a superscript call marker in the body text.
@@ -500,6 +504,7 @@ impl ComputedStyle {
             feature_settings: Vec::new(),
             ot_features: Vec::new(),
             page: None,
+            writing_mode_declared: false,
             string_set: Vec::new(),
             counter_reset: Vec::new(),
             counter_increment: Vec::new(),
@@ -1319,6 +1324,7 @@ impl CascadeSession {
             // Paged-media element props are likewise absent from the servo
             // stylo build; filled by `apply_paged_properties` (see `cascade`).
             page: None,
+            writing_mode_declared: false,
             string_set: Vec::new(),
             counter_reset: Vec::new(),
             counter_increment: Vec::new(),
@@ -2584,6 +2590,18 @@ mod paged_props {
     /// One paged-media declaration keyed to a field.
     enum PagedDecl {
         Page(Option<String>),
+        /// `writing-mode: <value>` — recorded as a boolean flag only (CORE-127
+        /// orthogonal-flow suppression; the value itself is unused in v1).
+        WritingMode,
+        /// `display: <value>` from an inline style (CORE-127): the stylo
+        /// inline-style seam ignores display, so the paged pass carries it —
+        /// fixtures rely on inline `display: flex / inline-block / none`.
+        Display(super::Display),
+        /// `position: <value>` from an inline style (CORE-127, same seam gap).
+        Position(super::Position),
+        /// `float: left | right` from an inline style (CORE-127, same seam
+        /// gap; `float: footnote` is handled by `FloatFootnote`).
+        FloatSide(super::Float),
         FloatFootnote(bool),
         StringSet(Vec<(String, StringSetValue)>),
         CounterReset(Vec<(String, i32)>),
@@ -2651,15 +2669,47 @@ mod paged_props {
                     Some(PagedDecl::Page(Some(v.to_string())))
                 }
             }
-            "string-set" => Some(PagedDecl::StringSet(parse_string_set(value))),
-            "float" => {
+            // Flag only (CORE-127): the value (vertical-rl etc.) is unused in
+            // v1; presence alone suppresses page-change breaks in the subtree.
+            "writing-mode" => Some(PagedDecl::WritingMode),
+            // Inline-only (CORE-127): the stylo seam ignores inline display,
+            // so the paged pass carries it for the fixtures that need it.
+            "display" if !value.trim().is_empty() => {
                 let v = value.trim().to_ascii_lowercase();
-                if v == "footnote" {
-                    Some(PagedDecl::FloatFootnote(true))
-                } else {
-                    None
+                match v.as_str() {
+                    "block" => Some(PagedDecl::Display(super::Display::Block)),
+                    "inline" => Some(PagedDecl::Display(super::Display::Inline)),
+                    "none" => Some(PagedDecl::Display(super::Display::None)),
+                    "flex" => Some(PagedDecl::Display(super::Display::Flex)),
+                    "inline-flex" => Some(PagedDecl::Display(super::Display::InlineFlex)),
+                    "inline-block" => Some(PagedDecl::Display(super::Display::InlineBlock)),
+                    _ => None,
                 }
             }
+            // Same seam gap (CORE-127): inline position/float. The float arm
+            // comes first so `footnote` still reaches FloatFootnote below.
+            "position" => {
+                let v = value.trim().to_ascii_lowercase();
+                match v.as_str() {
+                    "static" => Some(PagedDecl::Position(super::Position::Static)),
+                    "relative" => Some(PagedDecl::Position(super::Position::Relative)),
+                    "absolute" => Some(PagedDecl::Position(super::Position::Absolute)),
+                    "fixed" => Some(PagedDecl::Position(super::Position::Fixed)),
+                    _ => None,
+                }
+            }
+            "float" if value.trim().eq_ignore_ascii_case("footnote") => {
+                Some(PagedDecl::FloatFootnote(true))
+            }
+            "float" => {
+                let v = value.trim().to_ascii_lowercase();
+                match v.as_str() {
+                    "left" => Some(PagedDecl::FloatSide(super::Float::Left)),
+                    "right" => Some(PagedDecl::FloatSide(super::Float::Right)),
+                    _ => None,
+                }
+            }
+            "string-set" => Some(PagedDecl::StringSet(parse_string_set(value))),
             "counter-reset" => Some(PagedDecl::CounterReset(parse_counters(value, 0))),
             "counter-increment" => Some(PagedDecl::CounterIncrement(parse_counters(value, 1))),
             "content" => Some(PagedDecl::Content(parse_content(value))),
@@ -2831,6 +2881,18 @@ mod paged_props {
                                     won[id].page = Some(prio);
                                 }
                             }
+                            PagedDecl::WritingMode => {
+                                styles[id].writing_mode_declared = true;
+                            }
+                            PagedDecl::Display(v) => {
+                                styles[id].display = *v;
+                            }
+                            PagedDecl::Position(v) => {
+                                styles[id].position = *v;
+                            }
+                            PagedDecl::FloatSide(v) => {
+                                styles[id].float = *v;
+                            }
                             PagedDecl::FloatFootnote(v) => {
                                 if won[id].content.is_none_or(|w| prio >= w) {
                                     // Footnote floats share the `content` slot
@@ -2909,6 +2971,15 @@ mod paged_props {
                     PagedDecl::FloatFootnote(v) => {
                         styles[id].float_footnote = v;
                     }
+                    PagedDecl::Display(v) => {
+                        styles[id].display = v;
+                    }
+                    PagedDecl::Position(v) => {
+                        styles[id].position = v;
+                    }
+                    PagedDecl::FloatSide(v) => {
+                        styles[id].float = v;
+                    }
                     PagedDecl::Page(v) => {
                         if won[id].page.is_none_or(|w| prio >= w) {
                             styles[id].page = v.clone();
@@ -2956,6 +3027,12 @@ mod paged_props {
                             styles[id].bookmark_closed = v;
                             won[id].bookmark_state = Some(prio);
                         }
+                    }
+                    PagedDecl::WritingMode => {
+                        styles[id].writing_mode_declared = true;
+                    }
+                    PagedDecl::Display(v) => {
+                        styles[id].display = v;
                     }
                 }
             }

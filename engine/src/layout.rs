@@ -1529,6 +1529,10 @@ impl<'a> Ctx<'a> {
         let mut outgoing_children: Vec<ChildToken> = Vec::new();
         let mut broke = false;
         let mut seen_all = true;
+        // CORE-127 slice (a): a page-change break at item index j deferred to
+        // the top of the item loop — items i+1..j-1 (floats, out-of-flow)
+        // still lay on the current page before the break.
+        let mut deferred_break_at: Option<usize> = None;
         // Whether the *fragmentainer* holds any content at or above this box's
         // flow position — threaded so monolithic last-resort placement only
         // fires on a genuinely empty page, not merely an empty (just-started)
@@ -1686,6 +1690,17 @@ impl<'a> Ctx<'a> {
         let mut atomic_line_active = false;
         let mut i = start_index;
         while i < items.len() {
+            // A deferred page-change break fires when the loop reaches the
+            // target item (CORE-127 slice (a)).
+            if deferred_break_at == Some(i) {
+                seen_all = false;
+                outgoing_children.push(ChildToken {
+                    index: i,
+                    token: BreakToken::break_before(),
+                });
+                broke = true;
+                break;
+            }
             // Forced break-before on a block child starts a new fragmentainer.
             // NOTE: a mid-flow `page` name change does NOT force a break here —
             // the WPT page-name-* references render without breaks, and the
@@ -2538,6 +2553,87 @@ impl<'a> Ctx<'a> {
                         });
                         broke = true;
                         break;
+                    }
+
+                    // css-page-3 §4.2 (CORE-127 slice a): a page break is
+                    // forced between in-flow boxes whose page contexts differ.
+                    // The comparison uses the effective page of the LAST
+                    // content leaf of the box just placed vs the FIRST content
+                    // leaf of the next content-bearing sibling — declared
+                    // values on wrappers do not decide (a `page:foo` parent
+                    // shares its children's context; CORE-66's declared-value
+                    // compare regressed 38 tests). Out-of-flow (float /
+                    // abspos / fixed) and zero-height boxes never host or
+                    // demand a boundary; flex containers are leaves (items
+                    // are not page-grouped); atomic interiors (inline-block)
+                    // and explicit-writing-mode subtrees suppress the break
+                    // entirely (v1 deviations, spec Non-Goals). Bare text
+                    // between page-declaring blocks does not carry a context
+                    // (fixedpos-010's ref keeps trailing text on the named
+                    // page), so Text items are invisible to the comparison.
+                    // Suppressed inside atomic interiors and flex containers
+                    // (row or column — column items lay through this loop via
+                    // layout_box and are NOT page-grouped, flex-001/002 refs),
+                    // and inside out-of-flow subtrees: an abspos/floated box
+                    // lays monolithic (bottom_limit = MAX), so an internal
+                    // page-change break would emit an outgoing token the
+                    // out-of-flow branch drops — later letters vanish
+                    // (page-name-abspos-002 ref keeps both on one page).
+                    if !matches!(
+                        style.display,
+                        Display::InlineBlock | Display::Flex | Display::InlineFlex
+                    ) && matches!(style.position, Position::Static | Position::Relative)
+                        && style.float == Float::None
+                        && !self.orthogonal_flow(id)
+                        && !res.empty
+                    {
+                        let prev_end = self
+                            .page_context_leaf(*child, true)
+                            // A leaf-less box (replaced element, empty div)
+                            // IS its own content leaf — fall back to the box
+                            // itself so its own `page` declares the boundary
+                            // (page-name-canvas-004).
+                            .or(Some(*child))
+                            .map(|n| self.effective_page(n));
+                        let mut j = i + 1;
+                        let mut target: Option<(usize, Option<&str>)> = None;
+                        while j < items.len() {
+                            match &items[j] {
+                                Item::Atomic(_) => j += 1,
+                                Item::Text(..) => break, // contextless
+                                Item::Block(b) => {
+                                    let cs = &self.styles[*b];
+                                    if cs.float != Float::None
+                                        || matches!(
+                                            cs.position,
+                                            Position::Absolute | Position::Fixed
+                                        )
+                                        || cs.display == Display::None
+                                        || cs.height == Some(Scalar::ZERO)
+                                    {
+                                        j += 1;
+                                        continue;
+                                    }
+                                    match self.page_context_leaf(*b, false) {
+                                        Some(leaf) => {
+                                            target = Some((j, self.effective_page(leaf)));
+                                            break;
+                                        }
+                                        None => j += 1, // contentless wrapper
+                                    }
+                                }
+                            }
+                        }
+                        if let (Some(prev), Some((j, next_ctx))) = (prev_end, target) {
+                            if prev != next_ctx {
+                                // Defer, don't break: items BETWEEN this box
+                                // and the target (out-of-flow floats etc.)
+                                // still lay on THIS page in document order
+                                // (page-name-float-002 ref: page 1 = 'ab').
+                                // The loop breaks only when it REACHES j.
+                                deferred_break_at = Some(j);
+                            }
+                        }
                     }
 
                     // Forced break-after: rest goes to the next page.
@@ -3718,6 +3814,123 @@ impl<'a> Ctx<'a> {
             Scalar::ZERO
         };
         (inner_left + left, w)
+    }
+
+    /// The effective `page` of a box (css-page-3 §4): its own non-auto `page`
+    /// declaration, else the nearest ancestor-or-self with one, else None
+    /// (the default page). Sibling page-change breaks compare THIS, never
+    /// the declared value (a `page:foo` parent's unnamed children share its
+    /// context — comparing declared values would break between them).
+    fn effective_page(&self, id: NodeId) -> Option<&str> {
+        // Own declaration wins.
+        if let Some(name) = &self.styles[id].page {
+            return Some(name.as_str());
+        }
+        // css-page-3 §4.2 (canvas-004 oracle): an undeclared box continues the
+        // page context of the nearest PRECEDING in-flow sibling that declared
+        // one (document-order stickiness), else the nearest ancestor-or-self
+        // declaration. Stickiness subsumes ancestor inheritance (a declaring
+        // parent precedes its children) and keeps trailing siblings with a
+        // declaring canvas/sibling (canvas page:b, unnamed div stays 'b').
+        if let Some(parent) = self.dom.nodes[id].parent {
+            let mut sticky: Option<&str> = None;
+            for &sib in &self.dom.nodes[parent].children {
+                if sib == id {
+                    break;
+                }
+                let cs = &self.styles[sib];
+                if cs.float != Float::None
+                    || matches!(cs.position, Position::Absolute | Position::Fixed)
+                    || cs.display == Display::None
+                {
+                    continue;
+                }
+                if let Some(name) = &cs.page {
+                    // Stickiness propagates only from REPLACED elements
+                    // (canvas/img/svg — canvas-004 keeps the following div on
+                    // the canvas's page). A declaring normal block does not
+                    // stick to its followers (siblings-001: c returns to the
+                    // default page after b).
+                    if self.is_replaced_image(sib) {
+                        sticky = Some(name.as_str());
+                    }
+                }
+            }
+            if sticky.is_some() {
+                return sticky;
+            }
+            // No sticky sibling: the context is the parent's own (recursively
+            // — a text leaf inherits its element chain). Ancestor `page`
+            // declarations resolve through the same walk.
+            if parent != id {
+                return self.effective_page(parent);
+            }
+        }
+        None
+    }
+
+    /// True when any ancestor-or-self of `id` carries an explicit
+    /// `writing-mode` declaration (CORE-127 suppression: the engine paginates
+    /// every flow horizontally in v1, so page-change breaks inside
+    /// orthogonal-flow documents cannot match the harness refs either).
+    fn orthogonal_flow(&self, id: NodeId) -> bool {
+        let mut cur = Some(id);
+        while let Some(n) = cur {
+            if self.styles[n].writing_mode_declared {
+                return true;
+            }
+            cur = self.dom.nodes[n].parent;
+        }
+        false
+    }
+
+    /// The first (`last = false`) or last (`last = true`) in-flow content
+    /// leaf of `id`'s subtree, for page-context resolution: descends through
+    /// in-flow block children, skipping out-of-flow (float / abspos / fixed),
+    /// display:none and zero-height boxes. A qualifying block with no
+    /// qualifying children is itself the leaf; a flex container is a leaf
+    /// (flex items are not page-grouped). `None` when the subtree holds no
+    /// in-flow content — such a box neither hosts nor demands a boundary.
+    fn page_context_leaf(&self, id: NodeId, last: bool) -> Option<NodeId> {
+        // A flex container is itself the leaf, row or column: its items are
+        // not page-grouped (flex-001/002 refs keep item page-changes on one
+        // page; flex-004's required break comes from plain divs INSIDE an
+        // item, reached via the normal block path). Checked here, not on the
+        // children — items blockify to display:block and would defeat a
+        // child-side check.
+        if matches!(self.styles[id].display, Display::Flex | Display::InlineFlex) {
+            return Some(id);
+        }
+        let children = &self.dom.nodes[id].children;
+        let ordered: Vec<NodeId> = if last {
+            children.iter().rev().copied().collect()
+        } else {
+            children.clone()
+        };
+        for child in ordered {
+            let cs = &self.styles[child];
+            if cs.float != Float::None
+                || matches!(cs.position, Position::Absolute | Position::Fixed)
+                || cs.display == Display::None
+                || cs.height == Some(Scalar::ZERO)
+            {
+                continue;
+            }
+            match &self.dom.nodes[child].kind {
+                NodeKind::Text(t) => {
+                    if !t.trim().is_empty() {
+                        return Some(child);
+                    }
+                }
+                NodeKind::Element(_) => {
+                    if let Some(leaf) = self.page_context_leaf(child, last) {
+                        return Some(leaf);
+                    }
+                }
+                NodeKind::Root => {}
+            }
+        }
+        None
     }
 
     /// Collect a block's children as an ordered item list: contiguous inline
