@@ -292,8 +292,14 @@ pub fn render_with_options(
         );
 
         for (x, y, w, h, color, owner) in &backgrounds {
-            let rect = Rect::from_xywh(*x, *y, *w, *h)
-                .ok_or_else(|| anyhow!("invalid background rect"))?;
+            // A degenerate (zero/negative) rect is skipped, not fatal
+            // (CORE-139: grid auto-tracks can size to 0 for empty cells; a
+            // background on such a cell must not abort the whole render).
+            if *w <= 0.0 || *h <= 0.0 {
+                continue;
+            }
+            let rect =
+                Rect::from_xywh(*x, *y, *w, *h).ok_or_else(|| anyhow!("invalid background rect"))?;
             let mut pb = krilla::geom::PathBuilder::new();
             pb.push_rect(rect);
             if let Some(path) = pb.finish() {

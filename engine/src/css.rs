@@ -50,6 +50,7 @@ use style::values::computed::box_::Float as StyloFloat;
 pub use style::properties::longhands::box_sizing::computed_value::T as StyloBoxSizing;
 use style::values::computed::column::ColumnCount as StyloColumnCount;
 use style::values::computed::flex::FlexBasis as StyloFlexBasis;
+use style::values::computed::TrackBreadth;
 use style::values::computed::font::{FontFamily, LineHeight, SingleFontFamily};
 use style::values::computed::font::FontStyle as StyloFontStyle;
 use style::values::computed::length::{
@@ -102,6 +103,9 @@ pub enum Display {
     /// Inline-level block container (`display: inline-block`,
     /// css-display-3 §2.3): atomic on the outside, flow inside.
     InlineBlock,
+    /// Block-level grid container (css-grid-1 §2, CORE-139). `inline-grid`
+    /// is treated as block-level in paged flow (same model as inline-flex).
+    Grid,
 }
 /// The computed `column-span` value (css-multicol-1 §4).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -366,6 +370,12 @@ pub struct ComputedStyle {
     /// semantics (`normal` → 1em). `normal` → 0 for flex (css-align-3).
     /// Points.
     pub flex_column_gap: Scalar,
+    /// Grid container properties (css-grid-1, CORE-139). The computed
+    /// `grid-template-columns` / `grid-template-rows` track lists, flattened
+    /// to `None` (no tracks) / fixed+auto breadths. Layout reads these only
+    /// for `display: grid` boxes.
+    pub grid_columns: Vec<TrackBreadth>,
+    pub grid_rows: Vec<TrackBreadth>,
     pub margin_top: Scalar,
     pub margin_right: Scalar,
     pub margin_bottom: Scalar,
@@ -487,6 +497,8 @@ impl ComputedStyle {
             order: 0,
             row_gap: Scalar::ZERO,
             flex_column_gap: Scalar::ZERO,
+            grid_columns: Vec::new(),
+            grid_rows: Vec::new(),
             margin_top: Scalar::ZERO,
             margin_right: Scalar::ZERO,
             margin_bottom: Scalar::ZERO,
@@ -705,6 +717,8 @@ impl Stylesheet {
         // column-count/width/span are pref-gated in the servo build; enable
         // the gate before any declaration parsing (CORE-63).
         static_prefs::set_pref!("layout.columns.enabled", true);
+        // display:grid / grid-template-* are likewise pref-gated (CORE-139).
+        static_prefs::set_pref!("layout.grid.enabled", true);
         Stylesheet {
             css: css.to_string(),
         }
@@ -1019,6 +1033,11 @@ impl CascadeSession {
                         Display::InlineFlex
                     }
                 }
+                DisplayInside::Grid => {
+                    // css-grid-1 (CORE-139). `inline-grid` is treated as
+                    // block-level in paged flow (the inline-flex model).
+                    Display::Grid
+                }
                 DisplayInside::TableColumn | DisplayInside::TableColumnGroup => {
                     // Column boxes are unsupported; fall back to block.
                     Display::Block
@@ -1259,6 +1278,52 @@ impl CascadeSession {
         };
         let row_gap = flex_gap(&position.clone_row_gap());
         let flex_column_gap = flex_gap(&position.clone_column_gap());
+
+        // Grid track lists (CORE-139): flatten stylo's computed
+        // GridTemplateComponent::TrackList values into our simple breadth
+        // enum. TrackRepeat / subgrid / masonry are out of scope — a list
+        // containing them is dropped (None → treated as no explicit tracks;
+        // layout then makes every track auto).
+        let grid_track = |b: &TrackBreadth| -> TrackBreadth {
+            b.clone()
+        };
+        let flatten_tracks = |component: &style::values::computed::GridTemplateComponent| -> Vec<TrackBreadth> {
+            match component {
+                style::values::computed::GridTemplateComponent::TrackList(list) => {
+                    let mut out = Vec::new();
+                    for v in list.values.iter() {
+                        match v {
+                            style::values::generics::grid::TrackListValue::TrackSize(size) => {
+                                // TrackSize = Breadth(b) | Minmax(min, max) |
+                                // FitContent(b). The refs use plain
+                                // breadths; Minmax takes its MIN breadth
+                                // (v1 simplification).
+                                match size {
+                                    style::values::generics::grid::TrackSize::Breadth(b) => {
+                                        out.push(b.clone())
+                                    }
+                                    style::values::generics::grid::TrackSize::Minmax(min, _) => {
+                                        out.push(min.clone())
+                                    }
+                                    style::values::generics::grid::TrackSize::FitContent(b) => {
+                                        out.push(b.clone())
+                                    }
+                                }
+                            }
+                            style::values::generics::grid::TrackListValue::TrackRepeat(_) => {
+                                // Repeat() is out of scope; the whole list is
+                                // unusable without it — bail to no-tracks.
+                                return Vec::new();
+                            }
+                        }
+                    }
+                    out
+                }
+                _ => Vec::new(),
+            }
+        };
+        let grid_columns = flatten_tracks(&position.clone_grid_template_columns());
+        let grid_rows = flatten_tracks(&position.clone_grid_template_rows());
         let font_family = first_family_name(font.clone_font_family())
             .unwrap_or_else(|| "sans-serif".to_string());
         let (font_face, font_fallbacks) = {
@@ -1342,6 +1407,8 @@ impl CascadeSession {
             order,
             row_gap,
             flex_column_gap,
+            grid_columns,
+            grid_rows,
             margin_top,
             margin_right,
             margin_bottom,
@@ -2725,6 +2792,11 @@ mod paged_props {
                     "flex" => Some(PagedDecl::Display(super::Display::Flex)),
                     "inline-flex" => Some(PagedDecl::Display(super::Display::InlineFlex)),
                     "inline-block" => Some(PagedDecl::Display(super::Display::InlineBlock)),
+                    // CORE-139: the pass re-parses the UA sheet (which sets
+                    // div { display: block } at UA origin); without Grid here
+                    // an author `display: grid` was silently overwritten by
+                    // the UA block rule.
+                    "grid" => Some(PagedDecl::Display(super::Display::Grid)),
                     _ => None,
                 }
             }

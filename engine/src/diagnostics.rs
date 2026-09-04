@@ -111,6 +111,8 @@ const SUPPORTED_PROPERTIES: &[&str] = &[
     "font-style",
     "font-weight",
     "gap",
+    "grid-template-columns",
+    "grid-template-rows",
     "height",
     "hyphens",
     "justify-content",
