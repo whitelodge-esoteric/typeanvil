@@ -281,9 +281,15 @@ struct Ctx<'a> {
     content_y: Scalar,
     /// Content-box height of the page currently being laid out.
     page_height: Scalar,
-    /// Resolved target-counter page numbers by element `NodeId` (from the
+    /// Resolved target-counter values by element `NodeId` (from the
     /// previous layout pass). Empty on the first pass.
     target_pages: &'a BTreeMap<NodeId, usize>,
+    /// Per-element named-counter snapshots (from the PREVIOUS layout pass).
+    /// Read by `target-counter(attr(N), counter-name)`; empty on the first
+    /// pass. Captured during layout at every element that declares
+    /// `counter-reset`/`counter-increment` or carries a bookmark (CORE-128's
+    /// snapshot sink, unified with CORE-129's named-counter resolution).
+    target_counters: &'a BTreeMap<NodeId, Vec<(String, i32)>>,
     /// Total page count from the previous layout pass (0 on the first pass).
     /// `counter(pages)` reads this; margin-box text never affects pagination,
     /// so the second pass's count equals the first's and resolution converges.
@@ -378,12 +384,14 @@ pub fn layout_with_images_and_store(
         };
     }
 
-    // Does any generated content reference target-counter? If so, run the
-    // bounded multi-pass resolution; otherwise a single pass suffices.
+    // Does any generated content reference target-counter / target-text? If
+    // so, run the bounded multi-pass resolution; otherwise a single pass
+    // suffices. (`target-text` is synchronous DOM resolution, but sharing the
+    // pass loop keeps one code path and costs one extra pass at most.)
     let needs_toc = styles.iter().any(|s| {
         s.content
             .iter()
-            .any(|p| matches!(p, ContentPiece::TargetCounter { .. }))
+            .any(|p| matches!(p, ContentPiece::TargetCounter { .. } | ContentPiece::TargetText { .. }))
     });
     // `counter(pages)` needs the total page count, which is only known after
     // pagination. Margin-box / generated text never affects pagination, so one
@@ -408,10 +416,12 @@ pub fn layout_with_images_and_store(
 
     let mut fn_numbers: BTreeMap<NodeId, usize> = BTreeMap::new();
     let mut target_pages: BTreeMap<NodeId, usize> = BTreeMap::new();
+    // Per-element named-counter snapshots (CORE-128 capture site, unified
+    // with CORE-129's target-counter resolution — one mechanism, one map).
+    let mut target_counters: BTreeMap<NodeId, Vec<(String, i32)>> = BTreeMap::new();
     let mut total_pages: usize = 0;
     let mut collected_links: Vec<CollectedLink> = Vec::new();
     let mut pages = Vec::new();
-    let mut final_counters: BTreeMap<NodeId, Vec<(String, i32)>> = BTreeMap::new();
     for _ in 0..passes {
         // Footnote numbers are per-PASS (CORE-107): document order is stable,
         // so the numbers never change mid-pass even though individual pages
@@ -425,6 +435,7 @@ pub fn layout_with_images_and_store(
             root,
             &geometry,
             &target_pages,
+            &target_counters,
             total_pages,
             &sink,
             &image_infos,
@@ -438,14 +449,15 @@ pub fn layout_with_images_and_store(
         let converged = map == target_pages && p.len() == total_pages;
         pages = p;
         target_pages = map;
+        target_counters = counters;
         total_pages = pages.len();
-        final_counters = counters;
         if converged {
             break;
         }
     }
     // Build the bookmark outline from the final pass's element→page map.
-    let headings = build_headings(dom, &styles, &pages, &target_pages, &final_counters);
+    // `target_counters` IS the final pass's snapshot map (same mechanism).
+    let headings = build_headings(dom, &styles, &pages, &target_pages, &target_counters);
     // Resolve internal `#fragment` links against the FINAL pass's id → page
     // map (the same map target-counter uses); unresolved ids drop silently.
     let links = resolve_links(collected_links, dom, &target_pages);
@@ -760,6 +772,7 @@ fn paginate(
     root: NodeId,
     cli: &PageGeometry,
     target_pages: &BTreeMap<NodeId, usize>,
+    target_counters: &BTreeMap<NodeId, Vec<(String, i32)>>,
     total_pages: usize,
     links: &std::cell::RefCell<Vec<CollectedLink>>,
     image_infos: &BTreeMap<NodeId, ImageInfo>,
@@ -826,6 +839,7 @@ fn paginate(
             content_y: content.y,
             page_height: content.height,
             target_pages,
+            target_counters,
             total_pages,
             links,
             page_index,
@@ -865,6 +879,7 @@ fn paginate(
                         content_y: content.y,
                         page_height: area_top - content.y,
                         target_pages,
+                        target_counters,
                         total_pages,
                         links,
                         page_index,
@@ -961,11 +976,11 @@ fn paginate(
         record_sources(&page.root, page.index, &mut map);
     }
 
-    // CORE-128: capture the named-counter state at the END of the pass (the
-    // final values of every `counter-reset`/`counter-increment`-touched
-    // counter) for `bookmark-label` resolution.
-    let final_counters = flow.counters.clone();
-
+    // CORE-128/129: the layout-captured named-counter snapshots double as
+    // `target-counter(attr(N), counter-name)`'s resolution map (captured at
+    // every element that declares counters or carries a bookmark — see the
+    // capture site in `layout_box`). Values are pure document-order facts, so
+    // the map is identical across passes and resolution converges on pass 2.
     (pages, map, counter_snaps.into_inner())
 }
 
@@ -1487,14 +1502,19 @@ impl<'a> Ctx<'a> {
                     }
                 }
             }
-            // CORE-128: a bookmarked element's label may read `counter(name)`;
-            // snapshot the counter state at its box start. The LAST snapshot
-            // wins (a box that starts on multiple pages keeps its label at the
-            // final pass's first-fragment state — the fragment-level map in
-            // `record_anchor` uses first occurrence, so the earliest snapshot
-            // survives here via entry-or-insert semantics).
+            // CORE-128/129: snapshot the counter state at this box start.
+            // A bookmarked element's label may read `counter(name)`; a
+            // `target-counter(attr(N), name)` may point at a
+            // counter-declaring element. Either fact warrants a snapshot.
+            // The LAST snapshot wins (a box that starts on multiple pages
+            // keeps its label at the final pass's first-fragment state — the
+            // fragment-level map in `record_anchor` uses first occurrence, so
+            // the earliest snapshot survives here via entry-or-insert
+            // semantics).
             if !matches!(style.bookmark_level, crate::css::BookmarkLevel::None)
                 || !style.bookmark_label.is_empty()
+                || !style.counter_reset.is_empty()
+                || !style.counter_increment.is_empty()
             {
                 self.counter_snaps
                     .borrow_mut()
@@ -3971,8 +3991,13 @@ impl<'a> Ctx<'a> {
                     count_reserved("0", false);
                     push_side(&mut before, &mut after, leader_char, "0");
                 }
-                ContentPiece::TargetCounter { attr } => {
-                    let v = self.resolve_target(id, attr);
+                ContentPiece::TargetCounter { attr, counter } => {
+                    let v = self.resolve_target(id, attr, counter);
+                    count_reserved(&v, false);
+                    push_side(&mut before, &mut after, leader_char, &v);
+                }
+                ContentPiece::TargetText { attr } => {
+                    let v = self.resolve_target_text(id, attr);
                     count_reserved(&v, false);
                     push_side(&mut before, &mut after, leader_char, &v);
                 }
@@ -4019,27 +4044,79 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    /// Resolve a `target-counter(attr(name), page)` on element `id` to its
-    /// target page's 1-based number, or `?` when the target is missing (spec
-    /// edge case). The named attribute (`href`) is read from `id`; a leading
-    /// `#` is stripped and the matching element's recorded page is used.
-    fn resolve_target(&self, id: NodeId, attr: &str) -> String {
+    /// Resolve a `target-counter(attr(name), counter)` on element `id` to its
+    /// target's value (spec edge case: `?` when the target is missing).
+    ///
+    /// The attribute (`href`) is read from `id`; a leading `#` is stripped and
+    /// the matching element's recorded value is used. Counters:
+    /// - `page` → the target's 1-based page number (two-pass map).
+    /// - `pages` → the total page count from the previous pass.
+    /// - any other name → the target's counter snapshot value (`0` when the
+    ///   target declares no such counter — css-counters-3 initial value).
+    fn resolve_target(&self, id: NodeId, attr: &str, counter: &str) -> String {
+        let Some(target) = self.resolve_target_node(id, attr) else {
+            return "?".to_string();
+        };
+        if counter.eq_ignore_ascii_case("pages") {
+            return self.total_pages.to_string();
+        }
+        let page = match self.target_pages.get(&target) {
+            Some(p) => *p,
+            // The id exists but its element produced no fragment on any page
+            // (suppressed box): nothing to resolve.
+            None => return "?".to_string(),
+        };
+        if counter.eq_ignore_ascii_case("page") {
+            return (page + 1).to_string();
+        }
+        // Named counter: the target element's snapshot, else its nearest
+        // earlier snapshot carrying that counter (css-counters-3 §4.3.1
+        // inheritance — snapshots exist at every counter-declaring or
+        // bookmarked element), else 0. The snapshot Vec is (name, value) in
+        // declaration order; a linear find keeps lookup deterministic.
+        if let Some(snap) = self.target_counters.get(&target) {
+            if let Some((_, v)) = snap.iter().find(|(k, _)| k == counter) {
+                return v.to_string();
+            }
+        }
+        for (nid, snap) in self.target_counters.iter().rev() {
+            if *nid >= target {
+                continue;
+            }
+            if let Some((_, v)) = snap.iter().find(|(k, _)| k == counter) {
+                return v.to_string();
+            }
+        }
+        "0".to_string()
+    }
+
+    /// Resolve a `target-text(attr(name))` on element `id` to the target
+    /// element's text content (css-gcpm-3 §7.1). Missing target → `?`.
+    /// Synchronous: reads the DOM directly, so it needs no second pass — the
+    /// multi-pass loop is shared purely for code-path uniformity.
+    fn resolve_target_text(&self, id: NodeId, attr: &str) -> String {
+        match self
+            .resolve_target_node(id, attr)
+            .map(|t| self.dom.text_content(t))
+        {
+            Some(text) if !text.is_empty() => text,
+            _ => "?".to_string(),
+        }
+    }
+
+    /// The NodeId a `target-counter`/`target-text` on element `id` points at:
+    /// read the named attribute, strip a leading `#`, and find the first
+    /// element (document order) carrying that id.
+    fn resolve_target_node(&self, id: NodeId, attr: &str) -> Option<NodeId> {
         let href = match &self.dom.nodes[id].kind {
             NodeKind::Element(e) => e.attr(attr).map(|s| s.to_string()),
             _ => None,
-        };
-        let Some(href) = href else {
-            return "?".to_string();
-        };
+        }?;
         let anchor = href.trim_start_matches('#');
-        let target = self.dom.nodes.iter().position(|n| match &n.kind {
+        self.dom.nodes.iter().position(|n| match &n.kind {
             NodeKind::Element(e) => e.id.as_deref() == Some(anchor),
             _ => false,
-        });
-        match target.and_then(|t| self.target_pages.get(&t)) {
-            Some(page_index) => (page_index + 1).to_string(),
-            None => "?".to_string(),
-        }
+        })
     }
 }
 
@@ -4561,6 +4638,7 @@ fn render_margin_content(
             ContentPiece::CounterPages => out.push_str(&total_pages.to_string()),
             ContentPiece::CounterRef(_) => out.push('0'),
             ContentPiece::TargetCounter { .. } => {}
+            ContentPiece::TargetText { .. } => {}
             ContentPiece::Leader(_) => {}
         }
     }
@@ -4718,6 +4796,7 @@ fn resolve_bookmark_label(
             crate::paged::ContentPiece::CounterPage => {}
             crate::paged::ContentPiece::CounterPages => {}
             crate::paged::ContentPiece::TargetCounter { .. } => {}
+            crate::paged::ContentPiece::TargetText { .. } => {}
             crate::paged::ContentPiece::Leader(_) => {}
         }
     }

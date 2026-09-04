@@ -877,3 +877,163 @@ fn ua_h6_margin_is_21pt_mid_page() {
         "UA h6 margin must be 21pt mid-page: baseline y={y:.3} want {expected:.3}"
     );
 }
+
+// --- 15. Cross-references: target-counter / target-text (CORE-129) ----------
+
+#[test]
+fn target_counter_pages_resolves_target_page_number() {
+    // The classic TOC: entries reference chapters via href anchors, and each
+    // entry's `content` ends with target-counter(attr(href), page). The
+    // number must be the 1-based page the TARGET lands on (chapter 1 →
+    // page 2, chapter 2 → page 3 at this geometry).
+    let html = r##"<html><head><style>
+        @page { margin: 0.4in; }
+        body { margin: 0; }
+        .toc a { display: block; }
+        .e1 { content: "Chapter 1 " target-counter(attr(href), page); }
+        .e2 { content: "Chapter 2 " target-counter(attr(href), page); }
+        .ch { display: block; break-before: page; }
+        h1 { font-size: 14px; }
+        p { font-size: 12px; }
+    </style></head><body>
+        <div class="toc">
+            <a class="e1" href="#ch1">Chapter 1</a>
+            <a class="e2" href="#ch2">Chapter 2</a>
+        </div>
+        <div class="ch"><h1 id="ch1">One</h1><p>Body one.</p></div>
+        <div class="ch"><h1 id="ch2">Two</h1><p>Body two.</p></div>
+    </body></html>"##;
+    let layout = lay(html, geometry(5.0, 3.0, 0.4));
+    let toc = page_texts(&layout.pages[0]);
+    let e1 = toc.iter().find(|t| t.contains("Chapter 1")).expect("entry 1");
+    let e2 = toc.iter().find(|t| t.contains("Chapter 2")).expect("entry 2");
+    assert!(e1.ends_with('2'), "entry 1 page number: {e1:?}");
+    assert!(e2.ends_with('3'), "entry 2 page number: {e2:?}");
+}
+
+#[test]
+fn target_counter_missing_target_renders_question_mark() {
+    // A href with no matching id must degrade to `?` (spec edge case), never
+    // panic or render a bogus number.
+    let html = r##"<html><head><style>
+        @page { margin: 0.4in; }
+        body { margin: 0; }
+        .e1 { display: block; content: "Ghost " target-counter(attr(href), page); }
+    </style></head><body>
+        <a class="e1" href="#nope">Ghost</a>
+    </body></html>"##;
+    let layout = lay(html, geometry(5.0, 3.0, 0.4));
+    let texts = page_texts(&layout.pages[0]);
+    let e1 = texts.iter().find(|t| t.contains("Ghost")).expect("entry");
+    assert!(
+        e1.trim_end().ends_with('?'),
+        "missing target must resolve to '?': {e1:?}"
+    );
+}
+
+#[test]
+fn target_counter_named_counter_reads_document_counter_state() {
+    // `target-counter(attr(href), section)` with `counter-reset: section N` /
+    // `counter-increment: section` in the document: the TOC entry for
+    // chapter 2 must read the chapter-2 target's counter value (2), not the
+    // entry element's own value (0).
+    let html = r##"<html><head><style>
+        @page { margin: 0.4in; }
+        body { margin: 0; }
+        .toc a { display: block; }
+        .e1 { content: "Chapter 1 " target-counter(attr(href), section); }
+        .e2 { content: "Chapter 2 " target-counter(attr(href), section); }
+        .ch { display: block; break-before: page; counter-increment: section; }
+        .ch1 { counter-reset: section 0; }
+        h1 { font-size: 14px; }
+        p { font-size: 12px; }
+    </style></head><body>
+        <div class="toc">
+            <a class="e1" href="#ch1">Chapter 1</a>
+            <a class="e2" href="#ch2">Chapter 2</a>
+        </div>
+        <div class="ch ch1"><h1 id="ch1">One</h1><p>Body one.</p></div>
+        <div class="ch"><h1 id="ch2">Two</h1><p>Body two.</p></div>
+    </body></html>"##;
+    let layout = lay(html, geometry(5.0, 3.0, 0.4));
+    let toc = page_texts(&layout.pages[0]);
+    let e1 = toc.iter().find(|t| t.contains("Chapter 1")).expect("entry 1");
+    let e2 = toc.iter().find(|t| t.contains("Chapter 2")).expect("entry 2");
+    assert!(
+        e1.trim_end().ends_with('1'),
+        "chapter 1 section counter: {e1:?}"
+    );
+    assert!(
+        e2.trim_end().ends_with('2'),
+        "chapter 2 section counter must read the TARGET's snapshot: {e2:?}"
+    );
+}
+
+#[test]
+fn target_counter_pages_includes_total_pages_counter() {
+    // `target-counter(attr(href), pages)` resolves to the DOCUMENT's total
+    // page count (the same value `counter(pages)` shows on any page).
+    let html = r##"<html><head><style>
+        @page { margin: 0.4in; }
+        body { margin: 0; }
+        .toc a { display: block; }
+        .e1 { content: "Chapter 1 " target-counter(attr(href), pages); }
+        .ch { display: block; break-before: page; }
+        p { font-size: 12px; }
+    </style></head><body>
+        <div class="toc"><a class="e1" href="#ch1">Chapter 1</a></div>
+        <div class="ch" id="ch1"><p>Body one.</p></div>
+        <div class="ch" id="ch2"><p>Body two.</p></div>
+    </body></html>"##;
+    let layout = lay(html, geometry(5.0, 3.0, 0.4));
+    let total = layout.pages.len();
+    assert!(total >= 2, "fixture must be multi-page");
+    let toc = page_texts(&layout.pages[0]);
+    let e1 = toc.iter().find(|t| t.contains("Chapter 1")).expect("entry");
+    assert!(
+        e1.trim_end().ends_with(total.to_string().as_str()),
+        "pages counter must equal total {total}: {e1:?}"
+    );
+}
+
+#[test]
+fn target_text_resolves_target_element_text() {
+    // `target-text(attr(href))` resolves to the target element's text
+    // content — the classic "see §X: <title>" cross-reference form.
+    let html = r##"<html><head><style>
+        @page { margin: 0.4in; }
+        body { margin: 0; }
+        .e1 { content: "Ref: " target-text(attr(href)); }
+        .ch { display: block; break-before: page; }
+        h1 { font-size: 14px; }
+        p { font-size: 12px; }
+    </style></head><body>
+        <div class="ch"><p class="e1" href="#sec1">Ref:</p></div>
+        <div class="ch"><h1 id="sec1">Foundations of Typesetting</h1></div>
+    </body></html>"##;
+    let layout = lay(html, geometry(5.0, 3.0, 0.4));
+    let texts = page_texts(&layout.pages[0]);
+    let e1 = texts.iter().find(|t| t.contains("Ref:")).expect("entry");
+    assert!(
+        e1.contains("Foundations of Typesetting"),
+        "target-text must carry the target's text: {e1:?}"
+    );
+}
+
+#[test]
+fn target_text_missing_target_renders_question_mark() {
+    let html = r##"<html><head><style>
+        @page { margin: 0.4in; }
+        body { margin: 0; }
+        .e1 { content: "Ref: " target-text(attr(href)); }
+    </style></head><body>
+        <p class="e1" href="#ghost">Ref:</p>
+    </body></html>"##;
+    let layout = lay(html, geometry(5.0, 3.0, 0.4));
+    let texts = page_texts(&layout.pages[0]);
+    let e1 = texts.iter().find(|t| t.contains("Ref:")).expect("entry");
+    assert!(
+        e1.trim_end().ends_with('?'),
+        "missing target-text must resolve to '?': {e1:?}"
+    );
+}
