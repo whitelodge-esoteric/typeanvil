@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-18
-updated: 2026-08-19
+updated: 2026-09-04
 sidebar_position: 9
 tags: [engine, layout, css-position, css-break, fragmentation]
 spec_id: out-of-flow-positioning
@@ -93,13 +93,22 @@ The engine shall:
    block lands — NOT a child of the containing block's fragment tree branch
    (css-break-3; the Chromium tree-mapping rule). Concretely: the fragment is
    appended to `fragmentainer.root.children` (the page root's children),
-   offset pre-adjusted into the root's coordinate space, so the in-flow
+   already in PAGE-ABSOLUTE coordinates (the out-of-flow branch lays against
+   `content.x`/`content.y` directly — CORE-127 slice b; the earlier
+   content-origin subtraction double-shifted paint up-left by the margin,
+   hidden because test and ref shifted identically), so the in-flow
    subtree never sees it.
 5. Place the abspos box on the page containing its containing block: if the
    containing block spans pages, the box lands on the first page containing
    the anchor point resolved at layout.
-6. Treat `position: fixed` as absolute against the initial containing block
-   (the page box) in paged media.
+6. Treat `position: fixed` in paged media as absolute against the initial
+   containing block (page 0's content box — the anchor page), laid out ONCE
+   after pagination, with the fragment CLONED onto every page at the page's
+   own content-origin offset (css-position-3 §fixed in paged media: fixed
+   content repeats on all pages; CORE-127 slice b). A named page resolving a
+   different `@page` size/margin shifts the clone by the content-origin
+   delta; the box keeps its anchor-page geometry. Nested fixed boxes are
+   consumed by their outer box (one clone covers the subtree).
 7. Apply `position: relative` offsets to the in-flow box without changing
    sibling layout; a relative box is a valid containing block for descendants.
 8. Paint positioned siblings in `z-index` order (higher first); `auto` paints
@@ -169,14 +178,20 @@ The engine shall:
 - `measure_block` skips `position: Absolute | Fixed` children (they add no
   in-flow height) — same rule as floats.
 - After `layout_root` returns for a page, drain `flow.abspos` (sorted stable by
-  `z_index`, tree order for ties/`None`) into `fragmentainer.root.children`,
-  each offset adjusted by the root's origin (the root is the body fragment at
-  `(content_x, content_top)`).
+  `z_index`, tree order for ties/`None`) into `fragmentainer.root.children`.
+  The offsets are already page-absolute (CORE-127 slice b) — no origin
+  adjustment is applied at drain time; the emitter's root walk treats every
+  root child as page-absolute.
 
 ### `engine/src/frag.rs`
 
-- No new fields: abspos fragments ride the existing `Fragmentainer.root`
-  child list (Behavior 4). `Flow::abspos` is layout-internal.
+- `Fragmentainer` gains `content_origin: Point` — the page-absolute origin of
+  the page's content box (CORE-127 slice b), set by `paginate` for every page
+  it lays out. The fixed-position attachment pass uses it to shift each
+  fixed clone by the page's content-origin delta (named pages may resolve a
+  different `@page` size/margin per page). Abspos fragments ride the
+  existing `Fragmentainer.root` child list (Behavior 4); `Flow::abspos` is
+  layout-internal.
 
 ### `engine/src/pdf.rs`
 

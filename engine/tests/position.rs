@@ -129,14 +129,16 @@ fn absolute_lands_on_containing_block_page() {
         "no abspos fragment on page 1"
     );
     // Page 2: the containing block starts at the content top; the abspos sits
-    // 10pt right / 20pt down from its padding-box origin.
+    // 10pt right / 20pt down from its padding-box origin. Offsets are
+    // page-absolute (CORE-127 slice b): the page content origin is the
+    // 36pt margin, so cb origin = (36, 36).
     let frags = page_abspos_fragments(&layout, 1, aid);
     assert!(
         !frags.is_empty(),
         "abspos fragment lands on the containing block's page"
     );
-    assert_close(frags[0].offset.x, Scalar(10.0), "x = cb.x + left (10pt)");
-    assert_close(frags[0].offset.y, Scalar(20.0), "y = cb.y + top (20pt)");
+    assert_close(frags[0].offset.x, Scalar(46.0), "x = 36 + cb.x + left (10pt)");
+    assert_close(frags[0].offset.y, Scalar(56.0), "y = 36 + cb.y + top (20pt)");
 }
 
 // --- 2. Offsets resolve from the containing block's padding edge -----------
@@ -157,13 +159,14 @@ fn offsets_from_cb_padding_edge() {
     let layout = lay(html, geometry(5.0, 3.0, 0.5));
     let frags = page_abspos_fragments(&layout, 0, aid);
     assert!(!frags.is_empty(), "abspos fragment placed");
-    // cb padding-box origin = content origin + padding (12pt, 0pt).
+    // cb padding-box origin = content origin + padding (12pt, 0pt); offsets
+    // are page-absolute (CORE-127 slice b), content origin = 36pt margin.
     assert_close(
         frags[0].offset.x,
-        Scalar(12.0),
-        "x = cb padding-box origin (padding-left 12pt)",
+        Scalar(48.0),
+        "x = 36 + cb padding-box origin (padding-left 12pt)",
     );
-    assert_close(frags[0].offset.y, Scalar(0.0), "y = cb padding-box top");
+    assert_close(frags[0].offset.y, Scalar(36.0), "y = 36 + cb padding-box top");
 }
 
 // --- 3. Nearest positioned ancestor wins ------------------------------------
@@ -186,12 +189,17 @@ fn nearest_positioned_ancestor_wins() {
     let frags = page_abspos_fragments(&layout, 0, aid);
     assert!(!frags.is_empty(), "abspos fragment placed");
     // The inner (not outer) is the containing block: offset = inner's padding.
+    // Offsets are page-absolute (CORE-127 slice b); content origin = 36pt.
     assert_close(
         frags[0].offset.x,
-        Scalar(8.0),
-        "x = inner padding-box origin (8pt)",
+        Scalar(44.0),
+        "x = 36 + inner padding-box origin (8pt)",
     );
-    assert_close(frags[0].offset.y, Scalar(0.0), "y = inner padding-box top");
+    assert_close(
+        frags[0].offset.y,
+        Scalar(36.0),
+        "y = 36 + inner padding-box top",
+    );
 }
 
 // --- 4. right/bottom insets resolve against the containing block -----------
@@ -213,23 +221,24 @@ fn right_and_bottom_offsets() {
     let rid = node_id_by_class(&dom, "r");
     let bid = node_id_by_class(&dom, "b");
     let layout = lay(html, geometry(5.0, 3.0, 0.5));
-    // Initial containing block = page content box (36,36) size (288,144).
+    // Initial containing block = page content box, page-absolute origin
+    // (36, 36), size (288, 144) — CORE-127 slice b convention.
     let r = page_abspos_fragments(&layout, 0, rid);
     assert!(!r.is_empty(), "right-inset fragment placed");
     assert_close(
         r[0].offset.x,
-        Scalar(288.0 - 72.0),
+        Scalar(36.0 + 288.0 - 72.0),
         "right:0 flushes to the CB's right edge",
     );
-    assert_close(r[0].offset.y, Scalar(0.0), "top:0 keeps the CB's top");
+    assert_close(r[0].offset.y, Scalar(36.0), "top:0 keeps the CB's top");
     let b = page_abspos_fragments(&layout, 0, bid);
     assert!(!b.is_empty(), "bottom-inset fragment placed");
     // fh = one 12pt line at line-height 1.2 = 14.4pt; bottom:0 flushes to the
     // fragmentainer content bottom (the CB-height approximation).
-    assert_close(b[0].offset.x, Scalar(0.0), "left:0 keeps the CB's left");
+    assert_close(b[0].offset.x, Scalar(36.0), "left:0 keeps the CB's left");
     assert_close(
         b[0].offset.y,
-        Scalar(144.0 - 14.4),
+        Scalar(36.0 + 144.0 - 14.4),
         "bottom:0 flushes to the content bottom",
     );
 }
@@ -252,8 +261,10 @@ fn out_of_flow_does_not_advance_cursor() {
     let layout = lay(html, geometry(5.0, 3.0, 0.5));
     let frags = page_abspos_fragments(&layout, 0, aid);
     assert!(!frags.is_empty(), "abspos fragment placed");
-    assert_close(frags[0].offset.x, Scalar(0.0), "static x = CB origin");
-    assert_close(frags[0].offset.y, Scalar(0.0), "static y = CB origin");
+    // Offsets are page-absolute (CORE-127 slice b): the CB is the page
+    // content box, origin (36, 36).
+    assert_close(frags[0].offset.x, Scalar(36.0), "static x = CB origin (36)");
+    assert_close(frags[0].offset.y, Scalar(36.0), "static y = CB origin (36)");
     // The paragraph still starts at the very top of the content area
     // (content top = 36pt margin). Out-of-flow boxes paint after in-flow
     // ones, so the FIRST line belongs to the paragraph.
@@ -266,7 +277,7 @@ fn out_of_flow_does_not_advance_cursor() {
     );
 }
 
-// --- 6. Fixed anchors to the page box ---------------------------------------
+// --- 6. Fixed anchors to the page box and repeats on every page --------------
 
 #[test]
 fn fixed_anchors_to_page() {
@@ -285,16 +296,87 @@ fn fixed_anchors_to_page() {
     let frags = page_abspos_fragments(&layout, 0, fid);
     assert!(!frags.is_empty(), "fixed fragment placed");
     // Fixed ignores the relative containing block (1in margin) — the page
-    // content box origin is (0,0) relative to the body.
+    // content box origin, page-absolute (CORE-127 slice b), is (36, 36).
     assert_close(
         frags[0].offset.x,
-        Scalar(0.0),
+        Scalar(36.0),
         "fixed x = page content origin, not the CB",
     );
     assert_close(
         frags[0].offset.y,
-        Scalar(0.0),
+        Scalar(36.0),
         "fixed y = page content origin",
+    );
+}
+
+/// css-position-3 §fixed in paged media: a fixed box repeats on EVERY page.
+/// It is laid out once against the initial containing block (page 0's content
+/// box) and its fragment clones onto each page with the page's content-origin
+/// offset (CORE-127 slice b).
+#[test]
+fn fixed_repeats_on_every_page() {
+    let html = r#"<html><head><style>
+        body { margin: 0; font-size: 12pt; line-height: 1.2; }
+        p, div { margin: 0; }
+        .f { position: fixed; top: 10pt; left: 10pt; }
+        .tall { height: 130pt; break-after: page; }
+    </style></head>
+    <body>
+        <div class="f">F</div>
+        <div class="tall">Page one body.</div>
+        <div>Page two body.</div>
+    </body></html>"#;
+    let dom = dom_of(html);
+    let fid = node_id_by_class(&dom, "f");
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    assert!(layout.pages.len() >= 2, "document paginates to 2+ pages");
+    for page in 0..layout.pages.len() {
+        let frags = page_abspos_fragments(&layout, page, fid);
+        assert!(
+            !frags.is_empty(),
+            "fixed fragment repeats on page {}",
+            page + 1
+        );
+        // Same page-absolute anchor on every page: ICB origin (36, 36) plus
+        // the insets (10, 10).
+        assert_close(
+            frags[0].offset.x,
+            Scalar(46.0),
+            "fixed x on every page = content origin + left",
+        );
+        assert_close(
+            frags[0].offset.y,
+            Scalar(46.0),
+            "fixed y on every page = content origin + top",
+        );
+    }
+}
+
+/// `bottom` on a fixed box resolves against the initial containing block's
+/// height (the page content box), NOT the containing block or the body (CORE-127
+/// slice b).
+#[test]
+fn fixed_bottom_resolves_against_icb_height() {
+    let html = r#"<html><head><style>
+        body { margin: 0; font-size: 12pt; line-height: 1.2; }
+        p, div { margin: 0; }
+        .f { position: fixed; bottom: 0; left: 0; }
+    </style></head>
+    <body>
+        <div class="f">F</div>
+        <p>Body.</p>
+    </body></html>"#;
+    let dom = dom_of(html);
+    let fid = node_id_by_class(&dom, "f");
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    let frags = page_abspos_fragments(&layout, 0, fid);
+    assert!(!frags.is_empty(), "fixed fragment placed");
+    // ICB = (36, 36) size (288, 144); fh = one 12pt line at 1.2 = 14.4pt.
+    // bottom:0 flushes the margin box to the content-box bottom edge.
+    assert_close(
+        frags[0].offset.y,
+        Scalar(36.0 + 144.0 - 14.4),
+        "bottom:0 flushes to ICB bottom",
     );
 }
 

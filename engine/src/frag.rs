@@ -332,6 +332,11 @@ pub struct Fragmentainer {
     /// `page-orientation` from the resolved `@page` rule (CORE-66). Carried
     /// so the PDF emitter can rotate content within the page box.
     pub page_orientation: Option<crate::paged::PageOrientation>,
+    /// Page-absolute origin of the page's content box (points). Recorded so
+    /// the fixed-position attachment pass can shift each fixed fragment from
+    /// its anchor page's geometry to any page whose `@page` rule resolves a
+    /// different size/margin (named pages; CORE-127 slice b).
+    pub content_origin: Point,
 }
 
 impl Fragmentainer {
@@ -350,6 +355,9 @@ impl Fragmentainer {
             },
             background: None,
             page_orientation: None,
+            // Default: origin at (0, 0); `paginate` overwrites it with
+            // the real content-box origin for every page it lays out.
+            content_origin: Point::default(),
         }
     }
 }

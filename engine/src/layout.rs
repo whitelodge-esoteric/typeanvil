@@ -765,6 +765,27 @@ fn attach_footnotes(
     }
 }
 
+/// Collect every `position: fixed` element in document order (CORE-127
+/// slice b). Fixed boxes are removed from body layout (the out-of-flow
+/// branch skips them) and laid out once after pagination, so the scan walks
+/// the whole DOM subtree of the layout root up front.
+fn collect_fixed_ids(dom: &Dom, styles: &[ComputedStyle], root: NodeId) -> Vec<NodeId> {
+    let mut out = Vec::new();
+    fn walk(dom: &Dom, styles: &[ComputedStyle], id: NodeId, out: &mut Vec<NodeId>) {
+        if styles[id].position == Position::Fixed {
+            // Nested fixed boxes: the outer one repeats with its subtree,
+            // so the inner one is consumed by it (no separate clone).
+            out.push(id);
+            return;
+        }
+        for &child in &dom.nodes[id].children {
+            walk(dom, styles, child, out);
+        }
+    }
+    walk(dom, styles, root, &mut out);
+    out
+}
+
 #[allow(clippy::type_complexity)]
 fn paginate(
     dom: &Dom,
@@ -797,6 +818,14 @@ fn paginate(
         page_string_sets: Vec::new(),
         counters: Vec::new(),
     };
+    // Collect `position: fixed` elements once, in document order (CORE-127
+    // slice b). The body-layout out-of-flow branch SKIPS them; after the
+    // page loop each is laid out exactly once against the first page's
+    // content box (the initial containing block — the anchor page), and the
+    // resulting fragment CLONES onto every page (css-position-3 §fixed in
+    // paged media: fixed content repeats on all pages; Chromium resolves
+    // the box against the ICB and repeats it verbatim, fixedpos-010's ref).
+    let fixed_ids = collect_fixed_ids(dom, styles, root);
     // CORE-128: per-element counter snapshots, filled as bookmarked boxes
     // start (read by `build_headings` after the pass).
     let counter_snaps = std::cell::RefCell::new(BTreeMap::new());
@@ -851,6 +880,10 @@ fn paginate(
         let mut fragmentainer = Fragmentainer::new(page_index, spec.size);
         fragmentainer.background = spec.background;
         fragmentainer.page_orientation = spec.page_orientation;
+        // Record the content-box origin (CORE-127 slice b): the fixed-position
+        // attachment pass shifts anchor-page fragments to each page's own
+        // geometry when a named page resolves a different size/margin.
+        fragmentainer.content_origin = Point::new(content.x, content.y);
 
         // CORE-107: lay the body full-height first, then reserve the footnote
         // area if any call marker PLACED on this page (`pending_footnotes`).
@@ -934,12 +967,16 @@ fn paginate(
         // Out-of-flow fragments attach to the page root (css-break-3: the
         // fragmentainer is their parent, not the CSS containing block).
         // Stable sort by z-index (None/auto first = painted below); ties keep
-        // document order. Offsets are adjusted into the root's coordinate
-        // space (the root is the body fragment at the content origin).
+        // document order. Their offsets are ALREADY page-absolute (the
+        // out-of-flow branch lays against `content.x`/`content.y` directly),
+        // matching the margin-box and footnote attachments — the emitter's
+        // root walk treats every root child as page-absolute. (The old
+        // content-origin subtraction double-shifted out-of-flow paint up-left
+        // by the margin size; slice (a)'s simple fixtures passed only because
+        // test and ref shifted identically.)
         if !flow.abspos.is_empty() {
             flow.abspos.sort_by_key(|(z, _)| *z);
-            for (_, mut frag) in std::mem::take(&mut flow.abspos) {
-                frag.offset = Point::new(frag.offset.x - content.x, frag.offset.y - content.y);
+            for (_, frag) in std::mem::take(&mut flow.abspos) {
                 fragmentainer.root.children.push(frag);
             }
         }
@@ -956,6 +993,8 @@ fn paginate(
         let spec = resolve_page_spec(page_rules, None, 0, cli);
         let mut fragmentainer = Fragmentainer::new(0, spec.size);
         let geo = spec.geometry();
+        let content = geo.content_rect();
+        fragmentainer.content_origin = Point::new(content.x, content.y);
         attach_margin_boxes(
             &mut fragmentainer,
             &spec,
@@ -968,6 +1007,117 @@ fn paginate(
             &flow.running,
         );
         pages.push(fragmentainer);
+    }
+
+    // Fixed-position attachment (CORE-127 slice b). Each fixed box lays out
+    // ONCE against the initial containing block (page 0's content box —
+    // Chromium resolves fixed against the ICB even when later named pages
+    // resolve different page boxes, fixedpos-010's ref), then the fragment
+    // CLONES onto every page, shifted by each page's content-origin delta so
+    // a named page with a different size/margin still positions it correctly
+    // (the box itself keeps its resolved geometry; only the page box moves).
+    if !fixed_ids.is_empty() {
+        let spec0 = resolve_page_spec(page_rules, None, 0, cli);
+        let geo0 = spec0.geometry();
+        let content0 = geo0.content_rect();
+        // Fresh Flow: the fixed layout must not touch the drained body state.
+        let mut fx_flow = Flow {
+            running: RunningStrings::new(),
+            page_base: 1,
+            current_index: 0,
+            active_floats: Vec::new(),
+            pending_floats: Vec::new(),
+            abspos_cb: None,
+            abspos: Vec::new(),
+            pending_footnotes: Vec::new(),
+            page_string_sets: Vec::new(),
+            counters: Vec::new(),
+        };
+        let mut fixed_frags: Vec<(Option<i32>, Fragment, Point)> = Vec::new();
+        for &fid in &fixed_ids {
+            // Fresh Ctx per fixed box: lays monolithic against the ICB.
+            let anchor = Ctx {
+                dom,
+                styles,
+                content_x: content0.x,
+                content_width: content0.width,
+                content_y: content0.y,
+                page_height: content0.height,
+                target_pages,
+                target_counters,
+                total_pages,
+                links,
+                page_index: 0,
+                image_infos,
+                fn_numbers,
+                counter_snaps: &counter_snaps,
+            };
+            let fstyle = &styles[fid];
+            // Measure the fixed box's margin box at the ICB width (the same
+            // path as the abspos branch: explicit width, else shrink-to-fit).
+            let (fw, fh) = anchor.measure_float(fid, content0.width);
+            // Insets position the margin box against the ICB (css-position-3
+            // §fixed in paged media = the page content box; bottom/right
+            // resolve against the ICB height).
+            let fx = match fstyle.inset_left {
+                Some(l) => content0.x + l,
+                None => match fstyle.inset_right {
+                    Some(r) => content0.x + content0.width - fw - r,
+                    None => content0.x,
+                },
+            };
+            let fy = match fstyle.inset_top {
+                Some(t) => content0.y + t,
+                None => match fstyle.inset_bottom {
+                    Some(b) => content0.y + content0.height - fh - b,
+                    None => content0.y,
+                },
+            };
+            let fx_flow = &mut fx_flow;
+            let res = anchor.layout_box(
+                fid,
+                fx,
+                fw,
+                fy,
+                Scalar(f64::MAX),
+                false,
+                true,
+                &BreakToken::break_before(),
+                fx_flow,
+            );
+            let z = styles[fid].z_index;
+            // Abspos spilled out of the fixed subtree (e.g. an absolute
+            // descendant of the fixed box, fixedpos-with-abspos-with-link)
+            // lands in fx_flow.abspos in page-absolute coords: rebase each
+            // into the fixed fragment's coordinate space so the clones carry
+            // them. Paint order: negative z below the fixed box itself, the
+            // rest after (auto/positive) — matches the drain's sort.
+            let mut spilled = std::mem::take(&mut fx_flow.abspos);
+            spilled.sort_by_key(|(z, _)| *z);
+            let origin = Point::new(fx, fy);
+            let mut frag = res.fragment;
+            for (sz, mut sf) in spilled {
+                sf.offset = Point::new(sf.offset.x - origin.x, sf.offset.y - origin.y);
+                if sz.map_or(true, |z| z < 0) {
+                    frag.children.insert(0, sf);
+                } else {
+                    frag.children.push(sf);
+                }
+            }
+            fixed_frags.push((z, frag, origin));
+        }
+        for page in &mut pages {
+            let dx = page.content_origin.x.get() - content0.x.get();
+            let dy = page.content_origin.y.get() - content0.y.get();
+            for (z, frag, origin) in &fixed_frags {
+                let mut clone = frag.clone();
+                clone.offset = Point::new(
+                    Scalar(origin.x.get() + dx),
+                    Scalar(origin.y.get() + dy),
+                );
+                page.root.children.push(clone);
+            }
+        }
     }
 
     // Build the element→page-index map from fragment sources (first page each
@@ -2330,6 +2480,16 @@ impl<'a> Ctx<'a> {
                 Item::Block(child) => {
                     let child_tok = self.child_incoming(token, i);
                     let cstyle = &self.styles[*child];
+                    if cstyle.position == Position::Fixed {
+                        // CORE-127 slice b: fixed boxes are laid out ONCE
+                        // after the page loop (against the initial
+                        // containing block) and their fragment clones onto
+                        // every page. Skip them here entirely — laying one
+                        // into a page's abspos pool would pin it to a
+                        // single page.
+                        i += 1;
+                        continue;
+                    }
                     if matches!(cstyle.position, Position::Absolute | Position::Fixed) {
                         // ---- out-of-flow branch ----
                         // The box is taken out of flow: no cursor advance, no
