@@ -1,0 +1,40 @@
+{
+  "name": "typeanvil",
+  "version": "0.0.0-staging",
+  "description": "Typeanvil — AI-first HTML/Markdown to PDF typesetting engine",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/whitelodge-esoteric/typeanvil.git"
+  },
+  "homepage": "https://github.com/whitelodge-esoteric/typeanvil",
+  "bugs": "https://github.com/whitelodge-esoteric/typeanvil/issues",
+  "keywords": [
+    "pdf",
+    "html",
+    "markdown",
+    "typesetting",
+    "print",
+    "css-paged-media"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "index.js",
+  "bin": {
+    "typeanvil": "bin.js"
+  },
+  "files": [
+    "bin.js",
+    "index.js",
+    "resolve.js",
+    "README.md"
+  ],
+  "optionalDependencies": {
+    "@typeanvil/darwin-arm64": "0.0.0-staging",
+    "@typeanvil/darwin-x64": "0.0.0-staging",
+    "@typeanvil/linux-x64-gnu": "0.0.0-staging",
+    "@typeanvil/linux-x64-musl": "0.0.0-staging",
+    "@typeanvil/linux-arm64-gnu": "0.0.0-staging"
+  }
+}

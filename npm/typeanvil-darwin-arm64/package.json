@@ -1,0 +1,20 @@
+{
+  "name": "@typeanvil/darwin-arm64",
+  "version": "0.0.0-staging",
+  "description": "Typeanvil native binary for macOS (Apple Silicon)",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/whitelodge-esoteric/typeanvil.git"
+  },
+  "homepage": "https://github.com/whitelodge-esoteric/typeanvil",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "files": [
+    "bin"
+  ]
+}

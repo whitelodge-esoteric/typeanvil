@@ -1,4 +1,6 @@
 # Release CI (CORE-135): tag → cross-platform binaries → GitHub Releases.
+# CORE-136 adds the npm-publish job: wrapper + platform packages, versions
+# stamped from the tag.
 #
 # Trigger: push of a tag `v*`. Version is CalVer (YYYY.M.PATCH — plain month;
 # zero-padded month is not npm-semver-valid), decided on CORE-133; the tag is
@@ -193,3 +195,75 @@ jobs:
           gh release view "$TAG" >/dev/null 2>&1 || \
             gh release create "$TAG" --title "$TAG" --generate-notes
           gh release upload "$TAG" dist/* --clobber
+
+  # npm distribution (CORE-136): publish the wrapper + platform packages with
+  # the binaries from this same tag. Versions are stamped from the tag —
+  # no hand-edited versions anywhere (npm spec, Behavior 3).
+  npm-publish:
+    needs: [derive-version, build]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+
+      - name: Unpack binaries and stamp versions from tag
+        env:
+          VERSION: ${{ needs.derive-version.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Release artifact → npm platform package mapping (npm spec: Package layout).
+          declare -A PKG=(
+            ["aarch64-apple-darwin"]="typeanvil-darwin-arm64"
+            ["x86_64-apple-darwin"]="typeanvil-darwin-x64"
+            ["x86_64-unknown-linux-gnu"]="typeanvil-linux-x64-gnu"
+            ["x86_64-unknown-linux-musl"]="typeanvil-linux-x64-musl"
+            ["aarch64-unknown-linux-gnu"]="typeanvil-linux-arm64-gnu"
+          )
+          for target in "${!PKG[@]}"; do
+            tar -xzf "dist/typeanvil-$VERSION-$target.tar.gz"
+            dir="npm/${PKG[$target]}"
+            install -m 0755 "typeanvil-$VERSION-$target/typeanvil" "$dir/bin/typeanvil"
+          done
+          # Stamp version = tag in every package.json (Behavior 3), plus the
+          # wrapper's optionalDependencies pins so the resolved set matches.
+          for pj in npm/*/package.json; do
+            node -e '
+              const fs = require("fs");
+              const f = process.argv[1], v = process.argv[2];
+              const pkg = JSON.parse(fs.readFileSync(f, "utf8"));
+              pkg.version = v;
+              if (pkg.optionalDependencies) {
+                for (const d of Object.keys(pkg.optionalDependencies)) {
+                  pkg.optionalDependencies[d] = v;
+                }
+              }
+              fs.writeFileSync(f, JSON.stringify(pkg, null, 2) + "\n");
+            ' "$pj" "$VERSION"
+          done
+
+      # Platform packages first; the wrapper LAST — its optionalDependencies
+      # must resolve against the registry at install time.
+      - name: Publish platform packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          for dir in npm/typeanvil-darwin-arm64 npm/typeanvil-darwin-x64 \
+                     npm/typeanvil-linux-x64-gnu npm/typeanvil-linux-x64-musl \
+                     npm/typeanvil-linux-arm64-gnu; do
+            npm publish --access public "$dir"
+          done
+
+      - name: Publish wrapper package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public npm/typeanvil
