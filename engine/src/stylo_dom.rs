@@ -44,6 +44,7 @@ use style::dom::{LayoutIterator, NodeInfo, TDocument, TElement, TNode, TShadowRo
 use style::properties::PropertyDeclarationBlock;
 use style::selector_parser::{AttrValue, Lang, PseudoElement, SelectorImpl};
 use style::shared_lock::{Locked, SharedRwLock};
+use style::stylesheets::UrlExtraData;
 use style::stylist::CascadeData;
 use style::values::computed::Display;
 use style::values::AtomIdent;
@@ -70,6 +71,9 @@ pub struct TyBackend<'a> {
     pub lock: &'a SharedRwLock,
     /// The single namespace every element lives in (HTML).
     html_ns: string_cache::Atom<web_atoms::NamespaceStaticSet>,
+    /// Per-element parsed `style=""` declarations (CORE-126). `None` for
+    /// elements without the attribute (the common case — zero cost).
+    style_attrs: HashMap<NodeId, Arc<Locked<PropertyDeclarationBlock>>>,
     /// Element tag names, interned into the web_atoms local-name set.
     local_names: HashMap<NodeId, string_cache::Atom<web_atoms::LocalNameStaticSet>>,
     /// Element ids, interned into the stylo atoms set.
@@ -81,11 +85,14 @@ pub struct TyBackend<'a> {
 }
 
 impl<'a> TyBackend<'a> {
-    /// Build the backend, interning every element's tag/id/classes up front.
+    /// Build the backend, interning every element's tag/id/classes up front,
+    /// and parsing every `style=""` attribute through stylo's real style-
+    /// attribute parser (CORE-126). Empty/absent attributes store nothing.
     pub fn new(dom: &'a Dom, lock: &'a SharedRwLock) -> Self {
         let mut local_names = HashMap::new();
         let mut ids = HashMap::new();
         let mut classes = HashMap::new();
+        let mut style_attrs = HashMap::new();
         for (id, node) in dom.nodes.iter().enumerate() {
             let NodeKind::Element(el) = &node.kind else { continue };
             local_names.insert(id, string_cache::Atom::from(el.tag.as_str()));
@@ -96,11 +103,31 @@ impl<'a> TyBackend<'a> {
                 id,
                 el.classes.iter().map(|c| AtomIdent::from(c.as_str())).collect(),
             );
+            // Inline style seam (CORE-126): stylo parses the full declaration
+            // list (every property it supports), so inline declarations now
+            // participate in the cascade like a browser. WPT print-reftest
+            // refs use inline geometry/backgrounds pervasively.
+            if let Some(style_attr) = el.attr("style") {
+                let trimmed = style_attr.trim();
+                if !trimmed.is_empty() {
+                    let url_data =
+                        UrlExtraData(Arc::new(url::Url::parse("http://localhost/").unwrap()));
+                    let block = style::properties::parse_style_attribute(
+                        trimmed,
+                        &url_data,
+                        None,
+                        style::context::QuirksMode::NoQuirks,
+                        style::stylesheets::CssRuleType::Style,
+                    );
+                    style_attrs.insert(id, Arc::new(lock.wrap(block)));
+                }
+            }
         }
         TyBackend {
             dom,
             lock,
             html_ns: string_cache::Atom::from(NS_HTML),
+            style_attrs,
             local_names,
             ids,
             classes,
@@ -332,7 +359,10 @@ impl<'a> TElement for TyElement<'a> {
     }
 
     fn style_attribute(&self) -> Option<ArcBorrow<'_, Locked<PropertyDeclarationBlock>>> {
-        None
+        self.backend
+            .style_attrs
+            .get(&self.id)
+            .map(|arc| arc.borrow_arc())
     }
 
     fn animation_rule(

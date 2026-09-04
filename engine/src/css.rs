@@ -67,6 +67,7 @@ use url::Url;
 use crate::dom::{Dom, NodeId, NodeKind};
 use crate::geom::{px_to_pt, Scalar};
 use crate::stylo_dom::{TyBackend, TyElement};
+use style::dom::TElement as _;
 
 /// An sRGB color, 8 bits per channel.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -898,10 +899,15 @@ impl CascadeSession {
             selectors::matching::MatchingForInvalidation::No,
         );
         let mut applicable = style::applicable_declarations::ApplicableDeclarationList::new();
+        // Inline `style=""` participates in the cascade (CORE-126): the
+        // element's parsed declaration block rides the normal rule-collection
+        // path, landing ABOVE every author rule (css-cascade-4 §6.4) — the
+        // stylist handles ordering; no manual override pass is needed.
+        let style_attr_block = element.style_attribute();
         self.stylist.push_applicable_declarations(
             element,
             None,
-            None,
+            style_attr_block,
             None,
             style::properties::AnimationDeclarations::default(),
             RuleInclusion::All,
@@ -952,6 +958,29 @@ impl CascadeSession {
         let margin = values.get_margin();
         let padding = values.get_padding();
         let text = values.get_inherited_text();
+        // Computed border widths (CORE-126): stylo resolves the `border`
+        // shorthand (thin/medium/thick + lengths) exactly, so the dedicated
+        // author-CSS border pass can keep its selector rules but inline and
+        // stylesheet-declared borders both flow through here. Width 0 ==
+        // `border-style: none` never happens (medium=3px is the initial
+        // width); a side only paints when its STYLE is non-none, so mirror
+        // that: read style keywords and zero the width for `none`/`hidden`.
+        let border = values.get_border();
+        let border_side_pt = |w: style::values::computed::BorderSideWidth| -> Scalar {
+            crate::geom::px_to_pt(w.0.to_f64_px())
+        };
+        let style_none = |s: style::values::computed::BorderStyle| -> bool {
+            matches!(s, style::values::computed::BorderStyle::None | style::values::computed::BorderStyle::Hidden)
+        };
+        let border_style = border.clone_border_top_style();
+        let border_top = if style_none(border_style) { Scalar::ZERO } else { border_side_pt(border.clone_border_top_width()) };
+        let border_style = border.clone_border_right_style();
+        let border_right = if style_none(border_style) { Scalar::ZERO } else { border_side_pt(border.clone_border_right_width()) };
+        let border_style = border.clone_border_bottom_style();
+        let border_bottom = if style_none(border_style) { Scalar::ZERO } else { border_side_pt(border.clone_border_bottom_width()) };
+        let border_style = border.clone_border_left_style();
+        let border_left = if style_none(border_style) { Scalar::ZERO } else { border_side_pt(border.clone_border_left_width()) };
+        let border_color_stylo = border.clone_border_top_color();
 
         // `text-align` compiles in the servo build (unlike the break
         // longhands), so stylo's cascade computed it — including inheritance
@@ -1252,18 +1281,31 @@ impl CascadeSession {
         let padding_bottom = nn_lp_to_pt(&padding.clone_padding_bottom());
         let padding_left = nn_lp_to_pt(&padding.clone_padding_left());
 
+        // Border color: stylo's computed top-side color (the engine's border
+        // model is one shared color — css.rs notes CORE-66's precedent). The
+        // `border-color` fallback pass below overrides when IT matched.
+        let stylo_border_color = match border_color_stylo {
+            ComputedColor::Absolute(c) if !c.is_transparent() => {
+                let [r, g, b, _a] = c.to_nscolor().to_le_bytes();
+                Some(Color { r, g, b })
+            }
+            _ => None,
+        };
+
         ComputedStyle {
             color,
             background_color,
             box_sizing,
-            // Borders default to none here; filled by
-            // `apply_border_properties` from a targeted author-CSS parse
-            // (see `cascade`).
-            border_top: Scalar::ZERO,
-            border_right: Scalar::ZERO,
-            border_bottom: Scalar::ZERO,
-            border_left: Scalar::ZERO,
-            border_color: None,
+            // Borders come from stylo's computed values (CORE-126): both the
+            // stylesheet `border` shorthand and inline declarations flow
+            // through the cascade, styled sides only (`none`/`hidden` → 0).
+            // The legacy border pass below only fills the shared COLOR slot
+            // when stylo's cascade is missing it.
+            border_top,
+            border_right,
+            border_bottom,
+            border_left,
+            border_color: stylo_border_color,
             font_size,
             line_height,
             font_family,
