@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-20
-updated: 2026-08-20
+updated: 2026-09-04
 sidebar_position: 12
 tags: [engine, ua-stylesheet, prince-parity, css-break, css-page]
 spec_id: ua-print-defaults
@@ -44,7 +44,15 @@ start are truncated to zero.
   `blockquote` side margins `22.5pt`, `ul`/`ol` `padding-left: 40pt`.
 - The first in-flow box on every fragmentainer (page or column) has its top
   margin truncated to zero (css-break-3 "adjoining margins at breaks"),
-  matching Prince and Chromium print behavior.
+  matching Prince and Chromium print behavior. **Refined (CORE-142):** the
+  truncation applies at BREAK-caused fragmentainer starts. The document
+  start (page 1) is not a break, so the ROOT box's own top margin applies
+  there (Chromium-verified via page-size-006: page-1 content sits at
+  `@page` margin + body margin; continuation pages at `@page` margin alone).
+  First-in-flow margins INSIDE the root still truncate at every page top.
+  Parent-child margin collapse (body margin + first child margin) is not
+  modeled — the two margins are handled independently (documented
+  deviation).
 - Floats and abspos boxes do not consume "first in-flow" status: a paragraph
   after a top-of-page float still truncates (verified vs Prince 16.2).
 - Determinism unchanged: identical input → byte-identical PDF.
