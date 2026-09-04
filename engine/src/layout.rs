@@ -47,6 +47,7 @@ use crate::frag::{
 use crate::geom::{PageGeometry, Point, Scalar};
 
 mod flex;
+mod grid;
 mod multicol;
 use crate::paged::{
     parse_page_rules, resolve_page_spec, ContentPiece, MarginAlign, MarginBoxName, MarginRow,
@@ -1415,6 +1416,32 @@ impl<'a> Ctx<'a> {
                     flow,
                 );
             }
+        }
+        if id == 7 {
+            eprintln!("LAYOUT_BOX id7 display={:?} gridcols={}", style.display, style.grid_columns.len());
+        }
+        // Grid containers (css-grid-1, CORE-139): items auto-place into
+        // track cells; rows fragment monolithically like flex lines.
+        // `inline-grid` is treated as block-level (the inline-flex model).
+        if matches!(style.display, Display::Grid) {
+            let has_items = self
+                .collect_items(id)
+                .iter()
+                .any(|i| matches!(i, Item::Block(_) | Item::Atomic(_)));
+            if has_items {
+                return self.layout_grid_container(
+                    id,
+                    origin_x,
+                    avail_width,
+                    top,
+                    bottom_limit,
+                    page_has_content,
+                    token,
+                    flow,
+                );
+            }
+            // A leaf grid container (text-only children) falls back to the
+            // block path so the text renders (flex's leaf fallback model).
         }
         // NOTE: TableCell deliberately does NOT dispatch here — layout_table_cell
         // delegates back into layout_box to lay out the cell's content as a
@@ -3999,7 +4026,10 @@ impl<'a> Ctx<'a> {
         // item, reached via the normal block path). Checked here, not on the
         // children — items blockify to display:block and would defeat a
         // child-side check.
-        if matches!(self.styles[id].display, Display::Flex | Display::InlineFlex) {
+        if matches!(
+            self.styles[id].display,
+            Display::Flex | Display::InlineFlex | Display::Grid
+        ) {
             return Some(id);
         }
         let children = &self.dom.nodes[id].children;
@@ -4145,6 +4175,7 @@ impl<'a> Ctx<'a> {
                                 | Display::Flex
                                 | Display::InlineFlex
                                 | Display::InlineBlock
+                                | Display::Grid
                         )
                     {
                         if !pending.trim().is_empty() || !spans.is_empty() || !markers.is_empty() {

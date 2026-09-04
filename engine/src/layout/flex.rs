@@ -165,7 +165,7 @@ impl<'a> Ctx<'a> {
     /// Collect a flex container's in-flow element children as flex items,
     /// keeping each item's position among the container's *block* children
     /// (so `child_tokens` resume positionally like the block path).
-    fn collect_flex_items(&self, id: NodeId) -> Vec<FlexItem> {
+    pub(super) fn collect_flex_items(&self, id: NodeId) -> Vec<FlexItem> {
         let mut out = Vec::new();
         for (i, item) in self.collect_items(id).into_iter().enumerate() {
             if let Item::Atomic(child) | Item::Block(child) = item {
