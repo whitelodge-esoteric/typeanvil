@@ -24,3 +24,6 @@ demo/out.baseline/
 
 # benchmark scratch renders
 benchmarks/.work/
+
+# cocoindex (ccc) local semantic-code index
+/.cocoindex_code/
