@@ -1449,12 +1449,52 @@ impl<'a> Ctx<'a> {
         };
 
         let box_top = top + margin_top;
-        let inner_left = origin_x + style.margin_left + style.padding_left;
-        let inner_width = avail_width
-            - style.margin_left
-            - style.margin_right
+        // Declared `width` on a block (CORE-126): the fragment (border box)
+        // is the smaller of the declared width and the available width — the
+        // stretch-to-fill default only applies when width is auto
+        // (css-sizing-3 §5.1). Border-box sizing subtracts chrome like the
+        // atomic path (css-ui-3). The parent cursor still advances by the
+        // full `avail_width` via `used` (a block keeps its containing-block
+        // footprint), so following siblings do not reflow.
+        let declared_border_w = {
+            let w = style
+                .width
+                .or_else(|| style.width_percent.map(|p| Scalar(p * avail_width.get())));
+            w.map(|w| {
+                if style.box_sizing == crate::css::StyloBoxSizing::BorderBox {
+                    w
+                } else {
+                    w + style.padding_left
+                        + style.padding_right
+                        + style.border_left
+                        + style.border_right
+                }
+            })
+        };
+        let box_border_w = match declared_border_w {
+            Some(w) => {
+                let avail = avail_width - style.margin_left - style.margin_right;
+                if w.get() > avail.get() {
+                    avail
+                } else {
+                    w
+                }
+            }
+            None => {
+                let avail = avail_width - style.margin_left - style.margin_right;
+                if avail.get() < 0.0 {
+                    Scalar::ZERO
+                } else {
+                    avail
+                }
+            }
+        };
+        let inner_left = Self::frag_border_x(style, origin_x) + style.padding_left;
+        let inner_width = box_border_w
             - style.padding_left
-            - style.padding_right;
+            - style.padding_right
+            - style.border_left
+            - style.border_right;
         let content_top = box_top + padding_top;
 
         // Build the ordered child-item list (stable, document order).
@@ -2661,25 +2701,86 @@ impl<'a> Ctx<'a> {
         };
         y += padding_bottom;
 
-        let box_height = y - box_top;
+        let mut box_height = y - box_top;
+        // Declared `height` (CORE-66 model now refined): when the box finished
+        // on this fragmentainer, an explicit CSS height sizes the BORDER box
+        // (css-sizing-3 §5.1; box-sizing honored like the atomic path). The
+        // block measure path stays content-based, so pagination is unchanged
+        // for auto-height boxes; an explicit height only overrides the paint
+        // box (larger of content/declared so overflow text never clips).
+        if !broke {
+            if let Some(mut declared) = style.height {
+                // Content-box sizing: the declared height excludes padding
+                // AND border (css-sizing-3 §5.1) — add both to the target.
+                if style.box_sizing != crate::css::StyloBoxSizing::BorderBox {
+                    declared = declared
+                        + style.padding_top
+                        + style.padding_bottom
+                        + style.border_top
+                        + style.border_bottom;
+                }
+                let target = declared;
+                if target.get() > box_height.get() {
+                    box_height = target;
+                }
+            }
+        }
 
+        // Background fill spans the box's border box in this fragmentainer
+        // (CORE-126 geometry fix): the box's own x starts AFTER its left
+        // margin and its width is the resolved border-box width — previously
+        // the fill painted the full containing-block width, so inline
+        // `margin-left` shifted only text, never the painted box (WPT refs
+        // position colored boxes with margins pervasively).
+        let origin = Point::new(Self::frag_border_x(style, origin_x), box_top);
+        let mut fragment = Fragment::block(origin, (box_border_w, box_height));
+        if let Some(bg) = style.background_color {
+            if box_height.get() > 0.0 {
+                fragment.content = FragmentContent::Background(bg);
+            }
+        }
+        // Regular-block border painting (CORE-126): the same attach the table
+        // cell path uses, so `border` on any block/inline-block paints. The
+        // border draws INSIDE the fragment rect (css-backgrounds-3): with
+        // content-box sizing the declared width excludes it, so shrink the
+        // content area handed to children by the border widths.
+        if style.border_top.get() > 0.0
+            || style.border_right.get() > 0.0
+            || style.border_bottom.get() > 0.0
+            || style.border_left.get() > 0.0
+        {
+            let color = style.border_color.unwrap_or(crate::css::Color::BLACK);
+            let border_box = BorderBox {
+                top: style.border_top,
+                right: style.border_right,
+                bottom: style.border_bottom,
+                left: style.border_left,
+                color,
+            };
+            match fragment.content {
+                FragmentContent::Background(_) => {
+                    // CORE-100 model: keep the background, push the border as
+                    // a zero-offset child so it strokes ON TOP of the fill.
+                    let mut bf = Fragment::block(
+                        Point::new(Scalar::ZERO, Scalar::ZERO),
+                        (fragment.size.0, fragment.size.1),
+                    );
+                    bf.content = FragmentContent::Border(border_box);
+                    fragment.children.insert(0, bf);
+                }
+                _ => {
+                    fragment.content = FragmentContent::Border(border_box);
+                }
+            }
+        }
         // Rebase children to be parent-relative: each child's offset (and any
         // text baseline) is stored relative to this fragment's own top-left, so
         // the tree carries LayoutNG-style parent-relative geometry. The PDF
         // walk re-accumulates absolutes from the fragmentainer down.
-        let origin = Point::new(origin_x, box_top);
         for child in &mut children {
             child.offset = Point::new(child.offset.x - origin.x, child.offset.y - origin.y);
             if let FragmentContent::Text(run) = &mut child.content {
                 run.baseline = Point::new(run.baseline.x - origin.x, run.baseline.y - origin.y);
-            }
-        }
-
-        // Background fill spans the box's border box in this fragmentainer.
-        let mut fragment = Fragment::block(origin, (avail_width, box_height));
-        if let Some(bg) = style.background_color {
-            if box_height.get() > 0.0 {
-                fragment.content = FragmentContent::Background(bg);
             }
         }
         fragment.children = children;
@@ -3956,6 +4057,15 @@ impl<'a> Ctx<'a> {
             ));
         }
         items
+    }
+
+    /// The border-box x of a block: after its left margin (css-sizing-3 —
+    /// the margin box occupies the containing block, the border box starts
+    /// at margin-left). `margin-left: auto` computes to 0 in stylo's
+    /// `lp_or_auto_to_pt`, so no auto-centering resolve is needed in v1
+    /// (the WPT auto-centering refs need it — Stage 3 follow-up).
+    fn frag_border_x(style: &ComputedStyle, origin_x: Scalar) -> Scalar {
+        origin_x + style.margin_left
     }
 
     /// The assigned number for one footnote element (CORE-107). Elements

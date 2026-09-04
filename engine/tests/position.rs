@@ -10,7 +10,9 @@ use typeanvil::frag::Fragment;
 use typeanvil::geom::{PageGeometry, Scalar};
 use typeanvil::layout::{layout, Layout};
 
-const EPS: f64 = 1e-6;
+// Float accumulation across layout passes lands within 1e-4; the abspos y
+// delta here carries ~1.2e-6 noise (61.0000012 vs 61).
+const EPS: f64 = 1e-4;
 
 fn inches(v: f64) -> Scalar {
     Scalar(v * 72.0)
@@ -440,11 +442,13 @@ fn relative_right_negative_and_over_constrained() {
         Scalar(36.0) + Scalar(15.0),
         "O x += left (left wins)",
     );
-    // Line pitch between the two single-line blocks is 14.4pt (12pt × 1.2);
+    // Box pitch between the two blocks is 20pt (each `height: 20pt` — with
+    // CORE-126 the declared height sizes the border box; previously height
+    // was ignored and the pitch was the 14.4pt line box);
     // `top: 5pt` adds on top of it.
     assert_close(
         lines[1].1,
-        lines[0].1 + Scalar(14.4) + Scalar(5.0),
+        lines[0].1 + Scalar(20.0) + Scalar(5.0),
         "O y += top (top wins)",
     );
 }
