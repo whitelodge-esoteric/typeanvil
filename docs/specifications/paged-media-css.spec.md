@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-16
-updated: 2026-08-21
+updated: 2026-09-05
 sidebar_position: 3
 tags: [css, paged-media, page, layout, engine]
 spec_id: paged-media-css
@@ -352,6 +352,19 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   at the page the element's box starts.
 - **Two-pass convergence failure** (page numbers shift between passes) → cap
   at 3 passes, use the last result; documented in code as a known limitation.
+- **Canvas background propagation (CORE-144)** → the html (else body)
+  background paints the CANVAS over the page CONTENT area, under all content
+  but above the `@page` box fill (so page margins keep the page box's own
+  background); the donor box paints none of its own. Vertical percentage
+  `@page` padding resolves against the page HEIGHT; the page-box border
+  thickens into the padding band outward-in. The page-box `@page` padding
+  and border declarations affect only the painted chrome — the page AREA
+  (content box) stays `size − margins`.
+- **`position: fixed` under canvas propagation** → the fixed clone attaches
+  after the page's body content, and the canvas fill of the FINAL pass is
+  the only one emitted (multi-pass TOC/counter documents produce one
+  fragmentainer set per pass; earlier passes are discarded before emit, so
+  the canvas fill can never paint over the fixed clones).
 
 ## References
 
