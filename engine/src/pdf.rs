@@ -240,6 +240,36 @@ pub fn render_with_options(
             }
         }
 
+        // Document canvas background (CORE-144): the html/body background
+        // propagates to the canvas and paints over the page CONTENT area —
+        // under all content, but ABOVE the `@page` box fill so page margins
+        // keep the page box's own background (page-box-006's white/blue
+        // margins). The donor box painted nothing of its own (layout
+        // suppressed it). Always an Artifact, like the page-box fill.
+        if let Some(bg) = page.canvas_background {
+            let (ox, oy) = (
+                page.content_origin.x.to_f32(),
+                page.content_origin.y.to_f32(),
+            );
+            let (cw, ch) = (page.content_size.0.to_f32(), page.content_size.1.to_f32());
+            if let Some(rect) = Rect::from_xywh(ox, oy, cw, ch) {
+                let mut pb = krilla::geom::PathBuilder::new();
+                pb.push_rect(rect);
+                if let Some(path) = pb.finish() {
+                    surface.set_fill(Some(solid_fill(bg)));
+                    if tagged {
+                        surface.start_tagged(ContentTag::Artifact(Artifact::with_kind(
+                            ArtifactType::Background,
+                        )));
+                        surface.draw_path(&path);
+                        surface.end_tagged();
+                    } else {
+                        surface.draw_path(&path);
+                    }
+                }
+            }
+        }
+
         // `page-orientation` (CORE-66): rotate the laid-out content within the
         // page box. The layout itself is unrotated; the transform maps content
         // coordinates (top-left origin, y down) into their rotated positions.

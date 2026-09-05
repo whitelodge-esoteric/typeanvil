@@ -1733,6 +1733,28 @@ pub fn parse_css_color(s: &str) -> Option<Color> {
     borders::parse_color(s)
 }
 
+/// Resolve the document CANVAS background (CORE-144, css-backgrounds-3 §2.2 +
+/// css-page-3): the root element's (html) background if set, else the body
+/// background; the donor element paints none of its own. Returns
+/// `(canvas_color, donor_is_body)` — the layout pass suppresses the donor
+/// box's own background fill. `None` canvas = no propagation (transparent
+/// page).
+pub fn resolve_canvas_background(dom: &Dom, styles: &[ComputedStyle]) -> (Option<Color>, bool) {
+    let html_bg = styles[dom.root].background_color;
+    match dom.find_tag("body") {
+        Some(body) if styles[body].display != Display::None => {
+            let body_bg = styles[body].background_color;
+            match html_bg {
+                Some(c) => (Some(c), false), // html owns the canvas, body keeps its own paint
+                None => (body_bg, body_bg.is_some()), // body propagates, paints none
+            }
+        }
+        // No body element: the root element itself is the only candidate and
+        // there is no separate donor box to suppress.
+        _ => (html_bg, false),
+    }
+}
+
 /// The cascade entry point. Produces a `ComputedStyle` per DOM node id
 /// (indexed by `NodeId`). Text nodes inherit their parent's style.
 ///

@@ -337,6 +337,16 @@ pub struct Fragmentainer {
     /// its anchor page's geometry to any page whose `@page` rule resolves a
     /// different size/margin (named pages; CORE-127 slice b).
     pub content_origin: Point,
+    /// Page-absolute size of the page's content box (points). Together with
+    /// `content_origin` this is the page content rect — the canvas-background
+    /// propagation area (CORE-144; origin alone cannot size the fill).
+    pub content_size: (Scalar, Scalar),
+    /// The propagated document canvas background (CORE-144): the html (else
+    /// body) background, painted over the page CONTENT area beneath all
+    /// content — the donor box paints none of its own. `None` = no
+    /// propagation (default white). The `@page` box background is separate
+    /// (`Fragmentainer::background`) and paints under this fill.
+    pub canvas_background: Option<crate::css::Color>,
 }
 
 impl Fragmentainer {
@@ -358,6 +368,8 @@ impl Fragmentainer {
             // Default: origin at (0, 0); `paginate` overwrites it with
             // the real content-box origin for every page it lays out.
             content_origin: Point::default(),
+            content_size: size,
+            canvas_background: None,
         }
     }
 }

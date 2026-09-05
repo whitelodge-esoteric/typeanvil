@@ -265,6 +265,17 @@ pub struct PageRule {
     pub margin_right: Option<PageLength>,
     pub margin_bottom: Option<PageLength>,
     pub margin_left: Option<PageLength>,
+    /// Page-box padding (css-page-3 §5.1 subset: shorthand + longhands).
+    /// Percentages resolve against the page-box size (vertical ones against
+    /// the HEIGHT, unlike regular boxes) at spec resolution time.
+    pub padding_top: Option<PageLength>,
+    pub padding_right: Option<PageLength>,
+    pub padding_bottom: Option<PageLength>,
+    pub padding_left: Option<PageLength>,
+    /// Page-box border (uniform width + color; style keywords ignored).
+    /// Paints between the margin area and the padding area.
+    pub border_width: Option<Scalar>,
+    pub border_color: Option<Color>,
     /// Page box background color (paints the whole page, under content).
     pub background: Option<Color>,
     /// `page-orientation` — how the content rotates within the page box.
@@ -281,6 +292,11 @@ pub struct PageRule {
 pub struct PageSpec {
     pub size: (Scalar, Scalar),
     pub margins: PageMargins,
+    /// Page-box padding, resolved to points against the final page size
+    /// (vertical percentages against the page HEIGHT, css-page-3).
+    pub padding: PageMargins,
+    /// Page-box border: uniform width (points) + color. `None` width = none.
+    pub border: Option<(Scalar, Color)>,
     pub background: Option<Color>,
     pub page_orientation: Option<PageOrientation>,
     pub margin_boxes: Vec<(MarginBoxName, Vec<ContentPiece>)>,
@@ -403,6 +419,12 @@ fn parse_one_page_rule(prelude: &str, body: &str, order: u32) -> Option<PageRule
         margin_right: None,
         margin_bottom: None,
         margin_left: None,
+        padding_top: None,
+        padding_right: None,
+        padding_bottom: None,
+        padding_left: None,
+        border_width: None,
+        border_color: None,
         background: None,
         page_orientation: None,
         margin_boxes: Vec::new(),
@@ -503,6 +525,37 @@ fn apply_page_decl(rule: &mut PageRule, decl: &str) {
         "margin-inline-end" => rule.margin_right = parse_page_length(value),
         "margin-block-start" => rule.margin_top = parse_page_length(value),
         "margin-block-end" => rule.margin_bottom = parse_page_length(value),
+        // Page-box padding (CORE-144): shorthand + longhands. Percentages
+        // stay symbolic; `resolve_page_spec` applies them against the page
+        // box (vertical ones against the page HEIGHT, css-page-3 §5.1 — the
+        // page context is NOT a regular box).
+        "padding" => {
+            if let Some((t, r, b, l)) = parse_margin_shorthand(value) {
+                rule.padding_top = Some(t);
+                rule.padding_right = Some(r);
+                rule.padding_bottom = Some(b);
+                rule.padding_left = Some(l);
+            }
+        }
+        "padding-top" => rule.padding_top = parse_page_length(value),
+        "padding-right" => rule.padding_right = parse_page_length(value),
+        "padding-bottom" => rule.padding_bottom = parse_page_length(value),
+        "padding-left" => rule.padding_left = parse_page_length(value),
+        "padding-inline-start" => rule.padding_left = parse_page_length(value),
+        "padding-inline-end" => rule.padding_right = parse_page_length(value),
+        "padding-block-start" => rule.padding_top = parse_page_length(value),
+        "padding-block-end" => rule.padding_bottom = parse_page_length(value),
+        // Page-box border (CORE-144): uniform width + color; style keywords
+        // and widths like `thin`/`medium` parse to a fallback width.
+        "border" | "border-top" | "border-right" | "border-bottom" | "border-left" => {
+            for tok in value.split_whitespace() {
+                if let Some(c) = crate::css::parse_css_color(tok) {
+                    rule.border_color = Some(c);
+                } else if let Ok(px) = tok.trim_end_matches("px").parse::<f64>() {
+                    rule.border_width = Some(crate::geom::Scalar(px * 0.75));
+                }
+            }
+        }
         "background" | "background-color" => rule.background = crate::css::parse_css_color(value),
         "page-orientation" => rule.page_orientation = parse_page_orientation(value),
         _ => {}
@@ -788,6 +841,14 @@ pub fn resolve_page_spec(
     );
     let mut background = None;
     let mut page_orientation = None;
+    // Page-box padding + border accumulators (CORE-144).
+    let mut padding = (
+        PageLength::Abs(Scalar::ZERO),
+        PageLength::Abs(Scalar::ZERO),
+        PageLength::Abs(Scalar::ZERO),
+        PageLength::Abs(Scalar::ZERO),
+    );
+    let mut border: Option<(Scalar, Color)> = None;
     // Margin boxes accumulate by name; later matches replace earlier.
     let mut boxes: Vec<(MarginBoxName, Vec<ContentPiece>)> = Vec::new();
 
@@ -843,6 +904,21 @@ pub fn resolve_page_spec(
         if let Some(v) = r.margin_left {
             margins.3 = v;
         }
+        if let Some(v) = r.padding_top {
+            padding.0 = v;
+        }
+        if let Some(v) = r.padding_right {
+            padding.1 = v;
+        }
+        if let Some(v) = r.padding_bottom {
+            padding.2 = v;
+        }
+        if let Some(v) = r.padding_left {
+            padding.3 = v;
+        }
+        if let Some(w) = r.border_width {
+            border = Some((w, r.border_color.unwrap_or(Color::BLACK)));
+        }
         if let Some(c) = r.background {
             background = Some(c);
         }
@@ -896,6 +972,42 @@ pub fn resolve_page_spec(
         (false, false) => margin_bottom += leftover_h,
     }
 
+    // Resolve page-box padding to points against the FINAL page size. The
+    // page context is not a regular box: vertical percentage padding resolves
+    // against the page box HEIGHT, horizontal against the WIDTH (css-page-3;
+    // page-box-007's assertion). The border thickens into the padding band:
+    // the padding box (where the @page background paints in Chromium's model)
+    // sits INSIDE the border, so the border eats border-width off the padding
+    // on each side. Padding never eats into the page AREA: the content box
+    // stays `size - margins` (the margin boxes anchor there); the padding
+    // band only narrows the painted chrome outward-in.
+    let page_border = border.map(|(w, _)| w).unwrap_or(Scalar::ZERO);
+    let border_color = border.map(|(_, c)| c);
+    let resolve_pad = |len: PageLength, page_dim: Scalar| -> Scalar {
+        match len {
+            PageLength::Abs(v) => v,
+            PageLength::Percent(f) => page_dim * f,
+            _ => Scalar::ZERO,
+        }
+    };
+    let mut pad_t = resolve_pad(padding.0, size.1) - page_border;
+    let mut pad_r = resolve_pad(padding.1, size.0) - page_border;
+    let mut pad_b = resolve_pad(padding.2, size.1) - page_border;
+    let mut pad_l = resolve_pad(padding.3, size.0) - page_border;
+    let zero = Scalar::ZERO;
+    if pad_t.get() < 0.0 {
+        pad_t = zero;
+    }
+    if pad_r.get() < 0.0 {
+        pad_r = zero;
+    }
+    if pad_b.get() < 0.0 {
+        pad_b = zero;
+    }
+    if pad_l.get() < 0.0 {
+        pad_l = zero;
+    }
+
     PageSpec {
         size,
         margins: PageMargins {
@@ -904,6 +1016,13 @@ pub fn resolve_page_spec(
             bottom: margin_bottom,
             left: margin_left,
         },
+        padding: PageMargins {
+            top: pad_t,
+            right: pad_r,
+            bottom: pad_b,
+            left: pad_l,
+        },
+        border: border_color.map(|c| (page_border, c)),
         background,
         page_orientation,
         margin_boxes: boxes,
@@ -1126,5 +1245,47 @@ mod tests {
         assert!(!pseudo_matches(PagePseudo::First, 1));
         assert!(pseudo_matches(PagePseudo::Right, 0)); // page 1
         assert!(pseudo_matches(PagePseudo::Left, 1)); // page 2
+    }
+
+    #[test]
+    fn parses_page_padding_and_border() {
+        // CORE-144: page-box-007's percentages, page-box-005's borders. The
+        // page context resolves vertical percentages against the page HEIGHT
+        // (not the width as in regular boxes).
+        let rules = parse_page_rules(
+            "@page { padding: 5% 20% 15% 40%; border: 10px solid blue; }",
+        );
+        let r = &rules[0];
+        // Percentages stay symbolic (resolved per-page against the final size).
+        assert_eq!(r.padding_top, Some(PageLength::Percent(0.05)));
+        assert_eq!(r.padding_right, Some(PageLength::Percent(0.20)));
+        assert_eq!(r.padding_bottom, Some(PageLength::Percent(0.15)));
+        assert_eq!(r.padding_left, Some(PageLength::Percent(0.40)));
+        assert_eq!(r.border_width, Some(Scalar(7.5))); // 10px = 7.5pt
+        assert!(r.border_color.is_some());
+    }
+
+    #[test]
+    fn resolves_page_padding_percent_against_height() {
+        // css-page-3: vertical percentage padding resolves against the page
+        // box HEIGHT. 5% of 800px(=600pt) = 30pt top; 20% of 400px(=300pt) =
+        // 60pt right; 15% of 600 = 90pt bottom; 40% of 300 = 120pt left.
+        let rules = parse_page_rules(
+            "@page { size: 400px 800px; padding: 5% 20% 15% 40%; background: red; }",
+        );
+        let cli = PageGeometry {
+            width: Scalar(360.0),
+            height: Scalar(216.0),
+            margin_top: Scalar(36.0),
+            margin_right: Scalar(36.0),
+            margin_bottom: Scalar(36.0),
+            margin_left: Scalar(36.0),
+        };
+        let spec = resolve_page_spec(&rules, None, 0, &cli);
+        assert_eq!(spec.size, (Scalar(300.0), Scalar(600.0)));
+        assert_eq!(spec.padding.top, Scalar(30.0));
+        assert_eq!(spec.padding.right, Scalar(60.0));
+        assert_eq!(spec.padding.bottom, Scalar(90.0));
+        assert_eq!(spec.padding.left, Scalar(120.0));
     }
 }

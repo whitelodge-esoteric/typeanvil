@@ -44,7 +44,7 @@ use crate::frag::{
     BorderBox, BreakInside, BreakToken, ChildToken, Fragment, FragmentContent, FragmentKind,
     Fragmentainer, TextRun,
 };
-use crate::geom::{PageGeometry, Point, Scalar};
+use crate::geom::{PageGeometry, Point, Rect, Scalar};
 
 mod flex;
 mod grid;
@@ -359,9 +359,22 @@ pub fn layout_with_images_and_store(
     base_url: Option<&std::path::Path>,
     images: &mut crate::images::ImageStore,
 ) -> Layout {
-    let styles = cascade(dom, stylesheet, &geometry);
+    let mut styles = cascade(dom, stylesheet, &geometry);
     let page_rules = parse_page_rules(stylesheet.source());
     let root = dom.find_tag("body").unwrap_or(dom.root);
+
+    // Canvas background propagation (CORE-144, css-backgrounds-3 §2.2): the
+    // html (else body) background paints the CANVAS — over the page content
+    // area, under all content — and the donor box paints none of its own.
+    // Resolved once here; the suppression is a plain style mutation (layout
+    // is otherwise a pure function of styles, which this preserves: the
+    // donor's fill moves to the page, it does not disappear).
+    let (canvas_background, body_is_donor) = crate::css::resolve_canvas_background(dom, &styles);
+    if body_is_donor {
+        if let Some(body) = dom.find_tag("body") {
+            styles[body].background_color = None;
+        }
+    }
 
     // Intern every <img> source ONCE before pagination (document order):
     // layout then only reads the store through the shared info table. Keys
@@ -420,7 +433,7 @@ pub fn layout_with_images_and_store(
     // Per-element named-counter snapshots (CORE-128 capture site, unified
     // with CORE-129's target-counter resolution — one mechanism, one map).
     let mut target_counters: BTreeMap<NodeId, Vec<(String, i32)>> = BTreeMap::new();
-    let mut total_pages: usize = 0;
+        let mut total_pages: usize = 0;
     let mut collected_links: Vec<CollectedLink> = Vec::new();
     let mut pages = Vec::new();
     for _ in 0..passes {
@@ -441,6 +454,7 @@ pub fn layout_with_images_and_store(
             &sink,
             &image_infos,
             &fn_numbers,
+            canvas_background,
         );
         collected_links = sink.into_inner();
         // Converged when the target map is unchanged between passes AND the
@@ -456,6 +470,11 @@ pub fn layout_with_images_and_store(
             break;
         }
     }
+    // CORE-144: only the FINAL pass's pages emit. The canvas fill paints over
+    // every root child at emit time, so an earlier pass's fill would erase a
+    // later pass's fixed-position clones. Each pass produces its own
+    // fragmentainers; dropping the superseded ones (this `pages` binding is
+    // the final pass) is all that's needed.
     // Build the bookmark outline from the final pass's element→page map.
     // `target_counters` IS the final pass's snapshot map (same mechanism).
     let headings = build_headings(dom, &styles, &pages, &target_pages, &target_counters);
@@ -799,6 +818,7 @@ fn paginate(
     links: &std::cell::RefCell<Vec<CollectedLink>>,
     image_infos: &BTreeMap<NodeId, ImageInfo>,
     fn_numbers: &BTreeMap<NodeId, usize>,
+    canvas_background: Option<crate::css::Color>,
 ) -> (
     Vec<Fragmentainer>,
     BTreeMap<NodeId, usize>,
@@ -826,6 +846,9 @@ fn paginate(
     // paged media: fixed content repeats on all pages; Chromium resolves
     // the box against the ICB and repeats it verbatim, fixedpos-010's ref).
     let fixed_ids = collect_fixed_ids(dom, styles, root);
+    // The ICB content rect, captured when page 0 lays out (declared before
+    // the loop so the loop can fill it; CORE-144).
+    let mut icb_content: Option<Rect> = None;
     // CORE-128: per-element counter snapshots, filled as bookmarked boxes
     // start (read by `build_headings` after the pass).
     let counter_snaps = std::cell::RefCell::new(BTreeMap::new());
@@ -877,13 +900,25 @@ fn paginate(
             fn_numbers,
             counter_snaps: &counter_snaps,
         };
+        // The initial containing block for `position: fixed` boxes: the FIRST
+        // page's content box (CORE-127 slice b). With per-page @page rules the
+        // page geometry varies, so the anchor content rect must be captured
+        // from page 0's own resolved spec (named pages included) — resolving
+        // it separately after the loop cannot know which name was in effect.
+        if page_index == 0 {
+            icb_content = Some(content);
+        }
         let mut fragmentainer = Fragmentainer::new(page_index, spec.size);
         fragmentainer.background = spec.background;
         fragmentainer.page_orientation = spec.page_orientation;
+        fragmentainer.canvas_background = canvas_background;
         // Record the content-box origin (CORE-127 slice b): the fixed-position
         // attachment pass shifts anchor-page fragments to each page's own
         // geometry when a named page resolves a different size/margin.
         fragmentainer.content_origin = Point::new(content.x, content.y);
+        // The content SIZE joins it (CORE-144): the canvas-background fill
+        // covers the content rect, which needs width and height.
+        fragmentainer.content_size = (content.width, content.height);
 
         // CORE-107: lay the body full-height first, then reserve the footnote
         // area if any call marker PLACED on this page (`pending_footnotes`).
@@ -996,6 +1031,8 @@ fn paginate(
         let geo = spec.geometry();
         let content = geo.content_rect();
         fragmentainer.content_origin = Point::new(content.x, content.y);
+        fragmentainer.content_size = (content.width, content.height);
+        fragmentainer.canvas_background = canvas_background;
         attach_margin_boxes(
             &mut fragmentainer,
             &spec,
@@ -1018,9 +1055,14 @@ fn paginate(
     // a named page with a different size/margin still positions it correctly
     // (the box itself keeps its resolved geometry; only the page box moves).
     if !fixed_ids.is_empty() {
-        let spec0 = resolve_page_spec(page_rules, None, 0, cli);
-        let geo0 = spec0.geometry();
-        let content0 = geo0.content_rect();
+        let content0 = icb_content.unwrap_or_else(|| {
+            // Degenerate: MAX_PAGES=0 path (no pages at all). Fall back to the
+            // CLI geometry's content rect — nothing fixed exists to place
+            // anyway, but the code must stay total.
+            resolve_page_spec(page_rules, None, 0, cli)
+                .geometry()
+                .content_rect()
+        });
         // Fresh Flow: the fixed layout must not touch the drained body state.
         let mut fx_flow = Flow {
             running: RunningStrings::new(),
@@ -1110,6 +1152,12 @@ fn paginate(
         for page in &mut pages {
             let dx = page.content_origin.x.get() - content0.x.get();
             let dy = page.content_origin.y.get() - content0.y.get();
+            // Fixed clones ride ABOVE the canvas fill: every root child is
+            // treated as canvas by the emitter's layering, and painting the
+            // canvas fill over the fixed clone would erase it. The clone's
+            // own fragments carry the box's background.
+            let keep = page.canvas_background;
+            page.canvas_background = None;
             for (z, frag, origin) in &fixed_frags {
                 let mut clone = frag.clone();
                 clone.offset = Point::new(
@@ -1118,6 +1166,11 @@ fn paginate(
                 );
                 page.root.children.push(clone);
             }
+            // Restore the canvas fill AFTER the fixed clones attach: at emit
+            // time the canvas paints over root children, so the fill must not
+            // cover the fixed boxes. Keeping the field (not just skipping
+            // emit) preserves the propagation for any later pass.
+            page.canvas_background = keep;
         }
     }
 
