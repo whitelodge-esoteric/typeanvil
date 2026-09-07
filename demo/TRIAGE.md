@@ -361,3 +361,71 @@ several points. Then re-triage whatever remains of the two headline docs with
 char-box evidence only.
 
 
+
+# CORE-146 — Sixth refresh: corpus features landed post-CORE-79 + benchmark layer (2026-09-07)
+
+Run: `PY=$HOME/workspace/typeanvil/.venv/bin/python bash scripts/build-demo.sh`
+at the core-146 worktree (base 26cc06f). Prince 16.2 non-commercial.
+Geometry: 5in×3in, 0.5in margins, 96 DPI raster.
+
+## What changed in the corpus
+
+- `paper.html`: real footnotes (`float: footnote`, CORE-107) replace the
+  old "footnotes unsupported" note. Two calls in the Results chapter.
+- `report.html`: chart image via `<img>` (CORE-106) + explicit hyperlinks
+  (internal anchors + one external URI, CORE-104) in the Findings chapter.
+- `letterhead.html`: `@font-face` (CORE-103) with the OFL Liberation Serif
+  cut committed under `demo/corpus/assets/` (license file included).
+- SVG stays OUT of the public corpus for now: CORE-131 is only on
+  `release/2026.9`, not main. The issue's rule is "feat: commits in main".
+- `demo/corpus/assets/` now carries committed fixture assets; build-demo.sh
+  renders from the corpus dir so relative URLs resolve identically in both
+  engines (on main, url()/src resolve against the process CWD — CORE-140
+  threads --base-url properly).
+
+## Scoreboard after refresh (7 docs)
+
+| Doc | TA | PR | Diff% | Note |
+|---|---|---|---|---|
+| float-showcase | 8 | 8 | 20.88 | unchanged fixture |
+| invoice | 5 | 5 | 19.17 | unchanged fixture |
+| letterhead | 8 | 8 | 7.86 | @font-face brand line added |
+| paper | 11 | 11 | 14.36 | footnotes added |
+| prose | 11 | 11 | 10.52 | unchanged fixture |
+| report | 11 | 11 | 7.51 | chart + links added |
+| table-stress | 43 | 45 | 20.94 | unchanged fixture (known mismatch) |
+
+Page counts match Prince on all six non-table docs; table-stress keeps its
+known 43v45 gap (CORE-96 residual). No regressions: unchanged fixtures moved
+≤0.11pp; refreshed docs landed at 14.36% (paper) and 7.51% (report) — both
+inside the cosmetic bucket, no structural divergence introduced by the new
+features.
+
+## New residual: footnote call-marker attribution in floated-wrap runs
+
+While refreshing paper.html, a REAL footnote bug surfaced (found by the
+fixture, verified by charbox/text extraction, fixed in the same PR):
+
+- Symptom: a note whose call marker sits in a paragraph that wraps BESIDE a
+  float (the segmented text path) never attached to its call page; a later
+  note attached to the wrong page. Two wrongs made a single-call case pass,
+  masking the bug until a second call in one paragraph exposed it.
+- Root cause: in the segmented path the marker window was computed as
+  `src_offset + Σconsumed[..li]`, but `src_offset` already advanced by those
+  same lines — the window start drifted to exactly 2× the true byte offset,
+  so markers after the segment's first line never fell inside a window.
+- Fix: capture the segment's base offset (`seg_base`) before the line loop
+  and compute windows from it. Engine suite 215 passed / 0 failed.
+- Follow-up candidates: none required; regression covered by the spanning-
+  paragraph probe promoted to `engine/tests/core146_probe.rs` (renamed to
+  `footnotes_spanning.rs` before landing).
+
+## Benchmark layer (new, CORE-146)
+
+`demo/corpus/bench/` + `benchmark_manifest.json`: one fixture per open
+engine issue (CORE-143 monolithic overflow, CORE-141 margin-box per-box
+decls, CORE-140 page-context vh/vw, CORE-130 page floats). All four
+verified safe-to-render through BOTH engines (TA and Prince terminate, 1-2
+pages each). The gallery shows them in a separate "Benchmark" section with
+the current TA render, the tracked issue, and the expectation. Fixtures
+flip `pending` → `resolved` when their issue lands.

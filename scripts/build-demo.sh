@@ -21,6 +21,12 @@ IMAGES="$OUT/images"
 RESULTS="$OUT/.results"
 GEOM_FLAGS="--page-width 5in --page-height 3in --margin-top 0.5in --margin-right 0.5in --margin-bottom 0.5in --margin-left 0.5in"
 MANIFEST="demo/corpus/manifest.json"
+BENCH_MANIFEST="demo/corpus/benchmark_manifest.json"
+# Fixtures resolve relative asset URLs (img src, @font-face url()) against
+# the process CWD on main (CORE-103 note: --base-url threading lands with
+# CORE-140's link-CSS work). Render with the corpus dir as CWD so both
+# engines resolve `assets/...` identically.
+CORPUS_DIR="demo/corpus"
 
 usage() {
   cat <<'EOF'
@@ -104,8 +110,9 @@ for entry in "${entries[@]}"; do
     continue
   fi
 
-  # Render both engines with the identical flag set.
-  if engine/target/debug/typeanvil render "$html" $GEOM_FLAGS -o "$ta_pdf" 2>"$WORK/$base-ta.err"; then
+  # Render both engines with the identical flag set (from the corpus dir so
+  # relative asset URLs resolve the same for both engines).
+  if (cd "$CORPUS_DIR" && "$REPO_ROOT/engine/target/debug/typeanvil" render "$file" $GEOM_FLAGS -o "$REPO_ROOT/$ta_pdf" 2>"$REPO_ROOT/$WORK/$base-ta.err"); then
     echo "TA  ok   $file"
   else
     echo "TA  FAIL $file :: $(head -1 "$WORK/$base-ta.err")"
@@ -116,7 +123,7 @@ for entry in "${entries[@]}"; do
     continue
   fi
 
-  if scripts/render-prince.sh "$html" $GEOM_FLAGS -o "$pr_pdf" 2>"$WORK/$base-pr.err"; then
+  if (cd "$CORPUS_DIR" && "$REPO_ROOT/scripts/render-prince.sh" "$file" $GEOM_FLAGS -o "$REPO_ROOT/$pr_pdf" 2>"$REPO_ROOT/$WORK/$base-pr.err"); then
     echo "PR  ok   $file"
   else
     echo "PR  FAIL $file :: $(head -1 "$WORK/$base-pr.err")"
@@ -140,10 +147,49 @@ if [ "$DRY_RUN" = "1" ]; then
   exit 0
 fi
 
+# ---- Benchmark layer (CORE-146): one fixture per open engine issue. ----
+# Rendered with the CURRENT engine only (expected-vs-actual is the point;
+# these show known gaps on purpose). Safe-to-render was verified per fixture
+# before entering the manifest.
+bench_entries=()
+if [ -f "$BENCH_MANIFEST" ]; then
+  while IFS=$'\t' read -r file name; do
+    [ -n "$file" ] && bench_entries+=("$file")
+  done < <("$PY" scripts/demo_compare.py list-manifest --manifest "$BENCH_MANIFEST")
+fi
+
+bench_failed=0
+for file in "${bench_entries[@]:-}"; do
+  [ -n "$file" ] || continue
+  base="$(basename "${file%.html}")"
+  ta_pdf="$WORK/bench-$base-ta.pdf"
+  if (cd "$CORPUS_DIR" && "$REPO_ROOT/engine/target/debug/typeanvil" render "$file" $GEOM_FLAGS -o "$REPO_ROOT/$ta_pdf" 2>"$REPO_ROOT/$WORK/bench-$base-ta.err"); then
+    echo "BENCH ok   $file"
+  else
+    echo "BENCH FAIL $file :: $(head -1 "$WORK/bench-$base-ta.err")"
+    bench_failed=1
+    continue
+  fi
+  # Rasterize the TA render into images/bench-<name>/ so the gallery section
+  # can inline page 1.
+  "$PY" -c "
+import sys
+sys.path.insert(0, '$REPO_ROOT')
+from harness.rasterize import rasterize_pdf
+from pathlib import Path
+imgs = rasterize_pdf(Path('$ta_pdf'), dpi=96)
+out = Path('$IMAGES/bench-$base')
+out.mkdir(parents=True, exist_ok=True)
+for i, im in enumerate(imgs, 1):
+    im.save(out / f'page-{i:03d}-ta.png', 'PNG')
+"
+done
+
 # Assemble scoreboard + gallery.
 "$PY" scripts/demo_compare.py assemble \
   --results "$RESULTS" \
   --manifest "$MANIFEST" \
+  --benchmark-manifest "$BENCH_MANIFEST" \
   --out-dir "$OUT" \
   --typeanvil-version "$TA_VERSION" \
   --prince-version "$PR_VERSION"
@@ -182,3 +228,9 @@ if [ "$KEEP_WORK" = "0" ]; then
 fi
 
 exit "$FAILED"
+# A benchmark fixture render failure is a build failure too (safe-to-render
+# was a precondition for entering the manifest). Unreachable when $FAILED is
+# 1 (exited above); reports bench-only failures.
+if [ "$bench_failed" != "0" ]; then
+  exit 1
+fi

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Benchmark — monolithic overflow (CORE-143)</title>
+<style>
+  @page { margin: 0.5in; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; }
+  .oversized {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 300pt;
+    border: 1pt solid #1d3557;
+    background-color: #e9f0f5;
+    padding: 6pt;
+  }
+  p { margin: 0 0 6pt 0; }
+</style>
+</head>
+<body>
+  <p>This paragraph is in flow and paginates normally across pages.</p>
+  <div class="oversized">
+    OVERSIZED-MARKER: this absolutely-positioned box is taller than one page's
+    content box. It must paint ONCE (monolithic overflow), never re-painted on
+    continuation pages. Benchmark for CORE-143 (css-page slice d:
+    monolithic-overflow family). If this marker text repeats on later pages,
+    the box is being sliced or re-painted per page — the known gap.
+  </div>
+  <p>Second paragraph follows the oversized box in document order.</p>
+</body>
+</html>

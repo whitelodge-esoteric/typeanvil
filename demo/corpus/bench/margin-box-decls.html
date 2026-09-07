@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Benchmark — margin-box per-box declarations (CORE-141)</title>
+<style>
+  @page {
+    margin: 0.75in;
+    @top-center {
+      content: "Per-box styled head";
+      font-family: "Courier New", monospace;
+      font-size: 12pt;
+      color: #1d3557;
+      border-bottom: 0.5pt solid #457b9d;
+      vertical-align: middle;
+    }
+    @bottom-left {
+      content: "BL";
+      font-size: 8pt;
+      color: #888;
+    }
+  }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; }
+  p { margin: 0 0 6pt 0; }
+</style>
+</head>
+<body>
+  <p>Benchmark for CORE-141 (margin-box styling layer, per-box declarations).
+  The top-center margin box above declares its own font (monospace 12pt), a
+  color, a bottom border, and vertical alignment. Before CORE-141 lands, the
+  engine renders margin boxes at a fixed 10pt Arial with name-derived
+  alignment only — so this box loses its font, color, and border.</p>
+  <p>Ground truth: the header text renders in a monospace face, dark blue,
+  with a rule under it.</p>
+</body>
+</html>

@@ -17,13 +17,19 @@
     @top-right { content: none; }
     @bottom-center { content: none; }
   }
+  /* CORE-103: @font-face with a file source. Liberation Serif is OFL-licensed
+     and committed next to this fixture (assets/, see its LICENSE file). */
+  @font-face {
+    font-family: "Liberation Serif";
+    src: url(assets/liberation-serif.ttf);
+  }
   body { font-family: Arial, Helvetica, "Liberation Sans", sans-serif; font-size: 10pt; color: #222; line-height: 1.2; }
-  .cover { page: cover; break-after: page; }
-  .brand { font-size: 20pt; font-weight: bold; color: #1d3557; margin-bottom: 4pt; }
+  .brand { font-family: "Liberation Serif", Georgia, serif; font-size: 20pt; font-weight: bold; color: #1d3557; margin-bottom: 4pt; }
   .tagline { color: #457b9d; font-size: 10pt; margin-bottom: 18pt; }
   .body { page: auto; }
   h1 { font-size: 14pt; color: #1d3557; margin: 0 0 6pt 0; }
   p { margin: 0 0 6pt 0; text-align: justify; hyphens: auto; }
+  .cover { page: cover; break-after: page; }
   .sig { margin-top: 14pt; font-size: 10pt; }
   .sig .name { font-weight: bold; }
   .footer-note { margin-top: 16pt; font-size: 8pt; color: #666; }

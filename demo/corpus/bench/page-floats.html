@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Benchmark — page floats (CORE-130)</title>
+<style>
+  @page { margin: 0.5in; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; }
+  .pagefloat {
+    float: top;
+    width: 100%;
+    border: 1pt solid #1d3557;
+    background-color: #e9f0f5;
+    padding: 6pt;
+    margin-bottom: 8pt;
+  }
+  p { margin: 0 0 6pt 0; }
+</style>
+</head>
+<body>
+  <div class="pagefloat">PAGE-TOP FLOAT: this box declares float: top and
+  must pin to the TOP of its page's content box, with body text flowing
+  below it (css-page-3 page floats; CORE-130).</div>
+  <p>Body text after the page float. Before CORE-130 lands, only
+  inline-direction floats are supported — float: top falls back to an inline
+  float (left side), so this box hugs the left edge instead of pinning to
+  the page top.</p>
+  <p>Ground truth: the bordered box sits at the top of the content area,
+  full width, with both paragraphs below it.</p>
+</body>
+</html>

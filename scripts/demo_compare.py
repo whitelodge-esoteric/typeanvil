@@ -30,6 +30,7 @@ FEATURE_LABELS = {
     "typography-layer": "Typography Layer",
     "tables-fragmentation": "Tables Fragmentation",
     "css-floats": "CSS Floats",
+    "footnotes": "Footnotes",
 }
 
 
@@ -151,10 +152,15 @@ def render_gallery(
     scoreboard: dict,
     manifest: dict[str, dict],
     output_path: Path,
+    benchmark_manifest: dict[str, dict] | None = None,
 ) -> None:
     docs = scoreboard.get("docs", [])
     out_dir = output_path.parent
     image_rel_root = Path("images")
+    benchmark_section = render_benchmark_section(
+        benchmark_manifest=benchmark_manifest or {},
+        images_dir=out_dir / "images",
+    )
 
     rows = []
     sections = []
@@ -338,6 +344,11 @@ main {{ max-width: 1200px; margin: 0 auto; padding: 0 24px 64px; }}
 .page-diff {{ display: flex; justify-content: center; align-items: center; }}
 .diff-pill {{ padding: 8px 12px; background: #111827; color: #fff; border-radius: 999px; font-variant-numeric: tabular-nums; font-size: 14px; }}
 .render-error {{ padding: 12px 14px; border-radius: 10px; background: #fff1f2; border: 1px solid #fecdd3; color: #b42318; font-size: 14px; }}
+.bench-heading {{ margin-top: 56px; font-size: 24px; }}
+.bench-intro {{ color: var(--muted); margin: 6px 0 18px; max-width: 760px; }}
+.badge-pending {{ background: #fff3e0; color: #8a5a00; }}
+.badge-resolved {{ background: #e6f4ea; color: #1a7f37; }}
+.bench-pill {{ padding: 8px 12px; background: #8a5a00; color: #fff; border-radius: 999px; font-size: 14px; }}
 
 @media (max-width: 900px) {{
   .page-row {{ grid-template-columns: 1fr; }}
@@ -353,12 +364,83 @@ main {{ max-width: 1200px; margin: 0 auto; padding: 0 24px 64px; }}
   <main>
     {table}
     {"".join(sections)}
+    {benchmark_section}
   </main>
 </body>
 </html>
 """
 
     output_path.write_text(html_out, encoding="utf-8")
+
+
+def render_benchmark_section(
+    *,
+    benchmark_manifest: dict[str, dict],
+    images_dir: Path,
+) -> str:
+    """The benchmark/roadmap section of the gallery (CORE-146).
+
+    One card per open-issue fixture: status badge, the tracked issue, the
+    expectation, and the TypeAnvil render (current state). These fixtures
+    are NOT part of the public comparison corpus — they show known gaps on
+    purpose and flip to `resolved` as their issues land.
+    """
+    if not benchmark_manifest:
+        return ""
+    import base64 as _b64
+
+    cards: list[str] = []
+    for file, meta in benchmark_manifest.items():
+        name = str(meta.get("name", file))
+        issue = str(meta.get("issue_id", ""))
+        status = str(meta.get("status", "pending"))
+        expectation = str(meta.get("expectation", ""))
+        notes = meta.get("notes", []) or []
+        base = Path(file).with_suffix("").name
+        ta_img = images_dir / f"bench-{base}" / "page-001-ta.png"
+        if ta_img.exists():
+            zoom_id = f"bench-{slugify(file)}"
+            data = ta_img.read_bytes()
+            src = f"data:image/png;base64,{_b64.b64encode(data).decode('ascii')}"
+            img_html = (
+                f'<input class="zoom-check" type="checkbox" id="{zoom_id}" />'
+                f'<label class="zoom-label" for="{zoom_id}">'
+                f'<img src="{src}" alt="TypeAnvil render of {_escape(name)}" /></label>'
+            )
+        else:
+            img_html = '<div class="placeholder">No render.</div>'
+        notes_html = (
+            "<ul>" + "".join(f"<li>{_escape(str(n))}</li>" for n in notes) + "</ul>"
+            if notes
+            else ""
+        )
+        cards.append(
+            f'<section class="doc bench" id="bench-{slugify(file)}">'
+            "<header>"
+            f"<h2>{_escape(name)}</h2>"
+            f'<div class="meta"><code>{_escape(file)}</code> · '
+            f'<a href="https://linear.app/whitelodge/issue/{_escape(issue)}">{_escape(issue)}</a></div>'
+            f'<div class="badges"><span class="badge badge-{_escape(status)}">{_escape(status)}</span></div>'
+            "</header>"
+            f'<div class="notes"><div><h3>Expectation</h3><p>{_escape(expectation)}</p>{notes_html}</div></div>'
+            f'<div class="pages"><div class="page-row"><div class="page-cell">'
+            f'<div class="page-label">TypeAnvil — current state</div>{img_html}</div>'
+            '<div class="page-diff"><div class="bench-pill">benchmark</div></div>'
+            '<div class="page-cell"><div class="page-label">Expected (engine parity)</div>'
+            '<div class="placeholder">See expectation</div></div>'
+            "</div></div>"
+            "</section>"
+        )
+    if not cards:
+        return ""
+    return (
+        '<h2 class="bench-heading">Benchmark — open engine issues</h2>'
+        '<p class="bench-intro">One fixture per open issue, rendered with the '
+        "current engine. These show known gaps on purpose; each flips to "
+        "resolved as its issue lands. They are separate from the public "
+        "comparison corpus above.</p>"
+        + "".join(cards)
+    )
 
 
 def _page_cell(*, exists: bool, label: str, page_index: int, img_path: Path | None) -> str:
@@ -561,6 +643,7 @@ def main() -> int:
     assemble_p = sub.add_parser("assemble", help="Assemble scoreboard + gallery")
     assemble_p.add_argument("--results", required=True)
     assemble_p.add_argument("--manifest", required=True)
+    assemble_p.add_argument("--benchmark-manifest", default=None)
     assemble_p.add_argument("--out-dir", required=True)
     assemble_p.add_argument("--typeanvil-version", required=True)
     assemble_p.add_argument("--prince-version", default="")
@@ -605,6 +688,13 @@ def main() -> int:
     if args.cmd == "assemble":
         results = _read_results(Path(args.results))
         manifest = load_manifest(Path(args.manifest))
+        bench_manifest: dict[str, dict] = {}
+        if args.benchmark_manifest:
+            bpath = Path(args.benchmark_manifest)
+            if bpath.exists():
+                for entry in json.loads(bpath.read_text(encoding="utf-8")):
+                    if isinstance(entry, dict) and "file" in entry:
+                        bench_manifest[str(entry["file"])] = entry
         out_dir = Path(args.out_dir)
         _ensure_dir(out_dir)
         prince_version = args.prince_version or None
@@ -618,6 +708,7 @@ def main() -> int:
             scoreboard=scoreboard,
             manifest=manifest,
             output_path=out_dir / "index.html",
+            benchmark_manifest=bench_manifest,
         )
         return 0
 
