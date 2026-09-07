@@ -1,0 +1,42 @@
+[
+  {
+    "name": "Monolithic overflow",
+    "file": "bench/monolithic-overflow.html",
+    "issue_id": "CORE-143",
+    "status": "pending",
+    "feature": "monolithic-overflow",
+    "expectation": "oversized absolutely-positioned block paints once on page 1, never re-painted on continuation pages",
+    "safe_to_render": true,
+    "notes": []
+  },
+  {
+    "name": "Margin-box per-box declarations",
+    "file": "bench/margin-box-decls.html",
+    "issue_id": "CORE-141",
+    "status": "pending",
+    "feature": "margin-box-styling",
+    "expectation": "top-center margin box renders with its own font (monospace 12pt), color, bottom border, and vertical-align",
+    "safe_to_render": true,
+    "notes": ["pre-CORE-141 the box renders 10pt Arial, name-derived alignment, no border"]
+  },
+  {
+    "name": "Page-context viewport units",
+    "file": "bench/page-context-vh.html",
+    "issue_id": "CORE-140",
+    "status": "pending",
+    "feature": "page-context-vh-vw",
+    "expectation": "100vw x 10vh band resolves against the 5in x 3in page box (band height 21.6pt), not the stylo 1024x768 viewport",
+    "safe_to_render": true,
+    "notes": ["pre-CORE-140 the band height computes ~57.6pt from the fixed viewport"]
+  },
+  {
+    "name": "Page floats",
+    "file": "bench/page-floats.html",
+    "issue_id": "CORE-130",
+    "status": "pending",
+    "feature": "page-floats",
+    "expectation": "float: top box pins to the top of its page's content box, full width, body text below",
+    "safe_to_render": true,
+    "notes": ["pre-CORE-130 float: top falls back to an inline left float"]
+  }
+]

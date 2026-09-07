@@ -2245,6 +2245,16 @@ impl<'a> Ctx<'a> {
                             if lines.is_empty() {
                                 break;
                             }
+                            // Base byte offset of THIS segment in the item's
+                            // text (CORE-146 fix): marker byte windows inside
+                            // the segment are `seg_base + Σconsumed[..li]`.
+                            // `src_offset` itself advances per line below (it
+                            // seeds the next segment's re-break), so using it
+                            // here double-counted every line and marker
+                            // windows drifted to 2× the true offset — notes
+                            // called after the first line of a floated-wrap
+                            // run never registered.
+                            let seg_base = src_offset;
                             let mut li = 0usize;
                             let mut page_bottom_break = false;
                             // Link rects for this segment, keyed by line
@@ -2272,7 +2282,7 @@ impl<'a> Ctx<'a> {
                                 // a slice starting at `src_offset`, so this
                                 // line's item-text byte offset is
                                 // src_offset + sum of preceding lines' bytes.
-                                let line_start = src_offset
+                                let line_start = seg_base
                                     + lines[..li].iter().map(|l| l.consumed).sum::<usize>();
                                 if !link_spans.is_empty() {
                                     let mut rects = Vec::new();
@@ -2308,8 +2318,12 @@ impl<'a> Ctx<'a> {
                                 ));
                                 // CORE-107: register call markers placed by
                                 // THIS segment line (segment text starts at
-                                // `src_offset` in the item's text).
-                                let ls = src_offset
+                                // `seg_base` in the item's text — the
+                                // segment's entry offset; `src_offset` has
+                                // already advanced past this segment's placed
+                                // lines and would double-count them,
+                                // CORE-146).
+                                let ls = seg_base
                                     + lines[..li].iter().map(|l| l.consumed).sum::<usize>();
                                 let le = ls + lines[li].consumed;
                                 self.register_placed_markers(flow, fn_markers, 0, ls, le);

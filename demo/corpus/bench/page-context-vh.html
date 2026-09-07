@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Benchmark — page-context enablers (CORE-140)</title>
+<style>
+  @page {
+    margin: 0.5in;
+    @bottom-center { content: "Page " counter(page); }
+  }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; }
+  .band {
+    width: 100vw;
+    height: 10vh;
+    background-color: #1d3557;
+    color: #ffffff;
+    padding: 4pt;
+  }
+  p { margin: 0 0 6pt 0; }
+</style>
+</head>
+<body>
+  <div class="band">100vw × 10vh band</div>
+  <p>Benchmark for CORE-140 (page-context enablers). The dark band sizes
+  itself with viewport units. In print context, vh/vw must resolve against
+  the PAGE box — before CORE-140 lands, stylo's fixed 1024×768 viewport is
+  used instead, so the band's height is wrong for this 5in×3in page (10vh of
+  768px ≈ 76.8px ≈ 57.6pt, versus 10vh of the 216pt page = 21.6pt).</p>
+  <p>Ground truth: the band's height is 21.6pt (10% of the 3in page height),
+  spanning the full 4in content width.</p>
+</body>
+</html>

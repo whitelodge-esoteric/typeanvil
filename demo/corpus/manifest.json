@@ -29,15 +29,16 @@
   {
     "name": "Academic Paper",
     "file": "paper.html",
-    "wedge_features": ["typography-layer", "fragmentation-core"],
+    "wedge_features": ["typography-layer", "fragmentation-core", "footnotes"],
     "known_limitations": [
-      "footnotes unsupported (known gap; the fixture omits footnote calls intentionally)",
+      "footnote styling is fixed (9pt marker-hang layout; fixture pins color/size via .fn)",
       "CSS float placement unsupported (known gap; no floats used)"
     ],
     "expected_deltas": [
       "Hyphenation points may differ (different hyphenation dictionaries)",
       "Justification glue distribution may differ slightly at identical widths",
-      "line-height pinned to 1.5 (CORE-75) to exercise CORE-74 convergence; page counts match Prince at 1.5 (11 = 11)"
+      "line-height pinned to 1.5 (CORE-75) to exercise CORE-74 convergence; page counts match Prince at 1.5 (11 = 11)",
+      "Footnote band height may differ where note text wraps differently (CORE-107)"
     ]
   },
   {

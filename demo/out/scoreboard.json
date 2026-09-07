@@ -1,6 +1,6 @@
 {
-  "generated": "2026-08-31T14:37:56Z",
-  "typeanvil_version": "fd43280",
+  "generated": "2026-09-07T20:18:32Z",
+  "typeanvil_version": "26cc06f",
   "prince_version": "Prince 16.2",
   "docs": [
     {
@@ -86,7 +86,7 @@
       "pages": [
         {
           "page": 1,
-          "diff_percent": 7.4884259259259265
+          "diff_percent": 8.22410300925926
         },
         {
           "page": 2,
@@ -117,7 +117,7 @@
           "diff_percent": 0.8760127314814814
         }
       ],
-      "overall_diff_percent": 7.768012152777778,
+      "overall_diff_percent": 7.859971788194444,
       "render_error": null
     },
     {
@@ -161,18 +161,18 @@
         },
         {
           "page": 9,
-          "diff_percent": 18.59375
+          "diff_percent": 17.904369212962962
         },
         {
           "page": 10,
-          "diff_percent": 21.021412037037038
+          "diff_percent": 22.59837962962963
         },
         {
           "page": 11,
-          "diff_percent": 1.4995659722222223
+          "diff_percent": 13.53515625
         }
       ],
-      "overall_diff_percent": 13.186487268518517,
+      "overall_diff_percent": 14.361321548821548,
       "render_error": null
     },
     {
@@ -233,13 +233,13 @@
     {
       "name": "Quarterly Report",
       "file": "report.html",
-      "typeanvil_pages": 10,
-      "prince_pages": 10,
+      "typeanvil_pages": 11,
+      "prince_pages": 11,
       "page_count_mismatch": false,
       "pages": [
         {
           "page": 1,
-          "diff_percent": 4.653501157407407
+          "diff_percent": 4.673032407407407
         },
         {
           "page": 2,
@@ -263,22 +263,26 @@
         },
         {
           "page": 7,
-          "diff_percent": 7.911603009259259
+          "diff_percent": 5.862991898148148
         },
         {
           "page": 8,
-          "diff_percent": 8.773871527777779
+          "diff_percent": 8.786168981481483
         },
         {
           "page": 9,
-          "diff_percent": 10.25462962962963
+          "diff_percent": 5.847077546296296
         },
         {
           "page": 10,
+          "diff_percent": 10.25462962962963
+        },
+        {
+          "page": 11,
           "diff_percent": 1.0850694444444444
         }
       ],
-      "overall_diff_percent": 7.874710648148148,
+      "overall_diff_percent": 7.50703651094276,
       "render_error": null
     },
     {
