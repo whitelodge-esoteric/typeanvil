@@ -856,9 +856,21 @@ fn paginate(
     // it (spec §4).
     let mut current_name: Option<String> = None;
 
-    while let Some(token) = incoming.take() {
+    while let Some(mut token) = incoming.take() {
         let page_index = pages.len();
         flow.current_index = page_index;
+        // A deferred page-change break (CORE-127 slice a) carried out of a
+        // page whose LAST fragment placed nothing (all items were floats
+        // that deferred whole) would start an empty page: re-absorb it —
+        // the break's purpose (a fresh page for the target's context) is
+        // already satisfied by the break that moved us here
+        // (page-size-007/008 empty-page fix, CORE-145).
+        if !token.is_break_before() && token.child_tokens.len() == 1 {
+            let only = &token.child_tokens[0];
+            if only.token.is_break_before() && only.index == 0 {
+                token = only.token.clone();
+            }
+        }
         // Snapshot the carried string values BEFORE this page's body lays out:
         // `string(name, start)` must show the value entering the page (spec
         // §Behavior 4; Prince-verified — a top-of-page assignment does not
@@ -1016,6 +1028,21 @@ fn paginate(
                 fragmentainer.root.children.push(frag);
             }
         }
+
+        // A trailing page that paints NOTHING is dropped: the page loop is
+        // deterministic, so nothing can depend on a blank final page existing
+        // (no cross-page state resolves against the page count mid-loop).
+        // Without this, a float that deferred whole at the page end could
+        // leave a body-only page with an empty fragment (zero-height root
+        // child, no abspos, no margin boxes) — an extra blank page the refs
+        // do not have (page-size-007/008, CORE-145). Only the LAST page can
+        // be blank: every other page's outgoing token means content resumes
+        // after it, and content-after implies the break boundary carried
+        // paint on one side.
+        let page_blank = fragmentainer.root.children.is_empty()
+            && fragmentainer.background.is_none()
+            && fragmentainer.canvas_background.is_none();
+        let is_last = incoming.is_none();
 
         pages.push(fragmentainer);
         incoming = res.outgoing;
@@ -2632,7 +2659,20 @@ impl<'a> Ctx<'a> {
                             // Measure the float's margin box (width: explicit
                             // or shrink-to-fit; height: content measure).
                             let (fw, fh) = self.measure_float(*child, inner_width);
-                            let fits = y + fh <= bottom_limit;
+                            // css floats + fragmentation (css2 §9.5.1 rules
+                            // 2+5+7, css-break-3): the float needs vertical
+                            // room AND a stacking-free x lane — when no lane
+                            // exists beside the overlapping floats, the float
+                            // moves DOWN below them (page-size-007/008's
+                            // packed floats row across, wrap to a second row,
+                            // then overflow to the next page). `last_resort`
+                            // (CORE-101) still places on a genuinely empty
+                            // page. Fits and placement share one probe so the
+                            // lowered y is where the float actually lands.
+                            let float_y = self.float_placement_y(
+                                fw, fh, inner_width, y, bottom_limit, flow,
+                            );
+                            let fits = placed && float_y.is_some();
                             let last_resort = !placed;
                             if !fits && !last_resort {
                                 // CORE-101: match Prince — place the float
@@ -2649,6 +2689,21 @@ impl<'a> Ctx<'a> {
                                         index: i,
                                         token: BreakToken::break_before(),
                                     });
+                                    // Nothing in-flow was placed before this
+                                    // float (it is the page's first item):
+                                    // the parent box's fragment carries the
+                                    // float via its SUBTREE only when the
+                                    // float's own fragment rides `children`
+                                    // — but this defer emits a break token
+                                    // with NO fragment, so the box paints
+                                    // empty here. Mark `broke` WITHOUT
+                                    // clearing `empty`-ish paint: the page
+                                    // loop's trailing-blank-page check sees
+                                    // the empty root and drops the page
+                                    // (CORE-145: the deferral itself already
+                                    // moved the float to the next page —
+                                    // carrying an empty container fragment
+                                    // would paint nothing either way).
                                     broke = true;
                                     break;
                                 }
@@ -2657,11 +2712,23 @@ impl<'a> Ctx<'a> {
                                 // limit, its content fragments naturally, and
                                 // its continuation rides `pending_floats`.
                             }
-                            let fx = match cstyle.float {
-                                Float::Left => inner_left,
-                                Float::Right => inner_left + inner_width - fw,
-                                _ => inner_left,
+                            // Place at the probe's y (may be lowered below an
+                            // earlier row — css2 §9.5.1 rule 7). The in-flow
+                            // cursor `y` does NOT advance: floats are
+                            // out-of-flow, so following text stays beside them.
+                            let fy = match float_y {
+                                Some(v) => v,
+                                None => y,
                             };
+                            let fx = self.float_x(
+                                cstyle.float,
+                                fw,
+                                inner_left,
+                                inner_width,
+                                fy,
+                                fh,
+                                flow,
+                            );
                             // A float's own content lays in-flow and ignores
                             // the active intrusion set: floats do not wrap
                             // around sibling floats in this model, and the
@@ -2671,7 +2738,7 @@ impl<'a> Ctx<'a> {
                                 *child,
                                 fx,
                                 fw,
-                                y,
+                                fy,
                                 bottom_limit,
                                 placed,
                                 first_in_flow,
@@ -2685,7 +2752,7 @@ impl<'a> Ctx<'a> {
                             flow.active_floats.push(PlacedFloat {
                                 id: *child,
                                 x: fx,
-                                y,
+                                y: fy,
                                 width: fw,
                                 height: fh,
                                 side: cstyle.float,
@@ -2843,8 +2910,17 @@ impl<'a> Ctx<'a> {
                     // once-per-flow bound as the avoid-defer above: on the
                     // next page the first line fits (the box fits fresh), so
                     // it cannot defer forever.
+                    // EXCEPTION (CORE-145): when the page holds floats that
+                    // will not move (their carry-over rectangle rides the
+                    // next page), deferring the first text line would
+                    // misplace it BELOW the float row — the line must place
+                    // beside the floats instead of vacating. Chromium packs
+                    // the first line beside the carried floats (page-name-
+                    // float-002, page-size-007 'second' beside float 9).
+                    let floats_carry = !flow.pending_floats.is_empty();
                     let placed_nothing = res.fragment.children.is_empty()
-                        && !matches!(res.fragment.content, FragmentContent::Text(_));
+                        && !matches!(res.fragment.content, FragmentContent::Text(_))
+                        && !floats_carry;
                     // The fragment must be page-sized or smaller: a monolithic
                     // overflow box (taller than the page, placed with
                     // overflow) also "places nothing" on later fragmentainers
@@ -2958,6 +3034,13 @@ impl<'a> Ctx<'a> {
                                 }
                             }
                         }
+                        // A float-only span between the placed box and the
+                        // target means the deferred break would land on a
+                        // page holding only deferred floats — an EMPTY page
+                        // when every one of them defers again (page-size-
+                        // 007/008). The break then fires with nothing
+                        // in-flow on either side. Skip the comparison unless
+                        // a context-bearing target was found (CORE-145).
                         if let (Some(prev), Some((j, next_ctx))) = (prev_end, target) {
                             if prev != next_ctx {
                                 // Defer, don't break: items BETWEEN this box
@@ -2995,6 +3078,27 @@ impl<'a> Ctx<'a> {
         };
         y += padding_bottom;
 
+        // BFC float containment (css2 §10.6.3): a flow-root / BFC-establishing
+        // box's height encloses its floats. `y` only tracks in-flow content,
+        // so extend it to the lowest float bottom that lies inside this box
+        // (floats at/above the box's content top were placed by an ancestor
+        // and do not count). Applies to every fragment of the box: the
+        // background must paint behind float-only continuation bands too
+        // (page-size-007/008 ref paints the container color behind the
+        // floated second row, CORE-145).
+        if !flow.active_floats.is_empty() {
+            let top_incl = box_top + padding_top;
+            let bottom = flow
+                .active_floats
+                .iter()
+                .filter(|f| f.y.get() >= top_incl.get() - 1e-9)
+                .map(|f| f.bottom())
+                .fold(Scalar::ZERO, |a, b| if b.get() > a.get() { b } else { a });
+            if bottom.get() > y.get() {
+                y = bottom;
+            }
+        }
+
         let mut box_height = y - box_top;
         // Declared `height` (CORE-66 model now refined): when the box finished
         // on this fragmentainer, an explicit CSS height sizes the BORDER box
@@ -3026,10 +3130,27 @@ impl<'a> Ctx<'a> {
         // the fill painted the full containing-block width, so inline
         // `margin-left` shifted only text, never the painted box (WPT refs
         // position colored boxes with margins pervasively).
+        //
+        // css-break-3 fill-to-edge: a box that CONTINUES past this page (a
+        // middle fragment) extends its background paint to the fragmentainer
+        // bottom edge — only the LAST fragment ends at the content edge
+        // (Chromium-verified, page-size-007 test page 1: the yellow container
+        // paints full-bleed while its float rows continue). Paint-box only:
+        // `used` stays content-based so pagination never sees the fill.
+        let paint_height = if broke && style.background_color.is_some() {
+            let fill = bottom_limit - box_top;
+            if fill.get() > box_height.get() {
+                fill
+            } else {
+                box_height
+            }
+        } else {
+            box_height
+        };
         let origin = Point::new(Self::frag_border_x(style, origin_x), box_top);
-        let mut fragment = Fragment::block(origin, (box_border_w, box_height));
+        let mut fragment = Fragment::block(origin, (box_border_w, paint_height));
         if let Some(bg) = style.background_color {
-            if box_height.get() > 0.0 {
+            if paint_height.get() > 0.0 {
                 fragment.content = FragmentContent::Background(bg);
             }
         }
@@ -3077,6 +3198,9 @@ impl<'a> Ctx<'a> {
                 run.baseline = Point::new(run.baseline.x - origin.x, run.baseline.y - origin.y);
             }
         }
+        let has_block_child = children
+            .iter()
+            .any(|c| matches!(c.kind, crate::frag::FragmentKind::Block));
         fragment.children = children;
         // Map this fragment back to its DOM node so target-counter and PDF
         // bookmarks can find the page it landed on.
@@ -3105,7 +3229,42 @@ impl<'a> Ctx<'a> {
         } else {
             style.margin_bottom
         };
-        let used = (box_top - top) + box_height + margin_bottom;
+        // css-sizing-3 §5.1: a declared `height` sizes the box's FLOW extent —
+        // overflow content paints (the paint box above keeps
+        // max(content, declared)) but does not push following content down.
+        // The cursor advance therefore uses min(content, declared) when the
+        // box finished: a `height:0` div with a text line lets floats start
+        // at its own top (page-size-007/008: 8 floats per page need the
+        // float row to start at y=0, not below the line box). Boxes that
+        // broke keep the content-based extent (declared height applies to
+        // the whole box, not a fragment).
+        // A box whose overflow comes from a BLOCK child keeps the content extent:
+// the block child itself fragments/positions against the box, and shrinking
+// the flow extent displaces following siblings (block-002-wm-* regression).
+// Only own-inline-content overflow (bare text lines, e.g. a `height:0` div
+// with a text line — page-size-007/008) clamps to the declared height.
+        let flow_height = if !broke && !has_block_child {
+            match style.height {
+                Some(mut declared) => {
+                    if style.box_sizing != crate::css::StyloBoxSizing::BorderBox {
+                        declared = declared
+                            + style.padding_top
+                            + style.padding_bottom
+                            + style.border_top
+                            + style.border_bottom;
+                    }
+                    if declared.get() < box_height.get() {
+                        declared
+                    } else {
+                        box_height
+                    }
+                }
+                None => box_height,
+            }
+        } else {
+            box_height
+        };
+        let used = (box_top - top) + flow_height + margin_bottom;
 
         let empty = children_empty(&fragment) && outgoing.is_none() && box_height.get() <= 0.0;
 
@@ -4112,7 +4271,34 @@ impl<'a> Ctx<'a> {
             w
         };
         let h = self.measure_block(id, w);
-        (w, h)
+        // A declared `height` sizes the float's BORDER box even when the
+        // content measures smaller (css-sizing-3 §5.1) — layout_box already
+        // paints it that way. Empty fixed-height floats (WPT refs position
+        // colored boxes this way pervasively) measured ZERO otherwise: they
+        // never stacked, never intruded, and never deferred across pages
+        // (page-size-007/008 root cause, CORE-145). Same max() shape as the
+        // block path's declared-height override; explicit compares (Scalar
+        // has no Ord).
+        let inner_measured = h - style.margin_top - style.margin_bottom;
+        let inner = match style.height {
+            Some(hh) => {
+                let target = if style.box_sizing == crate::css::StyloBoxSizing::BorderBox {
+                    hh
+                } else {
+                    hh + style.padding_top
+                        + style.padding_bottom
+                        + style.border_top
+                        + style.border_bottom
+                };
+                if target.get() > inner_measured.get() {
+                    target
+                } else {
+                    inner_measured
+                }
+            }
+            None => inner_measured,
+        };
+        (w, style.margin_top + inner + style.margin_bottom)
     }
 
     /// Whether a float's content can usefully fragment across fragmentainers:
@@ -4134,6 +4320,121 @@ impl<'a> Ctx<'a> {
             }
         }
         false
+    }
+
+    /// CSS 2 §9.5.1 float rules, constraint 2: a left float's outer LEFT edge
+    /// must be left of every other left float that overlaps it vertically
+    /// (right floats mirror). Float stacking — two floats that vertically
+    /// overlap may NOT share the same x; the newcomer goes to the right of
+    /// (or below, if no room) the stacked float. Floats do not intrude on
+    /// each other's own x placement beyond this rule.
+    fn float_x(
+        &self,
+        side: Float,
+        fw: Scalar,
+        inner_left: Scalar,
+        inner_width: Scalar,
+        y: Scalar,
+        fh: Scalar,
+        flow: &Flow,
+    ) -> Scalar {
+        let ideal = match side {
+            Float::Right => inner_left + inner_width - fw,
+            _ => inner_left,
+        };
+        let mut x = ideal;
+        // Iterate: each overlapping float pushes x sideways; repeat until no
+        // push remains (bounded by the float count).
+        for _ in 0..flow.active_floats.len() + 1 {
+            let mut pushed = false;
+            for f in &flow.active_floats {
+                let overlaps = f.y.get() < y.get() + fh.get() && f.bottom().get() > y.get();
+                if !overlaps {
+                    continue;
+                }
+                match (side, f.side) {
+                    (Float::Left, Float::Left) => {
+                        // My left edge must be >= this float's right edge.
+                        let need = f.x + f.width;
+                        if x.get() < need.get() - 1e-9 {
+                            x = need;
+                            pushed = true;
+                        }
+                    }
+                    (Float::Right, Float::Right) => {
+                        // My right edge must be <= this float's left edge.
+                        let need = f.x - fw;
+                        if x.get() > need.get() + 1e-9 {
+                            x = need;
+                            pushed = true;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            if !pushed {
+                break;
+            }
+        }
+        // Out of horizontal room: fall back to the ideal x. The fits check
+        // (stacking-aware, same vertical-overlap predicate) then defers the
+        // float to the next fragmentainer, where the space is empty again.
+        let min_x = inner_left;
+        let max_x = inner_left + inner_width - fw;
+        if x.get() < min_x.get() - 1e-9 || x.get() > max_x.get() + 1e-9 {
+            return ideal;
+        }
+        x
+    }
+
+    /// Whether a float of margin-box (fw x fh) fits in the fragmentainer
+    /// GIVEN the already-placed floats: css2 §9.5.1 rules 2+5+7 — enough
+    /// vertical room AND a stacking-free x lane; when no lane exists beside
+    /// the overlapping floats, the float moves DOWN below them until it fits
+    /// or leaves the fragmentainer. Returns the (possibly lowered) y where
+    /// the float should be placed, so fits and placement always agree.
+    fn float_placement_y(
+        &self,
+        fw: Scalar,
+        fh: Scalar,
+        inner_width: Scalar,
+        y: Scalar,
+        bottom_limit: Scalar,
+        flow: &Flow,
+    ) -> Option<Scalar> {
+        let mut probe_y = y;
+        loop {
+            if probe_y + fh > bottom_limit {
+                return None;
+            }
+            // Sum the widths of floats that overlap this probe span: the
+            // newcomer needs a stacking-free lane of its own width (css2
+            // §9.5.1 rule 2 — overlapping same-side floats may not share x;
+            // width-clamped floats may coexist in one lane).
+            let mut total = fw.get();
+            let mut lowest: Option<Scalar> = None;
+            for f in &flow.active_floats {
+                let overlaps =
+                    f.y.get() < probe_y.get() + fh.get() && f.bottom().get() > probe_y.get();
+                if overlaps {
+                    total += f.width.get();
+                    let b = f.bottom();
+                    if lowest.map(|l| b.get() > l.get()).unwrap_or(true) {
+                        lowest = Some(b);
+                    }
+                }
+            }
+            if total <= inner_width.get() {
+                return Some(probe_y);
+            }
+            // No lane beside the floats: move down below the lowest
+            // overlapping float (css2 §9.5.1 rule 7 — a float that does not
+            // fit horizontally moves down until it fits).
+            match lowest {
+                Some(b) => probe_y = b,
+                None => return None,
+            }
+        }
     }
 
     /// Shrink-to-fit width: the widest line of the float's content (text or

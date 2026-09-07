@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-18
-updated: 2026-08-18
+updated: 2026-09-06
 sidebar_position: 7
 tags: [engine, layout, css-float, css-break, fragmentation]
 spec_id: floats-fragmentation
@@ -206,3 +206,58 @@ Each criterion maps to a test in `engine/tests/floats.rs` (helpers mirror
 - Parent epic: Linear CORE-54.
 - stylo 0.20.0 `properties/longhands.toml`: `float`, `clear` — compiled in the
   servo build (verified 2026-08-18).
+
+## Behavior — floats across fragmentainers (CORE-145, 2026-09-06)
+
+The engine shall additionally:
+
+11. Size a float's margin box from its declared `height` even when the
+    content measures smaller (css-sizing-3 §5.1, same max() shape as the
+    block paint box): empty fixed-height floats measure ZERO otherwise and
+    never stack, intrude, or defer (page-size-007/008 root cause).
+12. Place a float whose vertical span starts at a box top WITHOUT the
+    preceding sibling's line box pushing it down when that sibling declares
+    `height: 0` (css-sizing-3 §5.1: the declared height sizes the flow
+    extent; overflow content paints but does not advance the cursor). The
+    clamp applies only when the box has no block-child fragments — a box
+    whose overflow comes from a block child keeps the content extent, or
+    following siblings displace (block-002-wm-* regression).
+13. Pack floats per css2 §9.5.1 rules 2+7: a float that has no stacking-free
+    x lane beside vertically-overlapping same-side floats moves DOWN below
+    them (probe loop: `float_placement_y` returns the lowered y); fits and
+    placement share one probe so the landed y equals the checked y.
+14. Defer a float whole to the next fragmentainer when no lowered position
+    fits (css-break-3 parallel flow), and re-absorb a deferred page-change
+    break carried out of a paint-empty page (a resume token with a single
+    break-before child at index 0 unwraps at page start).
+15. Extend a box's background paint to the fragmentainer bottom edge when the
+    box continues past the page (css-break-3 fill-to-edge; only the LAST
+    fragment ends at the content edge — Chromium-verified against
+    page-size-007). Paint-box only: `used` stays content-based so pagination
+    never sees the fill.
+16. Contain floats in BFC-establishing boxes (css2 §10.6.3): a flow-root's
+    height extends to the lowest float bottom inside it, on EVERY fragment
+    (continuation bands paint the container background behind float rows).
+
+**Gate result (2026-09-06):** page-size bucket 12/16 → 14/16; page-size-007
+and page-size-008 PASS. css-break 63 tests, css-multicol 5, flexbox 27 —
+zero status flips vs a fresh branch-point binary (9d96067). Residuals
+page-size-009 (page count 1 vs 2) and page-size-012 (pixel diff) fail on the
+branch-point binary too — pre-existing, out of scope here.
+
+## Acceptance Criteria — CORE-145 additions
+
+Each criterion maps to a test in `engine/tests/floats.rs`:
+
+8. **Zero-height divider.** Given a `height: 0` div with a text line
+   followed by floats, the first float starts at the container's content
+   top (y=0), not below the divider's line box
+   (`zero_height_div_does_not_push_floats_down`).
+9. **Row packing + overflow.** Given 9 fixed-size floats in a flow-root at
+   Letter geometry, one full row packs at y=0 on page 1 and the row-2
+   floats defer whole to page 2
+   (`float_row_wraps_then_overflows_to_next_page`).
+10. **Fill-to-edge.** Given the same floats inside a background-colored
+    flow-root, page 1's container fragment (a middle fragment) paints to
+    the fragmentainer bottom
+    (`continued_box_background_fills_to_fragmentainer_bottom`).
