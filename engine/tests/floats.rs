@@ -422,3 +422,143 @@ fn render_cli(html: &Path, out: &Path, w: &str, h: &str) {
         .expect("failed to spawn typeanvil");
     assert!(status.success(), "engine exited non-zero: {status:?}");
 }
+
+// --- CORE-145: floats paginating across pages ------------------------------
+
+/// css-sizing-3 §5.1: a declared `height` sizes the box's flow extent. A
+/// `height:0` div with a text line does NOT push following floats down —
+/// the floats start at the div's own top (page-size-007/008: without this,
+/// the float row starts below the line box and only half the floats fit
+/// per page, inflating the page count 9 vs 6).
+#[test]
+fn zero_height_div_does_not_push_floats_down() {
+    let html = r#"<html><head><style>
+        body { margin: 0; }
+        .zero { height: 0; }
+        .float { float: left; width: 37.5pt; height: 45pt; }
+        .container { display: flow-root; }
+    </style></head><body>
+        <div class="container">
+            <div class="zero">first</div>
+            <div class="float"></div>
+            <div class="float"></div>
+            <div class="float"></div>
+            <div class="float"></div>
+        </div>
+    </body></html>"#;
+    let dom = dom_of(html);
+    let f0 = node_id_by_class(&dom, "float");
+    // 5in x 3in page, 0.5in margins -> 288pt x 144pt content. The float row
+    // must start at y=0 (the container's content top), not below the
+    // zero-height div's line box (~14.4pt).
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    let frags = page_float_fragments(&layout, 0, f0);
+    assert!(!frags.is_empty(), "first float placed on page 1");
+    assert_close(
+        frags[0].offset.y,
+        Scalar(0.0),
+        "first float starts at the container's content top",
+    );
+}
+
+/// css2 §9.5.1 rules 2+7 + css-break-3: a float that has no free x lane
+/// beside vertically-overlapping floats moves DOWN below them; when the
+/// lowered row no longer fits the fragmentainer, the float defers to the
+/// next fragmentainer (page-size-007/008 packing shape, scaled to Letter).
+#[test]
+fn float_row_wraps_then_overflows_to_next_page() {
+    let html = r#"<html><head><style>
+        body { margin: 0; }
+        .float { float: left; width: 37.5pt; height: 80pt; }
+        .container { display: flow-root; }
+    </style></head><body>
+        <div class="container">
+            <div class="float"></div>
+            <div class="float"></div>
+            <div class="float"></div>
+            <div class="float"></div>
+            <div class="float"></div>
+            <div class="float"></div>
+            <div class="float"></div>
+            <div class="float"></div>
+            <div class="float"></div>
+            second
+        </div>
+    </body></html>"#;
+    // 288pt content width / 37.5pt = 7 per row. A second row (80pt) starts
+    // at y=80 but 80+80=160 > 144pt content height, so row-2 floats defer
+    // whole to page 2 (css2 §9.5.1 rule 7 lowered them, css-break-3 then
+    // moved them to the next fragmentainer).
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    // Float fragments are exactly 37.5pt x 80pt blocks with a 0 y-offset in
+    // the container subtree — count them per page by size.
+    let mut float_ys: Vec<Vec<f64>> = Vec::new();
+    for page in &layout.pages {
+        let mut ys = Vec::new();
+        fn walk(f: &Fragment, ys: &mut Vec<f64>) {
+            // pt->px->pt through stylo drifts ~0.04pt; match loosely.
+            if matches!(f.kind, FragmentKind::Block)
+                && (f.size.0.get() - 37.5).abs() < 0.01
+                && (f.size.1.get() - 80.0).abs() < 0.01
+            {
+                ys.push(f.offset.y.get());
+            }
+            for c in &f.children {
+                walk(c, ys);
+            }
+        }
+        walk(&page.root, &mut ys);
+        ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        float_ys.push(ys);
+    }
+    assert_eq!(float_ys[0].len() + float_ys[1].len(), 9, "all nine floats placed");
+    assert_eq!(float_ys[0].len(), 7, "one full row packs on page 1");
+    assert_eq!(float_ys[1].len(), 2, "row-2 floats overflow to page 2");
+    // Row 1 packs at y=0 — no phantom cursor below preceding content.
+    assert_eq!(
+        float_ys[0].iter().filter(|y| **y < EPS).count(),
+        7,
+        "row 1 has 7 floats at y=0"
+    );
+}
+
+/// css-break-3 fill-to-edge: a box that continues past the page extends its
+/// background to the fragmentainer bottom edge; only the LAST fragment ends
+/// at the content edge (Chromium-verified, page-size-007 test page 1).
+#[test]
+fn continued_box_background_fills_to_fragmentainer_bottom() {
+    let html = r#"<html><head><style>
+        body { margin: 0; }
+        .float { float: left; width: 37.5pt; height: 80pt; }
+        .container { display: flow-root; background: yellow; }
+    </style></head><body>
+        <div class="container">
+            <div class="float"></div>
+            <div class="float"></div>
+            <div class="float"></div>
+            <div class="float"></div>
+            <div class="float"></div>
+            <div class="float"></div>
+            <div class="float"></div>
+            <div class="float"></div>
+            <div class="float"></div>
+            second
+        </div>
+    </body></html>"#;
+    let dom = dom_of(html);
+    let cid = node_id_by_class(&dom, "container");
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    assert!(layout.pages.len() >= 2, "container fragments across pages");
+    // Page 1's container fragment is a MIDDLE fragment: its paint box
+    // reaches the fragmentainer bottom (144pt content height at 0.5in
+    // margins), even though its in-flow content continues.
+    let mut found = Vec::new();
+    find_source(&layout.pages[0].root, cid, &mut found);
+    assert!(!found.is_empty(), "container fragment on page 1");
+    let frag = found[0];
+    assert_close(
+        frag.size.1,
+        inches(2.0),
+        "middle fragment's background fills to the fragmentainer bottom",
+    );
+}
