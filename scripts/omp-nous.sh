@@ -6,7 +6,7 @@
 set -euo pipefail
 export PATH="$HOME/.bun/bin:$PATH"
 
-MODEL="nous/anthropic/claude-opus-4.8"
+MODEL="nous/z-ai/glm-5.3-flash"
 if [[ "${1:-}" == "--model" ]]; then
   MODEL="$2"
   shift 2
