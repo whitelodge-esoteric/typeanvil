@@ -159,7 +159,7 @@ impl<'a> Ctx<'a> {
             if lay_set {
                 let (s0, s1, target) = sets[set_i];
                 let fits = y + target <= bottom_limit;
-                if !fits && !(placed && y == content_top) {
+                if !fits {
                     // The set does not fit the page: fill the remaining page
                     // with as many columns as fit — anchored at the
                     // container's current cursor (anchoring at the page
@@ -172,6 +172,17 @@ impl<'a> Ctx<'a> {
                     // page's columns is DONE: do not fragment (fragmenting
                     // with an empty child token would re-lay the same set
                     // with no cursor advance).
+                    //
+                    // CORE-150: this branch must also fire when the container
+                    // starts fresh mid-page (`placed && y == content_top`).
+                    // CORE-63 excepted that case and laid the balanced set at
+                    // its full target height — past `bottom_limit` — because
+                    // the then page-bottom-anchored partial fill had zero
+                    // room. CORE-78 re-anchored the partial fill at the
+                    // container cursor, so the exception only survives as a
+                    // bug: the columns ignore the fragmentainer floor
+                    // entirely (the footnote band on a `float: footnote`
+                    // page, the bottom margin on any page).
                     let set_top = y;
                     let (cols, consumed_upto, tok) = self.fill_columns_partial(
                         id,
