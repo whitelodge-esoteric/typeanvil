@@ -146,12 +146,25 @@ readme = open(readme_path).read()
 body = body.replace("](out/images/", "](showcase/out/images/")
 body = body.replace('src="out/images/', 'src="showcase/out/images/')
 start = readme.find(marker)
+gallery_marker = "<!-- BEGIN GENERATED GALLERY"
+# Preserve any section BELOW this one (e.g. the comparison gallery's
+# generated section, landed by CORE-147) — regenerate only our own span.
 if start == -1:
-    if readme and not readme.endswith("\n"):
-        readme += "\n"
-    readme += "\n" + marker + "\n\n" + body
+    insert_at = readme.find(gallery_marker)
+    if insert_at == -1:
+        if readme and not readme.endswith("\n"):
+            readme += "\n"
+        readme += "\n" + marker + "\n\n" + body
+    else:
+        readme = readme[:insert_at].rstrip() + "\n\n" + marker + "\n\n" + body + "\n" + readme[insert_at:]
+        open(readme_path, "w").write(readme)
+        print("promoted into", readme_path, "(above the gallery section)")
+        sys.exit(0)
 else:
-    readme = readme[:start] + marker + "\n\n" + body
+    rest = readme[start + len(marker):]
+    nxt = rest.find(gallery_marker)
+    tail = rest[nxt:] if nxt >= 0 else ""
+    readme = readme[:start] + marker + "\n\n" + body + ("\n" + tail if tail else "")
 open(readme_path, "w").write(readme)
 print("promoted into", readme_path)
 EOF
