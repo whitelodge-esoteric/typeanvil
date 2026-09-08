@@ -639,7 +639,8 @@ def render_showcase_md(
     lines.append("")
     lines.append(
         "Realistic-size pages rendered by the TypeAnvil engine only "
-        f"(commit `{typeanvil_version}`). The comparison gallery above runs at "
+        f"(commit `{typeanvil_version}`). The side-by-side comparison "
+        "gallery lives in [the main demo README](../README.md) and runs at "
         "5in × 3in @ 96 DPI so diffs stay cheap; these pages show the same "
         "engine at the geometry documents actually print at. Prince renders "
         "only the comparison pipeline — the showcase is a TypeAnvil output "
@@ -663,7 +664,8 @@ def render_showcase_md(
             lines.append("")
             continue
         for png in pages:
-            rel = f"out/images/{base}/{png.name}"
+            # Relative to demo/showcase/out/ (where index.md lives).
+            rel = f"images/{base}/{png.name}"
             lines.append(f'<img src="{rel}" alt="{name} — {png.stem}" width="420">')
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"

@@ -45,8 +45,9 @@ is not a diff target).
   4. **Rich media print** — full-color poster-style page: large raster
      imagery, bold display typography, expressive layout.
 - Output committed like the comparison gallery: per-page PNGs plus a
-  markdown section promoted into `demo/README.md`, viewable directly on
-  GitHub.
+  markdown gallery promoted into `demo/showcase/README.md`, viewable
+  directly on GitHub (separate file from the comparison gallery's
+  `demo/README.md`).
 
 ## Non-Goals
 
@@ -68,9 +69,10 @@ is not a diff target).
    `demo/showcase/out/images/<fixture>/page-NNN-ta.png`.
 3. The build SHALL assemble `demo/showcase/out/index.md`, a markdown
    showcase document (fixture name, page images, manifest notes), and SHALL
-   promote its body into `demo/README.md` below the generated-gallery
-   marker, rewriting image paths to `showcase/out/images/...` so they
-   resolve from `demo/`.
+   promote its body into `demo/showcase/README.md` below the
+   `BEGIN GENERATED SHOWCASE` marker, rewriting image paths to
+   `out/images/...` so they resolve from `demo/showcase/`. The comparison
+   gallery's `demo/README.md` is never touched by the showcase build.
 4. The build SHALL fail if any showcase render exits non-zero or produces
    zero pages (showcase output is prospect-facing; silent empties are worse
    than a red build).
@@ -82,14 +84,21 @@ is not a diff target).
 
 ## Interfaces
 
-- Build entry: `scripts/build-demo.sh --showcase [--keep-work] [--dry-run]`.
+- Build entry: `scripts/build-showcase.sh [--keep-work] [--dry-run]
+  [--determinism]`.
 - Manifest: `demo/showcase/manifest.json`, same entry schema as the
   comparison manifest (name, file, wedge_features, known_limitations,
   expected_deltas) minus the diff-specific fields.
-- Gallery writer: `scripts/demo_compare.py assemble-showcase --results
-  <dir> --manifest demo/showcase/manifest.json --out-dir demo/showcase/out`
-  (new subcommand; reuses the markdown-writer style of the comparison
-  gallery).
+- Gallery writer: `scripts/demo_compare.py assemble-showcase --manifest
+  demo/showcase/manifest.json --images-dir demo/showcase/out/images --out
+  demo/showcase/out/index.md` (new subcommand; reuses the markdown-writer
+  style of the comparison gallery).
+- Gallery promotion: the generated body is promoted into
+  `demo/showcase/README.md` below a `BEGIN GENERATED SHOWCASE` marker —
+  its own file, NOT `demo/README.md`, so showcase and comparison outputs
+  stay separable (GitHub renders a README per directory). The comparison
+  gallery owns `demo/README.md` exclusively; each build rewrites only its
+  own file.
 - Engine contract: unchanged (`typeanvil render <in.html> --page-width 8.5in
   --page-height 11in --margin-* 0.75in -o out.pdf`).
 
@@ -102,9 +111,11 @@ is not a diff target).
 - **AC2 (raster)** — Given a rendered PDF, When rasterized, Then each page
   PNG exists under `demo/showcase/out/images/` and measures 2550 × 3300 px
   (Letter @ 300 DPI).
-- **AC3 (gallery)** — Given a completed build, Then `demo/README.md`
-  contains the showcase section with `<img>` tags whose `src` paths resolve
-  from `demo/` on GitHub.
+- **AC3 (gallery)** — Given a completed build, Then
+  `demo/showcase/README.md` contains the generated showcase section with
+  `<img>` tags whose `src` paths resolve from `demo/showcase/` on GitHub,
+  and `demo/README.md` (comparison gallery) is untouched by the showcase
+  build.
 - **AC4 (determinism)** — Given two consecutive builds, Then the showcase
   output trees are byte-identical.
 - **AC5 (no comparison impact)** — Given the showcase additions, When the

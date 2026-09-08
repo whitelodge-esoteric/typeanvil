@@ -27,6 +27,7 @@ OUT="demo/showcase/out"
 WORK="$OUT/.work"
 IMAGES="$OUT/images"
 MANIFEST="demo/showcase/manifest.json"
+SHOWCASE_README="demo/showcase/README.md"
 MARKER="<!-- BEGIN GENERATED SHOWCASE -->"
 # Realistic print geometry. Fixture-internal @page rules (e.g. the poster's
 # 0in margins) override these CLI defaults per @page cascade.
@@ -127,8 +128,9 @@ if [ "$DRY_RUN" = "1" ]; then
   exit 0
 fi
 
-# Assemble the markdown gallery (spec §Behavior 3) + promote into README.
-# Skipped when any render/raster failed: never promote a partial gallery.
+# Assemble the markdown gallery (spec §Behavior 3) into its own README so
+# showcase and comparison outputs stay separable. Skipped when any
+# render/raster failed: never promote a partial gallery.
 if [ "$FAILED" = "0" ]; then
 "$PY" scripts/demo_compare.py assemble-showcase \
   --manifest "$MANIFEST" \
@@ -136,41 +138,29 @@ if [ "$FAILED" = "0" ]; then
   --out "$OUT/index.md" \
   --typeanvil-version "$TA_VERSION"
 
-"$PY" - "$OUT/index.md" demo/README.md "$MARKER" <<'EOF'
+"$PY" - "$OUT/index.md" "$SHOWCASE_README" "$MARKER" <<'EOF'
 import sys
 index_md, readme_path, marker = sys.argv[1], sys.argv[2], sys.argv[3]
 body = open(index_md).read().rstrip() + "\n"
-readme = open(readme_path).read()
-# Rewrite image paths from the index's location (demo/showcase/out/) to the
-# README's location (demo/): out/images/... -> showcase/out/images/...
-body = body.replace("](out/images/", "](showcase/out/images/")
-body = body.replace('src="out/images/', 'src="showcase/out/images/')
+import pathlib
+readme_path = pathlib.Path(readme_path)
+readme = readme_path.read_text() if readme_path.exists() else ""
+# index.md lives in demo/showcase/out/; the promoted copy lives in
+# demo/showcase/, so images/... paths need an out/ prefix.
+body = body.replace('src="images/', 'src="out/images/')
 start = readme.find(marker)
-gallery_marker = "<!-- BEGIN GENERATED GALLERY"
-# Preserve any section BELOW this one (e.g. the comparison gallery's
-# generated section, landed by CORE-147) — regenerate only our own span.
 if start == -1:
-    insert_at = readme.find(gallery_marker)
-    if insert_at == -1:
-        if readme and not readme.endswith("\n"):
-            readme += "\n"
-        readme += "\n" + marker + "\n\n" + body
-    else:
-        readme = readme[:insert_at].rstrip() + "\n\n" + marker + "\n\n" + body + "\n" + readme[insert_at:]
-        open(readme_path, "w").write(readme)
-        print("promoted into", readme_path, "(above the gallery section)")
-        sys.exit(0)
+    # First run: hand-maintained preamble, then the generated section.
+    preamble = readme.rstrip() + "\n\n" if readme.strip() else ""
+    readme = preamble + marker + "\n\n" + body
 else:
-    rest = readme[start + len(marker):]
-    nxt = rest.find(gallery_marker)
-    tail = rest[nxt:] if nxt >= 0 else ""
-    readme = readme[:start] + marker + "\n\n" + body + ("\n" + tail if tail else "")
-open(readme_path, "w").write(readme)
+    readme = readme[:start] + marker + "\n\n" + body
+readme_path.write_text(readme)
 print("promoted into", readme_path)
 EOF
 
 echo
-echo "showcase gallery: $OUT/index.md (+ promoted into demo/README.md)"
+echo "showcase gallery: $OUT/index.md (+ promoted into $SHOWCASE_README)"
 fi
 
 # Determinism mode: byte-compare two consecutive builds (spec §Behavior 5).
