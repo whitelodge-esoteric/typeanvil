@@ -45,8 +45,10 @@ def bar_chart():
         d.line([(left, y), (right, y)], fill=GRID, width=2)
         d.text((left - 150, y - 18), str(gy), fill=INK)
     bw = (right - left) / len(vals) * 0.55
+    slot = (right - left) / len(vals)
     for i, v in enumerate(vals):
-        x0 = xcoord(i, len(vals), left, right) - bw / 2
+        # Center the bar inside its slot (keeps bar 0 right of the y-axis).
+        x0 = left + slot * i + (slot - bw) / 2
         y0 = bottom - (bottom - top) * v / ymax
         color = TA_ACCENT if i == len(vals) - 1 else TA_BLUE
         d.rectangle([x0, y0, x0 + bw, bottom], fill=color)
