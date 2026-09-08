@@ -284,6 +284,11 @@ pub struct PageRule {
     pub margin_boxes: Vec<MarginBoxDecl>,
     /// Source order, so later equal-specificity rules win.
     order: u32,
+    /// Cascade-layer rank (css-cascade-5 §6): 0 = unlayered (beats every
+    /// layer), else 1 + the layer's position in the layer order. `@layer a, b`
+    /// (statement or block nesting) assigns a=1, b=2; later layers win over
+    /// earlier ones regardless of source position.
+    layer: u32,
 }
 
 /// A fully-resolved page spec for one fragmentainer: geometry plus the margin
@@ -357,6 +362,140 @@ pub fn parse_page_rules(css: &str) -> Vec<PageRule> {
     let css = strip_comments(css);
     let mut rules = Vec::new();
     let mut order = 0u32;
+
+    // --- Cascade-layer pre-pass (css-cascade-5 §6, layers-002..004) -------
+    // Pass 1 registers the layer order from `@layer a, b;` statements and
+    // `@layer a {}` block preludes (first mention fixes the rank: a=1, b=2;
+    // a later layer beats an earlier one regardless of source position;
+    // unlayered = rank 0 beats every layer). The scan continues INSIDE layer
+    // blocks so nested `@layer` declarations register too.
+    let mut layer_rank: Vec<String> = Vec::new();
+    {
+        let mut i = 0;
+        while i < css.len() {
+            if css[i..].starts_with("@layer") {
+                let after = i + "@layer".len();
+                let next = css.as_bytes().get(after).copied().unwrap_or(b' ');
+                // A name boundary must follow (@layerfoo is a different
+                // at-keyword).
+                if next.is_ascii_whitespace() || next == b';' || next == b'{' {
+                    if let Some(rel) = css[after..].find(|c| c == ';' || c == '{') {
+                        let stop = after + rel;
+                        // Register every comma-separated prelude name.
+                        for part in css[after..stop].split(',') {
+                            let name = part.trim();
+                            if !name.is_empty() && !layer_rank.iter().any(|l| l == name) {
+                                layer_rank.push(name.to_string());
+                            }
+                        }
+                        i = if css.as_bytes()[stop] == b';' {
+                            stop + 1
+                        } else {
+                            // Block form: keep scanning the interior (nested
+                            // @layer declarations register here too).
+                            stop + 1
+                        };
+                        continue;
+                    }
+                }
+            }
+            let ch = css[i..].chars().next().expect("non-empty suffix");
+            i += ch.len_utf8();
+        }
+    }
+
+    // --- Layer-span map: (rule_start, rule_end, layer_rank) per @page ------
+    // Pass 2 walks the original text with a brace-marker stack: every `{`
+    // pushes a marker (`Some(previous_layer)` for a @layer block, `None` for
+    // any other block); every `}` pops one and restores the layer when it
+    // closed a @layer block. Skipped at-rules jump past their whole block, so
+    // their braces never touch the stack.
+    let mut spans: Vec<(usize, usize, u32)> = Vec::new();
+    {
+        let mut i = 0;
+        let mut current_layer: u32 = 0;
+        let mut markers: Vec<Option<u32>> = Vec::new();
+        while i < css.len() {
+            if css[i..].starts_with("@layer") {
+                let after = i + "@layer".len();
+                let next = css.as_bytes().get(after).copied().unwrap_or(b' ');
+                if next.is_ascii_whitespace() || next == b';' || next == b'{' {
+                    match css[after..].find(|c| c == ';' || c == '{') {
+                        Some(rel) if css.as_bytes()[after + rel] == b';' => {
+                            i = after + rel + 1;
+                            continue;
+                        }
+                        Some(rel) => {
+                            let brace = after + rel;
+                            // Block form: `@layer a, b { body }` nests as
+                            // a{ b{ body } } — the body belongs to the LAST
+                            // prelude name.
+                            let owner = css[after..brace]
+                                .split(',')
+                                .map(str::trim)
+                                .filter(|s| !s.is_empty())
+                                .last()
+                                .unwrap_or("");
+                            let rank = layer_rank
+                                .iter()
+                                .position(|l| l == owner)
+                                .map(|p| (p + 1) as u32)
+                                .unwrap_or(0);
+                            markers.push(Some(current_layer));
+                            current_layer = rank;
+                            i = brace + 1;
+                            continue;
+                        }
+                        None => break,
+                    }
+                }
+            }
+            match css.as_bytes()[i] {
+                b'@' => {
+                    // @page records its span at the current layer; any other
+                    // at-rule is skipped wholesale (its braces never touch
+                    // the stack).
+                    if css[i..].starts_with("@page") {
+                        if let Some(rest) = css[i..].find('{') {
+                            let brace = i + rest;
+                            if let Some(block_end) = matching_brace(&css, brace) {
+                                spans.push((i, block_end + 1, current_layer));
+                                i = block_end + 1;
+                                continue;
+                            }
+                        }
+                    } else if let Some(rest) = css[i..].find('{') {
+                        let brace = i + rest;
+                        if let Some(block_end) = matching_brace(&css, brace) {
+                            i = block_end + 1;
+                            continue;
+                        }
+                    }
+                    i += 1;
+                }
+                b'{' => {
+                    markers.push(None);
+                    i += 1;
+                }
+                b'}' => {
+                    if let Some(marker) = markers.pop() {
+                        if let Some(prev) = marker {
+                            current_layer = prev;
+                        }
+                    }
+                    i += 1;
+                }
+                _ => {
+                    // Advance by the WHOLE char: byte-wise `+= 1` would land
+                    // mid-character inside multi-byte text (Trøndere's 'ø',
+                    // content-002-ref) and the next `css[i..]` slice panics.
+                    let ch = css[i..].chars().next().expect("non-empty suffix");
+                    i += ch.len_utf8();
+                }
+            }
+        }
+    }
+
     let bytes = css.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
@@ -378,7 +517,15 @@ pub fn parse_page_rules(css: &str) -> Vec<PageRule> {
         };
         let body = &css[brace + 1..block_end];
 
-        if let Some(rule) = parse_one_page_rule(prelude, body, order) {
+        // Layer rank of this rule, from the span map (identity by range).
+        let layer = spans
+            .iter()
+            .find(|(s, e, _)| *s == start && *e == block_end + 1)
+            .map(|(_, _, l)| *l)
+            .unwrap_or(0);
+
+        if let Some(mut rule) = parse_one_page_rule(prelude, body, order) {
+            rule.layer = layer;
             rules.push(rule);
         }
         order += 1;
@@ -393,15 +540,26 @@ fn parse_prelude(prelude: &str) -> (Option<String>, PagePseudo) {
     let mut name = None;
     let mut pseudo = PagePseudo::None;
     for tok in prelude.split_whitespace() {
-        if let Some(p) = tok.strip_prefix(':') {
+        // A named page with an attached pseudo (`a:first`, css-page-3 §3.1
+        // page selector syntax — no whitespace required between name and
+        // pseudo) must split; the whitespace loop alone turns `a:first`
+        // into a page literally named "a:first" (pseudo-first-margin-002).
+        // The colon never appears inside a page NAME, so the first colon
+        // unambiguously starts the pseudo.
+        let (name_part, pseudo_part) = match tok.split_once(':') {
+            Some((n, p)) => (n, Some(p)),
+            None => (tok, None),
+        };
+        if let Some(p) = pseudo_part {
             pseudo = match p.to_ascii_lowercase().as_str() {
                 "first" => PagePseudo::First,
                 "left" => PagePseudo::Left,
                 "right" => PagePseudo::Right,
                 _ => pseudo,
             };
-        } else if !tok.is_empty() {
-            name = Some(tok.to_string());
+        }
+        if !name_part.is_empty() {
+            name = Some(name_part.to_string());
         }
     }
     (name, pseudo)
@@ -412,6 +570,7 @@ fn parse_one_page_rule(prelude: &str, body: &str, order: u32) -> Option<PageRule
     let mut rule = PageRule {
         name,
         pseudo,
+        layer: 0,
         size: None,
         width: None,
         height: None,
@@ -867,7 +1026,11 @@ pub fn resolve_page_spec(
             PagePseudo::Left | PagePseudo::Right => 1,
             PagePseudo::First => 2,
         };
-        (name_spec, pseudo_spec, r.order)
+        // Layer rank dominates specificity (css-cascade-5 §6: unlayered
+        // declarations win over ALL layered ones; among layers, later wins).
+        // Map unlayered to u32::MAX so it sorts last (= strongest).
+        let layer_key = if r.layer == 0 { u32::MAX } else { r.layer };
+        (layer_key, name_spec, pseudo_spec, r.order)
     });
 
     for r in matching {

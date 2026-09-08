@@ -325,6 +325,12 @@ pub fn render_with_options(
             // A degenerate (zero/negative) rect is skipped, not fatal
             // (CORE-139: grid auto-tracks can size to 0 for empty cells; a
             // background on such a cell must not abort the whole render).
+            // NaN fails every comparison, so test it explicitly — a NaN
+            // coordinate (abspos + break-before combo, page-margin-004) must
+            // skip like a degenerate rect, never abort the render.
+            if !w.is_finite() || !h.is_finite() || !x.is_finite() || !y.is_finite() {
+                continue;
+            }
             if *w <= 0.0 || *h <= 0.0 {
                 continue;
             }

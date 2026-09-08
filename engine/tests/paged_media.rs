@@ -1037,3 +1037,131 @@ fn target_text_missing_target_renders_question_mark() {
         "missing target-text must resolve to '?': {e1:?}"
     );
 }
+
+// --- CORE-143 slice (d) regressions -----------------------------------------
+
+/// Empty sibling divs that declare `page:` (no text content) still force the
+/// page-change boundary (pseudo-first-margin-001..004). The target-side scan
+/// used to skip a leaf-less block as a "contentless wrapper", so the pair
+/// `page:a` div + unnamed div stayed on ONE page.
+#[test]
+fn page_change_break_between_empty_page_declaring_divs() {
+    let html = r#"<html><head><style>
+        @page { margin: 0; }
+        @page :first { margin: 1in; }
+        div { width: 1in; height: 1in; border: 2px solid red; }
+    </style></head><body>
+        <div style="page: a; border-color: lightblue"></div>
+        <div style="page: b; border-color: pink"></div>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    assert_eq!(
+        layout.pages.len(),
+        2,
+        "an empty div with page:a followed by one with page:b must break"
+    );
+}
+
+/// A sibling with NO page declaration still demands the boundary when its
+/// effective page differs from the preceding declared context
+/// (pseudo-first-margin-003: `page:a` div then a plain div = default page).
+#[test]
+fn page_change_break_to_undeclared_sibling_page() {
+    let html = r#"<html><head><style>
+        @page { margin: 0; }
+        @page a { margin: 1in; }
+        div { width: 1in; height: 1in; border: 2px solid red; }
+    </style></head><body>
+        <div style="page: a; border-color: lightblue"></div>
+        <div style="border-color: pink"></div>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    assert_eq!(
+        layout.pages.len(),
+        2,
+        "page:a div followed by an undeclared div (default page) must break"
+    );
+}
+
+/// `@page a:first` (name and pseudo joined without whitespace) parses as the
+/// named page `a` with the :first pseudo (pseudo-first-margin-002). The old
+/// whitespace tokenizer turned `a:first` into a page NAME.
+#[test]
+fn named_page_pseudo_without_whitespace_parses() {
+    let html = r#"<html><head><style>
+        @page { margin: 0; }
+        @page a:first { margin: 2in; }
+        div { width: 1in; height: 1in; border: 2px solid red; }
+    </style></head><body>
+        <div style="page: a; border-color: lightblue"></div>
+        <div style="page: b; border-color: pink"></div>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    assert_eq!(layout.pages.len(), 2, "a:first then b must break");
+    // Page 1 carries the 2in (:first on page a) margin: the 1in box's border
+    // starts at 2in + 0 = 144pt from the page top edge... assert via the box
+    // top: first page's first child y == margin 2in = 144pt.
+    let first = &layout.pages[0].root.children[0];
+    assert!(
+        (first.offset.y.get() - 144.0).abs() < 1.0,
+        "page 1 uses @page a:first margin (2in=144pt), got {}",
+        first.offset.y.get()
+    );
+}
+
+/// Cascade layers order @page rules: later-declared layer beats an earlier
+/// one regardless of source position; unlayered beats all (layers-001..004).
+#[test]
+fn cascade_layers_order_page_margins() {
+    // layer2 declared AFTER layer1 → layer2 wins, despite source position.
+    let html = r#"<html><head><style>
+        @layer layer1, layer2;
+        @layer layer1 { @page { margin: 1in; } }
+        @layer layer2 { @page { margin: 0; } }
+        div { width: 1in; height: 1in; border: 2px solid red; }
+    </style></head><body>
+        <div></div>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    let first = &layout.pages[0].root.children[0];
+    assert!(
+        first.offset.y.get() < 2.0,
+        "layer2 (margin 0) must beat layer1 (margin 1in) even though layer1's \
+         rule appears later in source; got top {}",
+        first.offset.y.get()
+    );
+
+    // Swapped statement order: layer1 wins now.
+    let html2 = r#"<html><head><style>
+        @layer layer2, layer1;
+        @layer layer1 { @page { margin: 1in; } }
+        @layer layer2 { @page { margin: 0; } }
+        div { width: 1in; height: 1in; border: 2px solid red; }
+    </style></head><body>
+        <div></div>
+    </body></html>"#;
+    let layout2 = lay(html2, geometry(5.0, 3.0, 0.5));
+    let first2 = &layout2.pages[0].root.children[0];
+    assert!(
+        (first2.offset.y.get() - 72.0).abs() < 2.0,
+        "layer1 (margin 1in) must beat layer2 (margin 0) after the order \
+         swap; got top {}",
+        first2.offset.y.get()
+    );
+
+    // Unlayered beats every layer.
+    let html3 = r#"<html><head><style>
+        @layer l1 { @page { margin: 0; } }
+        @page { margin: 2in; }
+        div { width: 1in; height: 1in; border: 2px solid red; }
+    </style></head><body>
+        <div></div>
+    </body></html>"#;
+    let layout3 = lay(html3, geometry(5.0, 3.0, 0.5));
+    let first3 = &layout3.pages[0].root.children[0];
+    assert!(
+        (first3.offset.y.get() - 144.0).abs() < 2.0,
+        "unlayered @page (margin 2in) must beat the layered one; got top {}",
+        first3.offset.y.get()
+    );
+}

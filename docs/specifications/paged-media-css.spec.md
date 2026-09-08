@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-16
-updated: 2026-09-05
+updated: 2026-09-08
 sidebar_position: 3
 tags: [css, paged-media, page, layout, engine]
 spec_id: paged-media-css
@@ -98,11 +98,17 @@ The engine shall:
    servo build does not compile `@page` or the paged-media longhands). Rules
    carry: optional name (default page if absent), pseudo-class
    (`:first`/`:left`/`:right`/none), `size`, margin longhands, and margin-box
-   declarations. Unknown declarations are skipped without failing.
+   declarations. Unknown declarations are skipped without failing. A prelude
+   token joins name and pseudo without whitespace (`@page a:first` — the first
+   colon starts the pseudo; CORE-143). Rules inherit the cascade-layer rank of
+   the `@layer` block that encloses them (css-cascade-5 §6): unlayered rules
+   beat every layer, later-declared layers beat earlier ones regardless of
+   source position (CORE-143).
 2. **Resolve per-page spec**: each `Fragmentainer` selects the matching `@page`
    rule by (a) page name in effect, then (b) pseudo-class from global page
    index — index 0 is `:first` (and `:right` per LTR progression), odd 1-based
-   indices are `:right`, even are `:left`; most-specific match wins; if no rule
+   indices are `:right`, even are `:left`; most-specific match wins (layer
+   rank dominates pseudo specificity; CORE-143); if no rule
    matches, the CLI-provided geometry is the fallback.
 3. **Override CLI geometry**: `@page` `size` and margins override the CLI
    `--page-width`/`--page-height`/`--margin-*` defaults for pages they match;
@@ -292,6 +298,22 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
    then the outline has entries titled with the headings, nested by level, at
    the correct pages (`paged_media.rs::pdf_bookmarks` — assert on the outline
    model, or krilla's emitted outline if directly readable).
+10. **Page-change boundary with empty page-declaring boxes** — Given sibling
+    empty `div`s where one declares `page: a` and the next declares `page: b`
+    (or declares nothing), when rendered, then a page break fires between them
+    (`paged_media.rs::page_change_break_between_empty_page_declaring_divs`,
+    `paged_media.rs::page_change_break_to_undeclared_sibling_page` — CORE-143,
+    pseudo-first-margin-001..004).
+11. **`@page name:pseudo` without whitespace** — Given `@page a:first`, when
+    parsed, then the rule matches named page `a` on its first page only, and
+    its margin applies there
+    (`paged_media.rs::named_page_pseudo_without_whitespace_parses` — CORE-143,
+    pseudo-first-margin-002).
+12. **Cascade layers order `@page` rules** — Given `@layer a, b;` with `@page`
+    rules inside both layers, when rendered, then the later-declared layer's
+    margins win regardless of source position, and an unlayered `@page` beats
+    both (`paged_media.rs::cascade_layers_order_page_margins` — CORE-143,
+    layers-001..004).
 10. **Invoice demo** — Given the invoice fixture
     (`engine/tests/fixtures/invoice.html`) with a running header, footer page
     numbers, and a styled table, when rendered, then it is multi-page, valid,
