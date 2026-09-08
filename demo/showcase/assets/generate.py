@@ -113,8 +113,34 @@ def poster_gradient():
     img.save(OUT / "poster-gradient.png")
 
 
+def journal_chart():
+    """Small inline chart for the journal fixture: pass rate by bucket."""
+    img = Image.new("RGB", (1000, 750), "white")
+    d = ImageDraw.Draw(img)
+    left, right, top, bottom = 150, 940, 90, 620
+    vals = [("css-page", 91), ("css-break", 88), ("css-multicol", 84),
+            ("floats", 93), ("footnotes", 97)]
+    ymax = 100
+    for gy in range(0, ymax + 1, 25):
+        y = bottom - (bottom - top) * gy / ymax
+        d.line([(left, y), (right, y)], fill=GRID, width=2)
+        d.text((left - 110, y - 16), f"{gy}%", fill=INK)
+    bw = (right - left) / len(vals) * 0.52
+    for i, (label, v) in enumerate(vals):
+        x0 = left + (right - left) * i / len(vals) + (bw / 2)
+        y0 = bottom - (bottom - top) * v / ymax
+        d.rectangle([x0, y0, x0 + bw, bottom], fill=TA_BLUE)
+        d.text((x0 + bw / 2 - 46, y0 - 40), f"{v}", fill=INK)
+        d.text((x0 + bw / 2 - 96, bottom + 22), label, fill=INK)
+    d.line([(left, top), (left, bottom)], fill=INK, width=3)
+    d.line([(left, bottom), (right, bottom)], fill=INK, width=3)
+    OUT.mkdir(parents=True, exist_ok=True)
+    img.save(OUT / "journal-passrate.png")
+
+
 if __name__ == "__main__":
     bar_chart()
     line_chart()
     poster_gradient()
+    journal_chart()
     print("assets written to", OUT)
