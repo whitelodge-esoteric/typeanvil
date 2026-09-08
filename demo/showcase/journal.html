@@ -1,0 +1,149 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Journal of Deterministic Systems — Sample Article</title>
+<style>
+  @page {
+    size: 8.5in 11in;
+    margin: 1in 1.1in;
+    @bottom-center { content: counter(page); font-size: 9pt; font-family: serif; }
+    @top-center { content: "Journal of Deterministic Systems · Vol. 12 · Sample Article"; font-size: 8pt; color: #666; }
+  }
+  body { font-family: serif; font-size: 10pt; line-height: 1.4; color: #111; text-align: justify; }
+  h1 { font-size: 16pt; text-align: center; margin: 0 0 4pt 0; }
+  .authors { text-align: center; font-size: 10.5pt; margin: 0 0 2pt 0; }
+  .affil { text-align: center; font-size: 9pt; color: #555; margin: 0 0 16pt 0; }
+  .abstract { margin: 0 36pt 14pt 36pt; font-size: 9.5pt; }
+  .abstract b { display: block; text-align: center; margin-bottom: 5pt; }
+  h2 { font-size: 12pt; margin: 16pt 0 6pt 0; }
+  p { margin: 0 0 5pt 0; }
+  .fn { float: footnote; font-size: 8.5pt; line-height: 1.25; color: #333; }
+  .refs { font-size: 9pt; }
+  .refs p { margin: 0 0 4pt 0; text-indent: -18pt; padding-left: 18pt; }
+</style>
+</head>
+<body>
+
+<h1>Fragmentation-Aware Typesetting for Deterministic Print Pipelines</h1>
+<p class="authors">E. Boston and A. Collaborator</p>
+<p class="affil">Whitelodge Systems Research Group</p>
+
+<div class="abstract"><b>Abstract</b>
+We examine the problem of deterministic page breaking in automated
+typesetting engines. Where browser layout engines treat pagination as an
+interactive side effect, print pipelines require byte-identical output:
+two runs of the same input must produce the same PDF or downstream
+verification collapses. We present a fragment-tree formulation in which
+pagination is a pure function of the styled document, describe the break
+token algebra that makes resumption across fragmentainers total, and report
+conformance results against 1,700 web-platform test files. The approach
+yields deterministic output without sacrificing the quality of classical
+penalty-driven line breaking.</p></div>
+
+<h2>1. Introduction</h2>
+<p>Automated document engines occupy an uncomfortable middle ground.
+They inherit the CSS formatting model, whose reference implementations are
+interactive browsers, yet their outputs are consumed by processes that
+demand reproducibility: archival, contractual delivery, and automated
+regression gating.<a class="fn">Archival ingest is the strictest consumer: a repository that accepts a PDF today must render it identically a decade from now, which rules out any layout state that survives outside the document itself.</a>
+A typesetting engine that renders the same invoice differently on Tuesday
+cannot participate in such pipelines at all, regardless of how faithful
+its single-page rendering might be.</p>
+<p>This paper makes three contributions. First, we formalize pagination
+as a pure function over styled documents, which we call the fragment
+tree (Section 2). Second, we give a break-token algebra that preserves
+text resumption by source offset rather than line count, which is what
+makes fragmentation correct in the presence of per-page width variation
+(Section 3). Third, we describe a conformance harness built before the
+engine itself, and report results (Section 4).<a class="fn">The harness predates the engine deliberately: gates written against a working renderer drift toward what the renderer already does. A harness built first cannot be talked into passing a broken page.</a></p>
+
+<h2>2. The Fragment Tree</h2>
+<p>The fragment tree generalizes the box tree: each node records what was
+placed, where, and how to resume what did not fit. Layout proceeds
+fragmentainer by fragmentainer. A container that overflows emits a break
+token carrying precisely the state a continuation needs — consumed source
+offsets, in-flight floats, active counters — and the next fragmentainer
+reconstructs its starting condition from that token alone. No layout
+state survives outside the tree, which is the property determinism
+requires.<a class="fn">Counters, string-sets, and footnote registers ride the token in a snapshot map rebuilt per fragmentainer; nothing in the receiving page consults a mutable global.</a></p>
+<p>Orphan and widow control falls out of the same algebra. A paragraph
+that would leave a single line stranded at a fragmentainer edge is
+deferred wholesale; the break token records the refusal, and the receiving
+page lays the paragraph from its true start. The classical
+constraint-based formulation of Plass remains the reference here:
+minimizing page-level demerits is equivalent to minimizing the demerits
+of the line breaks the page contains, provided the resumable state is
+exact.</p>
+
+<h2>3. Resumption by Source Offset</h2>
+<p>Line-count-based resumption is the seductive mistake. It works while
+every page offers the same measure, and it breaks the moment floats or
+margins change the available width mid-document: the continuation re-breaks
+the wrong bytes, duplicating a glyph or swallowing a word. We resume by
+source offset instead, carrying the byte position of the last consumed
+character in the break token. The receiver re-breaks from that byte at
+its own width. The property we require and verify is that concatenating
+the glyph text of every line across every page tiles the source exactly —
+no character repeated, none dropped.<a class="fn">The verification is mechanical: a regression test concatenates the glyph text of every line on every page and diffs it against the source. It has caught two resumption bugs that position-only tests missed.</a></p>
+
+<h2>4. Conformance Results</h2>
+<p>The harness renders both a test document and its reference through the
+engine under test and compares them page-wise at 96 DPI, following the
+web-platform-tests reftest model. The curated buckets cover paged media,
+fragmentation, and multicol. On the fragmentation bucket the engine
+matches reference rendering on the overwhelming majority of cases; the
+residuals are documented per test with root causes, most involving
+features deliberately deferred rather than errors in the fragmentation
+model itself.</p>
+<p>Determinism is verified mechanically: every fixture in the comparison
+corpus is rendered twice and the outputs are byte-compared. The engine
+contains no wall-clock reads, no hash-iteration-order dependence, and no
+randomness; the PDF object identifier is derived from a content hash.
+Two builds of the same commit produce identical files on all three
+supported platforms.</p>
+
+<h2>5. Discussion</h2>
+<p>Two objections deserve answers. The first is that purity costs
+performance: rebuilding snapshot maps per fragmentainer duplicates work
+that a mutable global would amortize. In practice the maps are small —
+counters, a handful of string-set names, the footnote register — and the
+rebuild is linear in what the page actually declares. The engine renders
+the comparison corpus faster than the interactive engines render the
+same documents to screen, which suggests the trade is not merely
+acceptable but favorable.</p>
+<p>The second objection is that print determinism is a niche requirement.
+We argue the opposite: determinism is what makes automated layout
+testable at all. A renderer whose output varies between runs cannot be
+gated by diffs, and a renderer that cannot be gated accumulates silent
+regressions until a customer finds them. Byte-identical output is not a
+print curiosity; it is the precondition for engineering discipline in
+any rendering pipeline.</p>
+<p>Future work follows directly. Because pagination is pure, the same
+fragment tree can feed a screen renderer with interactive refinement:
+re-layout only the fragmentainers whose inputs changed. The algebra
+already records the dependencies; what remains is an incremental
+evaluator that exploits them.</p>
+
+<h2>6. Conclusion</h2>
+<p>Deterministic pagination and high-quality breaking are not competing
+goals; they are the same goal stated twice. A fragment tree whose break
+tokens are exact makes the page break a pure function, and a pure function
+can be gated, diffed, and shipped. The conformance harness built on this
+foundation now drives development directly: no change lands unless the
+fixed-versus-regressed balance over the full suite is non-negative.</p>
+
+<h2>References</h2>
+<div class="refs">
+<p>[1] M. Plass. <i>Optimal Pagination Techniques for Automatic
+Typesetting Systems.</i> Stanford University, 1981.</p>
+<p>[2] Web Platform Tests, css-break, css-page, css-multicol.
+https://wpt.fyi.</p>
+<p>[3] I. Hickson et al. <i>CSS Fragmentation Module Level 3.</i>
+W3C Candidate Recommendation.</p>
+<p>[4] H. Bos et al. <i>CSS Generated Content for Paged Media Module.</i>
+W3C Working Draft.</p>
+</div>
+
+</body>
+</html>

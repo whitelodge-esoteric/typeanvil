@@ -21,6 +21,8 @@ docsite/.cache/
 # the first baseline run is committed by CORE-72 explicitly).
 demo/out/
 demo/out.baseline/
+demo/showcase/out/
+demo/showcase/out.baseline/
 
 # benchmark scratch renders
 benchmarks/.work/
