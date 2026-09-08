@@ -3043,7 +3043,21 @@ impl<'a> Ctx<'a> {
                                             target = Some((j, self.effective_page(leaf)));
                                             break;
                                         }
-                                        None => j += 1, // contentless wrapper
+                                        None => {
+                                            // Leaf-less box: same fallback as
+                                            // the placed side (.or(Some(child))
+                                            // — canvas-004) — the box's own
+                                            // effective page (own decl, or the
+                                            // default when undeclared,
+                                            // pseudo-first-margin-003's pink
+                                            // div) still demands the boundary.
+                                            // Wrappers whose context matches
+                                            // `prev` produce an equal compare
+                                            // and no break, so text-adjacent
+                                            // zero boxes stay harmless.
+                                            target = Some((j, self.effective_page(*b)));
+                                            break;
+                                        }
                                     }
                                 }
                             }
