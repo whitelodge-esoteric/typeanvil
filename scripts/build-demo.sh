@@ -190,12 +190,50 @@ done
   --results "$RESULTS" \
   --manifest "$MANIFEST" \
   --benchmark-manifest "$BENCH_MANIFEST" \
+  --markdown-out "$OUT/index.md" \
   --out-dir "$OUT" \
   --typeanvil-version "$TA_VERSION" \
   --prince-version "$PR_VERSION"
 
+# Promote the markdown gallery into demo/README.md (CORE-147): the committed
+# preamble above GENERATED_BEGIN is hand-maintained; the generated body
+# replaces everything from the marker down. Image paths in the generated
+# body are relative to demo/out/, so the promoted copy rewrites them to
+# out/images/... so they resolve from demo/.
+"$PY" - "$OUT/index.md" demo/README.md <<'PYEOF'
+import sys
+from pathlib import Path
+
+md_out, readme = Path(sys.argv[1]), Path(sys.argv[2])
+generated = md_out.read_text(encoding="utf-8")
+marker = "<!-- BEGIN GENERATED GALLERY"
+idx = generated.find(marker)
+if idx < 0:
+    sys.exit(f"error: generated marker not found in {md_out}")
+body = generated[idx:]
+# Rewrite image paths: the generated file lives at demo/out/index.md with
+# image refs relative to demo/out/; the promoted copy lives at demo/, so
+# prefix them with out/.
+import re
+body = re.sub(r'(src=")(images/)', r"\1out/\2", body)
+body = re.sub(r"(\]\()(images/)", r"\1out/\2", body)
+
+if readme.exists():
+    existing = readme.read_text(encoding="utf-8")
+else:
+    existing = ""
+cut = existing.find(marker)
+if cut >= 0:
+    preamble = existing[:cut].rstrip() + "\n\n"
+else:
+    preamble = existing.rstrip() + "\n\n" if existing else ""
+readme.write_text(preamble + body, encoding="utf-8")
+print(f"promoted gallery into {readme}")
+PYEOF
+
 echo
 echo "gallery: $OUT/index.html"
+echo "markdown gallery: $OUT/index.md (+ promoted into demo/README.md)"
 echo "scoreboard: $OUT/scoreboard.json"
 
 # Determinism mode: build into demo/out.baseline, then build into demo/out,
