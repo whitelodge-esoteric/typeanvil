@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-17
-updated: 2026-08-20
+updated: 2026-09-07
 sidebar_position: 5
 tags: [demo, comparison, prince, gallery, pipeline]
 spec_id: visual-comparison-demo
@@ -121,6 +121,13 @@ The demo SHALL implement the following, stated as "shall" rules:
    Prince right) with a zoom control, per-page diff percentage overlaid, and a
    scoreboard table (doc × overall diff % + bucket). It SHALL work from
    `file://` (no fetch of external assets, images inlined or relative).
+   The pipeline SHALL ALSO emit a GitHub-viewable markdown gallery
+   (CORE-147): `demo/out/index.md` with per-page `<img>` references to the
+   rasterized PNGs (relative to `demo/out/`), a markdown scoreboard table,
+   manifest notes, and the benchmark section; and SHALL promote that
+   generated body into `demo/README.md` (below the hand-maintained preamble,
+   delimited by the `BEGIN GENERATED GALLERY` marker), rewriting image paths
+   to `out/images/...` so they resolve from `demo/`.
 9. **Determinism.** Re-running `scripts/build-demo.sh` on an unchanged tree
    SHALL produce byte-identical `demo/out/` (sorted iteration, no timestamps
    in image files; the only timestamp is `generated` in the scoreboard JSON).
