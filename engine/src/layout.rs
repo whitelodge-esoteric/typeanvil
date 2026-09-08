@@ -5748,3 +5748,124 @@ fn parse_px_attr(v: &str) -> Option<f64> {
     }
     t.parse::<f64>().ok().filter(|n| n.is_finite() && *n >= 0.0)
 }
+
+#[cfg(test)]
+mod core150_tests {
+    use super::*;
+    use crate::css::Stylesheet;
+    use crate::geom::PageGeometry;
+
+    /// Walk a fragment tree accumulating parent-relative offsets into
+    /// page-absolute coordinates. Mirrors the PDF emitter's walk (pdf.rs):
+    /// a Text run's baseline is PARENT-relative — rebased off the parent's
+    /// absolute origin, not the fragment's own offset.
+    fn collect_text_baselines(frag: &Fragment, px: f64, py: f64, out: &mut Vec<(f64, f64)>) {
+        let ax = px + frag.offset.x.get();
+        let ay = py + frag.offset.y.get();
+        if let FragmentContent::Text(run) = &frag.content {
+            out.push((px + run.baseline.x.get(), py + run.baseline.y.get()));
+        }
+        for child in &frag.children {
+            collect_text_baselines(child, ax, ay, out);
+        }
+    }
+
+    /// CORE-150: a multicol container on a page with `float: footnote`
+    /// notes must lay its columns against the footnote band's raised
+    /// floor — the lowest column-body baseline may not sit below the
+    /// band top. (The old multicol path laid a mid-page container's
+    /// balanced set at its full target height, past `bottom_limit`,
+    /// painting body text straight through the footnote band.)
+    #[test]
+    fn multicol_columns_stop_above_footnote_band() {
+        let css = r#"
+            @page { size: 6in 4in; margin: 0.5in; }
+            .cols { column-count: 2; }
+            .fn { float: footnote; }
+        "#;
+        let mut body = String::new();
+        for i in 1..=16 {
+            body.push_str(&format!(
+                "<p>Paragraph {} text.<a class=\"fn\">Note {} text.</a></p>\n",
+                i, i
+            ));
+        }
+        let html = format!(
+            r#"<html><head><style>{}</style></head><body>
+            <h1>Heading</h1>
+            <div class="cols">
+            {}
+            </div>
+        </body></html>"#,
+            css, body
+        );
+        let dom = Dom::parse(&html).expect("parse");
+        let stylesheet = Stylesheet::parse(css);
+        // @page size/margins live in the page rules, not the CLI geometry;
+        // the geometry below is only the fallback and the @page rule wins.
+        let geometry = PageGeometry {
+            width: Scalar(432.0),
+            height: Scalar(288.0),
+            margin_top: Scalar(36.0),
+            margin_right: Scalar(36.0),
+            margin_bottom: Scalar(36.0),
+            margin_left: Scalar(36.0),
+        };
+        let laid = layout(&dom, &stylesheet, geometry);
+        assert!(!laid.pages.is_empty(), "no pages laid out");
+        let page = &laid.pages[0];
+
+        // Gather every painted text baseline (page-absolute, top-left).
+        let mut baselines = Vec::new();
+        collect_text_baselines(&page.root, 0.0, 0.0, &mut baselines);
+        assert!(
+            baselines.len() >= 5,
+            "expected column + footnote text, got {} baselines",
+            baselines.len()
+        );
+
+        // Footnote notes render 8.5pt text (CORE-107 hardcoded size) with
+        // the note hanging MARKER_HANG=8.5pt left of the content edge
+        // (content left = margin 36pt). Notes are the baselines whose x
+        // sits left of the content edge.
+        let content_left = 36.0;
+        let note_ys: Vec<f64> = baselines
+            .iter()
+            .filter(|(x, _)| *x < content_left)
+            .map(|(_, y)| *y)
+            .collect();
+        assert!(
+            !note_ys.is_empty(),
+            "no footnote note baselines found on page 0 (notes hang left of the content edge)"
+        );
+
+        // Body-column baselines are everything at/inside the content edge.
+        let body_ys: Vec<f64> = baselines
+            .iter()
+            .filter(|(x, _)| *x >= content_left)
+            .map(|(_, y)| *y)
+            .collect();
+        let max_body_y = body_ys
+            .iter()
+            .cloned()
+            .fold(f64::NEG_INFINITY, f64::max);
+
+        // The invariant: columns must stay above the band top. The band
+        // floor for this assertion is the first (highest) note baseline
+        // minus one note line pitch (attach_footnotes paints notes at
+        // 13.45pt pitch); any column baseline below it means the columns
+        // ignored the raised floor.
+        let first_note_y = note_ys
+            .iter()
+            .cloned()
+            .fold(f64::INFINITY, f64::min);
+        let band_floor = first_note_y - 13.45;
+        assert!(
+            max_body_y <= band_floor,
+            "column body baseline at y={:.1} paints below the footnote band \
+             floor at y={:.1} (columns ignored the band floor)",
+            max_body_y,
+            band_floor
+        );
+    }
+}
