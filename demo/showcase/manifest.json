@@ -1,0 +1,34 @@
+[
+  {
+    "name": "Technical Report",
+    "file": "report.html",
+    "wedge_features": ["paged-media-css", "fragmentation-core", "tables-fragmentation", "images"],
+    "known_limitations": [
+      "SVG figures wait for CORE-131 to reach main; raster figures only"
+    ],
+    "expected_deltas": []
+  },
+  {
+    "name": "Academic Sample",
+    "file": "journal.html",
+    "wedge_features": ["typography-layer", "fragmentation-core", "footnotes", "cross-references"],
+    "known_limitations": [],
+    "expected_deltas": []
+  },
+  {
+    "name": "Book Sample",
+    "file": "book.html",
+    "wedge_features": ["paged-media-css", "cross-references", "fragmentation-core"],
+    "known_limitations": [
+      "TOC page numbers resolve via target-counter two-pass layout"
+    ],
+    "expected_deltas": []
+  },
+  {
+    "name": "Rich Media Print",
+    "file": "poster.html",
+    "wedge_features": ["images", "paged-media-css"],
+    "known_limitations": [],
+    "expected_deltas": []
+  }
+]

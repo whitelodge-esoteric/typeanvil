@@ -51,9 +51,52 @@ identical geometry to `typeanvil render`.
 ## Pipeline
 
 ```sh
-scripts/build-demo.sh    # renders corpus through both engines → demo/out/
+scripts/build-demo.sh      # renders corpus through both engines → demo/out/
+scripts/build-showcase.sh  # renders showcase fixtures through TypeAnvil at
+                           # Letter @ 300 DPI → demo/showcase/out/ (CORE-148)
 ```
 
 Output: `demo/out/index.html` (gallery) + `demo/out/scoreboard.json`
 (schema in the spec). Deterministic: re-running produces byte-identical
-output except the scoreboard's `generated` timestamp.
+output except the scoreboard's `generated` timestamp. The showcase build
+is additive (TypeAnvil-only, no Prince comparison); its generated section
+appears below the marker.
+
+<!-- BEGIN GENERATED SHOWCASE -->
+
+## Showcase — print-resolution renders (US Letter @ 300 DPI)
+
+Realistic-size pages rendered by the TypeAnvil engine only (commit `0c25dc9`). The comparison gallery above runs at 5in × 3in @ 96 DPI so diffs stay cheap; these pages show the same engine at the geometry documents actually print at. Prince renders only the comparison pipeline — the showcase is a TypeAnvil output gallery, not a diff target.
+
+### Book Sample
+
+*Exercises:* paged-media-css, cross-references, fragmentation-core
+
+<img src="showcase/out/images/book/page-001-ta.png" alt="Book Sample — page-001-ta" width="420">
+<img src="showcase/out/images/book/page-002-ta.png" alt="Book Sample — page-002-ta" width="420">
+<img src="showcase/out/images/book/page-003-ta.png" alt="Book Sample — page-003-ta" width="420">
+<img src="showcase/out/images/book/page-004-ta.png" alt="Book Sample — page-004-ta" width="420">
+<img src="showcase/out/images/book/page-005-ta.png" alt="Book Sample — page-005-ta" width="420">
+<img src="showcase/out/images/book/page-006-ta.png" alt="Book Sample — page-006-ta" width="420">
+
+### Academic Sample
+
+*Exercises:* typography-layer, fragmentation-core, footnotes, cross-references
+
+<img src="showcase/out/images/journal/page-001-ta.png" alt="Academic Sample — page-001-ta" width="420">
+<img src="showcase/out/images/journal/page-002-ta.png" alt="Academic Sample — page-002-ta" width="420">
+<img src="showcase/out/images/journal/page-003-ta.png" alt="Academic Sample — page-003-ta" width="420">
+
+### Rich Media Print
+
+*Exercises:* images, paged-media-css
+
+<img src="showcase/out/images/poster/page-001-ta.png" alt="Rich Media Print — page-001-ta" width="420">
+
+### Technical Report
+
+*Exercises:* paged-media-css, fragmentation-core, tables-fragmentation, images
+
+<img src="showcase/out/images/report/page-001-ta.png" alt="Technical Report — page-001-ta" width="420">
+<img src="showcase/out/images/report/page-002-ta.png" alt="Technical Report — page-002-ta" width="420">
+<img src="showcase/out/images/report/page-003-ta.png" alt="Technical Report — page-003-ta" width="420">

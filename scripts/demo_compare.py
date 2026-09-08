@@ -621,6 +621,65 @@ def list_manifest_entries(path: Path) -> Iterable[tuple[str, str]]:
         yield file, name
 
 
+def render_showcase_md(
+    manifest_path: Path,
+    images_dir: Path,
+    output_path: Path,
+    typeanvil_version: str,
+) -> str:
+    """Markdown showcase gallery (CORE-148).
+
+    Emits a deterministic markdown document: one section per manifest
+    fixture, per-page <img> tags referencing the rasterized PNGs at
+    `out/images/<base>/page-NNN-ta.png` relative to demo/showcase/out/.
+    No timestamps — showcase output is byte-identical across rebuilds.
+    """
+    lines: list[str] = []
+    lines.append("## Showcase — print-resolution renders (US Letter @ 300 DPI)")
+    lines.append("")
+    lines.append(
+        "Realistic-size pages rendered by the TypeAnvil engine only "
+        f"(commit `{typeanvil_version}`). The comparison gallery above runs at "
+        "5in × 3in @ 96 DPI so diffs stay cheap; these pages show the same "
+        "engine at the geometry documents actually print at. Prince renders "
+        "only the comparison pipeline — the showcase is a TypeAnvil output "
+        "gallery, not a diff target."
+    )
+    lines.append("")
+    for file, name in list_manifest_entries(manifest_path):
+        base = Path(file).stem
+        page_dir = images_dir / base
+        pages = sorted(page_dir.glob("page-*-ta.png")) if page_dir.is_dir() else []
+        lines.append(f"### {name}")
+        lines.append("")
+        meta = _manifest_meta(manifest_path, file)
+        if meta:
+            feats = ", ".join(meta.get("wedge_features", []))
+            if feats:
+                lines.append(f"*Exercises:* {feats}")
+                lines.append("")
+        if not pages:
+            lines.append("*No pages rendered.*")
+            lines.append("")
+            continue
+        for png in pages:
+            rel = f"out/images/{base}/{png.name}"
+            lines.append(f'<img src="{rel}" alt="{name} — {png.stem}" width="420">')
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _manifest_meta(manifest_path: Path, file: str) -> dict | None:
+    try:
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    for entry in data:
+        if isinstance(entry, dict) and entry.get("file") == file:
+            return entry
+    return None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Visual comparison demo helpers")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -653,6 +712,14 @@ def main() -> int:
 
     list_p = sub.add_parser("list-manifest", help="Emit manifest entries (file<TAB>name)")
     list_p.add_argument("--manifest", required=True)
+
+    showcase_p = sub.add_parser(
+        "assemble-showcase", help="Assemble the showcase markdown gallery (CORE-148)"
+    )
+    showcase_p.add_argument("--manifest", required=True)
+    showcase_p.add_argument("--images-dir", required=True)
+    showcase_p.add_argument("--out", required=True)
+    showcase_p.add_argument("--typeanvil-version", required=True)
 
     det_p = sub.add_parser("check-determinism", help="Compare two output dirs")
     det_p.add_argument("baseline")
@@ -725,6 +792,19 @@ def main() -> int:
     if args.cmd == "list-manifest":
         for file, name in list_manifest_entries(Path(args.manifest)):
             print(f"{file}\t{name}")
+        return 0
+
+    if args.cmd == "assemble-showcase":
+        md = render_showcase_md(
+            manifest_path=Path(args.manifest),
+            images_dir=Path(args.images_dir),
+            output_path=Path(args.out),
+            typeanvil_version=args.typeanvil_version,
+        )
+        out_path = Path(args.out)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(md, encoding="utf-8")
+        print(f"showcase gallery: {out_path}")
         return 0
 
     if args.cmd == "check-determinism":

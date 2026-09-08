@@ -1,0 +1,140 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>The Cartographer's Ledger — Book Sample</title>
+<style>
+  @page {
+    size: 8.5in 11in;
+    margin: 0.9in 1in;
+    @top-left { content: string(chaptitle); font-size: 8.5pt; color: #555; }
+    @bottom-center { content: counter(page); font-size: 9.5pt; font-family: serif; }
+  }
+  @page :first { @top-left { content: none; } }
+  body { font-family: serif; font-size: 10.5pt; line-height: 1.5; color: #14161a; text-align: justify; }
+  h1 { font-size: 20pt; margin: 0 0 10pt 0; }
+  .booktitle { font-size: 26pt; text-align: center; margin-top: 2in; }
+  .booksub { text-align: center; font-size: 12pt; color: #555; margin-bottom: 0.4in; break-after: page; }
+  h2 { font-size: 13pt; margin: 18pt 0 8pt 0; page-break-after: avoid; }
+  .toc h1 { string-set: chaptitle content(); }
+  .toc a { display: block; text-decoration: none; color: #14161a; }
+  .toc div { margin: 8pt 0; }
+  .te1 { content: "Chapter 1 — The Instrument Room  " leader('.') " " target-counter(attr(href), page); }
+  .te2 { content: "Chapter 2 — Where the Estuary Lies  " leader('.') " " target-counter(attr(href), page); }
+  .te3 { content: "Chapter 3 — Repairing the Meridian  " leader('.') " " target-counter(attr(href), page); }
+  .te4 { content: "Chapter 4 — The Weight of Paper  " leader('.') " " target-counter(attr(href), page); }
+  .chapteropen { text-align: center; margin: 0.6in 0 0.3in 0; break-before: page; }
+  .chapteropen .num { display: block; font-size: 11pt; letter-spacing: 3pt; color: #8a6d3b; margin-bottom: 6pt; }
+  .ttl { display: block; string-set: chaptitle content(); }
+  p { margin: 0 0 6pt 0; }
+  .drop { font-size: 10.5pt; }
+  .drop::first-letter { font-size: 30pt; color: #8a6d3b; }
+</style>
+</head>
+<body>
+
+<h1 class="booktitle">The Cartographer's Ledger</h1>
+<p class="booksub">Field Notes on Mapping Mutable Coastlines<br>
+Sample pages — second edition</p>
+
+<div class="toc">
+<h1 id="toc">Contents</h1>
+<div><a class="te1" href="#ch1">Chapter 1 — The Instrument Room</a></div>
+<div><a class="te2" href="#ch2">Chapter 2 — Where the Estuary Lies</a></div>
+<div><a class="te3" href="#ch3">Chapter 3 — Repairing the Meridian</a></div>
+<div><a class="te4" href="#ch4">Chapter 4 — The Weight of Paper</a></div>
+</div>
+
+<h2 id="ch1" class="chapteropen co1"><span class="num">CHAPTER 1</span><span class="ttl">The Instrument Room</span></h2>
+<p class="drop">The instrument room sat at the landward end of the survey
+station, and in it hung the smell of oiled brass and drying ink. Every
+instrument had its place, and every place had a label in the ledger, and
+the ledger itself was chained to the desk — not from fear of theft but
+from the older fear of separation. A survey without its ledger, the first
+cartographer liked to say, is a rumor with brass attached.</p>
+<p>The room's true inventory was not the instruments but the habits.
+Each morning began with the same sequence: the theodolite uncovered and
+leveled while the light was still gray, the barometers tapped and read in
+turn, the chronometer compared against the station's master clock and the
+difference written in the margin of the day's page. The sequence admitted
+no variation. Its purpose was not the readings themselves but the
+certainty that any two mornings were comparable, that a difference in the
+record meant a difference in the sky.</p>
+<p>Apprentices chafed at the ritual until their first winter, when a
+mis-recorded barometer in November propagated through three months of
+reductions and quietly moved a headland a quarter mile inland. The
+correction took a week. The apprentice who made it stayed another six
+years.</p>
+<p>We hold, in this ledger, one rule above the others: that measurement
+is a promise made to strangers. The reader of a chart trusts that the
+soundings were taken with care, that the bearings are true, and that the
+dates on the sheet mean what they say. Every discipline in this book
+serves that promise. The instruments matter because they can be checked;
+the habits matter because they are what checking looks like when the fog
+rolls in and the light is going.</p>
+<p>The chapter that follows describes the estuary work of the spring
+seasons: how a coastline that changes with every storm can nevertheless
+be mapped truthfully, and what it costs to keep a map honest when the
+thing it describes refuses to hold still.</p>
+
+<h2 id="ch2" class="chapteropen co2"><span class="num">CHAPTER 2</span><span class="ttl">Where the Estuary Lies</span></h2>
+<p>An estuary is a argument between a river and the sea, held in mud.
+The survey team worked it in pairs: one ashore with the theodolite, one
+afloat with the lead line, and between them the ledger pages that both
+would sign at dusk. The tide table governed everything. Six hours of
+falling water exposed the flats enough to place ranging poles in patterns
+the pen could later convert to contours; six hours of rising water let
+the boat reach channels that would otherwise cost the season.</p>
+<p>The mud itself kept the records. Each layer of silt held the memory
+of a season's storms, and when the core samples came up, the team could
+read the years backward — the flood layer of the great February gale,
+the thin charcoal seam from the fire on the point, the shell hash where
+the dredge worked a decade before. A chart drawn without this memory is
+a portrait; a chart drawn with it is a biography.</p>
+<p>Precision here had a different flavor than the instrument room's.
+The lead line touched a bottom that no two casts found alike, and the
+honest sounding was an average the ledger recorded as a range. The
+cartographer's sin was not imprecision but the disguise of it: a number
+written alone claims more certainty than the mud ever offered. Ranges,
+margins, and dates were the debt the chart paid to the truth.</p>
+
+<h2 id="ch3" class="chapteropen co3"><span class="num">CHAPTER 3</span><span class="ttl">Repairing the Meridian</span></h2>
+<p>Every few years the station's meridian drifted beyond tolerance, and
+the whole chain of triangulated positions had to be repaired from the
+base line. The base line itself was the only measurement the team fully
+controlled: a cleared, leveled course across the headland, measured with
+chains in temperature-corrected catenaries, over and over, until the
+agreement of the repeats bound the error tighter than the instruments
+could wander.</p>
+<p>Repair proceeded outward from that certainty. First the immediate
+triangulation, then the secondary stations along the coast, then the
+sketch surveys that depended on them. The ledger recorded each stage's
+corrections side by side with the superseded values, so that a chart
+could be traced backward to the day its positions changed. Users who
+needed the old coordinates — insurers, chiefly, whose policies referenced
+them — could follow the chain as easily as the surveyors had.</p>
+<p>The work was slow and it was arithmetic, and the team took a certain
+pride in that. Precision work looks like drama only from outside. From
+inside it looks like a person checking a sum, finding it wrong, and
+checking again.</p>
+
+<h2 id="ch4" class="chapteropen co4"><span class="num">CHAPTER 4</span><span class="ttl">The Weight of Paper</span></h2>
+<p>Paper was the station's most expensive import and its most careful
+expense. Charts for the Admiralty went on rag paper that cost a clerk's
+month wage per sheet; field sheets went on anything that would take a
+pencil and survive a wet boat. The ledger tracked both with the same
+severity it applied to soundings, because a survey that outlives its
+budget by wasting paper is a survey that ends.</p>
+<p>The economics shaped the cartography. A field party that knew each
+sheet had to serve two masters — the draftsman ashore and the engraver
+in London — drew with a discipline that no amount of instruction could
+have imposed. Lines meant lines. Empty margins meant room for the
+engraver's corrections. The best field sheets of the period are beautiful
+precisely because waste was priced into every stroke.</p>
+<p>We end the sample where the full book begins its final part: with the
+ printing of the charts themselves, and the peculiar anxiety of a survey
+team watching its season's work pass under the press, knowing that from
+that moment the record would be quoted without them.</p>
+
+</body>
+</html>
