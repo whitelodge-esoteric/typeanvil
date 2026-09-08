@@ -21,6 +21,11 @@
   .fn { float: footnote; font-size: 8.5pt; line-height: 1.25; color: #333; }
   .refs { font-size: 9pt; }
   .refs p { margin: 0 0 4pt 0; text-indent: -18pt; padding-left: 18pt; }
+  .cols { column-count: 2; column-gap: 0.3in; text-align: justify; }
+  .chartfig { float: right; width: 2.6in; margin: 3pt 0 6pt 10pt; font-size: 8pt; color: #555; }
+  .chartfig img { width: 2.6in; }
+  .chartfig .cap { margin-top: 3pt; }
+  .clear { clear: both; }
 </style>
 </head>
 <body>
@@ -88,6 +93,8 @@ the glyph text of every line across every page tiles the source exactly —
 no character repeated, none dropped.<a class="fn">The verification is mechanical: a regression test concatenates the glyph text of every line on every page and diffs it against the source. It has caught two resumption bugs that position-only tests missed.</a></p>
 
 <h2>4. Conformance Results</h2>
+<figure class="chartfig"><img src="assets/journal-passrate.png" alt="Pass rate by curated bucket">
+<span class="cap">Figure 1 — Reference-match rate by curated harness bucket, current build.</span></figure>
 <p>The harness renders both a test document and its reference through the
 engine under test and compares them page-wise at 96 DPI, following the
 web-platform-tests reftest model. The curated buckets cover paged media,
@@ -104,6 +111,7 @@ Two builds of the same commit produce identical files on all three
 supported platforms.</p>
 
 <h2>5. Discussion</h2>
+<div class="cols">
 <p>Two objections deserve answers. The first is that purity costs
 performance: rebuilding snapshot maps per fragmentainer duplicates work
 that a mutable global would amortize. In practice the maps are small —
@@ -124,6 +132,7 @@ fragment tree can feed a screen renderer with interactive refinement:
 re-layout only the fragmentainers whose inputs changed. The algebra
 already records the dependencies; what remains is an incremental
 evaluator that exploits them.</p>
+</div>
 
 <h2>6. Conclusion</h2>
 <p>Deterministic pagination and high-quality breaking are not competing
