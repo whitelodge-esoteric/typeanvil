@@ -64,6 +64,499 @@ use style::values::specified::box_::{DisplayInside, DisplayOutside};
 use style::values::specified::font::FONT_MEDIUM_PX;
 use style::values::specified::text::TextAlignKeyword;
 use url::Url;
+use cssparser_037::{
+    Parser as CssParser, ParserInput, StyleSheetParser, Token,
+};
+use style::parser::ParserContext;
+use style::stylesheets::CssRuleType;
+use style_traits::ParsingMode;
+
+// --- Media evaluation seam (CORE-156) --------------------------------------
+
+/// The evaluated-`@media` stylesheet text every author-CSS consumer sees.
+///
+/// Previously the manual passes (`breaks`, `paged_props`, `borders`) and the
+/// `@page` parser scanned the RAW stylesheet text and skipped at-rules
+/// wholesale, so a `@page` rule inside a FALSE `@media` leaked into layout
+/// and a media-wrapped one never applied. This seam runs a complete-rule
+/// parser (cssparser 0.37 `StyleSheetParser` — one whole rule is always in
+/// hand before any keep/drop decision; no `find('{')`, no bytewise slicing)
+/// and rewrites the text:
+///
+/// Categories:
+/// - `@media <true-list>` — body inlined in place, recursively evaluated.
+/// - `@media <false-list>` — whole construct removed.
+/// - `@supports` — false condition removed; true keeps the wrapper, body
+///   recursively evaluated.
+/// - `@layer` — wrapper kept, body recursively evaluated.
+/// - declaration-body at-rules (`@page`, `@font-face`) — header rebuilt,
+///   body preserved whole, never recursed.
+/// - known opaque at-rules (`@property`, `@keyframes` incl. vendor
+///   prefixes, `@counter-style`, `@font-feature-values`,
+///   `@font-palette-values`) — preserved whole, never recursed; stylo
+///   parses their bodies.
+/// - unknown at-rules — dropped entirely (css-syntax-3 §2 error recovery);
+///   a dropped wrapper's interior is never scanned, so a false `@page`
+///   cannot leak.
+/// Dimensional features evaluate against the PAGE BOX (mediaqueries-4 §4:
+/// "width — the width of the page box" for paged media): the supplied
+/// `PageGeometry::width`/`height` in CSS px. The author `@page` size cannot
+/// change the query device. The cascade viewport for `vw`/`vh` stays at the
+/// fixed 1024x768 (CORE-66; CORE-140 tracks that separately).
+pub(crate) fn evaluate_media(css: &str, geometry: &crate::geom::PageGeometry) -> String {
+    let device = media_device(geometry);
+    let mut out = String::with_capacity(css.len());
+    evaluate_rule_list(css, &device, &mut out);
+    out
+}
+
+/// Build the media-evaluation device: print, viewport = page box.
+fn media_device(geometry: &crate::geom::PageGeometry) -> Device {
+    // 1px = 0.75pt (96 px/in); the harness/CLI geometry is in points.
+    const PX_PER_PT: f32 = 96.0 / 72.0;
+    let viewport = Size2D::<f32, CSSPixel>::new(
+        geometry.width.get() as f32 * PX_PER_PT,
+        geometry.height.get() as f32 * PX_PER_PT,
+    );
+    let default_values =
+        ComputedValues::initial_values_with_font_override(Font::initial_values());
+    Device::new(
+        MediaType::print(),
+        style::context::QuirksMode::NoQuirks,
+        viewport,
+        Size2D::<f32, DevicePixel>::new(1024.0, 768.0),
+        Scale::new(1.0),
+        Box::new(SkeletonFontMetrics),
+        default_values,
+        PrefersColorScheme::Light,
+        PointerCapabilities::empty(),
+        PointerCapabilities::empty(),
+    )
+}
+
+/// Walk one rule list (the top level, or a true media's body) and append the
+/// evaluated rules to `out`.
+fn evaluate_rule_list(css: &str, device: &Device, out: &mut String) {
+    let mut parser_input = ParserInput::new(css);
+    let mut input = CssParser::new(&mut parser_input);
+    let mut rule_parser = MediaRuleParser { device };
+    let iter = StyleSheetParser::new(&mut input, &mut rule_parser);
+    for result in iter {
+        match result {
+            Ok(MediaDecision::Verbatim(text)) => {
+                out.push_str(&text);
+            }
+            Ok(MediaDecision::Inlined(text)) => {
+                out.push_str(&text);
+                out.push('\n');
+            }
+            // Malformed rule or dropped false @media: emit nothing (the whole
+            // construct was consumed by the parser; css-syntax error recovery
+            // already ate it, so nothing after it was mis-attributed).
+            Ok(MediaDecision::Drop) | Err(_) => {}
+        }
+    }
+}
+
+/// What `parse_prelude` captured for an at-rule: the decoded `@name`, the
+/// prelude text (query list for `@media`, condition for `@supports`), and
+/// which evaluation kind the rule needs.
+struct AtRulePrelude<'i> {
+    name: String,
+    prelude: &'i str,
+    kind: AtRuleKind,
+}
+
+/// How an at-rule's body is evaluated (css-conditional-3 §3, css-cascade-5
+/// §2.3): media and supports are evaluated here; layered bodies are scanned
+/// for media; declaration-body and known-opaque rules are preserved whole.
+#[derive(Clone, Copy, PartialEq)]
+enum AtRuleKind {
+    Media,
+    Supports,
+    Layer,
+    /// Declaration-body at-rules (css-page-3 §5, css-fonts-4 §7): the body
+    /// is declarations (+ margin-box subrules for @page), NOT a rule list.
+    /// Reconstructed header + ORIGINAL body, never recursed.
+    Declarations,
+    /// Known at-rules whose bodies stylo parses itself and the manual passes
+    /// must never look inside: `@property` (css-properties-values-api-1),
+    /// `@keyframes` incl. `-webkit-`/`-moz-` prefixes (css-animations-1),
+    /// `@counter-style` (css-counter-styles-3), `@font-feature-values`
+    /// (css-fonts-4), `@font-palette-values` (css-fonts-4). The keyword set
+    /// mirrors stylo's rule_parser.rs (stylo 0.20 recognizes all of these
+    /// under the `servo` feature). Preserved whole, never recursed —
+    /// a keyframe body is a rule list, a property body is descriptors, and
+    /// neither may be unwrapped or rescanned.
+    KnownOpaque,
+    /// Unknown at-rules: CSS ignores unknown rules (css-syntax-3 §2 error
+    /// recovery), and the manual page parser must never look inside an
+    /// arbitrary wrapper — so the whole construct is dropped.
+    Unknown,
+}
+
+/// The text a parsed rule contributes to the evaluated stylesheet.
+enum MediaDecision {
+    /// Copy the given rebuilt rule text.
+    Verbatim(String),
+    /// Insert this freshly built text (a true media's evaluated body).
+    Inlined(String),
+    /// Emit nothing (false media, or malformed rule consumed to its end).
+    Drop,
+}
+
+/// Capture a rule's prelude text. cssparser's `parse_until_before` already
+/// stops the outer parser AT the prelude end (a `{`, `;`, or EOF) without
+/// consuming it, so `parse_entirely`'s `expect_exhausted` succeeds once we
+/// drain the prelude tokens here. Draining must recurse into nested blocks:
+/// `next()` auto-skips them, `next_including_whitespace_and_comments` does
+/// not.
+fn consume_rule_text<'i, 't>(
+    input: &mut CssParser<'i, 't>,
+) -> Result<&'i str, cssparser_037::ParseError<'i, ()>> {
+    let start = input.state();
+    loop {
+        match input.next_including_whitespace_and_comments() {
+            Ok(Token::Function(_))
+            | Ok(Token::ParenthesisBlock)
+            | Ok(Token::SquareBracketBlock)
+            | Ok(Token::CurlyBracketBlock) => {
+                let _: Result<(), cssparser_037::ParseError<'_, ()>> =
+                    input.parse_nested_block(|_i| Ok(()));
+            }
+            Ok(_) => continue,
+            Err(_) => break,
+        }
+    }
+    Ok(input.slice_from(start.position()))
+}
+
+/// Rebuild a rule's source text from its prelude and body slices:
+/// `header + "{\n" + body + "\n}"`. The separator braces are ASCII, so
+/// bytewise construction is UTF-8 safe.
+fn build_rule_text(header: &str, body: &str) -> String {
+    format!("{} {{\n{}\n}}", header.trim_end(), body)
+}
+
+/// Private seam unit test: a declaration-body at-rule is reconstructed
+/// header + ORIGINAL body, byte-exactly (CORE-156).
+#[cfg(test)]
+mod media_seam_tests {
+    use super::*;
+
+    fn eval(css: &str) -> String {
+        evaluate_media(
+            css,
+            &crate::geom::PageGeometry {
+                width: crate::geom::Scalar(360.0),
+                height: crate::geom::Scalar(216.0),
+                margin_top: crate::geom::Scalar(36.0),
+                margin_right: crate::geom::Scalar(36.0),
+                margin_bottom: crate::geom::Scalar(36.0),
+                margin_left: crate::geom::Scalar(36.0),
+            },
+        )
+    }
+
+    #[test]
+    fn font_face_body_preserved_verbatim() {
+        let out = eval("@media print { @font-face { font-family: X; src: url(a.ttf); } }");
+        assert_eq!(
+            out,
+            "@font-face {\n font-family: X; src: url(a.ttf); \n}\n",
+            "@font-face declaration body must be preserved whole, not \
+             rule-list-recursed"
+        );
+    }
+
+    #[test]
+    fn page_body_with_margin_boxes_preserved() {
+        let out = eval(
+            "@media print { @page { size: 3in 5in; @bottom-center { content: 'folio'; } } }",
+        );
+        assert!(
+            out.contains("size: 3in 5in;") && out.contains("@bottom-center"),
+            "page declarations AND margin-box subrules must survive: {out}"
+        );
+    }
+    #[test]
+    fn unknown_at_rule_dropped_entirely() {
+        let out = eval("@frobnicate { @page { size: 1in 1in; } } @page { size: 2in 3in; }");
+        assert!(
+            !out.contains("frobnicate") && !out.contains("1in 1in"),
+            "unknown closed at-rule must be dropped closed, never unwrapped: {out}"
+        );
+        assert!(
+            out.contains("size: 2in 3in;"),
+            "@page after a dropped unknown rule must survive: {out}"
+        );
+    }
+
+    #[test]
+    fn known_opaque_rules_preserved_verbatim() {
+        let out = eval(
+            "@media print { @property --x { syntax: '<color>'; initial-value: red; } \
+             @keyframes spin { from { opacity: 0; } } \
+             @-webkit-keyframes slide { from { left: 0; } } \
+             @-moz-keyframes fade { from { top: 0; } } \
+             @counter-style dots { system: cyclic; } \
+             @font-feature-values Font One { @styleset { a: 1; } } \
+             @font-palette-values picked { font-family: Font; } }",
+        );
+        for marker in [
+            "@property --x",
+            "initial-value: red;",
+            "@keyframes spin",
+            "from { opacity: 0; }",
+            "@-webkit-keyframes slide",
+            "@-moz-keyframes fade",
+            "@counter-style dots",
+            "@font-feature-values Font One",
+            "@font-palette-values picked",
+        ] {
+            assert!(
+                out.contains(marker),
+                "known opaque rule fragment `{marker}` must be preserved: {out}"
+            );
+        }
+        // The media wrapper itself must be consumed (true media inlines body).
+        assert!(
+            !out.contains("@media"),
+            "true media wrapper must be inlined: {out}"
+        );
+    }
+
+    #[test]
+    fn known_opaque_bodies_never_recursed() {
+        // A nested false @media SIBLING of the keyframe must be dropped
+        // (bodies around opaque rules are still scanned), but the keyframe
+        // body itself must be preserved whole, never rule-list-recursed.
+        let out = eval(
+            "@media print { @keyframes spin { from { opacity: 1; } } \
+             @media screen { body { color: red; } } }",
+        );
+        assert!(
+            out.contains("opacity: 1;") && !out.contains("@media screen"),
+            "keyframe body preserved whole; false sibling media dropped: {out}"
+        );
+    }
+}
+
+
+
+/// cssparser rule parser: for every rule, capture the prelude and body as
+/// byte-exact source slices, then decide keep/drop (`@media` true → inline
+/// evaluated body; false → drop; everything else → verbatim rebuild).
+struct MediaRuleParser<'a> {
+    device: &'a Device,
+}
+
+impl<'i> cssparser_037::QualifiedRuleParser<'i> for MediaRuleParser<'_> {
+    type Prelude = &'i str;
+    type QualifiedRule = MediaDecision;
+    type Error = ();
+
+    fn parse_prelude<'t>(
+        &mut self,
+        input: &mut CssParser<'i, 't>,
+    ) -> Result<&'i str, cssparser_037::ParseError<'i, ()>> {
+        consume_rule_text(input)
+    }
+
+    fn parse_block<'t>(
+        &mut self,
+        prelude: &'i str,
+        _start: &cssparser_037::ParserState,
+        input: &mut CssParser<'i, 't>,
+    ) -> Result<MediaDecision, cssparser_037::ParseError<'i, ()>> {
+        let body = consume_rule_text(input)?;
+        Ok(MediaDecision::Verbatim(build_rule_text(prelude, body)))
+    }
+}
+
+impl<'i> cssparser_037::AtRuleParser<'i> for MediaRuleParser<'_> {
+    type Prelude = AtRulePrelude<'i>;
+    type AtRule = MediaDecision;
+    type Error = ();
+
+    fn parse_prelude<'t>(
+        &mut self,
+        name: cssparser_037::CowRcStr<'i>,
+        input: &mut CssParser<'i, 't>,
+    ) -> Result<AtRulePrelude<'i>, cssparser_037::ParseError<'i, ()>> {
+        let prelude = consume_rule_text(input)?;
+        let kind = match name.as_ref() {
+            n if n.eq_ignore_ascii_case("media") => AtRuleKind::Media,
+            n if n.eq_ignore_ascii_case("supports") => AtRuleKind::Supports,
+            n if n.eq_ignore_ascii_case("layer") => AtRuleKind::Layer,
+            n if n.eq_ignore_ascii_case("page") || n.eq_ignore_ascii_case("font-face") => {
+                AtRuleKind::Declarations
+            }
+            // Known opaque set — must mirror stylo's rule_parser.rs keywords
+            // (ASCII case-insensitive; stylo matches ASCII-lowercase names).
+            n if matches!(
+                n.to_ascii_lowercase().as_str(),
+                "property"
+                    | "keyframes"
+                    | "-webkit-keyframes"
+                    | "-moz-keyframes"
+                    | "counter-style"
+                    | "font-feature-values"
+                    | "font-palette-values"
+            ) =>
+            {
+                AtRuleKind::KnownOpaque
+            }
+            _ => AtRuleKind::Unknown,
+        };
+        Ok(AtRulePrelude {
+            name: name.to_string(),
+            prelude,
+            kind,
+        })
+    }
+
+    fn rule_without_block(
+        &mut self,
+        prelude: AtRulePrelude<'i>,
+        _start: &cssparser_037::ParserState,
+    ) -> Result<MediaDecision, ()> {
+        // Statement at-rules (@import, @charset, @namespace, @layer a, b; —
+        // css-conditional-3 §3.3): terminated by `;` or EOF. We captured the
+        // prelude in `parse_prelude`; the trailing `;` is ASCII, so appending
+        Ok(MediaDecision::Verbatim(format!(
+            "@{} {};",
+            prelude.name,
+            prelude.prelude.trim()
+        )))
+    }
+
+    fn parse_block<'t>(
+        &mut self,
+        prelude: AtRulePrelude<'i>,
+        _start: &cssparser_037::ParserState,
+        input: &mut CssParser<'i, 't>,
+    ) -> Result<MediaDecision, cssparser_037::ParseError<'i, ()>> {
+        let body = consume_rule_text(input)?;
+        match prelude.kind {
+            AtRuleKind::Layer => {
+                // Layer wrappers stay intact (css-cascade-5 §2.3/§6.4: the
+                // layer name assigns cascade weight; unlayered-vs-layered
+                // normal-declaration precedence needs the wrapper) and the
+                // RULE-list body is scanned for media.
+                let header = format!("@{} {}", prelude.name, prelude.prelude.trim());
+                let mut inner = String::with_capacity(body.len());
+                evaluate_rule_list(body, self.device, &mut inner);
+                Ok(MediaDecision::Verbatim(build_rule_text(&header, &inner)))
+            }
+            AtRuleKind::Declarations => {
+                // css-page-3 / css-fonts-4: the body is DECLARATIONS (plus
+                // margin-box subrules inside @page), not a rule list — it is
+                // preserved unchanged; only the header is rebuilt from the
+                // decoded keyword.
+                let header = format!("@{} {}", prelude.name, prelude.prelude.trim());
+                Ok(MediaDecision::Verbatim(build_rule_text(&header, body)))
+            }
+            AtRuleKind::KnownOpaque => {
+                // Preserved whole (header rebuilt from the decoded keyword,
+                // body byte-exact). stylo parses these bodies itself; the
+                // manual page parser must never see inside one, and a
+                // keyframe selector list is not a media body to scan.
+                let header = format!("@{} {}", prelude.name, prelude.prelude.trim());
+                Ok(MediaDecision::Verbatim(build_rule_text(&header, body)))
+            }
+            AtRuleKind::Unknown => {
+                // Dropped entirely (css-syntax-3 §2: unknown rules are
+                // ignored). Never scan a wrapper's interior — the manual
+                // page parser would otherwise see a @page inside any block.
+                Ok(MediaDecision::Drop)
+            }
+            AtRuleKind::Media => {
+                // The captured prelude is ONLY the query list (the `@media`
+                // keyword is decoded into `name` and excluded), which is
+                // exactly what MediaList::parse expects (mediaqueries-4
+                // §2.3: an empty list matches; an invalid query is "not all").
+                if evaluate_media_list(prelude.prelude, self.device) {
+                    let mut inner = String::with_capacity(body.len());
+                    evaluate_rule_list(body, self.device, &mut inner);
+                    Ok(MediaDecision::Inlined(inner))
+                } else {
+                    Ok(MediaDecision::Drop)
+                }
+            }
+            AtRuleKind::Supports => {
+                // css-conditional-3 §3: a false @supports must not leak its
+                // body; a true one keeps the wrapper and has its RULE-list
+                // body scanned for media.
+                if !evaluate_supports_condition(prelude.prelude) {
+                    return Ok(MediaDecision::Drop);
+                }
+                let header = format!("@{} {}", prelude.name, prelude.prelude.trim());
+                let mut inner = String::with_capacity(body.len());
+                evaluate_rule_list(body, self.device, &mut inner);
+                Ok(MediaDecision::Verbatim(build_rule_text(&header, &inner)))
+            }
+        }
+    }
+}
+
+/// Evaluate one `@supports` condition (css-conditional-3 §3) with stylo's
+/// parser: `SupportsCondition::parse` + `eval`. A parse failure means an
+/// invalid condition, which per §3.1 "must be treated as if the condition
+/// were false" (the rule is dropped).
+fn evaluate_supports_condition(condition: &str) -> bool {
+    let url_data = UrlExtraData(Arc::new(
+        Url::parse("http://localhost/").expect("static URL is valid"),
+    ));
+    let context = ParserContext::new(
+        Origin::Author,
+        &url_data,
+        Some(style::stylesheets::CssRuleType::Style),
+        ParsingMode::DEFAULT,
+        style::context::QuirksMode::NoQuirks,
+        Default::default(),
+        None,
+        None,
+        Default::default(),
+    );
+    let mut parser_input = ParserInput::new(condition);
+    let mut input = CssParser::new(&mut parser_input);
+    let parsed = input.parse_entirely(|input| {
+        style::stylesheets::supports_rule::SupportsCondition::parse(input)
+    });
+    match parsed {
+        Ok(condition) => condition.eval(&context),
+        Err(_) => false,
+    }
+}
+
+/// Parse and evaluate one media query list against the device. Semantics are
+/// stylo's own (mediaqueries-4 §2.3/§3): an empty list matches, an invalid
+/// query is "not all", a comma list matches when any query matches.
+fn evaluate_media_list(prelude: &str, device: &Device) -> bool {
+    let url_data = UrlExtraData(Arc::new(
+        Url::parse("http://localhost/").expect("static URL is valid"),
+    ));
+    let mut context = ParserContext::new(
+        Origin::Author,
+        &url_data,
+        Some(CssRuleType::Media),
+        ParsingMode::DEFAULT,
+        style::context::QuirksMode::NoQuirks,
+        Default::default(),
+        None,
+        None,
+        Default::default(),
+    );
+    let mut parser_input = ParserInput::new(prelude);
+    let mut input = CssParser::new(&mut parser_input);
+    let list = style::media_queries::MediaList::parse(&mut context, &mut input);
+    list.evaluate(
+        device,
+        style::context::QuirksMode::NoQuirks,
+        &mut style::stylesheets::CustomMediaEvaluator::none(),
+    )
+}
 
 use crate::dom::{Dom, NodeId, NodeKind};
 use crate::geom::{px_to_pt, Scalar};
@@ -1786,15 +2279,31 @@ pub fn resolve_canvas_background(dom: &Dom, styles: &[ComputedStyle]) -> (Option
 /// (indexed by `NodeId`). Text nodes inherit their parent's style.
 ///
 /// This is the swap boundary between the engine and stylo: layout and PDF
-/// read only the returned `Vec<ComputedStyle>`.
+/// read only this. Evaluates the `@media` seam ONCE, then runs
+/// [`cascade_evaluated`] on the evaluated text.
 pub fn cascade(dom: &Dom, stylesheet: &Stylesheet, geometry: &crate::geom::PageGeometry) -> Vec<ComputedStyle> {
+    let evaluated_css = evaluate_media(stylesheet.source(), geometry);
+    cascade_evaluated(dom, &evaluated_css, geometry)
+}
+
+/// Cascade against ALREADY media-evaluated CSS (CORE-156: the layout entry
+/// point evaluates the stylesheet once and shares the evaluated text
+/// between this cascade and `parse_page_rules`, so `@media` is never
+/// evaluated twice per render). NOT a public interface.
+pub(crate) fn cascade_evaluated(
+    dom: &Dom,
+    evaluated_css: &str,
+    geometry: &crate::geom::PageGeometry,
+) -> Vec<ComputedStyle> {
     // @font-face registration (CORE-103) happens BEFORE any resolution so
     // custom families shadow system fonts. Idempotent (content-hash dedup
-    // in the registry), so repeated cascades are safe.
-    apply_font_face_rules(stylesheet.source());
+    // in the registry), so repeated cascades are safe. The text is already
+    // media-evaluated: a @font-face inside a false @media must not
+    // register, one inside a true @media must.
+    apply_font_face_rules(evaluated_css);
     let lock = SharedRwLock::new();
     let mut backend = TyBackend::new(dom, &lock);
-    let mut session = CascadeSession::new(&lock, stylesheet.source(), geometry);
+    let mut session = CascadeSession::new(&lock, evaluated_css, geometry);
     let mut styles = vec![ComputedStyle::initial(); dom.nodes.len()];
     // Pre-order walk: parents are resolved before children, and the parent's
     // `ComputedValues` is threaded down explicitly (the element-data map on
@@ -1808,19 +2317,19 @@ pub fn cascade(dom: &Dom, stylesheet: &Stylesheet, geometry: &crate::geom::PageG
         &mut styles,
     );
     // Second pass: fill the css-break longhands stylo's servo build omits.
-    breaks::apply_break_properties(dom, stylesheet.source(), &mut styles);
+    breaks::apply_break_properties(dom, evaluated_css, &mut styles);
     // Third pass: fill paged-media properties (page / string-set / counters /
     // content / bookmark-*). The UA sheet's element rules (CORE-128 heading
     // bookmark defaults) join at UA origin — any author rule wins.
     paged_props::apply_paged_properties(
         dom,
-        stylesheet.source(),
+        evaluated_css,
         CascadeSession::UA_CSS,
         &mut styles,
     );
     // Fourth pass: fill border widths/colors (CORE-61 tables; the engine's
     // ComputedStyle carries borders for border-collapse rendering).
-    borders::apply_border_properties(dom, stylesheet.source(), &mut styles);
+    borders::apply_border_properties(dom, evaluated_css, &mut styles);
     // Fifth pass: collapse adjacent table-cell borders (CORE-119 #5) — the
     // shared edge between two neighboring cells must stroke once.
     crate::table::collapse_cell_borders(dom, &mut styles);

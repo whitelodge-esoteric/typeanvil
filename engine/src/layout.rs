@@ -36,7 +36,7 @@
 use std::collections::BTreeMap;
 
 use crate::css::{
-    cascade, ComputedStyle, Display, Float, Hyphens, Position, StringSetValue, Stylesheet,
+    ComputedStyle, Display, Float, Hyphens, Position, StringSetValue, Stylesheet,
     TextAlign, NORMAL_LINE_HEIGHT_FACTOR,
 };
 use crate::dom::{Dom, NodeId, NodeKind};
@@ -359,8 +359,12 @@ pub fn layout_with_images_and_store(
     base_url: Option<&std::path::Path>,
     images: &mut crate::images::ImageStore,
 ) -> Layout {
-    let mut styles = cascade(dom, stylesheet, &geometry);
-    let page_rules = parse_page_rules(stylesheet.source());
+    // ONE media evaluation per render (CORE-156): the evaluated text feeds
+    // both the cascade (stylo + manual passes) and the @page parser. A
+    // false @media cannot leak a @page rule, a true one must still apply.
+    let evaluated_css = crate::css::evaluate_media(stylesheet.source(), &geometry);
+    let mut styles = crate::css::cascade_evaluated(dom, &evaluated_css, &geometry);
+    let page_rules = parse_page_rules(&evaluated_css);
     let root = dom.find_tag("body").unwrap_or(dom.root);
 
     // Canvas background propagation (CORE-144, css-backgrounds-3 §2.2): the

@@ -1857,6 +1857,7 @@ dependencies = [
  "anyhow",
  "app_units",
  "cssparser 0.35.0",
+ "cssparser 0.37.0",
  "euclid",
  "flate2",
  "fontdb",
