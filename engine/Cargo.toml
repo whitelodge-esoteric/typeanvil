@@ -34,6 +34,10 @@ mime = "0.3"
 # Transition: the hand-rolled cascade still parses with cssparser until the
 # stylo path replaces it (CORE-56). Removed once css.rs is fully stylo.
 cssparser = "0.35"
+# Complete-rule CSS parsing for the @media seam (CORE-156). Renamed so it
+# can coexist with the 0.35 used by the color helpers above; stylo itself
+# uses 0.37, so this does not add a second graph node.
+cssparser_037 = { package = "cssparser", version = "0.37" }
 # PDF output (Typst's production backend).
 krilla = "0.8"
 # Text shaping (HarfBuzz port, pure Rust) — main-text glyph advances.
