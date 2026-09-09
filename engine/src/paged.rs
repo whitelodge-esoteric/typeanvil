@@ -715,7 +715,14 @@ fn apply_page_decl(rule: &mut PageRule, decl: &str) {
                 }
             }
         }
-        "background" | "background-color" => rule.background = crate::css::parse_css_color(value),
+        // An invalid color value is NOT assigned: css-syntax drops invalid
+        // declarations at parse time, so a later bad `background` must not
+        // clobber an earlier valid one (cascade fallback, CORE-153).
+        "background" | "background-color" => {
+            if let Some(c) = crate::css::parse_css_color(value) {
+                rule.background = Some(c);
+            }
+        }
         "page-orientation" => rule.page_orientation = parse_page_orientation(value),
         _ => {}
     }

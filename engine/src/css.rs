@@ -70,16 +70,40 @@ use crate::geom::{px_to_pt, Scalar};
 use crate::stylo_dom::{TyBackend, TyElement};
 use style::dom::TElement as _;
 
-/// An sRGB color, 8 bits per channel.
+/// An sRGB color, 8 bits per channel, with an alpha component (CORE-153).
+/// `a` is 0 (fully transparent) ..= 255 (opaque). The `a` field is required,
+/// so pre-existing `Color { r, g, b }` struct literals do NOT compile
+/// unchanged: opaque construction is `Color::rgb(r, g, b)` (a breaking
+/// change from the pre-CORE-153 struct; no field-default syntax exists in
+/// Rust). Parse paths that carry CSS alpha use `Color::rgba(r, g, b, a)` or
+/// the named constants.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Color {
     pub r: u8,
     pub g: u8,
     pub b: u8,
+    pub a: u8,
 }
 
 impl Color {
-    pub const BLACK: Color = Color { r: 0, g: 0, b: 0 };
+    pub const BLACK: Color = Color { r: 0, g: 0, b: 0, a: 255 };
+    pub const WHITE: Color = Color { r: 255, g: 255, b: 255, a: 255 };
+    pub const TRANSPARENT: Color = Color { r: 0, g: 0, b: 0, a: 0 };
+
+    /// Opaque sRGB color.
+    pub const fn rgb(r: u8, g: u8, b: u8) -> Color {
+        Color { r, g, b, a: 255 }
+    }
+
+    /// sRGB color with explicit alpha (0 = transparent, 255 = opaque).
+    pub const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Color {
+        Color { r, g, b, a }
+    }
+
+    /// Fill opacity for PDF painting: 1.0 for opaque colors.
+    pub const fn opacity(&self) -> f32 {
+        self.a as f32 / 255.0
+    }
 }
 /// The CSS `normal` line-height factor (font-size multiple).
 pub const NORMAL_LINE_HEIGHT_FACTOR: f64 = 1.2;
@@ -1144,13 +1168,14 @@ impl CascadeSession {
 
         // `color` is the computed `color` property, always an absolute color
         // once resolved (currentcolor etc. are resolved by the cascade).
-        let [r, g, b, _a] = color.to_nscolor().to_le_bytes();
-        let color = Color { r, g, b };
+        // Alpha is preserved (CORE-153): nscolor packs LE r,g,b,a.
+        let [r, g, b, a] = color.to_nscolor().to_le_bytes();
+        let color = Color { r, g, b, a };
 
         let background_color = match background.clone_background_color() {
             ComputedColor::Absolute(c) if !c.is_transparent() => {
-                let [r, g, b, _a] = c.to_nscolor().to_le_bytes();
-                Some(Color { r, g, b })
+                let [r, g, b, a] = c.to_nscolor().to_le_bytes();
+                Some(Color { r, g, b, a })
             }
             _ => None,
         };
@@ -1347,12 +1372,13 @@ impl CascadeSession {
         let padding_left = nn_lp_to_pt(&padding.clone_padding_left());
 
         // Border color: stylo's computed top-side color (the engine's border
-        // model is one shared color — css.rs notes CORE-66's precedent). The
-        // `border-color` fallback pass below overrides when IT matched.
+        // model is one shared color — CORE-66's precedent). The `border-color`
+        // fallback pass below overrides when IT matched. Alpha preserved
+        // (CORE-153).
         let stylo_border_color = match border_color_stylo {
             ComputedColor::Absolute(c) if !c.is_transparent() => {
-                let [r, g, b, _a] = c.to_nscolor().to_le_bytes();
-                Some(Color { r, g, b })
+                let [r, g, b, a] = c.to_nscolor().to_le_bytes();
+                Some(Color { r, g, b, a })
             }
             _ => None,
         };
@@ -1727,8 +1753,9 @@ fn walk<'a>(
     }
 }
 
-/// Parse a CSS color (`#rgb`/`#rrggbb` or named), reused by the `@page` pass
-/// for the page box background. `None` for `transparent`/unrecognized.
+/// Parse a supported CSS color for the `@page` background and border passes.
+/// `transparent` returns an alpha-zero color. Invalid or unsupported values
+/// return `None`, so callers can retain the prior valid declaration.
 pub fn parse_css_color(s: &str) -> Option<Color> {
     borders::parse_color(s)
 }
@@ -2364,54 +2391,124 @@ mod borders {
         order: u32,
     }
 
-    /// Parse a CSS color: `#rgb`/`#rrggbb` or a small named set. `None` for
-    /// `transparent` and anything unrecognized (caller keeps prior value).
+    /// Parse a CSS color: `#rgb`/`#rgba`/`#rrggbb`/`#rrggbbaa`, `rgb()` /
+    /// `rgba()` (comma and space syntax), a named color, and the
+    /// `transparent` keyword (fully transparent black, CORE-153). Opaque for
+    /// every form without an alpha component.
+    ///
+    /// Hex tokens and named colors are delegated to cssparser
+    /// (`parse_hash_color` / `parse_named_color`): the whole token must be
+    /// valid, so `#f00zz` is rejected, not filtered into `#f00`. Returns
+    /// `None` for anything else — an invalid declaration must be ignored by
+    /// the caller so the cascade falls back (css-syntax-3 §5).
     pub(super) fn parse_color(s: &str) -> Option<Color> {
-        let s = s.trim().to_ascii_lowercase();
-        if s == "transparent" {
-            return None;
+        let s = s.trim();
+        if s.eq_ignore_ascii_case("transparent") {
+            return Some(Color::TRANSPARENT);
         }
         if let Some(hex) = s.strip_prefix('#') {
-            let hex: String = hex.chars().filter(|c| c.is_ascii_hexdigit()).collect();
-            let (r, g, b) = match hex.len() {
-                3 => {
-                    let cv = |c: char| u8::from_str_radix(&c.to_string().repeat(2), 16).ok();
-                    (cv(hex.chars().nth(0)?)?, cv(hex.chars().nth(1)?)?, cv(hex.chars().nth(2)?)?)
-                }
-                6 => {
-                    let cv = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).ok();
-                    (cv(0)?, cv(2)?, cv(4)?)
-                }
-                _ => return None,
-            };
-            return Some(Color { r, g, b });
+            let (r, g, b, a) = cssparser::color::parse_hash_color(hex.as_bytes()).ok()?;
+            return Some(Color::rgba(r, g, b, (a * 255.0).round() as u8));
         }
-        let named = match s.as_str() {
-            "black" => (0, 0, 0),
-            "white" => (255, 255, 255),
-            "red" => (255, 0, 0),
-            "green" => (0, 128, 0),
-            "blue" => (0, 0, 255),
-            "gray" | "grey" => (128, 128, 128),
-            "silver" => (192, 192, 192),
-            "maroon" => (128, 0, 0),
-            "olive" => (128, 128, 0),
-            "lime" => (0, 255, 0),
-            "teal" => (0, 128, 128),
-            "navy" => (0, 0, 128),
-            "purple" => (128, 0, 128),
-            "orange" => (255, 165, 0),
-            // css-color-3 basic keywords + the WPT fixture palette (CORE-66:
-            // page-box tests paint the page box with yellow/cyan/hotpink).
-            "yellow" => (255, 255, 0),
-            "cyan" | "aqua" => (0, 255, 255),
-            "magenta" | "fuchsia" => (255, 0, 255),
-            "hotpink" => (255, 105, 180),
-            "pink" => (255, 192, 203),
-            "lightblue" => (173, 216, 230),
-            _ => return None,
-        };
-        Some(Color { r: named.0, g: named.1, b: named.2 })
+        let lower = s.to_ascii_lowercase();
+        if let Some(body) = lower.strip_prefix("rgba(").or_else(|| lower.strip_prefix("rgb(")) {
+            let body = body.strip_suffix(')')?;
+            let mut parts: [Option<u8>; 4] = [None, None, None, None];
+            let mut kinds = [ChannelKind::Number; 4];
+            if body.contains(',') {
+                // Legacy comma syntax (css-color-4 §7.1): rgb() and rgba()
+                // are aliases — both take THREE channels and an OPTIONAL
+                // fourth alpha, independent of spelling; a 5th channel is
+                // invalid. Channels must be one kind (all numbers or all
+                // percentages).
+                let toks: Vec<&str> = body.split(',').collect();
+                if toks.len() != 3 && toks.len() != 4 {
+                    return None;
+                }
+                for (i, tok) in toks.iter().enumerate() {
+                    if i == 3 {
+                        parts[3] = Some(parse_alpha_component(tok)?);
+                    } else {
+                        let (v, k) = parse_color_component(tok)?;
+                        parts[i] = Some(v);
+                        kinds[i] = k;
+                    }
+                }
+                // Channels must be one kind: all numbers or all percentages
+                // ("either all... or none", css-color-4 §5.1 legacy grammar).
+                if !(kinds[0..3].iter().all(|k| *k == kinds[0])) {
+                    return None;
+                }
+            } else {
+                // Modern space syntax (css-color-4 §7.1): rgb(r g b) or
+                // rgb(r g b / a) — 3 channels, optionally one `/ alpha`.
+                // A bare 4th channel (e.g. `rgb(255 0 0 123)`) is invalid.
+                // Unlike the legacy grammar, channels MAY mix numbers and
+                // percentages.
+                let mut split = body.splitn(2, '/');
+                let chan_toks: Vec<&str> = split.next()?.split_whitespace().collect();
+                if chan_toks.len() != 3 {
+                    return None;
+                }
+                for (i, tok) in chan_toks.iter().enumerate() {
+                    let (v, k) = parse_color_component(tok)?;
+                    parts[i] = Some(v);
+                }
+                if let Some(alpha) = split.next() {
+                    parts[3] = Some(parse_alpha_component(alpha)?);
+                }
+            }
+            let (r, g, b, a) = (parts[0]?, parts[1]?, parts[2]?, parts[3].unwrap_or(255));
+            return Some(Color::rgba(r, g, b, a));
+        }
+        if let Ok((r, g, b)) = cssparser::color::parse_named_color(s) {
+            return Some(Color::rgb(r, g, b));
+        }
+        None
+    }
+
+    /// One rgb()/rgba() channel: a percentage (`50%`) or a 0..255 number
+    /// (`128`), with its kind. In the legacy comma grammar the kinds must be
+    /// uniform; the modern space grammar may mix them (css-color-4 §7.1).
+    fn parse_color_component(tok: &str) -> Option<(u8, ChannelKind)> {
+        let tok = tok.trim();
+        if let Some(pct) = tok.strip_suffix('%') {
+            let v: f32 = pct.trim().parse().ok()?;
+            if !v.is_finite() {
+                return None;
+            }
+            return Some(((v * 255.0 / 100.0).round().clamp(0.0, 255.0) as u8, ChannelKind::Percentage));
+        }
+        let v: f32 = tok.trim().parse().ok()?;
+        if !v.is_finite() {
+            return None;
+        }
+        Some((v.round().clamp(0.0, 255.0) as u8, ChannelKind::Number))
+    }
+
+    /// The alpha component: a 0..1 number or a percentage, scaled to 0..255
+    /// (css-color-4 §5.1). Non-finite input is a parse failure.
+    fn parse_alpha_component(tok: &str) -> Option<u8> {
+        let tok = tok.trim();
+        if let Some(pct) = tok.strip_suffix('%') {
+            let v: f32 = pct.parse().ok()?;
+            if !v.is_finite() {
+                return None;
+            }
+            return Some((v / 100.0 * 255.0).round().clamp(0.0, 255.0) as u8);
+        }
+        let v: f32 = tok.parse().ok()?;
+        if !v.is_finite() {
+            return None;
+        }
+        Some((v * 255.0).round().clamp(0.0, 255.0) as u8)
+    }
+
+    /// Which form a channel literal used; a function mixes at most one kind.
+    #[derive(Clone, Copy, PartialEq)]
+    enum ChannelKind {
+        Number,
+        Percentage,
     }
 
     /// Parse one declaration's value into a width (if present) + color.
