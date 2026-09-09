@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-16
-updated: 2026-09-08
+updated: 2026-09-09
 sidebar_position: 3
 tags: [css, paged-media, page, layout, engine]
 spec_id: paged-media-css
@@ -347,6 +347,40 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     middle-third slot, when rendered, then every page's head center sits on
     the content midline ±0.5pt and inside the top margin band
     (`paged_media.rs::margin_box_center_aligns_on_content_midline`).
+18. **Alpha forms parse** — Given `#f008`, `#ff000088`, `rgba(255, 0, 0,
+    0.5)`, `rgba(100% 0% 0% / 50%)`, `rgb(0 0 255)`, `rgba(0, 0, 0, 0)`,
+    `rgba(1, 2, 3)`, `rgb(1, 2, 3, 0.5)`, `RGB(1 2 3)`,
+    `rgb(100% 0 0 / 50%)`, and `transparent`, when parsed, then each yields
+    the exact expected `Color` (alpha 0x88/128/0 as applicable; alpha-less
+    forms opaque; `rgba()` is an alias of `rgb()` per css-color-4 §7.1,
+    function names are ASCII case-insensitive, and the modern space grammar
+    mixes number and percentage channels)
+    (`alpha_color.rs::hex_alpha_forms`, `alpha_color.rs::rgb_function_forms`,
+    `alpha_color.rs::transparent_keyword_is_fully_transparent_black`).
+19. **Invalid color declarations are rejected** — Given `#f00zz`,
+    `rgba(255, 0, 0, garbage)`, `rgba(255, 0, 0, NaN)`, `rgb(255, 0, 0, 0.5,
+    123)`, `rgb(255 0 0 123)`, and `rgb(100%, 0, 0)`, when parsed, then every
+    one fails (`None`) — no silent truncation, no opaque-on-error alpha, no
+    filtered hex rescue, and the legacy comma grammar still requires one
+    uniform channel kind
+    (`alpha_color.rs::invalid_declarations_are_rejected`,
+    `alpha_color.rs::legacy_mixed_kinds_still_rejected`).
+20. **Invalid alpha preserves cascade fallback** — Given `@page {
+    background: blue; background: rgba(255, 0, 0, garbage); }`, when
+    rendered, then the page box background is the earlier valid blue
+    (`alpha_color.rs::invalid_alpha_preserves_cascade_fallback`).
+21. **Alpha survives canvas propagation** — Given an opaque blue `@page`
+    background and a `#f008` body background, when laid out, then the page
+    box fill is opaque blue and the propagated canvas background is
+    `rgba(255, 0, 0, 0x88)`
+    (`alpha_color.rs::semitransparent_body_background_keeps_alpha_in_canvas_propagation`,
+    `alpha_color.rs::opaque_backgrounds_default_to_opaque_alpha`).
+22. **Raster probe** — Given `probe/core153_alpha/probe_alpha.py` run with
+    the main checkout's `.venv/bin/python` against a built engine binary,
+    when executed, then every composited pixel case (page-box-002 shape,
+    alpha 0, nested overlap) prints OK and the script exits 0.
+    Command from this worktree's root:
+    `/Users/elijah/workspace/typeanvil/.venv/bin/python probe/core153_alpha/probe_alpha.py engine/target/debug/typeanvil`.
 
 ## Edge Cases
 
@@ -374,6 +408,28 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   at the page the element's box starts.
 - **Two-pass convergence failure** (page numbers shift between passes) → cap
   at 3 passes, use the last result; documented in code as a known limitation.
+- **Background color alpha (CORE-153, css-color-3/4)** → CSS colors carry an
+  alpha channel through the whole pipeline: parse (`#rgba`, `#rrggbbaa`,
+  `rgb()`/`rgba()` in comma and space syntax, the `transparent` keyword =
+  fully transparent black) → stylo computed color → fragment paint → PDF
+  fill opacity (krilla `Fill.opacity`, the PDF `ca` graphics-state
+  parameter). Alpha is never pre-blended: a semitransparent fill composites
+  at paint time over whatever is actually beneath it (the `@page` fill for
+  the canvas background, the page/canvas for element boxes). Colors parsed
+  without an alpha component are opaque (alpha 255). Migration: the `a`
+  field is required, so pre-CORE-153 `Color { r, g, b }` struct literals no
+  longer compile; opaque construction is `Color::rgb(r, g, b)` (no Rust
+  field-default syntax). Invalid color declarations are rejected at parse
+  time (malformed hex tokens, non-finite numbers, wrong channel arity,
+  mixed channel kinds in legacy comma syntax, invalid alpha), so the
+  cascade keeps the earlier valid declaration (css-syntax-3). The engine
+  shall preserve alpha through each supported color parse and paint path.
+  This change leaves broader color syntax support and whitespace-bearing
+  function colors in the manual `border` shorthand parser for later work.
+  The canvas
+  propagation of a semitransparent body/html background keeps that alpha
+  (page-box-002: opaque blue `@page` under a `#f008` body paints
+  violet `rgb(136, 0, 119)`, not red, not blue).
 - **Canvas background propagation (CORE-144)** → the html (else body)
   background paints the CANVAS over the page CONTENT area, under all content
   but above the `@page` box fill (so page margins keep the page box's own

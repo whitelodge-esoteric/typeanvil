@@ -69,10 +69,15 @@ fn to_krilla_color(c: Color) -> rgb::Color {
     rgb::Color::new(c.r, c.g, c.b)
 }
 
+/// Fill for a CSS color: the RGB channels plus the color's own alpha as the
+/// fill opacity (CORE-153). PDF `ca` transparency composites over whatever is
+/// beneath — the `@page` fill for the canvas background, the page/canvas for
+/// element boxes — so no pre-blending happens here.
 fn solid_fill(c: Color) -> Fill {
+    let opacity = NormalizedF32::new(c.opacity()).unwrap_or(NormalizedF32::ONE);
     Fill {
         paint: to_krilla_color(c).into(),
-        opacity: NormalizedF32::ONE,
+        opacity,
         rule: FillRule::NonZero,
     }
 }
