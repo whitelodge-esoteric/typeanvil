@@ -99,16 +99,31 @@ impl MarginBoxName {
         }
     }
 
-    /// Horizontal alignment within the box's slot (start / center / end).
-    pub fn align(self) -> MarginAlign {
+    /// The UA-default `text-align` for this box (css-page-3 §6.2, Table 2).
+    ///
+    /// Corners align their content toward the page area (`@top-left-corner` →
+    /// `right`, `@top-right-corner` → `left`), side boxes center along the page
+    /// edge, and edge boxes align toward the page area (`@top-left` → `left`,
+    /// `@top-right` → `right`). Before this the engine derived an alignment
+    /// from the box's *name* that was wrong on the corners and side boxes.
+    pub fn default_text_align(self) -> crate::css::TextAlign {
+        use crate::css::TextAlign;
         use MarginBoxName::*;
         match self {
-            TopLeftCorner | TopLeft | BottomLeftCorner | BottomLeft | LeftTop | RightTop => {
-                MarginAlign::Start
-            }
-            TopCenter | BottomCenter | LeftMiddle | RightMiddle => MarginAlign::Center,
-            TopRight | TopRightCorner | BottomRight | BottomRightCorner | LeftBottom
-            | RightBottom => MarginAlign::End,
+            TopLeftCorner | TopRight | BottomLeftCorner | BottomRight => TextAlign::Right,
+            TopRightCorner | TopLeft | BottomLeft | BottomRightCorner => TextAlign::Left,
+            TopCenter | BottomCenter | LeftTop | LeftMiddle | LeftBottom | RightTop
+            | RightMiddle | RightBottom => TextAlign::Center,
+        }
+    }
+
+    /// The UA-default `vertical-align` for this box (css-page-3 §6.2, Table 2).
+    pub fn default_vertical_align(self) -> VerticalAlign {
+        use MarginBoxName::*;
+        match self {
+            LeftTop | RightTop => VerticalAlign::Top,
+            LeftBottom | RightBottom => VerticalAlign::Bottom,
+            _ => VerticalAlign::Middle,
         }
     }
 }
@@ -122,12 +137,15 @@ pub enum MarginRow {
     Right,
 }
 
-/// Horizontal alignment of a margin box's single text line within its slot.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MarginAlign {
-    Start,
-    Center,
-    End,
+/// The computed `vertical-align` of a page-margin box (css-page-3 §6.2):
+/// `top | middle | bottom`. Other CSS `vertical-align` keywords are invalid in
+/// the margin context and are ignored.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum VerticalAlign {
+    Top,
+    #[default]
+    Middle,
+    Bottom,
 }
 
 /// The css-gcpm-3 §7 keyword of a `string(name, keyword)` reference.
@@ -193,12 +211,64 @@ pub enum ContentPiece {
     Leader(char),
 }
 
+/// The style declarations of one page-margin box (css-page-3 §5–§6, the
+/// CSS2.1 subset that applies in a margin context). Every field is `None`
+/// until declared, so a later rule merges property-by-property instead of
+/// replacing the whole box.
+#[derive(Clone, Debug, Default)]
+pub struct MarginBoxStyle {
+    pub color: Option<Color>,
+    pub background: Option<Color>,
+    pub text_align: Option<crate::css::TextAlign>,
+    pub vertical_align: Option<VerticalAlign>,
+    pub font_family: Option<Vec<crate::fonts::FamilySpec>>,
+    pub font_size: Option<Scalar>,
+    pub font_weight: Option<f32>,
+    pub font_style: Option<crate::css::FontStyle>,
+}
+
+impl MarginBoxStyle {
+    /// Copy every declaration set in `other` over `self` (later rules win).
+    fn merge(&mut self, other: &MarginBoxStyle) {
+        if other.color.is_some() {
+            self.color = other.color;
+        }
+        if other.background.is_some() {
+            self.background = other.background;
+        }
+        if other.text_align.is_some() {
+            self.text_align = other.text_align;
+        }
+        if other.vertical_align.is_some() {
+            self.vertical_align = other.vertical_align;
+        }
+        if other.font_family.is_some() {
+            self.font_family = other.font_family.clone();
+        }
+        if other.font_size.is_some() {
+            self.font_size = other.font_size;
+        }
+        if other.font_weight.is_some() {
+            self.font_weight = other.font_weight;
+        }
+        if other.font_style.is_some() {
+            self.font_style = other.font_style;
+        }
+    }
+}
+
 /// One parsed margin-box declaration inside an `@page` rule.
+///
+/// `content` is three-state: `None` = no `content` declaration at all (a
+/// lower-precedence rule's content is kept), `Some(None)` = `content: none |
+/// normal` (explicitly suppresses the box, overriding a default page),
+/// `Some(Some(pieces))` = generated content (an empty piece list is still
+/// generated — `content: ""` paints nothing but occupies its box).
 #[derive(Clone, Debug)]
 pub struct MarginBoxDecl {
     pub name: MarginBoxName,
-    /// The margin box's `content` value, as an ordered piece list.
-    pub content: Vec<ContentPiece>,
+    pub content: Option<Option<Vec<ContentPiece>>>,
+    pub style: MarginBoxStyle,
 }
 
 /// Page margins in points.
@@ -293,6 +363,13 @@ pub struct PageRule {
     pub page_orientation: Option<PageOrientation>,
     /// Margin-box declarations, in source order.
     pub margin_boxes: Vec<MarginBoxDecl>,
+    /// Page-context inherited style (css-page-3 §6): these inherit into the
+    /// page-margin boxes when the margin box declares nothing itself.
+    pub color: Option<Color>,
+    pub font_family: Option<Vec<crate::fonts::FamilySpec>>,
+    pub font_size: Option<Scalar>,
+    pub font_weight: Option<f32>,
+    pub font_style: Option<crate::css::FontStyle>,
     /// Source order, so later equal-specificity rules win.
     order: u32,
     /// Cascade-layer rank (css-cascade-5 §6): 0 = unlayered (beats every
@@ -300,6 +377,24 @@ pub struct PageRule {
     /// (statement or block nesting) assigns a=1, b=2; later layers win over
     /// earlier ones regardless of source position.
     layer: u32,
+}
+
+/// One page-margin box in the winning page spec: generated content plus the
+/// resolved style (page-context inheritance + UA defaults already applied).
+#[derive(Clone, Debug)]
+pub struct MarginBoxSpec {
+    pub name: MarginBoxName,
+    /// The generated `content` pieces (an empty list is still generated —
+    /// `content: ""` paints nothing but occupies its box).
+    pub content: Vec<ContentPiece>,
+    pub color: Color,
+    pub background: Option<Color>,
+    pub font_size: Scalar,
+    pub font_face: crate::fonts::FaceId,
+    pub font_fallbacks: Vec<crate::fonts::FaceId>,
+    pub line_height: Scalar,
+    pub text_align: crate::css::TextAlign,
+    pub vertical_align: VerticalAlign,
 }
 
 /// A fully-resolved page spec for one fragmentainer: geometry plus the margin
@@ -315,7 +410,7 @@ pub struct PageSpec {
     pub border: Option<(Scalar, Color)>,
     pub background: Option<Color>,
     pub page_orientation: Option<PageOrientation>,
-    pub margin_boxes: Vec<(MarginBoxName, Vec<ContentPiece>)>,
+    pub margin_boxes: Vec<MarginBoxSpec>,
 }
 
 impl PageSpec {
@@ -598,6 +693,11 @@ fn parse_one_page_rule(prelude: &str, body: &str, order: u32) -> Option<PageRule
         background: None,
         page_orientation: None,
         margin_boxes: Vec::new(),
+        color: None,
+        font_family: None,
+        font_size: None,
+        font_weight: None,
+        font_style: None,
         order,
     };
 
@@ -622,9 +722,12 @@ fn parse_one_page_rule(prelude: &str, body: &str, order: u32) -> Option<PageRule
             };
             let inner = &body[brace + 1..end];
             if let Some(name) = MarginBoxName::parse(kw) {
-                if let Some(content) = parse_margin_box_content(inner) {
-                    rule.margin_boxes.push(MarginBoxDecl { name, content });
-                }
+                let (content, style) = parse_margin_box_decls(inner);
+                rule.margin_boxes.push(MarginBoxDecl {
+                    name,
+                    content,
+                    style,
+                });
             }
             decl.clear();
             // Skip past the sub-rule body (the char iterator is at `ci`, so
@@ -649,17 +752,174 @@ fn parse_one_page_rule(prelude: &str, body: &str, order: u32) -> Option<PageRule
     Some(rule)
 }
 
-/// Extract the `content: ...;` declaration from a margin-box body.
-fn parse_margin_box_content(body: &str) -> Option<Vec<ContentPiece>> {
+/// Parse one margin-box body into `(content, style)`.
+///
+/// A margin box's declarations follow the CSS2.1 margin-context property list
+/// (css-page-3 Appendix A): the inherited text properties (`color`/
+/// `text-align`/`vertical-align`/`font-*`), `background`, and `content`. Any
+/// other property is ignored (which is what `inapplicable-properties-print`
+/// asserts). Later declarations in the same block win.
+///
+/// `content` is three-state (see [`MarginBoxDecl`]): `None` when there is no
+/// `content` declaration, `Some(None)` for `content: none | normal`, and
+/// `Some(Some(pieces))` otherwise.
+fn parse_margin_box_decls(body: &str) -> (Option<Option<Vec<ContentPiece>>>, MarginBoxStyle) {
+    let mut content = None;
+    let mut style = MarginBoxStyle::default();
     for decl in body.split(';') {
         let Some((prop, value)) = decl.split_once(':') else {
             continue;
         };
-        if prop.trim().eq_ignore_ascii_case("content") {
-            return Some(parse_content(value));
+        let prop = prop.trim().to_ascii_lowercase();
+        let value = value.trim();
+        if value.is_empty() {
+            continue;
+        }
+        match prop.as_str() {
+            "content" => {
+                if value.eq_ignore_ascii_case("none") || value.eq_ignore_ascii_case("normal") {
+                    content = Some(None);
+                } else {
+                    content = Some(Some(parse_content(value)));
+                }
+            }
+            "color" => {
+                if let Some(c) = crate::css::parse_css_color(value) {
+                    style.color = Some(c);
+                }
+            }
+            "background" | "background-color" => {
+                if let Some(c) = crate::css::parse_css_color(value) {
+                    style.background = Some(c);
+                }
+            }
+            "text-align" => style.text_align = parse_text_align(value),
+            "vertical-align" => style.vertical_align = parse_vertical_align(value),
+            "font-family" => style.font_family = Some(parse_family_list(value)),
+            "font-size" => style.font_size = parse_page_length(value).and_then(page_length_abs),
+            "font-weight" => style.font_weight = parse_font_weight(value),
+            "font-style" => style.font_style = parse_font_style(value),
+            "font" => apply_font_shorthand(&mut style, value),
+            _ => {}
         }
     }
-    None
+    (content, style)
+}
+
+/// The absolute point value of a resolved [`PageLength`], if it has one.
+fn page_length_abs(l: PageLength) -> Option<Scalar> {
+    match l {
+        PageLength::Abs(v) => Some(v),
+        _ => None,
+    }
+}
+
+/// Parse a `text-align` value into the engine's computed enum. Unknown values
+/// (including the margin-context-inapplicable `justify`) are ignored.
+fn parse_text_align(value: &str) -> Option<crate::css::TextAlign> {
+    use crate::css::TextAlign;
+    Some(match value.trim().to_ascii_lowercase().as_str() {
+        "left" | "start" => TextAlign::Left,
+        "right" | "end" => TextAlign::Right,
+        "center" => TextAlign::Center,
+        _ => return None,
+    })
+}
+
+/// Parse a margin-context `vertical-align`: only `top | middle | bottom` are
+/// valid there (css-page-3 §6.2); everything else is invalid and ignored.
+fn parse_vertical_align(value: &str) -> Option<VerticalAlign> {
+    Some(match value.trim().to_ascii_lowercase().as_str() {
+        "top" => VerticalAlign::Top,
+        "middle" | "center" => VerticalAlign::Middle,
+        "bottom" => VerticalAlign::Bottom,
+        _ => return None,
+    })
+}
+
+/// Parse a `font-style` value (oblique folds into italic).
+fn parse_font_style(value: &str) -> Option<crate::css::FontStyle> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "italic" | "oblique" => Some(crate::css::FontStyle::Italic),
+        "normal" => Some(crate::css::FontStyle::Normal),
+        _ => None,
+    }
+}
+
+/// Parse a `font-weight` value: the numeric keywords plus `normal`/`bold`.
+fn parse_font_weight(value: &str) -> Option<f32> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "normal" => Some(400.0),
+        "bold" => Some(700.0),
+        "bolder" => Some(700.0),
+        "lighter" => Some(300.0),
+        other => other.parse::<f32>().ok(),
+    }
+}
+
+/// Parse a comma-separated `font-family` list into registry [`FamilySpec`]s.
+/// Generic keywords map to their generic specs; everything else is a family
+/// name (quotes stripped).
+fn parse_family_list(value: &str) -> Vec<crate::fonts::FamilySpec> {
+    use crate::fonts::FamilySpec;
+    value
+        .split(',')
+        .map(|part| {
+            let name = part.trim().trim_matches(['"', '\'']).trim();
+            match name.to_ascii_lowercase().as_str() {
+                "serif" => FamilySpec::Serif,
+                "sans-serif" => FamilySpec::SansSerif,
+                "monospace" => FamilySpec::Monospace,
+                "cursive" => FamilySpec::Cursive,
+                "fantasy" => FamilySpec::Fantasy,
+                _ => FamilySpec::Name(name.to_string()),
+            }
+        })
+        .collect()
+}
+
+/// Apply the `font` shorthand (css-fonts-4 §4): the supported subset is the
+/// `[style] [weight] size[/line-height] family` form. A value beginning with
+/// a system-font keyword is ignored (unsupported, and must not clobber).
+fn apply_font_shorthand(style: &mut MarginBoxStyle, value: &str) {
+    let value = value.trim();
+    if value.is_empty() {
+        return;
+    }
+    let mut rest = value;
+    // Leading style/weight tokens, in any order, before the size.
+    loop {
+        let Some((tok, tail)) = rest.split_once(char::is_whitespace) else {
+            return;
+        };
+        let lower = tok.to_ascii_lowercase();
+        if let Some(fs) = parse_font_style(tok) {
+            style.font_style = Some(fs);
+            rest = tail.trim_start();
+        } else if lower == "normal" {
+            rest = tail.trim_start();
+        } else if let Some(w) = parse_font_weight(tok) {
+            style.font_weight = Some(w);
+            rest = tail.trim_start();
+        } else {
+            break;
+        }
+    }
+    // `size[/line-height] family...`
+    let (size_tok, family) = match rest.split_once(char::is_whitespace) {
+        Some((s, f)) => (s, f.trim()),
+        None => return,
+    };
+    if let Some((sz, _lh)) = size_tok.split_once('/') {
+        if let Some(abs) = parse_page_length(sz).and_then(page_length_abs) {
+            style.font_size = Some(abs);
+        }
+    } else if let Some(abs) = parse_page_length(size_tok).and_then(page_length_abs) {
+        style.font_size = Some(abs);
+    }
+    if !family.is_empty() {
+        style.font_family = Some(parse_family_list(family));
+    }
 }
 
 /// Apply one `prop: value` declaration to a page rule.
@@ -735,6 +995,33 @@ fn apply_page_decl(rule: &mut PageRule, decl: &str) {
             }
         }
         "page-orientation" => rule.page_orientation = parse_page_orientation(value),
+        // Page-context style that INHERITS into the margin boxes
+        // (css-page-3 §6: "properties that apply to the page-margin boxes can
+        // also be set within the page context; if inheritable ... they
+        // inherit"). `alignment-001` pins monospace 0.7em + blue this way.
+        "color" => {
+            if let Some(c) = crate::css::parse_css_color(value) {
+                rule.color = Some(c);
+            }
+        }
+        "font-family" => rule.font_family = Some(parse_family_list(value)),
+        "font-size" => rule.font_size = parse_page_length(value).and_then(page_length_abs),
+        "font-weight" => rule.font_weight = parse_font_weight(value),
+        "font-style" => rule.font_style = parse_font_style(value),
+        "font" => {
+            let mut s = MarginBoxStyle {
+                font_family: rule.font_family.clone(),
+                font_size: rule.font_size,
+                font_weight: rule.font_weight,
+                font_style: rule.font_style,
+                ..Default::default()
+            };
+            apply_font_shorthand(&mut s, value);
+            rule.font_family = s.font_family;
+            rule.font_size = s.font_size;
+            rule.font_weight = s.font_weight;
+            rule.font_style = s.font_style;
+        }
         _ => {}
     }
 }
@@ -1027,8 +1314,21 @@ pub fn resolve_page_spec(
         PageLength::Abs(Scalar::ZERO),
     );
     let mut border: Option<(Scalar, Color)> = None;
-    // Margin boxes accumulate by name; later matches replace earlier.
-    let mut boxes: Vec<(MarginBoxName, Vec<ContentPiece>)> = Vec::new();
+    // Margin boxes accumulate by name; later matches merge property-by-property
+    // (a later `@page` rule that only sets `color` must keep the earlier
+    // `content`, per the cascade). `content` is three-state so an explicit
+    // `content: none` overrides a default page's box (CORE-82 suppression).
+    let mut boxes: Vec<(
+        MarginBoxName,
+        Option<Option<Vec<ContentPiece>>>,
+        MarginBoxStyle,
+    )> = Vec::new();
+    // Page-context inherited style, merged the same way (css-page-3 §6).
+    let mut page_color: Option<Color> = None;
+    let mut page_font_family: Option<Vec<crate::fonts::FamilySpec>> = None;
+    let mut page_font_size: Option<Scalar> = None;
+    let mut page_font_weight: Option<f32> = None;
+    let mut page_font_style: Option<crate::css::FontStyle> = None;
 
     // Build the ordered list of matching rules, weakest first, so later
     // applications win. Ordering key: (name_specificity, pseudo_specificity,
@@ -1108,10 +1408,30 @@ pub fn resolve_page_spec(
             page_orientation = Some(o);
         }
         for mb in &r.margin_boxes {
-            match boxes.iter_mut().find(|(n, _)| *n == mb.name) {
-                Some((_, c)) => *c = mb.content.clone(),
-                None => boxes.push((mb.name, mb.content.clone())),
+            match boxes.iter_mut().find(|(n, _, _)| *n == mb.name) {
+                Some((_, c, s)) => {
+                    if mb.content.is_some() {
+                        *c = mb.content.clone();
+                    }
+                    s.merge(&mb.style);
+                }
+                None => boxes.push((mb.name, mb.content.clone(), mb.style.clone())),
             }
+        }
+        if r.color.is_some() {
+            page_color = r.color;
+        }
+        if r.font_family.is_some() {
+            page_font_family = r.font_family.clone();
+        }
+        if r.font_size.is_some() {
+            page_font_size = r.font_size;
+        }
+        if r.font_weight.is_some() {
+            page_font_weight = r.font_weight;
+        }
+        if r.font_style.is_some() {
+            page_font_style = r.font_style;
         }
     }
 
@@ -1192,6 +1512,46 @@ pub fn resolve_page_spec(
         pad_l = zero;
     }
 
+    // Resolve each generated margin box: page-context inheritance first
+    // (css-page-3 §6), then the box's own declarations, then the UA default
+    // table (§6.2). A box whose `content` resolved to `None` — no declaration
+    // at all, or an explicit `content: none | normal` — is not generated
+    // (css-page-3 §5.2).
+    let margin_boxes = boxes
+        .into_iter()
+        .filter_map(|(name, content, style)| {
+            let content = content??;
+            let font_family = style
+                .font_family
+                .clone()
+                .or_else(|| page_font_family.clone())
+                .unwrap_or_else(|| vec![crate::fonts::FamilySpec::SansSerif]);
+            let font_size = style.font_size.or(page_font_size).unwrap_or(Scalar(12.0));
+            let font_weight = style.font_weight.or(page_font_weight).unwrap_or(400.0);
+            let font_style = style
+                .font_style
+                .or(page_font_style)
+                .unwrap_or(crate::css::FontStyle::Normal);
+            let resolved = crate::fonts::resolve_font(&font_family, font_weight, font_style);
+            Some(MarginBoxSpec {
+                name,
+                content,
+                color: style.color.or(page_color).unwrap_or(Color::BLACK),
+                background: style.background,
+                font_size,
+                font_face: resolved.primary,
+                font_fallbacks: resolved.fallbacks,
+                line_height: font_size * crate::css::NORMAL_LINE_HEIGHT_FACTOR,
+                text_align: style
+                    .text_align
+                    .unwrap_or_else(|| name.default_text_align()),
+                vertical_align: style
+                    .vertical_align
+                    .unwrap_or_else(|| name.default_vertical_align()),
+            })
+        })
+        .collect();
+
     PageSpec {
         size,
         margins: PageMargins {
@@ -1209,7 +1569,7 @@ pub fn resolve_page_spec(
         border: border_color.map(|c| (page_border, c)),
         background,
         page_orientation,
-        margin_boxes: boxes,
+        margin_boxes,
     }
 }
 
@@ -1404,9 +1764,12 @@ mod tests {
         assert_eq!(r.margin_boxes[0].name, MarginBoxName::TopCenter);
         assert_eq!(
             r.margin_boxes[0].content,
-            vec![ContentPiece::Literal("Report".to_string())]
+            Some(Some(vec![ContentPiece::Literal("Report".to_string())]))
         );
-        assert_eq!(r.margin_boxes[1].content, vec![ContentPiece::CounterPage]);
+        assert_eq!(
+            r.margin_boxes[1].content,
+            Some(Some(vec![ContentPiece::CounterPage]))
+        );
     }
 
     #[test]
@@ -1471,5 +1834,101 @@ mod tests {
         assert_eq!(spec.padding.right, Scalar(60.0));
         assert_eq!(spec.padding.bottom, Scalar(90.0));
         assert_eq!(spec.padding.left, Scalar(120.0));
+    }
+
+    #[test]
+    fn parses_margin_box_style_declarations() {
+        // css-page-3 Appendix A: the inherited text properties + background +
+        // content parse; a box with no `content` declaration keeps `None`.
+        let rules = parse_page_rules(
+            "@page { @top-left { color: blue; background: yellow; text-align: center; \
+             vertical-align: bottom; font-family: monospace; font-size: 10px; \
+             font-weight: bold; font-style: italic; content: \"x\"; } \
+             @top-right { color: red; } }",
+        );
+        let r = &rules[0];
+        let b = &r.margin_boxes[0];
+        assert_eq!(b.content, Some(Some(vec![ContentPiece::Literal("x".to_string())])));
+        assert_eq!(b.style.color, Some(Color::rgb(0, 0, 255)));
+        assert_eq!(b.style.background, Some(Color::rgb(255, 255, 0)));
+        assert_eq!(b.style.text_align, Some(crate::css::TextAlign::Center));
+        assert_eq!(b.style.vertical_align, Some(VerticalAlign::Bottom));
+        assert_eq!(
+            b.style.font_family,
+            Some(vec![crate::fonts::FamilySpec::Monospace])
+        );
+        assert_eq!(b.style.font_size, Some(Scalar(7.5))); // 10px = 7.5pt
+        assert_eq!(b.style.font_weight, Some(700.0));
+        assert_eq!(b.style.font_style, Some(crate::css::FontStyle::Italic));
+        // No `content` declaration: the box is not generated.
+        assert_eq!(r.margin_boxes[1].content, None);
+    }
+
+    #[test]
+    fn margin_box_content_suppression() {
+        // css-page-3 §5.2: `content: none`/`normal` suppress generation; the
+        // empty string still generates the box.
+        let rules = parse_page_rules(
+            "@page { @top-left { content: none; } @top-center { content: \"\"; } \
+             @top-right { content: normal; } }",
+        );
+        let r = &rules[0];
+        assert_eq!(r.margin_boxes[0].content, Some(None));
+        assert_eq!(
+            r.margin_boxes[1].content,
+            Some(Some(vec![ContentPiece::Literal(String::new())]))
+        );
+        assert_eq!(r.margin_boxes[2].content, Some(None));
+    }
+
+    #[test]
+    fn margin_box_default_alignment_table() {
+        use crate::css::TextAlign;
+        assert_eq!(MarginBoxName::TopLeftCorner.default_text_align(), TextAlign::Right);
+        assert_eq!(MarginBoxName::TopLeft.default_text_align(), TextAlign::Left);
+        assert_eq!(MarginBoxName::TopCenter.default_text_align(), TextAlign::Center);
+        assert_eq!(MarginBoxName::TopRight.default_text_align(), TextAlign::Right);
+        assert_eq!(MarginBoxName::TopRightCorner.default_text_align(), TextAlign::Left);
+        assert_eq!(MarginBoxName::BottomLeftCorner.default_text_align(), TextAlign::Right);
+        assert_eq!(MarginBoxName::BottomRightCorner.default_text_align(), TextAlign::Left);
+        assert_eq!(MarginBoxName::LeftTop.default_text_align(), TextAlign::Center);
+        assert_eq!(MarginBoxName::RightBottom.default_text_align(), TextAlign::Center);
+        assert_eq!(MarginBoxName::LeftTop.default_vertical_align(), VerticalAlign::Top);
+        assert_eq!(MarginBoxName::LeftMiddle.default_vertical_align(), VerticalAlign::Middle);
+        assert_eq!(MarginBoxName::LeftBottom.default_vertical_align(), VerticalAlign::Bottom);
+        assert_eq!(MarginBoxName::TopLeft.default_vertical_align(), VerticalAlign::Middle);
+    }
+
+    #[test]
+    fn page_context_style_inherits_into_margin_boxes() {
+        // css-page-3 §6: page-context font-*/color inherit into margin boxes,
+        // and a box's own declaration wins.
+        let rules = parse_page_rules(
+            "@page { font-family: monospace; font-size: 0.7em; color: blue; \
+             @top-left { content: \"a\"; } \
+             @top-center { content: \"b\"; color: red; } }",
+        );
+        let cli = PageGeometry {
+            width: Scalar(412.5),
+            height: Scalar(300.0),
+            margin_top: Scalar(37.5),
+            margin_right: Scalar(37.5),
+            margin_bottom: Scalar(37.5),
+            margin_left: Scalar(37.5),
+        };
+        let spec = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero());
+        assert_eq!(spec.margin_boxes.len(), 2);
+        let a = &spec.margin_boxes[0];
+        assert_eq!(a.color, Color::rgb(0, 0, 255));
+        assert_eq!(a.font_size, Scalar(0.7 * 12.0));
+        assert_eq!(
+            a.line_height,
+            Scalar(0.7 * 12.0) * crate::css::NORMAL_LINE_HEIGHT_FACTOR
+        );
+        // `text-align` comes from the §6.2 default table (top-left → left).
+        assert_eq!(a.text_align, crate::css::TextAlign::Left);
+        let b = &spec.margin_boxes[1];
+        assert_eq!(b.color, Color::rgb(255, 0, 0), "own color wins");
+        assert_eq!(b.text_align, crate::css::TextAlign::Center, "top-center default");
     }
 }
