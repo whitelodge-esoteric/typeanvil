@@ -283,6 +283,22 @@ impl<'a> TyNode<'a> {
             TyNode::new(siblings[next as usize], self.backend)
         })
     }
+
+    /// The nearest ELEMENT sibling in direction `delta` (-1 or +1), skipping
+    /// text nodes. `selectors` drives `:nth-of-type` / `:nth-last-of-type` /
+    /// adjacent-sibling matching through this; returning a raw text sibling
+    /// would abort the walk, so any whitespace between element siblings broke
+    /// structural pseudo-classes (CORE-155).
+    fn sibling_element(&self, delta: isize) -> Option<TyElement<'a>> {
+        let mut cur = self.sibling(delta);
+        while let Some(n) = cur {
+            if let Some(el) = n.as_element() {
+                return Some(el);
+            }
+            cur = n.sibling(delta);
+        }
+        None
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -615,11 +631,11 @@ impl<'a> SelectorsElement for TyElement<'a> {
     }
 
     fn prev_sibling_element(&self) -> Option<Self> {
-        self.as_node().prev_sibling().and_then(|n| n.as_element())
+        self.as_node().sibling_element(-1)
     }
 
     fn next_sibling_element(&self) -> Option<Self> {
-        self.as_node().next_sibling().and_then(|n| n.as_element())
+        self.as_node().sibling_element(1)
     }
 
     fn first_element_child(&self) -> Option<Self> {
