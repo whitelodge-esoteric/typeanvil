@@ -1864,6 +1864,12 @@ impl<'a> Ctx<'a> {
         // fires on a genuinely empty page, not merely an empty (just-started)
         // box. Becomes true once this box places anything.
         let mut placed = page_has_content;
+        // Out-of-flow content (float/abspos) actually PLACED on this page,
+        // distinct from `placed` (which also reflects the parent's pre-existing
+        // content). Drives the leading forced-break guard: a SKIPPED fixed box
+        // must not make a following break-before fire (it is cloned onto every
+        // page, not placed here) — fixedpos-with-link-with-inline-child.
+        let mut oof_placed = false;
 
         // Resume bookkeeping: which child index to start from, and its token.
         // `child_tokens` come positionally; a break-before child token means
@@ -2039,7 +2045,7 @@ impl<'a> Ctx<'a> {
                 let child_fresh = self.child_incoming(token, i).is_break_before();
                 if child_fresh
                     && cstyle.break_before.is_forced()
-                    && (!children.is_empty() || broke || i > start_index)
+                    && (!children.is_empty() || broke || oof_placed)
                 {
                     // Defer the rest to the next page, starting at this child.
                     seen_all = false;
@@ -2717,6 +2723,7 @@ impl<'a> Ctx<'a> {
                             flow,
                         );
                         flow.abspos.push((cstyle.z_index, res.fragment));
+                        oof_placed = true;
                         // Advance the ITEM index explicitly (`continue` skips
                         // the trailing `i += 1` — the CORE-62 lesson).
                         i += 1;
@@ -2832,6 +2839,7 @@ impl<'a> Ctx<'a> {
                                 side: cstyle.float,
                             });
                             placed = true;
+                            oof_placed = true;
                             // A float whose content broke across the page
                             // carries its remaining rectangle to the next
                             // fragmentainer (which resumes at the content top),

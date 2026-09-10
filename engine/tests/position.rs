@@ -563,3 +563,52 @@ fn render_cli(html: &Path, out: &Path, w: &str, h: &str) {
         .expect("failed to spawn typeanvil");
     assert!(status.success(), "typeanvil render failed");
 }
+
+/// CORE-154: a SKIPPED fixed box must not count as page content for the
+/// leading forced-break guard. A fixed box is laid out once and cloned onto
+/// every page (CORE-127 slice b), so it is never "placed" in body layout. The
+/// old guard used `i > start_index` as a proxy for "this page already has
+/// content"; the fixed skip advanced `i`, so the first `break-before: page`
+/// sibling fired a LEADING break — an empty page 1 plus one extra page
+/// (3 pages where the reference needs 2).
+#[test]
+fn skipped_fixed_box_does_not_trigger_a_leading_forced_break() {
+    let html = r#"<html><head><style>
+        @page { margin: 0; }
+        .fixed { position: fixed; top: 0; left: 0; width: 20pt; height: 20pt; }
+        .brk { break-before: page; }
+    </style></head><body>
+        <div class="fixed"></div>
+        <div class="brk">A</div>
+        <div class="brk">B</div>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    assert_eq!(
+        layout.pages.len(),
+        2,
+        "a leading fixed box is cloned onto the page, not content placed on it: \
+         the first break-before must be suppressed (page 1 = fixed + A, page 2 = B)"
+    );
+}
+
+/// CORE-154 companion: a genuinely PLACED out-of-flow box (abspos) DOES count,
+/// so a following `break-before: page` still fires. This is the distinction the
+/// fix must preserve — the abspos paints once on this page, unlike a cloned
+/// fixed box.
+#[test]
+fn placed_abspos_still_counts_for_a_leading_forced_break() {
+    let html = r#"<html><head><style>
+        @page { margin: 0; }
+        .abs { position: absolute; top: 0; left: 0; width: 20pt; height: 20pt; }
+        .brk { break-before: page; }
+    </style></head><body>
+        <div class="abs"></div>
+        <div class="brk">A</div>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    assert_eq!(
+        layout.pages.len(),
+        2,
+        "a placed abspos is content on this page, so the following forced break fires"
+    );
+}
