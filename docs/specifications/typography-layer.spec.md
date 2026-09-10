@@ -112,7 +112,13 @@ The engine shall:
    advances may be scaled by a per-line factor in [−2%, +2%] so the line fits
    the content width exactly (a deterministic post-pass on top of glue
    stretching; expansion is applied only when it reduces residual error).
-9. **Breakpoint glue is consumed by the break (CORE-94)**: the glue at a
+9. **Honor forced line breaks (`<br>`, CORE-159)**: a `<br>` element folds a
+   forced-break sentinel into its text run; the K-P item stream carries it as
+   a mandatory penalty (infinite demerit to skip). No line may span a forced
+   break, a forced-break line is never justified, leading and trailing forced
+   breaks produce real empty lines, and the fragmentation resume path consumes
+   the sentinel byte so a run resuming across pages cannot re-break at it.
+10. **Breakpoint glue is consumed by the break (CORE-94)**: the glue at a
    line's break point produces no space glyph and contributes neither its
    natural width nor its stretch/shrink to the line. The DP's
    `adjustment_ratio` measures `items[start..end]` (exclusive of the break
