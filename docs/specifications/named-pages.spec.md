@@ -50,13 +50,16 @@ the WPT refs actually encode.
    bare inline runs (atomic interiors and flex items are not page-grouped).
 4. Residuals with per-test root causes; do not chase via this spec.
    `page-name-002/003` (bare-text/abspos boundary model — needs a Chromium
-   boundary study), `page-name-display-none-child` (guard added, fixture
-   still fails — the hidden child's text is folded elsewhere; re-probe),
-   `page-name-inline-block-002` (atomic sibling comparison),
-   `page-name-zero-height-001` (engine renders 3 pages; Chrome/Edge also
-   FAIL this test at 6 pages, Firefox passes — no agreed browser model).
-   `page-name-img-001/002` were fixed by this slice: an inline-level
-   replaced image's own `page` declaration is inert (see Behavior 6).
+   boundary study), `page-name-zero-height-001` (engine renders 3 pages;
+   Chrome/Edge also FAIL this test at 6 pages, Firefox passes — no agreed
+   browser model). Fixed by the two CORE-157 slices:
+   `page-name-img-001/002` (an inline-level replaced image's own `page`
+   declaration is inert — Behavior 6), `page-name-display-none-child` and
+   `page-name-inline-block-002` (the boundary comparison now also runs on
+   the placed atomic path — Behavior 3), and `root-element-display-none`
+   (Behavior 7). `page-name-orthogonal-writing-002` also flipped PASS in
+   the second slice (Behaviour 3's class-A-aware atomic comparison applies
+   inside the writing-mode subtree test).
 5. Harness-geometry-limited residuals: `basic-pagination-003`,
    `page-background-004/005` declare their own `@page size`; the harness
    renders every fixture at its fixed 5x3in/0.5in geometry, and the
@@ -93,23 +96,41 @@ the WPT refs actually encode.
    zero-height (`height: 0`) boxes. A qualifying block with no qualifying
    children is itself the leaf. A flex container (row or column) is itself
    a leaf — its items are not page-grouped.
-3. **Sibling change break.** After an in-flow block child places content
-   (`!res.empty`), layout finds the next content-bearing in-flow sibling
-   (skipping atomics, out-of-flow, display:none, and zero-height blocks;
-   a bare text run terminates the search contextless) and compares the
-   just-placed child's last-leaf context against the target's first-leaf
-   context — the just-placed child itself substitutes when it has no
-   qualifying leaf (a replaced or empty box IS its own leaf). A difference
-   DEFERS a forced break-before at the target's item index: the loop keeps
-   laying items between (out-of-flow floats still land on the current page
-   in document order — page-name-float-002) and fires the break only when
-   the loop reaches the target.
+3. **Sibling change break.** After an in-flow block child places content,
+   layout finds the next content-bearing in-flow sibling (skipping
+   out-of-flow, display:none, and zero-height blocks; a bare text run
+   terminates the search contextless) and compares the just-placed child's
+   last-leaf context against the target's first-leaf context — the
+   just-placed child itself substitutes when it has no qualifying leaf (a
+   replaced or empty box IS its own leaf). A difference DEFERS a forced
+   break-before at the target's item index: the loop keeps laying items
+   between (out-of-flow floats still land on the current page in document
+   order — page-name-float-002) and fires the break only when the loop
+   reaches the target.
+
+   The comparison also runs on the **placed atomic path** (an inline-block
+   item), and the placed side resolves its context through
+   `context_effective_page`: an inline-level box is not class A, so its own
+   `page` is inert and its context comes from the ancestor chain
+   (`page-name-inline-block-002` — the `page:c` inline-block inherits the
+   default context, so the following `page:c` block differs and breaks).
+
+   The comparison is skipped only for a **resume-empty wrapper whose
+   subtree still holds content**: it finished its children on an earlier
+   page (a forced break-after fired before it, and-break-003), so the
+   boundary it would demand already fired and breaking again would add a
+   blank page. A genuinely contentless box (no leaf anywhere — e.g. a
+   wrapper holding only `display: none` children) does NOT skip: it hosts
+   its own boundary (`page-name-display-none-child`).
 4. **Suppressions.** No page-change break fires: inside an inline-block
-   (atomic interior), in any subtree whose ancestor-or-self carries an
-   explicit `writing-mode` declaration (`ComputedStyle
+   (atomic interior), in any subtree whose INTERMEDIATE ancestor-or-self
+   carries an explicit `writing-mode` declaration (`ComputedStyle
    ::writing_mode_declared`, set by the paged-media pass for both
-   stylesheet and inline declarations), when the placed child was empty,
-   or when the subtree below either side holds no in-flow content.
+   stylesheet and inline declarations), or when the subtree below either
+   side holds no in-flow content. A `writing-mode` declaration on the ROOT
+   element is NOT an interior orthogonal context — it establishes the
+   page's own flow, so root-level sibling page changes still break
+   (`page-name-orthogonal-writing-002`).
 5. **Selection unchanged.** Page geometry (which `@page` rule applies) is
    still resolved per page start by `active_page_name` (CORE-82).
 6. **Class-A applicability of `page`.** The `page` property applies only to
