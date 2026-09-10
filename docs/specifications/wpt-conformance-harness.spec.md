@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: elijah
 created: 2026-08-16
-updated: 2026-08-31
+updated: 2026-09-09
 sidebar_position: 1
 tags: [harness, wpt, conformance, testing]
 spec_id: wpt-conformance-harness
@@ -127,9 +127,18 @@ The harness shall:
 | `run` | `--engine {chromium,cli}` `--cli-cmd` `--filter` `--limit` `--workers` `--timeout` `--report` `--db` `--artifacts` | run a conformance pass |
 | `score` | `--db` `--gate` | scoreboard; nonzero exit on regressions |
 | `history` | `--db` `--limit` | list recorded runs |
+| `triage` | `<filter>` `--legs` `--limit` `--workers` `--engine-cmd` `--prince-cmd` `--python` `--wpt` `--outdir` | run one filter through our engine, Chromium, and Prince; report the odd one out |
 
 Defaults: `--engine chromium`, `--workers 2`, `--timeout 30.0` (s),
 `--report wptreport.json`, `--db history.sqlite`, `--artifacts artifacts`.
+
+`triage` scores each leg exactly as `run` does — test versus reference through
+that one engine — then reports which leg disagrees. Its readings are listed in
+`docs/conventions/css-standards-alignment.md`. The `prince` leg reaches Prince
+through `scripts/render-prince.sh`, which already satisfies the CLI adapter
+contract, so no Prince-specific engine adapter exists. A leg that cannot start
+(no Playwright, no Prince binary) reports `NO REPORT` and is excluded from the
+verdict rather than counted as a failure.
 
 **Engine adapter contract** (what the future `typeanvil render` MUST satisfy):
 
