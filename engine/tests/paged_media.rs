@@ -1287,3 +1287,80 @@ fn inline_img_page_declaration_is_inert_after_declaring_block() {
          fires before the img (img-002)"
     );
 }
+
+// --- CORE-157-b residuals --------------------------------------------------
+
+/// A page-declaring wrapper whose ONLY child is `display: none` is still a
+/// page-context box: the sibling page-change break fires around it, so the
+/// following page-declaring sibling starts a fresh page (page-name-display-
+/// none-child — test renders 3 pages like its ref and Chromium). The
+/// `!res.empty` guard must not skip the comparison for a genuinely contentless
+/// box; only a resume-empty wrapper (whose subtree still holds content,
+/// and-break-003) may skip.
+#[test]
+fn display_none_child_wrapper_keeps_page_change_break() {
+    let html = r#"<html><head><style>
+        @page { margin: 0; }
+        @page a { margin: 1in; }
+        @page b { margin: 1in; }
+        @page c { margin: 1in; }
+    </style></head><body>
+        <div style="page: a">a</div>
+        <div style="page: c">
+            <div style="display: none">c</div>
+        </div>
+        <div style="page: b">b</div>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    assert_eq!(
+        layout.pages.len(),
+        3,
+        "contentless page:c wrapper must still host a page-change boundary: \
+         a|c|b on three pages (display-none-child)"
+    );
+    // The hidden child's text must never leak onto any page.
+    for (i, page) in layout.pages.iter().enumerate() {
+        assert!(
+            !page_texts(page).iter().any(|t| t.contains('c')),
+            "page {} must not contain the display:none child's text",
+            i + 1
+        );
+    }
+}
+
+/// An inline-block's OWN `page` declaration is inert (css-page-3 §8.1 class-A
+/// applicability), and its interior page-changes do not propagate (atomic
+/// interior — spec Non-Goal 3). A following in-flow `page:c` BLOCK sibling is
+/// class A and its context change from the inline-block's inherited context
+/// forces the break (page-name-inline-block-002: inline-block `page:c` with
+/// interior a/b + following `page:c` div = 2 pages; the div's `page:c` is
+/// inert against the default page, so the break is demanded by the div).
+#[test]
+fn inline_block_page_declaration_is_inert_following_block_breaks() {
+    let html = r#"<html><head><style>
+        @page { margin: 0; }
+        @page a { margin: 1in; }
+        @page b { margin: 1in; }
+        @page c { margin: 1in; }
+        div { width: 1in; height: 1in; }
+    </style></head><body>
+        <div style="page: c; display: inline-block">
+            <div style="page: a">a</div>
+            <div style="page: b">b</div>
+        </div>
+        <div style="page: c">c</div>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    assert_eq!(
+        layout.pages.len(),
+        2,
+        "following page:c div after an inert page:c inline-block must break \
+         (inline-block-002): 2 pages"
+    );
+    let p1 = page_texts(&layout.pages[0]).concat();
+    assert!(p1.contains('a') && p1.contains('b'), "page 1 holds ab");
+    assert!(
+        page_texts(&layout.pages[1]).concat().contains('c'),
+        "page 2 holds the following div's c"
+    );
+}

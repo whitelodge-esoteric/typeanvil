@@ -2597,6 +2597,58 @@ impl<'a> Ctx<'a> {
                     placed = true;
                     first_in_flow = false;
                     prev_margin_bottom = Scalar::ZERO;
+
+                    // css-page-3 §4.2 — the placed side of the boundary
+                    // comparison, mirrored for an inline-block atomic item:
+                    // the box itself is its own leaf, and its effective
+                    // context is class-A aware (an inline-level box's own
+                    // `page` declaration is inert — page-name-inline-block-
+                    // 002's `page:c` inline-block inherits the default
+                    // context). A following in-flow BLOCK whose context
+                    // differs defers a break before it. The scan skips
+                    // atomics (the NEXT atomic hosts its own boundary when
+                    // placed) and terminates at bare text (contextless).
+                    if !self.orthogonal_flow(*child) && matches!(style.position, Position::Static | Position::Relative)
+                    {
+                        let prev_end = self.context_effective_page(*child);
+                        let mut j = i + 1;
+                        let mut target: Option<(usize, Option<&str>)> = None;
+                        while j < items.len() {
+                            match &items[j] {
+                                Item::Atomic(_) => j += 1,
+                                Item::Text(..) => break, // contextless
+                                Item::Block(b) => {
+                                    let cs = &self.styles[*b];
+                                    if cs.float != Float::None
+                                        || matches!(
+                                            cs.position,
+                                            Position::Absolute | Position::Fixed
+                                        )
+                                        || cs.display == Display::None
+                                        || cs.height == Some(Scalar::ZERO)
+                                    {
+                                        j += 1;
+                                        continue;
+                                    }
+                                    match self.page_context_leaf(*b, false) {
+                                        Some(leaf) => {
+                                            target = Some((j, self.effective_page(leaf)));
+                                            break;
+                                        }
+                                        None => {
+                                            target = Some((j, self.effective_page(*b)));
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if let (Some(prev), Some((j, next_ctx))) = (Some(prev_end), target) {
+                            if prev != next_ctx {
+                                deferred_break_at = Some(j);
+                            }
+                        }
+                    }
                     i += 1;
                     continue;
                 }
@@ -3017,21 +3069,57 @@ impl<'a> Ctx<'a> {
                     ) && matches!(style.position, Position::Static | Position::Relative)
                         && style.float == Float::None
                         && !self.orthogonal_flow(id)
-                        && !res.empty
                     {
-                        let prev_end = self
-                            .page_context_leaf(*child, true)
+                        // The comparison runs unless the box is a resume-empty
+                        // wrapper whose subtree still holds content. Such a
+                        // box finished its children on an EARLIER page (its
+                        // last fragment just placed nothing here — a forced
+                        // break-after fired before it, and-break-003): the
+                        // page-change boundary it would demand ALREADY fired
+                        // with the child that ended the earlier page, so
+                        // breaking again would add a blank page. A genuinely
+                        // contentless box (no leaf anywhere, e.g. a wrapper
+                        // holding only `display: none` children) hosts its
+                        // own boundary — page-name-display-none-child's page:c
+                        // wrapper must keep its page even though it places
+                        // nothing (Chromium renders the empty page).
+                        let prev_leaf = self.page_context_leaf(*child, true);
+                        let genuinely_contentless = prev_leaf.is_none();
+                        let resuming_wrapper = res.empty && prev_leaf.is_some();
+                        if !resuming_wrapper {
+                        let prev_end = prev_leaf
                             // A leaf-less box (replaced element, empty div)
                             // IS its own content leaf — fall back to the box
                             // itself so its own `page` declares the boundary
                             // (page-name-canvas-004).
                             .or(Some(*child))
-                            .map(|n| self.effective_page(n));
+                            // Class-A applicability: an inline-level placed
+                            // box (inline-block) carries no page context of
+                            // its own — its declared `page` is inert
+                            // (page-name-inline-block-002: the `page:c`
+                            // inline-block inherits the default context, so
+                            // the following `page:c` block differs and
+                            // breaks).
+                            .map(|n| self.context_effective_page(n));
                         let mut j = i + 1;
                         let mut target: Option<(usize, Option<&str>)> = None;
                         while j < items.len() {
                             match &items[j] {
-                                Item::Atomic(_) => j += 1,
+                                Item::Atomic(a) => {
+                                    // An inline-block sibling hosts a
+                                    // boundary of its OWN (the placed side's
+                                    // rule, mirror: an atomic interior is
+                                    // not page-grouped, but the box's
+                                    // inherited context is a boundary
+                                    // position). A following page-declaring
+                                    // BLOCK past an inert inline-block must
+                                    // still compare against the block
+                                    // (page-name-inline-block-002), so the
+                                    // atomic box is only a transient target:
+                                    // scan past it to the next block (its own
+                                    // boundary fires when IT is placed).
+                                    j += 1;
+                                }
                                 Item::Text(..) => break, // contextless
                                 Item::Block(b) => {
                                     let cs = &self.styles[*b];
@@ -3086,6 +3174,7 @@ impl<'a> Ctx<'a> {
                                 // The loop breaks only when it REACHES j.
                                 deferred_break_at = Some(j);
                             }
+                        }
                         }
                     }
 
@@ -4617,19 +4706,64 @@ impl<'a> Ctx<'a> {
         None
     }
 
-    /// True when any ancestor-or-self of `id` carries an explicit
-    /// `writing-mode` declaration (CORE-127 suppression: the engine paginates
-    /// every flow horizontally in v1, so page-change breaks inside
-    /// orthogonal-flow documents cannot match the harness refs either).
+    /// The effective page context of `id`, with class-A applicability applied:
+    /// an inline-level box (inline-block or inline replaced image) carries no
+    /// page-context of its OWN, so its `page` declaration is inert — the
+    /// context is inherited from the ancestor chain (css-page-3 §8.1 "Applies
+    /// to: boxes that create class A break points"). Used by the sibling
+    /// boundary comparison for the placed side: a `page:c` inline-block under
+    /// a default-page body inherits the DEFAULT context, so a following
+    /// `page:c` block (also class A — its declaration IS inert against the
+    /// default) demands the break (page-name-inline-block-002).
+    fn context_effective_page(&self, id: NodeId) -> Option<&str> {
+        if matches!(
+            self.styles[id].display,
+            Display::InlineBlock | Display::Inline | Display::InlineFlex
+        ) {
+            // Skip the box's own declaration: an inline-level box is not
+            // class A. Recurse from the parent so the ancestor chain (and
+            // any sticky replaced sibling) resolves normally.
+            if let Some(parent) = self.dom.nodes[id].parent {
+                return self.effective_page(parent);
+            }
+            return None;
+        }
+        self.effective_page(id)
+    }
+
+    /// True when an INTERMEDIATE ancestor-or-self of `id` (never the root
+    /// element itself) carries an explicit `writing-mode` declaration.
+    ///
+    /// CORE-127 suppression: the engine paginates every flow horizontally in
+    /// v1, so page-change breaks inside an orthogonal-flow SUBTREE cannot
+    /// match the harness refs (the refs keep the page-declaring pair on one
+    /// page by nesting them in a wrapper that switches writing mode —
+    /// orthogonal-writing-001/003/004). A writing-mode declaration on the
+    /// ROOT element (html) establishes the PAGE's own flow, not an interior
+    /// orthogonal context: the page-change break between root-level siblings
+    /// still fires (orthogonal-writing-002's `page:a`/`page:b` body children
+    /// under `html[writing-mode: vertical-rl]` render two pages in
+    /// Chromium, and its ref's margin overflow produces the same two pages).
     fn orthogonal_flow(&self, id: NodeId) -> bool {
         let mut cur = Some(id);
         while let Some(n) = cur {
-            if self.styles[n].writing_mode_declared {
+            if self.styles[n].writing_mode_declared && !self.is_root_element(n) {
                 return true;
             }
             cur = self.dom.nodes[n].parent;
         }
         false
+    }
+
+    /// True when `id` is the root ELEMENT (html) — the direct child of the
+    /// synthetic document node. The document node itself (`dom.root`) is
+    /// never element-styled, so only a real `<html>` element can carry the
+    /// root-level writing-mode that defines the page flow.
+    fn is_root_element(&self, id: NodeId) -> bool {
+        matches!(
+            self.dom.nodes[id].kind,
+            crate::dom::NodeKind::Element(_)
+        ) && self.dom.nodes[id].parent == Some(self.dom.root)
     }
 
     /// The first (`last = false`) or last (`last = true`) in-flow content
