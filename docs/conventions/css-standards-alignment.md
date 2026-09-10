@@ -4,7 +4,7 @@ type: convention
 status: approved
 owner: elijah
 created: 2026-08-24
-updated: 2026-08-24
+updated: 2026-09-09
 sidebar_position: 3
 tags: [css, engine, compatibility, prince]
 ---
@@ -47,8 +47,25 @@ deviations as our own behavior.
 
 ## Practical effect on parity work
 
-Our demo corpus and WPT harness compare Typeanvil against Prince output. When
-a residual diff traces to a place where Prince deviates from the CSS spec:
+Our demo corpus compares Typeanvil against Prince output: `scripts/build-demo.sh`
+renders every corpus document through both engines and scores the pixel diff.
+
+Our WPT harness does **not** compare against Prince. It scores test-versus-
+reference through a single engine, and Chromium (via Playwright) is its built-in
+oracle — WPT references are authored by browser engineers to encode browser
+behavior, so a browser is the ground truth for a WPT reftest by construction.
+For three-way triage on a failing test, `python -m harness triage <filter>` runs
+the same filter through our engine, Chromium, and Prince and reports who is the
+odd one out. Two readings matter most:
+
+- **Our engine fails where both Chromium and Prince pass** — we are the odd one
+  out, and two real engines satisfy the reference. Treat it as our bug.
+- **Our engine fails where Prince passes but Chromium fails** (or the reverse) —
+  the pair may be contradictory. Check whether another test pins the opposite
+  reference before investing; `page-name-003` and `page-name-abspos-002` are
+  structurally identical with opposite references, so no engine can pass both.
+
+When a residual diff traces to a place where Prince deviates from the CSS spec:
 
 - Fix toward the spec if the fix is cheap and gated clean on the full WPT
   suite (the usual self-consistency gate still applies).

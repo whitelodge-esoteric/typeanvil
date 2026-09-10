@@ -164,11 +164,22 @@ def build_parser() -> argparse.ArgumentParser:
     ph.add_argument("--limit", type=int, default=20)
     ph.set_defaults(func=_cmd_history)
 
+    # `triage` owns its own arguments (see harness/triage.py); it is delegated
+    # wholesale so the two command surfaces stay in step.
+    sub.add_parser("triage", help="run a filter through engine + Chromium + Prince and report the odd one out",
+                   add_help=False)
+
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
+    raw = list(sys.argv[1:] if argv is None else argv)
+    # Delegate `triage` before argparse sees its flags, so it can define its own.
+    if raw and raw[0] == "triage":
+        from . import triage
+
+        return triage.main(raw[1:])
     args = parser.parse_args(argv)
     return args.func(args)
 
