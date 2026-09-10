@@ -64,6 +64,13 @@ const HYPHEN_PENALTY: f64 = 135.0;
 /// 1-character syllables merge into the first box.
 const LEFT_HYPHEN_MIN: usize = 2;
 
+/// The `<br>` sentinel folded into text runs (CORE-159). `build_items` turns
+/// each occurrence into a forced break item; the layout inline collector
+/// (`layout::collect_items_rec`) emits it for every `<br>` element. U+0000 is
+/// collision-free because the HTML tokenizer replaces input NULs with U+FFFD,
+/// so no real text node can contain one.
+pub const FORCED_BREAK_CHAR: char = '\u{0000}';
+
 /// The embedded font bytes, loaded once per face. `'static` so a [`FontRef`]
 /// can borrow them for the whole process. The initializer is fixed, hence
 /// `LazyLock`. CORE-103: bundled faces keep their fixed ids 0..4; the
@@ -521,9 +528,8 @@ enum Item {
         width: Scalar,
         /// The glyph run for the hyphen, appended to the broken line's text.
         hyphen: Option<ShapeRun>,
-        /// Whether breaking here is mandatory (forced newline). Reserved for
-        /// future newline support: `build_items` never emits one today.
-        #[allow(dead_code)]
+        /// Whether breaking here is mandatory (a `<br>` forced break; CORE-159).
+        /// The DP never skips a forced penalty and never justifies its line.
         forced: bool,
     },
 }
@@ -558,16 +564,19 @@ fn space_glue_with_features(
 }
 
 /// Tokenize a paragraph into the K-P item stream. Words are shaped; spaces
-/// become glue; `hyphenate` adds intra-word hyphen penalties from `hypher`.
-/// UAX #14 boundaries confirm where inter-word breaks are legal.
+/// become glue; `hyphenate` adds intra-word hyphen penalties from `hypher`;
+/// each [`FORCED_BREAK_CHAR`] sentinel becomes a forced break item (CORE-159).
 ///
 /// Returns the items plus a parallel `box_ends` vec: for each item, the
-/// SOURCE byte offset in `text` just past that item's text (meaningful only
-/// for `Item::Box`; 0 for glue/penalty). `materialize_line` uses these to
-/// compute the real source span each line consumes (CORE-91) — rebuilt line
-/// text with single spaces is shorter than the source when the source has
-/// newlines/indent/multi-space runs, and offset accounting based on it
+/// SOURCE byte offset in `text` just past that item's text (meaningful for
+/// `Item::Box` — the end of its word — and for a forced penalty — just past
+/// its sentinel; 0 for glue/hyphen penalties). `materialize_line` uses these
+/// to compute the real source span each line consumes (CORE-91) — rebuilt
+/// line text with single spaces is shorter than the source when the source
+/// has newlines/indent/multi-space runs, and offset accounting based on it
 /// resumes runs a few bytes early, redrawing the previous line's last glyph.
+/// A line that ends at a forced break consumes its sentinel byte too, so the
+/// resume path never re-encounters the sentinel as a leading break.
 fn build_items(
     text: &str,
     font_size: Scalar,
@@ -580,31 +589,65 @@ fn build_items(
     let mut items: Vec<Item> = Vec::new();
     let mut box_ends: Vec<usize> = Vec::new();
     // Walk words with their real byte offsets in `text` (split_whitespace
-    // loses them; a manual scan keeps the source mapping).
-    let mut scan = 0usize;
-    for (wi, word) in text.split_whitespace().enumerate() {
-        // Locate this word's start at/after `scan` (words are in order).
-        let start = text[scan..]
-            .find(word)
-            .map(|i| i + scan)
-            .unwrap_or(scan);
-        if wi > 0 {
+    // loses them and would not split on the forced-break sentinel; a manual
+    // scan keeps the source mapping AND turns sentinels into forced breaks).
+    let mut i = 0usize;
+    let mut first = true;
+    while i < text.len() {
+        // Collapse a whitespace run. Each FORCED_BREAK_CHAR inside it becomes
+        // a forced break item; a run containing one produces no inter-word
+        // glue — the break itself is the separator (HTML whitespace around
+        // `<br>` collapses).
+        let ws_start = i;
+        let mut forced_here = false;
+        while i < text.len() {
+            let c = text[i..].chars().next().unwrap();
+            if c == FORCED_BREAK_CHAR {
+                items.push(Item::Penalty {
+                    penalty: f64::NEG_INFINITY,
+                    width: Scalar::ZERO,
+                    hyphen: None,
+                    forced: true,
+                });
+                box_ends.push(i + 1);
+                forced_here = true;
+                i += 1;
+            } else if c.is_whitespace() {
+                i += c.len_utf8();
+            } else {
+                break;
+            }
+        }
+        if i >= text.len() {
+            break;
+        }
+        if !first && !forced_here && ws_start < i {
             // Inter-word glue is a legal (zero-penalty) breakpoint.
             items.push(Item::Glue(glue));
             box_ends.push(0);
         }
+        // Read the next word (a maximal run of non-whitespace, non-sentinel).
+        let word_start = i;
+        while i < text.len() {
+            let c = text[i..].chars().next().unwrap();
+            if c == FORCED_BREAK_CHAR || c.is_whitespace() {
+                break;
+            }
+            i += c.len_utf8();
+        }
+        let word = &text[word_start..i];
         push_word(
             &mut items,
             &mut box_ends,
             word,
-            start,
+            word_start,
             font_size,
             hyphenate,
             &hyphen_run,
             face,
             features,
         );
-        scan = start + word.len();
+        first = false;
     }
     (items, box_ends)
 }
@@ -721,7 +764,9 @@ fn is_break_point(items: &[Item], i: usize) -> bool {
     match &items[i] {
         // A glue is a breakpoint only if preceded by a box (TeX rule).
         Item::Glue(_) => i > 0 && matches!(items[i - 1], Item::Box(_)),
-        Item::Penalty { penalty, .. } => *penalty < f64::INFINITY,
+        // A forced break (`<br>`) is always a legal breakpoint, even at the
+        // paragraph start (leading forced breaks are real per CSS).
+        Item::Penalty { forced, penalty, .. } => *forced || *penalty < f64::INFINITY,
         Item::Box(_) => false,
     }
 }
@@ -800,6 +845,14 @@ fn knuth_plass(items: &[Item], max_width: f64, justify: bool) -> Vec<usize> {
     if nodes.last() != Some(&(n - 1)) {
         nodes.push(n - 1);
     }
+    // Prefix count of forced break items in items[0..i]: a candidate line
+    // [line_start, brk) must not contain one — a forced break is mandatory and
+    // never skipped by breaking later (CORE-159).
+    let mut forced_prefix = vec![0usize; n + 1];
+    for idx in 0..n {
+        forced_prefix[idx + 1] = forced_prefix[idx]
+            + matches!(&items[idx], Item::Penalty { forced: true, .. }) as usize;
+    }
 
     // DP over nodes. `best[k]` = min total demerit for a paragraph ending with a
     // break at nodes[k]; `prev[k]` = the node index it came from (usize::MAX for
@@ -812,6 +865,7 @@ fn knuth_plass(items: &[Item], max_width: f64, justify: bool) -> Vec<usize> {
     for k in 0..m {
         let brk = nodes[k];
         let is_last = brk == n - 1;
+        let is_forced = matches!(&items[brk], Item::Penalty { forced: true, .. });
         let penalty = match &items[brk] {
             Item::Penalty { penalty, .. } => *penalty,
             _ => 0.0,
@@ -823,7 +877,10 @@ fn knuth_plass(items: &[Item], max_width: f64, justify: bool) -> Vec<usize> {
                 (0usize, 0.0f64, 1i32) // from paragraph start
             } else {
                 let j = pred; // an earlier taken break
-                if best[j].is_infinite() {
+                // `best[j]` is +inf only when no viable path reaches node j; a
+                // forced break path records -inf demerit (still viable). Test
+                // for +inf specifically, not `is_infinite()`.
+                if best[j] >= f64::INFINITY {
                     continue;
                 }
                 (nodes[j] + 1, best[j], fit[j])
@@ -831,14 +888,21 @@ fn knuth_plass(items: &[Item], max_width: f64, justify: bool) -> Vec<usize> {
             if line_start > brk {
                 continue;
             }
+            // A forced break is mandatory: no line may span one, so a line
+            // whose interior [line_start, brk) holds a forced break is illegal.
+            // (brk itself may be the forced break — that is the line's own end.)
+            if forced_prefix[brk] > forced_prefix[line_start] {
+                continue;
+            }
             let ratio = match adjustment_ratio(items, line_start, brk, max_width) {
                 Some(r) => r,
                 None => continue,
             };
             // A justified intermediate line pays the full spacing badness; the
-            // final line and (with `justify` off) every underfull line are set
-            // at natural width, free.
-            let b = if (is_last || !justify) && ratio > 0.0 {
+            // final line, forced-break lines, and (with `justify` off) every
+            // underfull line are set at natural width, free. A line ending in a
+            // forced break is never justified (CSS: hard newlines stay ragged).
+            let b = if (is_last || is_forced || !justify) && ratio > 0.0 {
                 0.0
             } else {
                 badness(ratio)
@@ -871,12 +935,12 @@ fn knuth_plass(items: &[Item], max_width: f64, justify: bool) -> Vec<usize> {
             }
         }
     }
-
     // The paragraph ends at the last node (brk == n-1); it is the last element.
     let end_k = m - 1;
-    if best[end_k].is_infinite() {
+    if best[end_k] >= f64::INFINITY {
         // No viable set of breaks (e.g. an unbreakable overfull word). Fall back
-        // to a single line spanning everything (monolithic overflow).
+        // to a single line spanning everything (monolithic overflow). A forced
+        // break path records -inf (viable), so this only fires on true dead end.
         return vec![n - 1];
     }
     let mut breaks = Vec::new();
@@ -1028,6 +1092,14 @@ fn materialize_line(
             range: hp..hp + 1,
         }));
     }
+    // A forced break (`<br>`) adds no glyphs or width, but the line CONSUMES
+    // its sentinel source byte (CORE-159): the consumed span must advance past
+    // the sentinel or the resume path re-encounters it as a leading break and
+    // emits a spurious empty line. `box_ends` for a forced penalty records the
+    // offset just past the sentinel.
+    if matches!(&items[end], Item::Penalty { forced: true, .. }) {
+        src_end = box_ends[end];
+    }
 
     let (mut stretch_used, mut shrink_used) = (0.0f64, 0.0f64);
     let mut expansion = 0.0f64;
@@ -1132,6 +1204,27 @@ pub fn break_paragraph(
         prev_end = abs_end;
         lines.push(lr);
         start = end + 1;
+    }
+    // Trailing forced breaks are real empty lines (CORE-159, CSS). The DP's
+    // "final node = n-1" convention materializes the line ENDING at the last
+    // forced penalty, never the empty line after it, so append one empty line
+    // when content precedes the trailing break(s). A lone leading+trailing
+    // `<br>` (no box before it) is already the first materialized line.
+    let trailing_forced =
+        matches!(items.last(), Some(Item::Penalty { forced: true, .. }));
+    let has_box_before = items.iter().any(|it| matches!(it, Item::Box(_)));
+    if trailing_forced && has_box_before {
+        lines.push(LineResult {
+            text: String::new(),
+            glyphs: Vec::new(),
+            natural_width: Scalar::ZERO,
+            stretch_used: Scalar::ZERO,
+            shrink_used: Scalar::ZERO,
+            expansion: 0.0,
+            protrude_left: Scalar::ZERO,
+            protrude_right: Scalar::ZERO,
+            consumed: 0,
+        });
     }
     lines
 }

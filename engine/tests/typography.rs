@@ -772,3 +772,63 @@ fn feature_doc_layout_is_deterministic() {
     let tb: Vec<String> = b.pages.iter().flat_map(page_texts).collect();
     assert_eq!(ta, tb);
 }
+
+// --- CORE-159: <br> forced line breaks -------------------------------------
+
+/// A forced break splits a run into two lines; the same text without the
+/// sentinel stays one line. Drives `break_paragraph` directly (not pixels).
+#[test]
+fn forced_break_splits_line() {
+    let style = p_style("<html><body><p>t</p></body></html>");
+    let width = Scalar(400.0);
+    let lines = break_paragraph(
+        &format!("aaa{}bbb", typeanvil::typography::FORCED_BREAK_CHAR),
+        width,
+        &style,
+        false,
+        false,
+    );
+    assert_eq!(lines.len(), 2, "forced break must split the run into two lines");
+    assert_eq!(lines[0].text, "aaa");
+    assert_eq!(lines[1].text, "bbb");
+
+    // Without the forced break the same glyphs stay on one line.
+    let joined = break_paragraph("aaabbb", width, &style, false, false);
+    assert_eq!(joined.len(), 1, "aaabbb must stay one line without <br>");
+    assert_eq!(joined[0].text, "aaabbb");
+}
+
+/// Leading and trailing forced breaks are real empty lines (CSS).
+#[test]
+fn forced_break_leading_and_trailing() {
+    let style = p_style("<html><body><p>t</p></body></html>");
+    let width = Scalar(400.0);
+    let br = typeanvil::typography::FORCED_BREAK_CHAR;
+
+    let leading = break_paragraph(&format!("{br}aaa"), width, &style, false, false);
+    assert_eq!(leading.len(), 2, "leading <br> produces an empty first line");
+    assert_eq!(leading[0].text, "");
+    assert_eq!(leading[1].text, "aaa");
+
+    let trailing = break_paragraph(&format!("aaa{br}"), width, &style, false, false);
+    assert_eq!(trailing.len(), 2, "trailing <br> produces an empty last line");
+    assert_eq!(trailing[0].text, "aaa");
+    assert_eq!(trailing[1].text, "");
+}
+
+/// End-to-end: a real `<br>` element in HTML reaches the breaker as a sentinel
+/// and splits the line (the reported bug: `<div>aaa<br>bbb</div>` rendered one
+/// line `aaabbb`).
+#[test]
+fn br_element_end_to_end() {
+    let layout = lay(
+        "<html><body><div>aaa<br>bbb</div></body></html>",
+        geometry(5.0, 3.0, 0.5),
+    );
+    let texts = page_texts(&layout.pages[0]);
+    assert_eq!(
+        texts,
+        vec!["aaa".to_string(), "bbb".to_string()],
+        "<br> must split the run into two lines"
+    );
+}

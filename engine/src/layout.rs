@@ -4967,6 +4967,18 @@ impl<'a> Ctx<'a> {
             match &self.dom.nodes[child].kind {
                 NodeKind::Text(t) => pending.push_str(t),
                 NodeKind::Element(_) => {
+                    // CORE-159: `<br>` folds a forced-break sentinel into the
+                    // run; the typography breaker turns it into a forced line
+                    // break. (html5ever may also surface it as a `Text` child;
+                    // that path is empty and harmless.)
+                    if self.dom.nodes[child]
+                        .kind
+                        .element()
+                        .is_some_and(|el| el.tag == "br")
+                    {
+                        pending.push(crate::typography::FORCED_BREAK_CHAR);
+                        continue;
+                    }
                     // A `display: none` child generates no box: its text must
                     // not fold into the parent's run (page-name-display-none-
                     // child — the hidden child's text leaked onto the empty
