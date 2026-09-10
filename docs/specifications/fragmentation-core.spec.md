@@ -218,7 +218,11 @@ Given/When/Then, each mapping to a real test in `engine/tests/`:
   resort), no infinite relayout loop.
 - **Forced break inside an avoid box** → forced break wins; the box fragments
   at the forced boundary.
-- **Margin at a page boundary** → truncated to zero at the fragmentainer edge.
+- **Margin at a page boundary** → a fragmented box's continuation truncates
+  its top margin at the fragmentainer edge; a FRESH box at a page start keeps
+  its top margin (css-break-3 §3.1, refined in CORE-153 toward the spec and
+  Chromium; previously truncated Prince-style — see
+  ua-print-defaults.spec.md).
 - **`orphans`/`widows` conflicting with `break-inside: avoid`** → css-break-3
   §4.4 rule-dropping order resolves; the run terminates.
 - **Box already started when a later `break-before` applies** → `IsBreakBefore`

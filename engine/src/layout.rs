@@ -51,7 +51,7 @@ mod grid;
 mod multicol;
 use crate::paged::{
     parse_page_rules, resolve_page_spec, ContentPiece, MarginAlign, MarginBoxName, MarginRow,
-    PageRule, PageSpec, RunningStrings,
+    PageMargins, PageRule, PageSpec, RunningStrings,
 };
 use crate::table::{measure_columns, measure_rows};
 use crate::typography::{break_paragraph, LineResult};
@@ -854,6 +854,18 @@ fn paginate(
     // paged media: fixed content repeats on all pages; Chromium resolves
     // the box against the ICB and repeats it verbatim, fixedpos-010's ref).
     let fixed_ids = collect_fixed_ids(dom, styles, root);
+    // The page context's `inherit` source: the root element's computed
+    // margins (css-page-3 §3; page-margin-006's `@page { margin: inherit }`
+    // takes the root's 0.5in).
+    let inherit_margins = dom
+        .find_tag("html")
+        .map(|id| PageMargins {
+            top: styles[id].margin_top,
+            right: styles[id].margin_right,
+            bottom: styles[id].margin_bottom,
+            left: styles[id].margin_left,
+        })
+        .unwrap_or_else(PageMargins::zero);
     // The ICB content rect, captured when page 0 lays out (declared before
     // the loop so the loop can fill it; CORE-144).
     let mut icb_content: Option<Rect> = None;
@@ -900,7 +912,13 @@ fn paginate(
             PageCtx::Reset => current_name = None,
             PageCtx::Carry => {}
         }
-        let spec = resolve_page_spec(page_rules, current_name.as_deref(), page_index, cli);
+        let spec = resolve_page_spec(
+            page_rules,
+            current_name.as_deref(),
+            page_index,
+            cli,
+            inherit_margins,
+        );
         let geo = spec.geometry();
         let content = geo.content_rect();
 
@@ -952,7 +970,7 @@ fn paginate(
         let saved_flow = flow.clone();
         let saved_links_len = links.borrow().len();
         let mut res =
-            ctx.layout_root(root, content.y, &token, &mut flow, page_index == 0);
+            ctx.layout_root(root, content.y, &token, &mut flow);
         if !fn_numbers.is_empty() && !flow.pending_footnotes.is_empty() {
             let area_h =
                 footnote_area_height(dom, styles, &flow.pending_footnotes, content.width);
@@ -977,7 +995,7 @@ fn paginate(
                         fn_numbers,
                         counter_snaps: &counter_snaps,
                     };
-                    res = ctx2.layout_root(root, content.y, &token, &mut flow, page_index == 0);
+                    res = ctx2.layout_root(root, content.y, &token, &mut flow);
                 }
                 // Attach THIS page's notes (the post-retry registrations)
                 // into the band above the bottom margin.
@@ -1061,7 +1079,7 @@ fn paginate(
     }
 
     if pages.is_empty() {
-        let spec = resolve_page_spec(page_rules, None, 0, cli);
+        let spec = resolve_page_spec(page_rules, None, 0, cli, inherit_margins);
         let mut fragmentainer = Fragmentainer::new(0, spec.size);
         let geo = spec.geometry();
         let content = geo.content_rect();
@@ -1094,7 +1112,7 @@ fn paginate(
             // Degenerate: MAX_PAGES=0 path (no pages at all). Fall back to the
             // CLI geometry's content rect — nothing fixed exists to place
             // anyway, but the code must stay total.
-            resolve_page_spec(page_rules, None, 0, cli)
+            resolve_page_spec(page_rules, None, 0, cli, inherit_margins)
                 .geometry()
                 .content_rect()
         });
@@ -1159,7 +1177,6 @@ fn paginate(
                 fy,
                 Scalar(f64::MAX),
                 false,
-                true,
                 &BreakToken::break_before(),
                 fx_flow,
             );
@@ -1416,7 +1433,6 @@ impl<'a> Ctx<'a> {
         top: Scalar,
         bottom_limit: Scalar,
         page_has_content: bool,
-        first_in_flow: bool,
         style: &ComputedStyle,
         flow: &mut Flow,
     ) -> BlockResult {
@@ -1426,14 +1442,11 @@ impl<'a> Ctx<'a> {
         // ---- resolve used width/height (points), shared with measure ----
         let (used_w, used_h, _) = self.image_used_size(id, avail_width, style);
 
-        // Margins: fresh box at a fragmentainer start truncates top margin
-        // like any block (css-break-3 / CORE-95).
-        let fresh = true; // images never resume; they are monolithic
-        let margin_top = if fresh && first_in_flow {
-            Scalar::ZERO
-        } else {
-            style.margin_top
-        };
+        // A monolithic image never resumes, so its top margin applies on
+        // every page it lands on (css-break-3 truncates only a fragmented
+        // box's continuation top margin — the `!fresh` branch in the block
+        // path; images always lay fresh).
+        let margin_top = style.margin_top;
         let box_top = top + margin_top;
         let box_left = origin_x + style.margin_left;
         let box_w = used_w + style.margin_left + style.margin_right;
@@ -1519,44 +1532,27 @@ impl<'a> Ctx<'a> {
         content_top: Scalar,
         token: &BreakToken,
         flow: &mut Flow,
-        document_start: bool,
     ) -> BlockResult {
         // The root is laid out like any block, positioned at the content-box
         // origin. `bottom_limit` is the absolute y of the content-box bottom.
-        // The root box's own top margin truncates at CONTINUATION fragmentainer
-        // starts (CORE-95) but APPLIES at the document start: page 1 begins
-        // the document, which is not a break (css-break-3 §3.1) — Chromium
-        // keeps the body margin there (page-size-006: page-1 content sits at
-        // @page margin + body 8px; page 2+ at @page margin alone). In-body
-        // first-in-flow margins still truncate at every page top. Applied as
-        // a post-layout subtree shift (layout_box truncates first-in-flow
-        // margins internally); parent-child margin collapse is not modeled
-        // (documented deviation).
+        // The body box's own top margin follows the ordinary css-break-3 rule
+        // inside layout_box: applied on the fresh first page (fresh =>
+        // margin_top), truncated on continuation pages (!fresh). No post-layout
+        // shift is needed — the fragment offset already carries the margin
+        // (page-size-006: page-1 content sits at @page margin + body 8px;
+        // page 2+ at @page margin alone). parent-child margin collapse is not
+        // modeled (documented deviation).
         let bottom_limit = content_top + self.page_height;
-        let mut res = self.layout_box(
+        self.layout_box(
             id,
             self.content_x,
             self.content_width,
             content_top,
             bottom_limit,
             false,
-            true,
             token,
             flow,
-        );
-        if document_start && !res.empty {
-            let mt = self.styles[id].margin_top;
-            if mt.get() > 0.0 {
-                // Offsets are PARENT-relative (CORE-121): shifting the root
-                // fragment's own offset shifts the whole painted subtree
-                // exactly once. A recursive shift would compound at every
-                // nesting depth. The body box is a block (no own Text run),
-                // so no baseline adjustment is needed.
-                res.fragment.offset.y = res.fragment.offset.y + mt;
-                res.used = res.used + mt;
-            }
-        }
-        res
+        )
     }
 
 
@@ -1570,9 +1566,6 @@ impl<'a> Ctx<'a> {
     /// - `page_has_content`: whether the fragmentainer already holds any
     ///   content (in-flow or out-of-flow) at or above this box's flow
     ///   position — drives last-resort monolithic placement only.
-    /// - `first_in_flow`: whether this box is the first IN-FLOW content on
-    ///   the fragmentainer (floats/abspos do not consume it). Drives
-    ///   margin-top truncation at fragmentainer starts (css-break-3).
     /// - `token`: incoming continuation (break-before = start fresh).
     fn layout_box(
         &self,
@@ -1582,7 +1575,6 @@ impl<'a> Ctx<'a> {
         top: Scalar,
         bottom_limit: Scalar,
         page_has_content: bool,
-        first_in_flow: bool,
         token: &BreakToken,
         flow: &mut Flow,
     ) -> BlockResult {
@@ -1610,16 +1602,11 @@ impl<'a> Ctx<'a> {
                 top,
                 bottom_limit,
                 page_has_content,
-                first_in_flow,
                 style,
                 flow,
             );
         }
 
-        // Table-family boxes dispatch through layout_table_like, which keeps
-        // `first_in_flow` for its layout_box fall-throughs (tables themselves
-        // do not apply margins yet, so truncation only matters once their
-        // cells delegate back into the block path).
         if matches!(
             style.display,
             Display::Table
@@ -1634,7 +1621,6 @@ impl<'a> Ctx<'a> {
                 top,
                 bottom_limit,
                 page_has_content,
-                first_in_flow,
                 token,
                 flow,
             );
@@ -1647,7 +1633,6 @@ impl<'a> Ctx<'a> {
                 top,
                 bottom_limit,
                 page_has_content,
-                first_in_flow,
                 token,
                 flow,
             );
@@ -1709,21 +1694,20 @@ impl<'a> Ctx<'a> {
         // laid out by layout_table_group, which calls layout_table_row directly).
 
         let fresh = token.is_break_before();
-        let mut first_in_flow = first_in_flow;
 
         // Margins/padding adjoining a fragmentainer break truncate to zero
-        // (css-break-3). On resume (not fresh) the top margin/padding is gone.
-        // Additionally (CORE-95), when a fresh box is the FIRST in-flow box on
-        // a fragmentainer, its top margin adjoins the fragmentainer boundary
-        // and truncates to zero too — matching Prince, which renders an
-        // unstyled h1 at the top of a page flush with the content top (its
-        // 16pt UA margin is honored mid-page, never at a page start).
-        // Floats/abspos do not consume `first_in_flow`: a paragraph after a
-        // top-of-page float is still the first in-flow box (verified vs
-        // Prince 16.2, 2026-08-20).
-        let margin_top = if fresh && first_in_flow {
-            Scalar::ZERO
-        } else if fresh {
+        // (css-break-3 §3.1). On resume (not fresh) the top margin/padding is
+        // gone. A fresh box keeps its full top margin — including the first
+        // in-flow box at the top of a page (document start or forced break):
+        // css-break-3 truncates margins only after an *unforced* break, and a
+        // forced break preserves the margin after it (page-left-right-001).
+        // The natural-break first box is a CONTINUATION (the overflowing
+        // box's next fragment), which takes the `!fresh` branch below, so its
+        // margin still truncates. The prior CORE-95 first-in-flow truncation
+        // (matching Prince, not Chromium) dropped the first box's top margin
+        // at every page start, regressing page-left-right-001/002 and
+        // page-box-006.
+        let margin_top = if fresh {
             style.margin_top
         } else {
             Scalar::ZERO
@@ -1914,7 +1898,6 @@ impl<'a> Ctx<'a> {
                 top,
                 bottom_limit,
                 placed,
-                first_in_flow,
                 token,
                 flow,
                 style,
@@ -2001,7 +1984,6 @@ impl<'a> Ctx<'a> {
                 ));
                 y += lh;
                 placed = true;
-                first_in_flow = false;
             }
         }
 
@@ -2158,7 +2140,6 @@ impl<'a> Ctx<'a> {
                             y += lh;
                             li += 1;
                             placed = true;
-                            first_in_flow = false;
                             // A last-resort line that overflowed: stop here so the
                             // rest of the run continues on the next fragmentainer.
                             if last_resort && y > bottom_limit {
@@ -2600,7 +2581,6 @@ impl<'a> Ctx<'a> {
                         y + cstyle.margin_top,
                         Scalar(f64::MAX),
                         placed,
-                        first_in_flow,
                         &child_tok,
                         flow,
                     );
@@ -2649,7 +2629,6 @@ impl<'a> Ctx<'a> {
                         atomic_line_h = bh;
                     }
                     placed = true;
-                    first_in_flow = false;
                     prev_margin_bottom = Scalar::ZERO;
 
                     // css-page-3 §4.2 — the placed side of the boundary
@@ -2775,7 +2754,6 @@ impl<'a> Ctx<'a> {
                             y,
                             Scalar(f64::MAX),
                             placed,
-                            first_in_flow,
                             &child_tok,
                             flow,
                         );
@@ -2879,7 +2857,6 @@ impl<'a> Ctx<'a> {
                                 fy,
                                 bottom_limit,
                                 placed,
-                                first_in_flow,
                                 &child_tok,
                                 flow,
                             );
@@ -2947,7 +2924,6 @@ impl<'a> Ctx<'a> {
                                 y,
                                 bottom_limit,
                                 placed,
-                                first_in_flow,
                                 &child_tok,
                                 flow,
                             );
@@ -3012,7 +2988,6 @@ impl<'a> Ctx<'a> {
                         y,
                         bottom_limit,
                         placed,
-                        first_in_flow,
                         &child_tok,
                         flow,
                     );
@@ -3089,9 +3064,6 @@ impl<'a> Ctx<'a> {
                         // the next fresh sibling collapses against it.
                         prev_margin_bottom = cstyle.margin_bottom;
                         placed = true;
-                        // A non-empty in-flow block is no longer the first
-                        // in-flow content: later siblings keep their margins.
-                        first_in_flow = false;
                     }
 
                     if let Some(tok) = res.outgoing {
@@ -3489,7 +3461,6 @@ impl<'a> Ctx<'a> {
         top: Scalar,
         bottom_limit: Scalar,
         page_has_content: bool,
-        first_in_flow: bool,
         token: &BreakToken,
         flow: &mut Flow,
     ) -> BlockResult {
@@ -3539,7 +3510,6 @@ impl<'a> Ctx<'a> {
                 top,
                 bottom_limit,
                 page_has_content,
-                first_in_flow,
                 token,
                 flow,
             ),
@@ -3550,7 +3520,6 @@ impl<'a> Ctx<'a> {
                 top,
                 bottom_limit,
                 page_has_content,
-                first_in_flow,
                 token,
                 flow,
             ),
@@ -4080,10 +4049,6 @@ impl<'a> Ctx<'a> {
                 top,
                 bottom_limit,
                 page_has_content,
-                // Table cells do not participate in top-of-page margin
-                // truncation (tables are out of CORE-95 scope; cell
-                // content keeps its declared margins).
-                false,
                 &cell_tok,
                 flow,
             );
@@ -4311,7 +4276,6 @@ impl<'a> Ctx<'a> {
         top: Scalar,
         bottom_limit: Scalar,
         page_has_content: bool,
-        first_in_flow: bool,
         token: &BreakToken,
         flow: &mut Flow,
     ) -> BlockResult {
@@ -4322,7 +4286,6 @@ impl<'a> Ctx<'a> {
             top,
             bottom_limit,
             page_has_content,
-            first_in_flow,
             token,
             flow,
         );

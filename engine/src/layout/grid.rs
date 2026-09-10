@@ -400,7 +400,6 @@ impl Ctx<'_> {
                     row_top,
                     row_top + row_h,
                     placed,
-                    !placed,
                     &child_tok,
                     flow,
                 );
