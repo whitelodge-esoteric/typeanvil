@@ -36,8 +36,7 @@
 use std::collections::BTreeMap;
 
 use crate::css::{
-    ComputedStyle, Display, Float, Hyphens, Position, StringSetValue, Stylesheet,
-    TextAlign, NORMAL_LINE_HEIGHT_FACTOR,
+    ComputedStyle, Display, Float, Hyphens, Position, StringSetValue, Stylesheet, TextAlign,
 };
 use crate::dom::{Dom, NodeId, NodeKind};
 use crate::frag::{
@@ -50,8 +49,8 @@ mod flex;
 mod grid;
 mod multicol;
 use crate::paged::{
-    parse_page_rules, resolve_page_spec, ContentPiece, MarginAlign, MarginBoxName, MarginRow,
-    PageMargins, PageRule, PageSpec, RunningStrings,
+    parse_page_rules, resolve_page_spec, ContentPiece, MarginBoxName, MarginRow, PageMargins,
+    PageRule, PageSpec, RunningStrings, VerticalAlign,
 };
 use crate::table::{measure_columns, measure_rows};
 use crate::typography::{break_paragraph, LineResult};
@@ -426,8 +425,10 @@ pub fn layout_with_images_and_store(
     }) || page_rules.iter().any(|r| {
         r.margin_boxes.iter().any(|mb| {
             mb.content
-                .iter()
-                .any(|p| matches!(p, ContentPiece::CounterPages))
+                .as_ref()
+                .and_then(|c| c.as_ref())
+                .map(|pieces| pieces.iter().any(|p| matches!(p, ContentPiece::CounterPages)))
+                .unwrap_or(false)
         })
     });
     let passes = if needs_toc || needs_total {
@@ -5609,7 +5610,9 @@ fn record_sources(frag: &Fragment, page_index: usize, map: &mut BTreeMap<NodeId,
 /// Build and attach margin-box fragments to a fragmentainer's root, positioned
 /// in the page-margin area (top row above the content box, bottom row below;
 /// side boxes in the left/right margins). Content is resolved against the
-/// running-string / counter state now in effect and clipped to one line.
+/// running-string / counter state now in effect and clipped to one line. Each
+/// box uses its resolved `text-align`/`vertical-align` (UA default table of
+/// css-page-3 §6.2 unless the box declared them) and its resolved font/color.
 #[allow(clippy::too_many_arguments)]
 fn attach_margin_boxes(
     fragmentainer: &mut Fragmentainer,
@@ -5626,49 +5629,42 @@ fn attach_margin_boxes(
         return;
     }
     let content = geo.content_rect();
-    // A fixed margin-box font size (points). Margin boxes are one line.
-    let font_size = Scalar(10.0);
-    let lh = font_size * NORMAL_LINE_HEIGHT_FACTOR;
 
-    for (name, pieces) in &spec.margin_boxes {
-        let text = render_margin_content(pieces, flow, total_pages, page_start);
+    for mb in &spec.margin_boxes {
+        let text = render_margin_content(&mb.content, flow, total_pages, page_start);
         if text.is_empty() {
             continue;
         }
-        let face = crate::fonts::FACE_REGULAR;
+        let face = mb.font_face;
+        let font_size = mb.font_size;
+        let lh = mb.line_height;
         // Shape the resolved content so non-ASCII (em dash, curly quotes, ·)
         // renders as a real glyph with a ToUnicode mapping — never raw UTF-8
         // bytes (CORE-83). Margin boxes are one line; no microtypography.
         let shaped = crate::typography::shape_word(&text, font_size, face);
-        let (slot_x, slot_w, slot_y) = margin_box_slot(*name, geo, &content, lh);
+        let (slot_x, slot_w, slot_y) =
+            margin_box_slot(mb.name, geo, &content, lh, mb.text_align, mb.vertical_align);
         let text_w = shaped.width;
-        let x = match name.align() {
-            MarginAlign::Start => slot_x,
+        let x = match mb.text_align {
             // CORE-117: center-aligned boxes center on the CONTENT-box
-            // midline ((left+right)/2), not within a fixed third-slot.
-            // A wide running head then spills into adjacent slots
-            // symmetrically (css-page-3 margin-box geometry, matches
-            // Prince 16.2); a third-slot clamp degenerates any head wider
-            // than content_width/3 to start-align.
-            MarginAlign::Center => {
+            // midline ((left+right)/2), not within a fixed third-slot. A wide
+            // running head then spills into adjacent slots symmetrically
+            // (css-page-3 margin-box geometry, matches Prince 16.2).
+            TextAlign::Center => {
                 content.x + Scalar((content.width.get() - text_w.get()) * 0.5)
             }
-            MarginAlign::End => {
-                // End-aligned margin boxes anchor their RIGHT edge at the
-                // content-box right edge and grow LEFTWARD into the middle
-                // slot when wider than one third (css-page-3 margin-box
-                // geometry; matches Prince 16.2). Right-aligning inside the
-                // fixed third slot instead lets wide running heads overflow
-                // past the page's right edge.
-                content.x + content.width - text_w
-            }
+            // End-aligned margin boxes anchor their RIGHT edge at the
+            // content-box right edge and grow LEFTWARD into the middle slot
+            // when wider than one third (css-page-3 margin-box geometry).
+            TextAlign::Right | TextAlign::End => content.x + content.width - text_w,
+            _ => slot_x,
         };
         let baseline = slot_y + crate::typography::baseline_offset(font_size, lh, face);
         let run = TextRun {
             text: shaped.text,
             baseline: Point::new(x, baseline),
             font_size,
-            color: crate::css::Color::BLACK,
+            color: mb.color,
             font_face: face,
             glyphs: shaped.glyphs,
             expansion: 0.0,
@@ -5681,37 +5677,40 @@ fn attach_margin_boxes(
     }
 }
 
-/// The (x, width, y) slot for a margin box in the page margin area.
+/// The (x, width, y) slot for a margin box in the page margin area, honoring
+/// the box's resolved `text-align` (inline axis) and `vertical-align` (block
+/// axis).
 fn margin_box_slot(
     name: MarginBoxName,
     geo: &PageGeometry,
     content: &crate::geom::Rect,
     lh: Scalar,
+    text_align: TextAlign,
+    vertical_align: VerticalAlign,
 ) -> (Scalar, Scalar, Scalar) {
     let third = content.width * (1.0 / 3.0);
     match name.row() {
         MarginRow::Top => {
-            // Vertically centered in the top margin band.
-            let y = Scalar((geo.margin_top.get() - lh.get()).max(0.0) * 0.5);
-            let (x, w) = horizontal_slot(name, content, third);
+            let y = vertical_slot(vertical_align, geo.margin_top, lh);
+            let (x, w) = horizontal_slot(text_align, content, third);
             (x, w, y)
         }
         MarginRow::Bottom => {
             let band_top = geo.height - geo.margin_bottom;
-            let y = band_top + Scalar((geo.margin_bottom.get() - lh.get()).max(0.0) * 0.5);
-            let (x, w) = horizontal_slot(name, content, third);
+            let y = band_top + vertical_slot(vertical_align, geo.margin_bottom, lh);
+            let (x, w) = horizontal_slot(text_align, content, third);
             (x, w, y)
         }
         MarginRow::Left => {
             let x = Scalar::ZERO;
             let w = geo.margin_left;
-            let y = content.y + vertical_offset(name, content.height, lh);
+            let y = content.y + vertical_slot(vertical_align, content.height, lh);
             (x, w, y)
         }
         MarginRow::Right => {
             let x = geo.width - geo.margin_right;
             let w = geo.margin_right;
-            let y = content.y + vertical_offset(name, content.height, lh);
+            let y = content.y + vertical_slot(vertical_align, content.height, lh);
             (x, w, y)
         }
     }
@@ -5719,23 +5718,24 @@ fn margin_box_slot(
 
 /// Horizontal slot (x, width) for a top/bottom margin box.
 fn horizontal_slot(
-    name: MarginBoxName,
+    text_align: TextAlign,
     content: &crate::geom::Rect,
     third: Scalar,
 ) -> (Scalar, Scalar) {
-    match name.align() {
-        MarginAlign::Start => (content.x, third),
-        MarginAlign::Center => (content.x + third, third),
-        MarginAlign::End => (content.x + third + third, third),
+    match text_align {
+        TextAlign::Left | TextAlign::Start => (content.x, third),
+        TextAlign::Center => (content.x + third, third),
+        TextAlign::Right | TextAlign::End => (content.x + third + third, third),
+        TextAlign::Justify => (content.x, third),
     }
 }
 
-/// Vertical offset within a side margin band for top/middle/bottom boxes.
-fn vertical_offset(name: MarginBoxName, band_height: Scalar, lh: Scalar) -> Scalar {
-    match name.align() {
-        MarginAlign::Start => Scalar::ZERO,
-        MarginAlign::Center => Scalar((band_height.get() - lh.get()).max(0.0) * 0.5),
-        MarginAlign::End => Scalar((band_height.get() - lh.get()).max(0.0)),
+/// Vertical offset within a margin band for `top`/`middle`/`bottom` alignment.
+fn vertical_slot(vertical_align: VerticalAlign, band_height: Scalar, lh: Scalar) -> Scalar {
+    match vertical_align {
+        VerticalAlign::Top => Scalar::ZERO,
+        VerticalAlign::Middle => Scalar((band_height.get() - lh.get()).max(0.0) * 0.5),
+        VerticalAlign::Bottom => Scalar((band_height.get() - lh.get()).max(0.0)),
     }
 }
 
