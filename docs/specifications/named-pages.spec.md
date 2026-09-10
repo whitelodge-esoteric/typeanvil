@@ -37,23 +37,13 @@ the WPT refs actually encode.
 
 ## Non-Goals
 
-1. Bare-text page-context changes: a text run adjacent to a page-declaring
-   block does not force a break (the comparison stops at a bare text run).
-   A Chromium-oracle study (2026-09-09,
-   `docs/research/css-page/named-page-boundary-model.md`) shows this is a
-   real gap rather than a spec quirk: Chromium forces a break at EVERY
-   boundary between in-flow content whose page context differs, bare text
-   included, and a bare text run takes its containing block's context. The
-   engine currently fires only block-to-block transitions, which is why
-   `page-name-002` renders 3 pages where Chromium and the reference render 8.
-   The earlier claim that `fixedpos-010` contradicts `page-name-002` does not
-   hold: `fixedpos-010` declares its own `@page size` values and cannot be
-   judged at the harness's fixed 5x3in geometry (Chromium fails it there on a
-   pixel difference, not a page count). Extending the model is the fix for
-   `page-name-002`; it is a deliberate Non-Goal of the CURRENT slices, gated
-   on the full suite because CORE-66 recorded a 38-test regression in this
-   area.
-   `page-name-003` is a separate matter and stays a Non-Goal permanently:
+1. `<br>` is not implemented (CORE-159). The tokenizer re-flows text runs with
+   `split_whitespace()`, so no forced line break exists to honor. This is a
+   text-runs feature, not a named-page one; the boundary rule below no longer
+   depends on it. `page-name-002` cannot pixel-match its reference until it
+   lands, because that reference places "3rd page" and "Also 3rd page" on one
+   line via `<br>`.
+   `page-name-003` stays a Non-Goal permanently:
    it and `page-name-abspos-002` are structurally identical tests with
    opposite references (one requires a break inside the abspos wrapper, the
    other requires none). No engine can pass both. The engine currently
@@ -115,8 +105,8 @@ the WPT refs actually encode.
    a leaf — its items are not page-grouped.
 3. **Sibling change break.** After an in-flow block child places content,
    layout finds the next content-bearing in-flow sibling (skipping
-   out-of-flow, display:none, and zero-height blocks; a bare text run
-   terminates the search contextless) and compares the just-placed child's
+   out-of-flow, display:none, and zero-height blocks) and compares the
+   just-placed child's
    last-leaf context against the target's first-leaf context — the
    just-placed child itself substitutes when it has no qualifying leaf (a
    replaced or empty box IS its own leaf). A difference DEFERS a forced
@@ -139,6 +129,15 @@ the WPT refs actually encode.
    blank page. A genuinely contentless box (no leaf anywhere — e.g. a
    wrapper holding only `display: none` children) does NOT skip: it hosts
    its own boundary (`page-name-display-none-child`).
+
+    A **bare text run IS in-flow content** and is a valid target on either side
+    of the comparison (CORE-158). It takes its containing block's effective page
+    context, so `[div page:a]A[/div] X [div page:a]C[/div]` is three pages
+    (a -> default -> a), and a trailing run after a named page adds one more.
+    The itemizer has already dropped whitespace-only runs, so a surviving
+    `Item::Text` holds real content. The comparison therefore also runs from the
+    TEXT arm, not only after a block child: without that, a boundary AFTER a run
+    was never compared.
 4. **Suppressions.** No page-change break fires: inside an inline-block
    (atomic interior), in any subtree whose INTERMEDIATE ancestor-or-self
    carries an explicit `writing-mode` declaration (`ComputedStyle
@@ -192,6 +191,13 @@ Each maps to a live WPT test in the harness (`harness run --filter css-page`):
   ref forces it outside/below the container).
 - Given an inline-block interior or a writing-mode subtree, no break fires
   (`page-name-inline-block-001/003`, `page-name-orthogonal-writing-001/002/003`).
+- Given two `page:a` blocks separated by a bare text run, the render is three
+  pages — a, default, a (CORE-158; `engine/tests/page_boundaries.rs`
+  `p3_named_text_named_breaks_twice`).
+- Given a named page followed by trailing bare text, the render is two pages
+  (`p4_named_then_text_breaks`).
+- Given leading bare text followed by a named page, the render is two pages
+  (`p5_text_then_named_breaks`).
 - Given an inline-level replaced image with `page: a` inside a default-page
   flow, no break fires for the image and an undeclared follower stays on the
   default page (`page-name-img-001/002`).

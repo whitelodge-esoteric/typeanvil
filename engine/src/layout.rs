@@ -2435,6 +2435,54 @@ impl<'a> Ctx<'a> {
                             break;
                         }
                     }
+
+                    // CORE-158: a bare text run is in-flow content, so a
+                    // following in-flow sibling with a DIFFERENT page context
+                    // defers a page break before it. The run itself carries its
+                    // containing block's context (css-page-3 §4.2), which is
+                    // why a boundary can exist on EITHER side of a run. Without
+                    // this the boundary after a run was never compared: this
+                    // arm placed the text without any comparison, and the
+                    // block path's scan only runs after a block child.
+                    if placed && !self.orthogonal_flow(id) {
+                        let prev_end = self.effective_page(id);
+                        let mut j = i + 1;
+                        let mut target: Option<(usize, Option<&str>)> = None;
+                        while j < items.len() {
+                            match &items[j] {
+                                Item::Atomic(_) => j += 1,
+                                Item::Text(..) => {
+                                    target = Some((j, self.effective_page(id)));
+                                    break;
+                                }
+                                Item::Block(b) => {
+                                    let cs = &self.styles[*b];
+                                    if cs.float != Float::None
+                                        || matches!(
+                                            cs.position,
+                                            Position::Absolute | Position::Fixed
+                                        )
+                                        || cs.display == Display::None
+                                        || cs.height == Some(Scalar::ZERO)
+                                    {
+                                        j += 1;
+                                        continue;
+                                    }
+                                    let next = match self.page_context_leaf(*b, false) {
+                                        Some(leaf) => self.effective_page(leaf),
+                                        None => self.effective_page(*b),
+                                    };
+                                    target = Some((j, next));
+                                    break;
+                                }
+                            }
+                        }
+                        if let Some((j, next_ctx)) = target {
+                            if next_ctx != prev_end {
+                                deferred_break_at = Some(j);
+                            }
+                        }
+                    }
                 }
                 Item::Atomic(child) => {
                     // ---- inline-block (atomic inline-level) placement
@@ -2622,7 +2670,16 @@ impl<'a> Ctx<'a> {
                         while j < items.len() {
                             match &items[j] {
                                 Item::Atomic(_) => j += 1,
-                                Item::Text(..) => break, // contextless
+                                Item::Text(..) => {
+                                    // CORE-158: a bare text run IS in-flow
+                                    // content, and it takes its containing
+                                    // block's page context (css-page-3 §4.2).
+                                    // The itemizer has already dropped
+                                    // whitespace-only runs, so a surviving
+                                    // `Item::Text` holds real content.
+                                    target = Some((j, self.effective_page(id)));
+                                    break;
+                                }
                                 Item::Block(b) => {
                                     let cs = &self.styles[*b];
                                     if cs.float != Float::None
@@ -3128,7 +3185,16 @@ impl<'a> Ctx<'a> {
                                     // boundary fires when IT is placed).
                                     j += 1;
                                 }
-                                Item::Text(..) => break, // contextless
+                                Item::Text(..) => {
+                                    // CORE-158: a bare text run IS in-flow
+                                    // content, and it takes its containing
+                                    // block's page context (css-page-3 §4.2).
+                                    // The itemizer has already dropped
+                                    // whitespace-only runs, so a surviving
+                                    // `Item::Text` holds real content.
+                                    target = Some((j, self.effective_page(id)));
+                                    break;
+                                }
                                 Item::Block(b) => {
                                     let cs = &self.styles[*b];
                                     if cs.float != Float::None
