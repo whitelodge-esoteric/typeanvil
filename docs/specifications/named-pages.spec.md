@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-09-04
-updated: 2026-09-04
+updated: 2026-09-09
 sidebar_position: 25
 tags: [engine, css-page, paged-media, layout, breaks]
 spec_id: named-pages
@@ -48,16 +48,30 @@ the WPT refs actually encode.
    page through this engine, so suppression matches them).
 3. Page-change breaks inside flex containers, inline-blocks, or between
    bare inline runs (atomic interiors and flex items are not page-grouped).
-4. `page-name-002/004/006/007`, `page-name-zero-height-001` (inline
-   `height: 0` is unread by the style seam), `page-name-display-none-child`,
-   `page-name-img-001/002`, `page-name-inline-block-002`: residuals with
-   per-test root causes; do not chase via this spec.
-5. Inline-style seam (bonus fix, verified by this slice's gate): the stylo
+4. Residuals with per-test root causes; do not chase via this spec.
+   `page-name-002/003` (bare-text/abspos boundary model — needs a Chromium
+   boundary study), `page-name-display-none-child` (guard added, fixture
+   still fails — the hidden child's text is folded elsewhere; re-probe),
+   `page-name-inline-block-002` (atomic sibling comparison),
+   `page-name-zero-height-001` (engine renders 3 pages; Chrome/Edge also
+   FAIL this test at 6 pages, Firefox passes — no agreed browser model).
+   `page-name-img-001/002` were fixed by this slice: an inline-level
+   replaced image's own `page` declaration is inert (see Behavior 6).
+5. Harness-geometry-limited residuals: `basic-pagination-003`,
+   `page-background-004/005` declare their own `@page size`; the harness
+   renders every fixture at its fixed 5x3in/0.5in geometry, and the
+   Chromium oracle leg fails them for the SAME reason — a fixture-geometry
+   harness leg is needed before these can be judged.
+6. No-ground-truth residual: `safe-printable-inset-001/002/003` (tentative
+   `page-margin-safety`, css-page-3 §7.6 ED proposal) — Chrome, Edge and
+   Firefox all FAIL on wpt.fyi master (2026-09-09); Safari does not run the
+   tentative css-page suite. Documented, not chased.
+7. Inline-style seam (bonus fix, verified by this slice's gate): the stylo
    cascade ignores inline `style=""` declarations for `display`, `position`,
    and `float`. The paged-media pass now carries them
    (`PagedDecl::Display/Position/FloatSide`, inline only, `float: footnote`
    preserved).
-6. Accepted flips (net +16, gate trade-off, each root-caused):
+8. Accepted flips (net +16, gate trade-off, each root-caused):
    `monolithic-overflow-005/013` — the inline `position:absolute` seam makes
    the test's abspos wrapper monolithic (clipped) where the ref's in-flow
    wrapper fragments; both need `contain:size` fragmentation support.
@@ -98,6 +112,22 @@ the WPT refs actually encode.
    or when the subtree below either side holds no in-flow content.
 5. **Selection unchanged.** Page geometry (which `@page` rule applies) is
    still resolved per page start by `active_page_name` (CORE-82).
+6. **Class-A applicability of `page`.** The `page` property applies only to
+   boxes that create class A break points (css-page-3 §8.1). An inline-level
+   replaced image (`<img>`, inline `<svg>`) creates none, so its own `page`
+   declaration is inert: it neither starts a page for the image nor demands a
+   boundary at it (Chromium oracle: the image stays on its ancestor's page
+   and a following `page:b` block is the box that breaks —
+   `page-name-img-001/002`). A block-level replaced box (`display: block`)
+   IS class A and keeps its declaration (`page-name-img-003/004`).
+7. **Root-element `display: none`.** A `display: none` on the root ELEMENT
+   (`html`) suppresses the document: one valid empty page with NO page-box
+   chrome, which compares equal to a blank reference
+   (`root-element-display-none`; CORE-66). The check must read the html
+   element's computed display — `dom.root` is the synthetic document node,
+   never element-styled, so testing it never fires. A `display: none` CHILD
+   generates no box and its text must not fold into the parent's run
+   (`collect_items_rec`).
 
 ## Interfaces
 
@@ -124,6 +154,11 @@ Each maps to a live WPT test in the harness (`harness run --filter css-page`):
   ref forces it outside/below the container).
 - Given an inline-block interior or a writing-mode subtree, no break fires
   (`page-name-inline-block-001/003`, `page-name-orthogonal-writing-001/002/003`).
+- Given an inline-level replaced image with `page: a` inside a default-page
+  flow, no break fires for the image and an undeclared follower stays on the
+  default page (`page-name-img-001/002`).
+- Given `html { display: none }`, the render is one blank page without
+  page-box chrome (`root-element-display-none`).
 
 ## Edge Cases
 
