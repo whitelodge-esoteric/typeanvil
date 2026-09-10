@@ -797,43 +797,44 @@ fn ua_body_margin_is_zero() {
 //
 // Prince's UA sheet (lib/prince/style/html.css) uses FIXED point heading
 // sizes and margins (h1: 24pt/16pt … h6: 8pt/21pt) and 1.12em paragraph
-// margins, and TRUNCATES the first in-flow box's top margin at each
-// fragmentainer start (css-break-3). The engine mirrors both. The four
-// tests below pin the two behaviors that differ from the old HTML4 em-based
-// defaults: truncation at page top, and fixed-pt sizes independent of body
-// font-size, plus the 1.12em paragraph margin and the h6 21pt margin
-// mid-page (where truncation must NOT apply).
-
+// margins. The engine mirrors the fixed sizes/margins. It does NOT mirror
+// Prince's first-in-flow top-margin truncation: css-break-3 §3.1 preserves a
+// fresh box's top margin at the document start and after a forced break, and
+// Chromium (the WPT oracle) does the same (page-left-right-001/002,
+// page-box-006). The tests below pin the fixed-pt sizes independent of body
+// font-size, the preserved first-box margin, the 1.12em paragraph margin,
+// and the h6 21pt margin mid-page.
 #[test]
-fn ua_heading_margin_truncates_at_page_top() {
-    // Unstyled h1 at the top of page 1: the 16pt UA margin is truncated to
-    // zero (Prince renders it flush with the content top). Baseline =
-    // content top (36) + ascent (24×1854/2048) + half-leading of the 24pt
-    // line at lh 1.2 → 58.72. Without truncation the margin would add 16pt
-    // → 74.72.
+fn ua_heading_margin_preserved_at_document_start() {
+    // Unstyled h1 at the top of page 1: the 16pt UA margin is PRESERVED — the
+    // document start is not a fragmentation break, so css-break-3 does not
+    // truncate it (Chromium/WPT; page-left-right-001). Baseline = content top
+    // (36) + 16pt margin + ascent (24×1854/2048) + half-leading of the 24pt
+    // line at lh 1.2 → 74.72. The old Prince-matching behavior truncated the
+    // margin to flush the heading at 58.72.
     let html = "<html><head></head><body><h1>Heading</h1></body></html>";
     let geo = geometry(5.0, 3.0, 0.5);
     let layout = lay(html, geo);
     let (_, y) = text_pos(&layout.pages[0], "Heading").expect("text must be present");
-    let expected = 36.0 + 24.0 * 1854.0 / 2048.0
+    let expected = 36.0 + 16.0 + 24.0 * 1854.0 / 2048.0
         + (24.0 * 1.2 - 24.0 * 1854.0 / 2048.0 - 24.0 * 434.0 / 2048.0) * 0.5;
     assert!(
         (y - expected).abs() < 0.1,
-        "UA h1 top margin must truncate: baseline y={y:.3} want {expected:.3} (old was ~{:.3})",
-        expected + 16.0
+        "UA h1 top margin must be preserved at document start: baseline y={y:.3} want {expected:.3} (truncated was ~{:.3})",
+        expected - 16.0
     );
 }
 
 #[test]
 fn ua_heading_font_sizes_are_fixed_pt() {
     // Prince's h1 is 24pt REGARDLESS of body font-size; the HTML4 2em value
-    // would scale to 16pt at body 8pt. Baseline = content top + 24pt line
-    // box → 58.72 in both cases here (the h1 is first → margin truncated).
+    // would scale to 16pt at body 8pt. Baseline = content top (36) + 16pt
+    // margin (preserved at document start) + 24pt line box → 74.72.
     let html = "<html><head><style>body { font-size: 8pt; }</style></head><body><h1>Heading</h1></body></html>";
     let geo = geometry(5.0, 3.0, 0.5);
     let layout = lay(html, geo);
     let (_, y) = text_pos(&layout.pages[0], "Heading").expect("text must be present");
-    let expected = 36.0 + 24.0 * 1854.0 / 2048.0
+    let expected = 36.0 + 16.0 + 24.0 * 1854.0 / 2048.0
         + (24.0 * 1.2 - 24.0 * 1854.0 / 2048.0 - 24.0 * 434.0 / 2048.0) * 0.5;
     assert!(
         (y - expected).abs() < 0.1,

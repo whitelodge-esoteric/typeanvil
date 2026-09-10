@@ -42,17 +42,17 @@ start are truncated to zero.
   points, independent of body font-size.
 - UA paragraph/list/quote margins match Prince: `1.12em` top/bottom,
   `blockquote` side margins `22.5pt`, `ul`/`ol` `padding-left: 40pt`.
-- The first in-flow box on every fragmentainer (page or column) has its top
-  margin truncated to zero (css-break-3 "adjoining margins at breaks"),
-  matching Prince and Chromium print behavior. **Refined (CORE-142):** the
-  truncation applies at BREAK-caused fragmentainer starts. The document
-  start (page 1) is not a break, so the ROOT box's own top margin applies
-  there (Chromium-verified via page-size-006: page-1 content sits at
-  `@page` margin + body margin; continuation pages at `@page` margin alone).
-  First-in-flow margins INSIDE the root still truncate at every page top.
-  Parent-child margin collapse (body margin + first child margin) is not
-  modeled — the two margins are handled independently (documented
-  deviation).
+- The first in-flow box on a fragmentainer KEEPS its top margin at a page
+  start. **Refined (CORE-153):** css-break-3 §3.1 truncates only a
+  fragmented box's CONTINUATION top margin at a fragmentainer edge; a fresh
+  box at a page start (document start, after a forced break, or after
+  natural pagination) applies its margin. Chromium — the WPT oracle —
+  behaves this way (page-box-006, page-left-right-001/002 flip PASS with
+  the change; the suite gates clean). This supersedes the CORE-95
+  Prince-matching truncation: the CSS specification wins over PrinceXML
+  (docs/conventions/css-standards-alignment.md). Parent-child margin
+  collapse (body margin + first child margin) is still not modeled —
+  the two margins are handled independently (documented deviation).
 - Floats and abspos boxes do not consume "first in-flow" status: a paragraph
   after a top-of-page float still truncates (verified vs Prince 16.2).
 - Determinism unchanged: identical input → byte-identical PDF.

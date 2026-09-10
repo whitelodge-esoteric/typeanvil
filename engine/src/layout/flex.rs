@@ -487,7 +487,6 @@ impl<'a> Ctx<'a> {
                     item_top,
                     bottom_limit,
                     placed,
-                    !placed,
                     &child_tok,
                     flow,
                 );
@@ -718,7 +717,6 @@ impl<'a> Ctx<'a> {
                 y,
                 bottom_limit,
                 placed,
-                !placed,
                 &child_tok,
                 flow,
             );

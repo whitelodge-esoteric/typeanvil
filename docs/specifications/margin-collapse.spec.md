@@ -64,9 +64,10 @@ them:
    blocks is not an adjacent-block boundary) and across float placement.
 4. A resumed (!fresh) child SHALL NOT trigger a collapse adjustment: its
    own top margin is already truncated to zero by the fragmentation pass.
-5. The first in-flow box on a fragmentainer keeps existing behavior
-   (top margin truncates via `first_in_flow`, CORE-95); no collapse
-   applies.
+5. The first in-flow box on a fragmentainer KEEPS its top margin at a page
+   start (css-break-3 §3.1 preserves a fresh box's margin; refined in
+   CORE-153 — the old CORE-95 truncation matched Prince, not the spec);
+   no collapse applies.
 
 ## Interfaces
 

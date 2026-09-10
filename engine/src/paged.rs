@@ -210,6 +210,17 @@ pub struct PageMargins {
     pub left: Scalar,
 }
 
+impl PageMargins {
+    pub const fn zero() -> Self {
+        PageMargins {
+            top: Scalar::ZERO,
+            right: Scalar::ZERO,
+            bottom: Scalar::ZERO,
+            left: Scalar::ZERO,
+        }
+    }
+}
+
 /// A `size` declaration inside an `@page` rule (css-page-3 §4.3).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SizeDecl {
@@ -995,6 +1006,7 @@ pub fn resolve_page_spec(
     page_name: Option<&str>,
     global_index: usize,
     cli: &PageGeometry,
+    inherit_margins: PageMargins,
 ) -> PageSpec {
     let mut size = (cli.width, cli.height);
     let mut width: Option<PageLength> = None;
@@ -1103,11 +1115,13 @@ pub fn resolve_page_spec(
         }
     }
 
-    // Resolve margins to concrete values against the final page size.
-    let mt = resolve_margin(margins.0, size.1);
-    let mr = resolve_margin(margins.1, size.0);
-    let mb = resolve_margin(margins.2, size.1);
-    let ml = resolve_margin(margins.3, size.0);
+    // Resolve margins to concrete values against the final page size. `Inherit`
+    // resolves to the root element's computed margin (the page context inherits
+    // from the root; css-page-3 §3, page-margin-006).
+    let mt = resolve_margin(margins.0, size.1, inherit_margins.top);
+    let mr = resolve_margin(margins.1, size.0, inherit_margins.right);
+    let mb = resolve_margin(margins.2, size.1, inherit_margins.bottom);
+    let ml = resolve_margin(margins.3, size.0, inherit_margins.left);
     let (mut margin_top, auto_top) = mt;
     let (mut margin_right, auto_right) = mr;
     let (mut margin_bottom, auto_bottom) = mb;
@@ -1201,14 +1215,14 @@ pub fn resolve_page_spec(
 
 /// Resolve one margin value against the page box dimension (width for
 /// left/right, height for top/bottom). Returns the concrete value plus
-/// whether it was `auto`.
-fn resolve_margin(len: PageLength, page_dim: Scalar) -> (Scalar, bool) {
+/// whether it was `auto`. `inherit` resolves to the root element's computed
+/// margin for this side (the page context inherits from the root).
+fn resolve_margin(len: PageLength, page_dim: Scalar, inherit: Scalar) -> (Scalar, bool) {
     match len {
         PageLength::Abs(v) => (v, false),
         PageLength::Percent(f) => (page_dim * f, false),
         PageLength::Auto => (Scalar::ZERO, true),
-        // `inherit` in the page context resolves to the initial value (0).
-        PageLength::Inherit => (Scalar::ZERO, false),
+        PageLength::Inherit => (inherit, false),
     }
 }
 
@@ -1344,7 +1358,7 @@ mod tests {
             margin_bottom: Scalar(36.0),
             margin_left: Scalar(36.0),
         };
-        let spec = resolve_page_spec(&rules, None, 0, &cli);
+        let spec = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero());
         assert_eq!(spec.size, (Scalar(240.0), Scalar(84.0)));
         assert_eq!(spec.margins.left, Scalar(48.0));
         assert_eq!(spec.margins.right, Scalar(48.0));
@@ -1365,9 +1379,9 @@ mod tests {
             margin_bottom: Scalar(36.0),
             margin_left: Scalar(36.0),
         };
-        let p1 = resolve_page_spec(&rules, None, 0, &cli);
+        let p1 = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero());
         assert_eq!(p1.size, (Scalar(216.0), Scalar(360.0))); // portrait of 5x3in
-        let p2 = resolve_page_spec(&rules, None, 1, &cli);
+        let p2 = resolve_page_spec(&rules, None, 1, &cli, PageMargins::zero());
         assert_eq!(p2.size, (Scalar(360.0), Scalar(216.0))); // landscape (default)
     }
 
@@ -1451,7 +1465,7 @@ mod tests {
             margin_bottom: Scalar(36.0),
             margin_left: Scalar(36.0),
         };
-        let spec = resolve_page_spec(&rules, None, 0, &cli);
+        let spec = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero());
         assert_eq!(spec.size, (Scalar(300.0), Scalar(600.0)));
         assert_eq!(spec.padding.top, Scalar(30.0));
         assert_eq!(spec.padding.right, Scalar(60.0));
