@@ -114,6 +114,16 @@ The engine shall:
    `--page-width`/`--page-height`/`--margin-*` defaults for pages they match;
    the CLI values remain the default when no rule applies. The CLI contract's
    flag shape is unchanged.
+3a. **Resolve viewport units against the page box (CORE-140)**: `vh`/`vw`
+   (and viewport-unit insets) are carried RAW through the cascade and
+   resolved at layout time against the initial containing block's content
+   box (css-values-4 §7.8 print behavior; 100vh = page content height). The
+   stylo viewport stays fixed at 1024x768 (CORE-66) — resolution happens in
+   layout, not in style. This flipped page-margin-001/003 and
+   page-size-009 PASS; fixedpos-007/008 and underflow-from-next-page
+   flipped FAIL, exposing the abspos-across-pages and negative-margin-at-
+   breaks gaps (documented residuals, not vh defects — their accidental
+   passes under the fixed viewport were not spec behavior).
 4. **Honor named pages**: an element with `page: <name>` switches the page
    context; pages that the element's boxes start use `@page <name>` (falling
    back to the default page spec if no such rule exists). The context is the

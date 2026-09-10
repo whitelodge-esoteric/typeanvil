@@ -114,7 +114,7 @@ impl<'a> Ctx<'a> {
             // SHIFTED origin (css-position-3 §6.2); absolute/fixed resolve
             // via their own insets, untouched by this shift.
             flow.abspos_cb = Some((
-                RelativeInsetShift::resolve(style).point(Point::new(inner_left, box_top)),
+                RelativeInsetShift::resolve(style, self.icb_width, self.icb_height).point(Point::new(inner_left, box_top)),
                 inner_width,
             ));
         }
@@ -157,7 +157,7 @@ impl<'a> Ctx<'a> {
         // fragment; the parent cursor advanced via `used`, so siblings never
         // reflow.
         let mut result = result;
-        RelativeInsetShift::resolve(style).apply(&mut result.fragment);
+        RelativeInsetShift::resolve(style, self.icb_width, self.icb_height).apply(&mut result.fragment);
         flow.abspos_cb = saved_abspos_cb;
         result
     }
@@ -206,10 +206,8 @@ impl<'a> Ctx<'a> {
             }
             FlexBasis::Content => self.shrink_to_fit(item_id, inner_width),
             FlexBasis::Auto => {
-                if let Some(w) = s.width {
+                if let Some(w) = self.resolved_width(s, inner_width) {
                     w
-                } else if let Some(p) = s.width_percent {
-                    inner_width * p
                 } else {
                     self.shrink_to_fit(item_id, inner_width)
                 }
@@ -702,10 +700,8 @@ impl<'a> Ctx<'a> {
 
             // Item width: `stretch` (default) fills the container; an
             // explicit width/percentage is honored instead.
-            let item_width = if let Some(w) = cstyle.width {
+            let item_width = if let Some(w) = self.resolved_width(cstyle, inner_width) {
                 w
-            } else if let Some(p) = cstyle.width_percent {
-                inner_width * p
             } else {
                 inner_width
             };

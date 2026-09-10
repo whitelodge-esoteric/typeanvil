@@ -37,6 +37,7 @@ use std::collections::BTreeMap;
 
 use crate::css::{
     ComputedStyle, Display, Float, Hyphens, Position, StringSetValue, Stylesheet, TextAlign,
+    ViewportLen,
 };
 use crate::dom::{Dom, NodeId, NodeKind};
 use crate::frag::{
@@ -281,6 +282,14 @@ struct Ctx<'a> {
     content_y: Scalar,
     /// Content-box height of the page currently being laid out.
     page_height: Scalar,
+    /// The initial containing block's content-box dimensions (page 0's content
+    /// box, CORE-127/CORE-140). Viewport units (`vw`/`vh`) resolve against
+    /// THIS, document-wide — not the page currently being laid out (WPT print
+    /// reftests resolve vw/vh against the first page's content box, e.g.
+    /// page-size-009: a 100vw box on a named 300px page is 200px — the
+    /// :first page's size).
+    icb_width: Scalar,
+    icb_height: Scalar,
     /// Resolved target-counter values by element `NodeId` (from the
     /// previous layout pass). Empty on the first pass.
     target_pages: &'a BTreeMap<NodeId, usize>,
@@ -923,6 +932,7 @@ fn paginate(
         let geo = spec.geometry();
         let content = geo.content_rect();
 
+        let icb = icb_content.unwrap_or(content);
         let ctx = Ctx {
             dom,
             styles,
@@ -930,6 +940,8 @@ fn paginate(
             content_width: content.width,
             content_y: content.y,
             page_height: content.height,
+            icb_width: icb.width,
+            icb_height: icb.height,
             target_pages,
             target_counters,
             total_pages,
@@ -987,6 +999,8 @@ fn paginate(
                         content_width: content.width,
                         content_y: content.y,
                         page_height: area_top - content.y,
+                        icb_width: icb.width,
+                        icb_height: icb.height,
                         target_pages,
                         target_counters,
                         total_pages,
@@ -1140,6 +1154,8 @@ fn paginate(
                 content_width: content0.width,
                 content_y: content0.y,
                 page_height: content0.height,
+                icb_width: content0.width,
+                icb_height: content0.height,
                 target_pages,
                 target_counters,
                 total_pages,
@@ -1156,16 +1172,16 @@ fn paginate(
             // Insets position the margin box against the ICB (css-position-3
             // §fixed in paged media = the page content box; bottom/right
             // resolve against the ICB height).
-            let fx = match fstyle.inset_left {
+            let fx = match anchor.resolved_inset(fstyle.inset_left, fstyle.inset_left_viewport) {
                 Some(l) => content0.x + l,
-                None => match fstyle.inset_right {
+                None => match anchor.resolved_inset(fstyle.inset_right, fstyle.inset_right_viewport) {
                     Some(r) => content0.x + content0.width - fw - r,
                     None => content0.x,
                 },
             };
-            let fy = match fstyle.inset_top {
+            let fy = match anchor.resolved_inset(fstyle.inset_top, fstyle.inset_top_viewport) {
                 Some(t) => content0.y + t,
-                None => match fstyle.inset_bottom {
+                None => match anchor.resolved_inset(fstyle.inset_bottom, fstyle.inset_bottom_viewport) {
                     Some(b) => content0.y + content0.height - fh - b,
                     None => content0.y,
                 },
@@ -1260,25 +1276,33 @@ impl RelativeInsetShift {
     /// Resolve the (dx, dy) pair from the computed insets. Zero when the box
     /// is not relatively positioned, so every caller can apply it
     /// unconditionally.
-    pub(crate) fn resolve(style: &ComputedStyle) -> RelativeInsetShift {
+    pub(crate) fn resolve(
+        style: &ComputedStyle,
+        content_w: Scalar,
+        content_h: Scalar,
+    ) -> RelativeInsetShift {
         if style.position != Position::Relative {
             return RelativeInsetShift {
                 dx: Scalar::ZERO,
                 dy: Scalar::ZERO,
             };
         }
+        let l = style.inset_left_viewport.map(|v| v.resolve(content_w, content_h));
+        let r = style.inset_right_viewport.map(|v| v.resolve(content_w, content_h));
+        let t = style.inset_top_viewport.map(|v| v.resolve(content_w, content_h));
+        let b = style.inset_bottom_viewport.map(|v| v.resolve(content_w, content_h));
         // left wins over-constrained cases (LTR); else mirror right.
-        let dx = match style.inset_left {
+        let dx = match l.or(style.inset_left) {
             Some(l) => l,
-            None => match style.inset_right {
+            None => match r.or(style.inset_right) {
                 Some(r) => Scalar::ZERO - r,
                 None => Scalar::ZERO,
             },
         };
         // top wins over-constrained cases; else mirror bottom.
-        let dy = match style.inset_top {
+        let dy = match t.or(style.inset_top) {
             Some(t) => t,
-            None => match style.inset_bottom {
+            None => match b.or(style.inset_bottom) {
                 Some(b) => Scalar::ZERO - b,
                 None => Scalar::ZERO,
             },
@@ -1303,7 +1327,43 @@ impl RelativeInsetShift {
     }
 }
 
+
 impl<'a> Ctx<'a> {
+    /// Resolve a stored viewport length against the initial containing block's
+    /// content box (page 0's content — `vw` against ICB width, `vh` against
+    /// ICB height). Document-wide: WPT print reftests resolve vw/vh against
+    /// the first page's content box, not the page currently being laid out
+    /// (css-values-4 §7.8 + page-size-009's assertion, CORE-140).
+    fn viewport_pt(&self, v: ViewportLen) -> Scalar {
+        v.resolve(self.icb_width, self.icb_height)
+    }
+
+    /// Resolve a computed `width`: viewport fraction first, else the absolute
+    /// length, else the percentage against `avail`. One seam every width
+    /// consumer shares so viewport widths can't drift from percentage widths.
+    fn resolved_width(&self, style: &ComputedStyle, avail: Scalar) -> Option<Scalar> {
+        if let Some(v) = style.width_viewport {
+            return Some(self.viewport_pt(v));
+        }
+        style
+            .width
+            .or_else(|| style.width_percent.map(|p| Scalar(p * avail.get())))
+    }
+
+    /// Resolve a computed `height`: viewport fraction first, else the absolute
+    /// length. Percentage height stays on `height_percent` (flex-only).
+    fn resolved_height(&self, style: &ComputedStyle) -> Option<Scalar> {
+        if let Some(v) = style.height_viewport {
+            return Some(self.viewport_pt(v));
+        }
+        style.height
+    }
+
+    /// Resolve one inset: viewport fraction first, else the absolute length.
+    fn resolved_inset(&self, abs: Option<Scalar>, vp: Option<ViewportLen>) -> Option<Scalar> {
+        vp.map(|v| self.viewport_pt(v)).or(abs)
+    }
+
     /// Lay out an `<img>` as a monolithic replaced-element box (CORE-106).
     ///
     /// Sizing (spec Behavior 6): CSS width/height wins; then the HTML
@@ -1348,10 +1408,8 @@ impl<'a> Ctx<'a> {
             .map(|v| v * 0.75);
         // CSS percentages resolve against the containing block's content
         // width; height percentages resolve to auto (v1).
-        let css_w = style
-            .width
-            .or_else(|| style.width_percent.map(|p| Scalar(p * avail_width.get())));
-        let css_h = style.height;
+        let css_w = self.resolved_width(style, avail_width);
+        let css_h = self.resolved_height(style);
 
         let intrinsic_w = info
             .filter(|i| !i.broken)
@@ -1515,7 +1573,7 @@ impl<'a> Ctx<'a> {
         // css-position-3 §6.2: a relatively-positioned replaced element
         // paints at its static position plus its insets; the parent cursor
         // advanced via `used`, so following content never reflows.
-        RelativeInsetShift::resolve(style).apply(&mut fragment);
+        RelativeInsetShift::resolve(style, self.icb_width, self.icb_height).apply(&mut fragment);
 
         BlockResult {
             used: used_h + margin_top,
@@ -1728,9 +1786,7 @@ impl<'a> Ctx<'a> {
         // full `avail_width` via `used` (a block keeps its containing-block
         // footprint), so following siblings do not reflow.
         let declared_border_w = {
-            let w = style
-                .width
-                .or_else(|| style.width_percent.map(|p| Scalar(p * avail_width.get())));
+            let w = self.resolved_width(style, avail_width);
             w.map(|w| {
                 if style.box_sizing == crate::css::StyloBoxSizing::BorderBox {
                     w
@@ -1884,7 +1940,7 @@ impl<'a> Ctx<'a> {
             // moves the containing block with it. Absolute/fixed resolve
             // against their own insets here, never through this shift.
             flow.abspos_cb = Some((
-                RelativeInsetShift::resolve(style).point(Point::new(inner_left, box_top)),
+                RelativeInsetShift::resolve(style, self.icb_width, self.icb_height).point(Point::new(inner_left, box_top)),
                 inner_width,
             ));
         }
@@ -2500,9 +2556,7 @@ impl<'a> Ctx<'a> {
                     } else {
                         inner_width
                     };
-                    let style_w = cstyle.width.or_else(|| {
-                        cstyle.width_percent.map(|p| Scalar(p * inner_width.get()))
-                    });
+                    let style_w = self.resolved_width(cstyle, inner_width);
                     // `box-sizing: border-box` (css-ui-3): the declared width
                     // includes padding + border, so subtract them to get the
                     // content width handed to the block layout path.
@@ -2540,7 +2594,7 @@ impl<'a> Ctx<'a> {
                     // height (the block measure path ignores declared height,
                     // CORE-66 model) — the deferral decision needs the real
                     // box height.
-                    let ah = cstyle.height.map_or(ah, |h| {
+                    let ah = self.resolved_height(cstyle).map_or(ah, |h| {
                         h + cstyle.margin_top
                             + cstyle.padding_top
                             + cstyle.padding_bottom
@@ -2731,16 +2785,16 @@ impl<'a> Ctx<'a> {
                         // height (the containing block's own height is not
                         // known mid-layout); `auto` insets sit at the padding
                         // box origin (basic static position).
-                        let x = match cstyle.inset_left {
+                        let x = match self.resolved_inset(cstyle.inset_left, cstyle.inset_left_viewport) {
                             Some(l) => cb_origin.x + l,
-                            None => match cstyle.inset_right {
+                            None => match self.resolved_inset(cstyle.inset_right, cstyle.inset_right_viewport) {
                                 Some(r) => cb_origin.x + cb_width - fw - r,
                                 None => cb_origin.x,
                             },
                         };
-                        let y = match cstyle.inset_top {
+                        let y = match self.resolved_inset(cstyle.inset_top, cstyle.inset_top_viewport) {
                             Some(t) => cb_origin.y + t,
-                            None => match cstyle.inset_bottom {
+                            None => match self.resolved_inset(cstyle.inset_bottom, cstyle.inset_bottom_viewport) {
                                 Some(b) => cb_origin.y + self.page_height - fh - b,
                                 None => cb_origin.y,
                             },
@@ -3279,7 +3333,7 @@ impl<'a> Ctx<'a> {
         // for auto-height boxes; an explicit height only overrides the paint
         // box (larger of content/declared so overflow text never clips).
         if !broke {
-            if let Some(mut declared) = style.height {
+            if let Some(mut declared) = self.resolved_height(style) {
                 // Content-box sizing: the declared height excludes padding
                 // AND border (css-sizing-3 §5.1) — add both to the target.
                 if style.box_sizing != crate::css::StyloBoxSizing::BorderBox {
@@ -3416,7 +3470,7 @@ impl<'a> Ctx<'a> {
 // Only own-inline-content overflow (bare text lines, e.g. a `height:0` div
 // with a text line — page-size-007/008) clamps to the declared height.
         let flow_height = if !broke && !has_block_child {
-            match style.height {
+            match self.resolved_height(style) {
                 Some(mut declared) => {
                     if style.box_sizing != crate::css::StyloBoxSizing::BorderBox {
                         declared = declared
@@ -3444,7 +3498,7 @@ impl<'a> Ctx<'a> {
         // static position plus its insets. The shift lands on the FRAGMENT
         // only — the parent cursor advanced via `used`, so siblings and
         // following content never reflow.
-        RelativeInsetShift::resolve(style).apply(&mut fragment);
+        RelativeInsetShift::resolve(style, self.icb_width, self.icb_height).apply(&mut fragment);
 
         BlockResult {
             fragment,
@@ -3821,7 +3875,7 @@ impl<'a> Ctx<'a> {
         let empty = height.get() <= 0.0 && outgoing.is_none();
         // css-position-3 §6.2: paint-only shift; the parent cursor advanced
         // via `used`, so rows and following content keep their flow spots.
-        RelativeInsetShift::resolve(&self.styles[id]).apply(&mut fragment);
+        RelativeInsetShift::resolve(&self.styles[id], self.icb_width, self.icb_height).apply(&mut fragment);
         BlockResult {
             fragment,
             used: height,
@@ -3945,7 +3999,7 @@ impl<'a> Ctx<'a> {
         let empty = height.get() <= 0.0 && outgoing.is_none();
         // css-position-3 §6.2: paint-only shift; the parent cursor advanced
         // via `used`, so following rows keep their flow spots.
-        RelativeInsetShift::resolve(&self.styles[id]).apply(&mut fragment);
+        RelativeInsetShift::resolve(&self.styles[id], self.icb_width, self.icb_height).apply(&mut fragment);
         BlockResult {
             fragment,
             used: height,
@@ -4177,7 +4231,7 @@ impl<'a> Ctx<'a> {
 
         // css-position-3 §6.2: paint-only shift; the parent cursor advanced
         // via `used`, so following rows keep their flow spots.
-        RelativeInsetShift::resolve(&self.styles[id]).apply(&mut fragment);
+        RelativeInsetShift::resolve(&self.styles[id], self.icb_width, self.icb_height).apply(&mut fragment);
         BlockResult {
             fragment,
             used,
@@ -4417,7 +4471,7 @@ impl<'a> Ctx<'a> {
                 style.margin_top + style.padding_top + used_h + style.padding_bottom,
             );
         }
-        let content_w = match style.width {
+        let content_w = match self.resolved_width(style, inner_width) {
             Some(w) => {
                 if w.get() > inner_width.get() {
                     inner_width
@@ -4443,7 +4497,7 @@ impl<'a> Ctx<'a> {
         // block path's declared-height override; explicit compares (Scalar
         // has no Ord).
         let inner_measured = h - style.margin_top - style.margin_bottom;
-        let inner = match style.height {
+        let inner = match self.resolved_height(style) {
             Some(hh) => {
                 let target = if style.box_sizing == crate::css::StyloBoxSizing::BorderBox {
                     hh

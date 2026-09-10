@@ -175,13 +175,7 @@ impl Ctx<'_> {
             for it in &placed_items {
                 if it.col == ci {
                     let item_w = self
-                        .styles[it.id]
-                        .width
-                        .or_else(|| {
-                            self.styles[it.id]
-                                .width_percent
-                                .map(|p| Scalar(p * inner_width.get()))
-                        })
+                        .resolved_width(&self.styles[it.id], inner_width)
                         .unwrap_or_else(|| self.shrink_to_fit(it.id, inner_width));
                     if item_w.get() > w.get() {
                         w = item_w;
