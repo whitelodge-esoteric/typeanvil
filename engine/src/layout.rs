@@ -386,11 +386,15 @@ pub fn layout_with_images_and_store(
     let mut image_infos: BTreeMap<NodeId, ImageInfo> = BTreeMap::new();
     collect_image_sources(dom, root, images, &mut image_infos, base_url);
 
-    // A `display: none` on the document root (html) suppresses the whole
-    // document: one valid empty page, no page-box chrome (CORE-66,
+    // A `display: none` on the document root ELEMENT (html) suppresses the
+    // whole document: one valid empty page, no page-box chrome (CORE-66,
     // root-element-display-none — a blank page must compare equal to a
-    // blank reference).
-    if styles[dom.root].display == Display::None {
+    // blank reference). The check must read the html element's computed
+    // display: `dom.root` is the synthetic document node, which is never
+    // element-styled (its display is the initial `inline`), so testing it
+    // never fired and the document laid out normally.
+    let root_element = dom.find_tag("html").unwrap_or(dom.root);
+    if styles[root_element].display == Display::None {
         let mut blank = Fragmentainer::new(0, (geometry.width, geometry.height));
         blank.background = None;
         return Layout {
@@ -4550,9 +4554,25 @@ impl<'a> Ctx<'a> {
     /// the declared value (a `page:foo` parent's unnamed children share its
     /// context — comparing declared values would break between them).
     fn effective_page(&self, id: NodeId) -> Option<&str> {
-        // Own declaration wins.
-        if let Some(name) = &self.styles[id].page {
-            return Some(name.as_str());
+        // Own declaration wins — EXCEPT for an inline-level replaced image.
+        // css-page-3 §8.1: the `page` property "Applies to: boxes that create
+        // class A break points", and an inline-level box creates none. An
+        // `<img>`/inline `<svg>` computes `display: inline` by default, so its
+        // own `page` declaration neither starts a page for the image nor
+        // demands a boundary at it (Chromium oracle, page-name-img-001/002:
+        // the image stays on its ancestor's page; a following `page:b` block
+        // is the box that breaks). A block-level replaced box
+        // (`display: block`) IS a class-A box and keeps its own declaration
+        // (page-name-img-003/004).
+        let own_decl_applies = !(self.is_replaced_image(id)
+            && matches!(
+                self.styles[id].display,
+                Display::Inline | Display::InlineBlock | Display::InlineFlex
+            ));
+        if own_decl_applies {
+            if let Some(name) = &self.styles[id].page {
+                return Some(name.as_str());
+            }
         }
         // css-page-3 §4.2 (canvas-004 oracle): an undeclared box continues the
         // page context of the nearest PRECEDING in-flow sibling that declared
@@ -4739,6 +4759,14 @@ impl<'a> Ctx<'a> {
             match &self.dom.nodes[child].kind {
                 NodeKind::Text(t) => pending.push_str(t),
                 NodeKind::Element(_) => {
+                    // A `display: none` child generates no box: its text must
+                    // not fold into the parent's run (page-name-display-none-
+                    // child — the hidden child's text leaked onto the empty
+                    // page). `layout_box` also returns an empty fragment for
+                    // it, so itemizing it would be dead weight.
+                    if self.styles[child].display == Display::None {
+                        continue;
+                    }
                     // CORE-107: a footnote-floated element is replaced in the
                     // run by its call-marker digit. Its own text never folds
                     // into the body; layout registers the note when the line

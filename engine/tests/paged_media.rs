@@ -1165,3 +1165,125 @@ fn cascade_layers_order_page_margins() {
         first3.offset.y.get()
     );
 }
+
+/// `html { display: none }` suppresses the whole document: exactly one blank
+/// page with no page-box chrome (root-element-display-none, css-page-3 —
+/// the root element generates no boxes, so the page is empty; the blank ref
+/// compares equal). The suppression check must read the HTML ELEMENT's
+/// computed display, not the synthetic document node's (which is never
+/// element-styled).
+#[test]
+fn root_display_none_produces_one_blank_page_without_chrome() {
+    let html = r#"<html><head><style>
+        @page { margin: 0.5in; border: solid red; background: hotpink; }
+        html { display: none; }
+    </style></head><body>FAIL, this page should be blank.</body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    assert_eq!(
+        layout.pages.len(),
+        1,
+        "display:none on the html element must yield exactly one page"
+    );
+    let page = &layout.pages[0];
+    assert!(
+        page.root.children.is_empty(),
+        "a display:none root must place no content boxes"
+    );
+    assert!(
+        page.background.is_none(),
+        "the suppressed-document page must carry no @page chrome background"
+    );
+    assert!(
+        page.canvas_background.is_none(),
+        "the suppressed-document page must carry no canvas background"
+    );
+    assert!(
+        !page_texts(page).iter().any(|t| t.contains("FAIL")),
+        "root content must not render when html is display:none"
+    );
+}
+
+/// A `display: none` child must never fold its text into the parent's flow:
+/// the parent then carries no content (page-name-display-none-child — the
+/// page:c div holding only a display:none child stays empty, and the sibling
+/// page-change break still fires around it). Without the guard the child's
+/// text leaks onto the empty page.
+#[test]
+fn display_none_child_does_not_leak_text_into_parent_flow() {
+    let html = r#"<html><head><style>
+        @page { margin: 0; }
+        @page a { margin: 1in; }
+        @page c { margin: 1in; }
+        div { width: 1in; height: 1in; }
+    </style></head><body>
+        <div style="page: a">a</div>
+        <div style="page: c">
+            <div style="display: none">c</div>
+        </div>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    // The display:none child is not content: the page:c wrapper is empty and
+    // must not render its hidden child's text anywhere.
+    for (i, page) in layout.pages.iter().enumerate() {
+        assert!(
+            !page_texts(page).iter().any(|t| t.contains('c')),
+            "page {} must not contain the display:none child's text",
+            i + 1
+        );
+    }
+}
+
+/// An inline replaced element (`<img>` without `display: block`) is not a
+/// class-A box: its own `page` declaration does not create a page-change
+/// boundary (css-page-3 §8.1 "Applies to: boxes that create class A break
+/// points"). The break fires only where a real block sibling's context
+/// differs (page-name-img-001: inline img `page:b` under body `page:a` stays
+/// on page a; the following `page:b` div starts page b).
+#[test]
+fn inline_img_page_declaration_is_inert_for_boundaries() {
+    // A tiny real PNG (1x1) so the image store has something to intern.
+    let img = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    let html = format!(
+        r#"<html><head><style>
+        @page {{ margin: 0; }}
+        @page a {{ margin: 1in; }}
+    </style></head><body style="page: a">
+        <img style="page: b" src="{img}">
+        <div style="page: b">b</div>
+    </body></html>"#
+    );
+    let layout = lay(&html, geometry(5.0, 3.0, 0.5));
+    assert_eq!(
+        layout.pages.len(),
+        2,
+        "inline img page:b under body page:a, then a page:b div: the div's \
+         page differs from the img's inherited context (a), so a break must \
+         fire between them (img-001)"
+    );
+}
+
+/// Mirror of the above with the inline img AFTER a page-declaring block
+/// (page-name-img-002: `page:b` div then inline img `page:b` — the div ends
+/// page b, the img's context is the ancestor's (a), so a break fires between
+/// them and the img lands on a new page).
+#[test]
+fn inline_img_page_declaration_is_inert_after_declaring_block() {
+    let img = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    let html = format!(
+        r#"<html><head><style>
+        @page {{ margin: 0; }}
+        @page a {{ margin: 1in; }}
+    </style></head><body style="page: a">
+        <div style="page: b">a</div>
+        <img style="page: b" src="{img}">
+    </body></html>"#
+    );
+    let layout = lay(&html, geometry(5.0, 3.0, 0.5));
+    assert_eq!(
+        layout.pages.len(),
+        2,
+        "page:b div then inline img page:b under body page:a: the div's end \
+         context (b) differs from the img's inherited context (a), so a break \
+         fires before the img (img-002)"
+    );
+}
