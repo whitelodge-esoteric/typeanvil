@@ -651,16 +651,16 @@ impl<'a> Ctx<'a> {
                             .abspos_cb
                             .unwrap_or((Point::new(self.content_x, set_top), self.content_width));
                         let (fw, fh) = self.measure_float(*child, cb.1);
-                        let ax = match cs.inset_left {
+                        let ax = match self.resolved_inset(cs.inset_left, cs.inset_left_viewport) {
                             Some(l) => cb.0.x + l,
-                            None => match cs.inset_right {
+                            None => match self.resolved_inset(cs.inset_right, cs.inset_right_viewport) {
                                 Some(r) => cb.0.x + cb.1 - fw - r,
                                 None => cb.0.x,
                             },
                         };
-                        let ay = match cs.inset_top {
+                        let ay = match self.resolved_inset(cs.inset_top, cs.inset_top_viewport) {
                             Some(t) => cb.0.y + t,
-                            None => match cs.inset_bottom {
+                            None => match self.resolved_inset(cs.inset_bottom, cs.inset_bottom_viewport) {
                                 Some(b) => cb.0.y + self.page_height - fh - b,
                                 None => cb.0.y,
                             },

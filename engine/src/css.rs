@@ -793,6 +793,35 @@ pub enum StringSetValue {
 /// `break-before` / `break-after`. Re-exported from [`crate::frag`] so the
 /// cascade output contract carries it directly.
 pub use crate::frag::{BreakBetween, BreakInside};
+/// A length declared with a viewport unit (CORE-140), carried RAW through the
+/// cascade so layout resolves it against the initial containing block's
+/// content box instead of the fixed 1024x768 stylo viewport (CORE-66 forbids
+/// changing that).
+///
+/// `vw`/`vh` are 1% of the ICB content-box width/height (css-values-4 §7.8;
+/// WPT print tests resolve them against the first page's content box), so the
+/// stored fraction is `value / 100` — `vw=true, frac=1.0` = `100vw`.
+/// `offset_pt` carries the fixed point term of a `calc(Nvw ± Mpx)` form (zero
+/// for a plain length).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ViewportLen {
+    /// `true` = `vw` (ICB content width); `false` = `vh` (ICB content height).
+    pub vw: bool,
+    /// The `N / 100` fraction (may be negative).
+    pub frac: f64,
+    /// Fixed point offset in points (`calc(Nvw ± Mpx)`); zero for plain.
+    pub offset_pt: Scalar,
+}
+
+impl ViewportLen {
+    /// Resolve against the ICB content box: `content_w`/`content_h` in points.
+    pub fn resolve(self, content_w: Scalar, content_h: Scalar) -> Scalar {
+        let base = if self.vw { content_w } else { content_h } * self.frac;
+        base + self.offset_pt
+    }
+}
+
+
 
 /// Fully computed style for one element. This is the cascade's output contract;
 /// layout and PDF read only this.
@@ -845,6 +874,13 @@ pub struct ComputedStyle {
     /// The raw `height` percentage as a 0..=1 fraction, kept for flex item
     /// sizing against the flex line's cross size / container height.
     pub height_percent: Option<f64>,
+    /// The raw `width` viewport-unit fraction (CORE-140): set when the winning
+    /// `width` declaration is a plain `vw`/`vh` length. `None` = not viewport.
+    /// Layout resolves it against the page content box; the fixed-viewport
+    /// absolute value stylo computed stays ignored (`width` is cleared).
+    pub width_viewport: Option<ViewportLen>,
+    /// The raw `height` viewport-unit fraction (CORE-140).
+    pub height_viewport: Option<ViewportLen>,
     /// The computed `box-sizing` (css-ui-3). `border-box` makes `width`/
     /// `height` include padding + border; the inline-block placement uses it
     /// to convert the declared width into a content width (CORE-120).
@@ -857,6 +893,12 @@ pub struct ComputedStyle {
     pub inset_right: Option<Scalar>,
     pub inset_bottom: Option<Scalar>,
     pub inset_left: Option<Scalar>,
+    /// The raw viewport-unit fraction for each inset (CORE-140), set when the
+    /// winning `top`/`right`/`bottom`/`left` declaration is a plain `vw`/`vh`.
+    pub inset_top_viewport: Option<ViewportLen>,
+    pub inset_right_viewport: Option<ViewportLen>,
+    pub inset_bottom_viewport: Option<ViewportLen>,
+    pub inset_left_viewport: Option<ViewportLen>,
     /// `z-index`, `None` = `auto` (paint in tree order).
     pub z_index: Option<i32>,
     /// `column-count`, `None` = `auto` (css-multicol-1).
@@ -992,12 +1034,18 @@ impl ComputedStyle {
             width_percent: None,
             height: None,
             height_percent: None,
+            width_viewport: None,
+            height_viewport: None,
             box_sizing: StyloBoxSizing::ContentBox,
             position: Position::Static,
             inset_top: None,
             inset_right: None,
             inset_bottom: None,
             inset_left: None,
+            inset_top_viewport: None,
+            inset_right_viewport: None,
+            inset_bottom_viewport: None,
+            inset_left_viewport: None,
             z_index: None,
             column_count: None,
             column_width: None,
@@ -1905,11 +1953,17 @@ impl CascadeSession {
             width_percent,
             height,
             height_percent,
+            width_viewport: None,
+            height_viewport: None,
             position: position_prop,
             inset_top,
             inset_right,
             inset_bottom,
             inset_left,
+            inset_top_viewport: None,
+            inset_right_viewport: None,
+            inset_bottom_viewport: None,
+            inset_left_viewport: None,
             z_index,
             column_count,
             column_width,
@@ -2333,6 +2387,10 @@ pub(crate) fn cascade_evaluated(
     // Fifth pass: collapse adjacent table-cell borders (CORE-119 #5) — the
     // shared edge between two neighboring cells must stroke once.
     crate::table::collapse_cell_borders(dom, &mut styles);
+    // Sixth pass: capture viewport-unit lengths (CORE-140). The seam records
+    // the raw `vw`/`vh` fraction on the computed style so layout resolves it
+    // against the page content box (stylo's fixed-viewport absolute stays).
+    viewport_units::apply_viewport_properties(dom, evaluated_css, &mut styles);
     styles
 }
 
@@ -2676,7 +2734,7 @@ mod breaks {
 
     /// Find the index of the brace matching `open` (which must be `{`),
     /// counting nesting depth.
-    fn matching_brace(bytes: &[u8], open: usize) -> Option<usize> {
+    pub(super) fn matching_brace(bytes: &[u8], open: usize) -> Option<usize> {
         let mut depth = 0;
         let mut i = open;
         while i < bytes.len() {
@@ -3775,6 +3833,276 @@ mod paged_props {
                     }
                     PagedDecl::Display(v) => {
                         styles[id].display = v;
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Author-CSS parse for viewport-unit lengths (`vw`/`vh`) on the properties
+/// layout consumes (CORE-140).
+///
+/// stylo resolves viewport units against its FIXED 1024x768 viewport (CORE-66:
+/// changing that regressed monolithic-overflow + fixedpos), so a `100vw`/`100vh`
+/// div computes to 576pt/768pt absolute values. WPT print tests resolve both
+/// against the PAGE content box instead, so this pass re-reads the author
+/// stylesheet text and records the raw `value/100` fraction on the computed
+/// style; layout resolves it against each page's content box. Only a PLAIN
+/// `Nvw`/`Nvh` value is captured — any other length (or `auto`) leaves the
+/// field `None` and the seam falls back to stylo's absolute value. Mirrors
+/// [`breaks`]: same simple-selector matcher, same balanced-brace scanner, same
+/// inline-`style` override model.
+mod viewport_units {
+    use super::breaks::{matching_brace, parse_simple, strip_comments, SimpleSelector};
+    use super::{ComputedStyle, ViewportLen};
+    use crate::dom::{Dom, NodeKind};
+    use crate::geom::Scalar;
+    /// One viewport-unit declaration keyed to a field.
+    #[derive(Clone, Copy)]
+    enum ViewportDecl {
+        Width(ViewportLen),
+        Height(ViewportLen),
+        InsetTop(ViewportLen),
+        InsetRight(ViewportLen),
+        InsetBottom(ViewportLen),
+        InsetLeft(ViewportLen),
+    }
+
+    /// Parse a `<number>vw | <number>vh` token into a [`ViewportLen`]
+    /// fraction (`value / 100`), or a `calc(<vp> [+-] <px>)` form with a fixed
+    /// point offset. Negative values are allowed (valid for insets). `None`
+    /// for anything else (`%`, `em`, `auto`).
+    fn parse_viewport_len(s: &str) -> Option<ViewportLen> {
+        let s = s.trim().to_ascii_lowercase();
+        // calc(Nvw ± Mpx) / calc(Nvh ± Mpx): the WPT refs (page-margin-001/2/3)
+        // author `width: calc(100vw - 60px)` — resolve the viewport term and
+        // carry the px term as a fixed point offset.
+        if let Some(inner) = s.strip_prefix("calc(").and_then(|r| r.strip_suffix(')')) {
+            let mut parts = inner.split_whitespace();
+            let vp = parts.next()?;
+            let op = parts.next()?;
+            let px = parts.next()?;
+            let (vw, frac) = parse_plain(vp)?;
+            let sign = match op {
+                "+" => 1.0,
+                "-" => -1.0,
+                _ => return None,
+            };
+            let m: f64 = px.strip_suffix("px")?.trim().parse().ok()?;
+            return Some(ViewportLen {
+                vw,
+                frac,
+                offset_pt: crate::geom::px_to_pt(sign * m),
+            });
+        }
+        let (vw, frac) = parse_plain(&s)?;
+        Some(ViewportLen {
+            vw,
+            frac,
+            offset_pt: Scalar::ZERO,
+        })
+    }
+
+    /// Parse a plain `Nvw`/`Nvh` into `(is_vw, value/100)`.
+    fn parse_plain(s: &str) -> Option<(bool, f64)> {
+        let s = s.trim();
+        if let Some(n) = s.strip_suffix("vw") {
+            Some((true, n.trim().parse::<f64>().ok()? / 100.0))
+        } else if let Some(n) = s.strip_suffix("vh") {
+            Some((false, n.trim().parse::<f64>().ok()? / 100.0))
+        } else {
+            None
+        }
+    }
+
+    fn parse_decl(prop: &str, value: &str) -> Option<ViewportDecl> {
+        let prop = prop.trim().to_ascii_lowercase();
+        let v = parse_viewport_len(value)?;
+        match prop.as_str() {
+            "width" => Some(ViewportDecl::Width(v)),
+            "height" => Some(ViewportDecl::Height(v)),
+            "top" => Some(ViewportDecl::InsetTop(v)),
+            "right" => Some(ViewportDecl::InsetRight(v)),
+            "bottom" => Some(ViewportDecl::InsetBottom(v)),
+            "left" => Some(ViewportDecl::InsetLeft(v)),
+            _ => None,
+        }
+    }
+
+    struct Rule {
+        selectors: Vec<SimpleSelector>,
+        decls: Vec<ViewportDecl>,
+        order: u32,
+    }
+
+    /// Parse only the viewport-unit rules; at-rules and unknown declarations
+    /// are skipped without failing (same balanced-brace scan as `breaks`).
+    fn parse_rules(css: &str) -> Vec<Rule> {
+        let css = strip_comments(css);
+        let mut rules = Vec::new();
+        let mut order = 0u32;
+        let bytes = css.as_bytes();
+        let mut i = 0;
+        while let Some(brace_rel) = css[i..].find('{') {
+            let brace = i + brace_rel;
+            let prelude = css[i..brace].trim();
+            let Some(end) = matching_brace(bytes, brace) else {
+                break;
+            };
+            if prelude.starts_with('@') {
+                order += 1;
+                i = end + 1;
+                continue;
+            }
+            let body = &css[brace + 1..end];
+            let mut decls = Vec::new();
+            for decl in body.split(';') {
+                if let Some((prop, value)) = decl.split_once(':') {
+                    if let Some(d) = parse_decl(prop, value) {
+                        decls.push(d);
+                    }
+                }
+            }
+            if !decls.is_empty() {
+                let selectors: Vec<SimpleSelector> =
+                    prelude.split(',').filter_map(parse_simple).collect();
+                if !selectors.is_empty() {
+                    rules.push(Rule {
+                        selectors,
+                        decls,
+                        order,
+                    });
+                }
+            }
+            order += 1;
+            i = end + 1;
+        }
+        rules
+    }
+
+    /// Apply parsed viewport-unit rules onto the cascaded styles, then inline
+    /// `style=""` declarations (which win). Later / more-specific matches win
+    /// (same priority model as [`breaks`]).
+    pub fn apply_viewport_properties(dom: &Dom, css: &str, styles: &mut [ComputedStyle]) {
+        let rules = parse_rules(css);
+
+        #[derive(Clone, Copy, Default)]
+        struct Won {
+            width: Option<(u32, u32)>,
+            height: Option<(u32, u32)>,
+            top: Option<(u32, u32)>,
+            right: Option<(u32, u32)>,
+            bottom: Option<(u32, u32)>,
+            left: Option<(u32, u32)>,
+        }
+        let mut won = vec![Won::default(); styles.len()];
+
+        for rule in &rules {
+            for sel in &rule.selectors {
+                let prio = (sel.specificity, rule.order);
+                for id in 0..dom.nodes.len() {
+                    if !matches!(dom.nodes[id].kind, NodeKind::Element(_)) {
+                        continue;
+                    }
+                    if !sel.matches(dom, id) {
+                        continue;
+                    }
+                    for decl in &rule.decls {
+                        match *decl {
+                            ViewportDecl::Width(v) => {
+                                if won[id].width.is_none_or(|w| prio >= w) {
+                                    styles[id].width_viewport = Some(v);
+                                    won[id].width = Some(prio);
+                                }
+                            }
+                            ViewportDecl::Height(v) => {
+                                if won[id].height.is_none_or(|w| prio >= w) {
+                                    styles[id].height_viewport = Some(v);
+                                    won[id].height = Some(prio);
+                                }
+                            }
+                            ViewportDecl::InsetTop(v) => {
+                                if won[id].top.is_none_or(|w| prio >= w) {
+                                    styles[id].inset_top_viewport = Some(v);
+                                    won[id].top = Some(prio);
+                                }
+                            }
+                            ViewportDecl::InsetRight(v) => {
+                                if won[id].right.is_none_or(|w| prio >= w) {
+                                    styles[id].inset_right_viewport = Some(v);
+                                    won[id].right = Some(prio);
+                                }
+                            }
+                            ViewportDecl::InsetBottom(v) => {
+                                if won[id].bottom.is_none_or(|w| prio >= w) {
+                                    styles[id].inset_bottom_viewport = Some(v);
+                                    won[id].bottom = Some(prio);
+                                }
+                            }
+                            ViewportDecl::InsetLeft(v) => {
+                                if won[id].left.is_none_or(|w| prio >= w) {
+                                    styles[id].inset_left_viewport = Some(v);
+                                    won[id].left = Some(prio);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Inline `style=""` declarations win over every stylesheet rule.
+        let mut inline_order = 0u32;
+        for id in 0..dom.nodes.len() {
+            let NodeKind::Element(el) = &dom.nodes[id].kind else {
+                continue;
+            };
+            let Some(attr) = el.attr("style") else {
+                continue;
+            };
+            for (prop, value) in super::breaks::parse_inline_decls(attr) {
+                let Some(decl) = parse_decl(&prop, &value) else {
+                    continue;
+                };
+                let prio = (u32::MAX, inline_order);
+                inline_order += 1;
+                match decl {
+                    ViewportDecl::Width(v) => {
+                        if won[id].width.is_none_or(|w| prio >= w) {
+                            styles[id].width_viewport = Some(v);
+                            won[id].width = Some(prio);
+                        }
+                    }
+                    ViewportDecl::Height(v) => {
+                        if won[id].height.is_none_or(|w| prio >= w) {
+                            styles[id].height_viewport = Some(v);
+                            won[id].height = Some(prio);
+                        }
+                    }
+                    ViewportDecl::InsetTop(v) => {
+                        if won[id].top.is_none_or(|w| prio >= w) {
+                            styles[id].inset_top_viewport = Some(v);
+                            won[id].top = Some(prio);
+                        }
+                    }
+                    ViewportDecl::InsetRight(v) => {
+                        if won[id].right.is_none_or(|w| prio >= w) {
+                            styles[id].inset_right_viewport = Some(v);
+                            won[id].right = Some(prio);
+                        }
+                    }
+                    ViewportDecl::InsetBottom(v) => {
+                        if won[id].bottom.is_none_or(|w| prio >= w) {
+                            styles[id].inset_bottom_viewport = Some(v);
+                            won[id].bottom = Some(prio);
+                        }
+                    }
+                    ViewportDecl::InsetLeft(v) => {
+                        if won[id].left.is_none_or(|w| prio >= w) {
+                            styles[id].inset_left_viewport = Some(v);
+                            won[id].left = Some(prio);
+                        }
                     }
                 }
             }
