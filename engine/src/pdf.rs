@@ -217,10 +217,38 @@ pub fn render_with_options(
         // rule may override the CLI default per page).
         let page_w = page.root.size.0.to_f32();
         let page_h = page.root.size.1.to_f32();
-        let settings = PageSettings::from_wh(page_w, page_h)
-            .ok_or_else(|| anyhow!("invalid page size {page_w}x{page_h}"))?;
+
+        // `page-orientation` (CORE-66, CORE-155): the laid-out content is
+        // unrotated; the emitter maps content coords into the FINAL page box.
+        // A 90° rotation swaps the box (landscape <-> portrait); a 180°
+        // rotation keeps it.
+        let rotated = page.page_orientation.is_some();
+        let (pb_w, pb_h) = match page.page_orientation {
+            Some(crate::paged::PageOrientation::RotateLeft)
+            | Some(crate::paged::PageOrientation::RotateRight) => (page_h, page_w),
+            _ => (page_w, page_h),
+        };
+
+        let settings = PageSettings::from_wh(pb_w, pb_h)
+            .ok_or_else(|| anyhow!("invalid page size {pb_w}x{pb_h}"))?;
         let mut pdf_page = document.start_page_with(settings);
         let mut surface = pdf_page.surface();
+
+        // Rotation applies to the WHOLE page (backgrounds + content), so it
+        // is pushed before any drawing and popped at the end. rotate-right:
+        // (x, y) -> (H - y, x); rotate-left: (x, y) -> (y, W - x); 180°:
+        // (x, y) -> (W - x, H - y).
+        if let Some(orient) = page.page_orientation {
+            let (sx, ky, kx, sy, tx, ty) = match orient {
+                crate::paged::PageOrientation::RotateRight => (0.0, 1.0, -1.0, 0.0, page_h, 0.0),
+                crate::paged::PageOrientation::RotateLeft => (0.0, -1.0, 1.0, 0.0, 0.0, page_w),
+                crate::paged::PageOrientation::RotateTop
+                | crate::paged::PageOrientation::RotateBottom => {
+                    (-1.0, 0.0, 0.0, -1.0, page_w, page_h)
+                }
+            };
+            surface.push_transform(&krilla::geom::Transform::from_row(sx, ky, kx, sy, tx, ty));
+        }
 
         // Page box background (CORE-66): a full-page fill from the resolved
         // `@page` background, painted under everything else. Always an
@@ -274,26 +302,6 @@ pub fn render_with_options(
                 }
             }
         }
-
-        // `page-orientation` (CORE-66): rotate the laid-out content within the
-        // page box. The layout itself is unrotated; the transform maps content
-        // coordinates (top-left origin, y down) into their rotated positions.
-        // rotate-right: (x, y) -> (H - y, x); rotate-left: (x, y) -> (y, W - x);
-        // rotate-top/bottom: 180°, (x, y) -> (W - x, H - y).
-        let rotated = if let Some(orient) = page.page_orientation {
-            let (sx, ky, kx, sy, tx, ty) = match orient {
-                crate::paged::PageOrientation::RotateRight => (0.0, 1.0, -1.0, 0.0, page_h, 0.0),
-                crate::paged::PageOrientation::RotateLeft => (0.0, -1.0, 1.0, 0.0, 0.0, page_w),
-                crate::paged::PageOrientation::RotateTop
-                | crate::paged::PageOrientation::RotateBottom => {
-                    (-1.0, 0.0, 0.0, -1.0, page_w, page_h)
-                }
-            };
-            surface.push_transform(&krilla::geom::Transform::from_row(sx, ky, kx, sy, tx, ty));
-            true
-        } else {
-            false
-        };
 
         // Two passes over the fragment tree so backgrounds sit under text.
         // Each collected item carries its OWNER: the nearest ancestor

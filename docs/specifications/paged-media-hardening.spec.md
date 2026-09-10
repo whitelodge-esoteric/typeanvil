@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-18
-updated: 2026-08-19
+updated: 2026-09-10
 sidebar_position: 11
 tags: [engine, css, paged-media, page]
 spec_id: paged-media-hardening
@@ -220,9 +220,11 @@ The engine shall:
 
 - Paints the page box background from the resolved `PageSpec` (background
   color) before drawing content.
-- Applies the fragmentainer's `page-orientation` as a content rotation
+- Applies the fragmentainer's `page-orientation` as a whole-page rotation
   (krilla `Surface::push_transform` with a balanced `pop` before
-  `finish()`).
+  `finish()`). A 90° rotation (`rotate-left`/`rotate-right`) also SWAPS the
+  page box dimensions (`PageSettings::from_wh`), so the rotated content
+  stays inside the box; a 180° rotation keeps the box.
 
 ## Acceptance Criteria
 
