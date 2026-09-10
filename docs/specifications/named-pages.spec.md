@@ -37,11 +37,27 @@ the WPT refs actually encode.
 
 ## Non-Goals
 
-1. Bare-text page-context changes (a text run between two page-declaring
-   blocks never forces a break): fixedpos-010's ref keeps trailing text on
-   the named page, while page-name-002's ref would require the break — the
-   two refs contradict each other through this engine; page-name-002 stays
-   a documented residual until a Chromium-oracle study resolves the quirk.
+1. Bare-text page-context changes: a text run adjacent to a page-declaring
+   block does not force a break (the comparison stops at a bare text run).
+   A Chromium-oracle study (2026-09-09,
+   `docs/research/css-page/named-page-boundary-model.md`) shows this is a
+   real gap rather than a spec quirk: Chromium forces a break at EVERY
+   boundary between in-flow content whose page context differs, bare text
+   included, and a bare text run takes its containing block's context. The
+   engine currently fires only block-to-block transitions, which is why
+   `page-name-002` renders 3 pages where Chromium and the reference render 8.
+   The earlier claim that `fixedpos-010` contradicts `page-name-002` does not
+   hold: `fixedpos-010` declares its own `@page size` values and cannot be
+   judged at the harness's fixed 5x3in geometry (Chromium fails it there on a
+   pixel difference, not a page count). Extending the model is the fix for
+   `page-name-002`; it is a deliberate Non-Goal of the CURRENT slices, gated
+   on the full suite because CORE-66 recorded a 38-test regression in this
+   area.
+   `page-name-003` is a separate matter and stays a Non-Goal permanently:
+   it and `page-name-abspos-002` are structurally identical tests with
+   opposite references (one requires a break inside the abspos wrapper, the
+   other requires none). No engine can pass both. The engine currently
+   matches `page-name-abspos-002`; Chromium matches `page-name-003`.
 2. Orthogonal flow support: documents with explicit `writing-mode`
    declarations suppress page-change breaks entirely (the engine paginates
    every flow horizontally in v1; the orthogonal-writing refs render one
@@ -49,10 +65,11 @@ the WPT refs actually encode.
 3. Page-change breaks inside flex containers, inline-blocks, or between
    bare inline runs (atomic interiors and flex items are not page-grouped).
 4. Residuals with per-test root causes; do not chase via this spec.
-   `page-name-002/003` (bare-text/abspos boundary model — needs a Chromium
-   boundary study), `page-name-zero-height-001` (engine renders 3 pages;
-   Chrome/Edge also FAIL this test at 6 pages, Firefox passes — no agreed
-   browser model). Fixed by the two CORE-157 slices:
+   `page-name-zero-height-001` (engine renders 3 pages; Chrome/Edge also
+   FAIL this test at 6 pages, Firefox passes — no agreed browser model).
+   `page-name-002` is characterised by the boundary study recorded under
+   Non-Goal 1 and is actionable; `page-name-003` is permanently unsatisfiable
+   (see Non-Goal 1). Fixed by the two CORE-157 slices:
    `page-name-img-001/002` (an inline-level replaced image's own `page`
    declaration is inert — Behavior 6), `page-name-display-none-child` and
    `page-name-inline-block-002` (the boundary comparison now also runs on
