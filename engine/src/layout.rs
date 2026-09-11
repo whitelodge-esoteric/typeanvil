@@ -50,8 +50,8 @@ mod flex;
 mod grid;
 mod multicol;
 use crate::paged::{
-    parse_page_rules, resolve_page_spec, ContentPiece, MarginBoxName, MarginRow, PageMargins,
-    PageRule, PageSpec, RunningStrings, VerticalAlign,
+    parse_page_rules, resolve_page_spec, ContentPiece, CounterValue, MarginBoxName, MarginBoxSpec,
+    MarginRow, PageMargins, PageRule, PageSpec, RunningStrings, VerticalAlign,
 };
 use crate::table::{measure_columns, measure_rows};
 use crate::typography::{break_paragraph, LineResult};
@@ -175,12 +175,11 @@ struct LinkSpan {
 struct Flow {
     /// Running strings (`string-set` → `string()`), current values.
     running: RunningStrings,
-    /// Page-counter base: `page number = base + fragmentainer_index`. A
-    /// `counter-reset: page N` sets `base = N - current_index` so the reset
-    /// element's page reads `N`.
-    page_base: i32,
-    /// The fragmentainer index currently being laid out (for counter reads).
-    current_index: usize,
+    /// The `page` counter's value for the current page. Threaded: the
+    /// `@page` context increments it at page start (default 1, or the
+    /// `counter-increment: page N` value); a document `counter-reset: page N`
+    /// overwrites it, a document `counter-increment: page N` adds.
+    page_counter: i32,
     /// Floats active on the CURRENT page (intrusions for text wrapping).
     /// Reset at the start of each fragmentainer to a clone of
     /// [`Flow::pending_floats`]; floats placed during the page are appended.
@@ -238,7 +237,7 @@ impl PlacedFloat {
 
 impl Flow {
     fn page_number(&self) -> i32 {
-        self.page_base + self.current_index as i32
+        self.page_counter
     }
 }
 
@@ -846,8 +845,7 @@ fn paginate(
     let mut incoming = Some(BreakToken::break_before());
     let mut flow = Flow {
         running: RunningStrings::new(),
-        page_base: 1,
-        current_index: 0,
+        page_counter: 0,
         active_floats: Vec::new(),
         pending_floats: Vec::new(),
         abspos_cb: None,
@@ -856,6 +854,13 @@ fn paginate(
         page_string_sets: Vec::new(),
         counters: Vec::new(),
     };
+    // The `html` root is never laid out (layout starts at `body`), but its
+    // `counter-reset`/`counter-increment` seed the document counter state the
+    // page and margin contexts read (css-page-3 §8; content-010/011/012 reset
+    // `foo` on `html`). Apply them once, before the first page.
+    if let Some(html_id) = dom.find_tag("html") {
+        apply_document_counters(&styles[html_id], &mut flow);
+    }
     // Collect `position: fixed` elements once, in document order (CORE-127
     // slice b). The body-layout out-of-flow branch SKIPS them; after the
     // page loop each is laid out exactly once against the first page's
@@ -888,7 +893,6 @@ fn paginate(
 
     while let Some(mut token) = incoming.take() {
         let page_index = pages.len();
-        flow.current_index = page_index;
         // A deferred page-change break (CORE-127 slice a) carried out of a
         // page whose LAST fragment placed nothing (all items were floats
         // that deferred whole) would start an empty page: re-absorb it —
@@ -929,6 +933,10 @@ fn paginate(
             cli,
             inherit_margins,
         );
+        // The `page` counter's @page-context reset/increment applies at page
+        // start (css-page-3 §8): increment BEFORE the body lays out, so a
+        // document `counter-reset: page N` later overwrites the auto value.
+        apply_page_counter(&spec, &mut flow);
         let geo = spec.geometry();
         let content = geo.content_rect();
 
@@ -1034,6 +1042,11 @@ fn paginate(
             fragmentainer.root.children.push(res.fragment);
         }
 
+        // @page named-counter reset/increment applies AFTER the body (so the
+        // document's own declarations — e.g. `html { counter-reset: foo }` on
+        // page 1 — are seen first). A reset shadows the threaded counter for
+        // this page only; an increment on a non-reset name threads.
+        let page_local = apply_page_named_counters(&spec, &mut flow);
         // Margin boxes resolve against the running-string / counter state now
         // in effect at the end of this page's flow (spec §6, §7); `start`
         // reads the page-start snapshot.
@@ -1047,6 +1060,7 @@ fn paginate(
             target_pages,
             total_pages,
             &page_start_strings,
+            &page_local,
         );
         // The page's assignment log is consumed: the next page's `first`/
         // `last`/`first-except` must see only THEIR assignments; `running`
@@ -1095,6 +1109,8 @@ fn paginate(
 
     if pages.is_empty() {
         let spec = resolve_page_spec(page_rules, None, 0, cli, inherit_margins);
+        apply_page_counter(&spec, &mut flow);
+        let page_local = apply_page_named_counters(&spec, &mut flow);
         let mut fragmentainer = Fragmentainer::new(0, spec.size);
         let geo = spec.geometry();
         let content = geo.content_rect();
@@ -1111,6 +1127,7 @@ fn paginate(
             target_pages,
             total_pages,
             &flow.running,
+            &page_local,
         );
         pages.push(fragmentainer);
     }
@@ -1134,8 +1151,7 @@ fn paginate(
         // Fresh Flow: the fixed layout must not touch the drained body state.
         let mut fx_flow = Flow {
             running: RunningStrings::new(),
-            page_base: 1,
-            current_index: 0,
+            page_counter: 0,
             active_floats: Vec::new(),
             pending_floats: Vec::new(),
             abspos_cb: None,
@@ -1848,27 +1864,7 @@ impl<'a> Ctx<'a> {
                     }
                 }
             }
-            for (name, n) in &style.counter_reset {
-                if name.eq_ignore_ascii_case("page") {
-                    flow.page_base = *n - flow.current_index as i32;
-                } else {
-                    // CORE-128: named counters for `bookmark-label` resolution.
-                    match flow.counters.iter_mut().find(|(k, _)| k == name) {
-                        Some((_, v)) => *v = *n,
-                        None => flow.counters.push((name.clone(), *n)),
-                    }
-                }
-            }
-            for (name, n) in &style.counter_increment {
-                if name.eq_ignore_ascii_case("page") {
-                    flow.page_base += *n;
-                } else {
-                    match flow.counters.iter_mut().find(|(k, _)| k == name) {
-                        Some((_, v)) => *v += *n,
-                        None => flow.counters.push((name.clone(), *n)),
-                    }
-                }
-            }
+            apply_document_counters(style, flow);
             // CORE-128/129: snapshot the counter state at this box start.
             // A bookmarked element's label may read `counter(name)`; a
             // `target-counter(attr(N), name)` may point at a
@@ -5206,8 +5202,10 @@ impl<'a> Ctx<'a> {
                     count_reserved(&v, false);
                     push_side(&mut before, &mut after, leader_char, &v);
                 }
-                ContentPiece::CounterRef(_) => {
-                    // Named counters are parsed but not tracked yet; render 0.
+                ContentPiece::CounterRef(_) | ContentPiece::CountersRef { .. } => {
+                    // Element generated content reads the document counter,
+                    // which is not threaded for `content` here (CORE-140 item
+                    // 3 targets margin boxes); render the css initial 0.
                     count_reserved("0", false);
                     push_side(&mut before, &mut after, leader_char, "0");
                 }
@@ -5678,6 +5676,7 @@ fn attach_margin_boxes(
     _target_pages: &BTreeMap<NodeId, usize>,
     total_pages: usize,
     page_start: &RunningStrings,
+    page_local: &[(String, i32)],
 ) {
     if spec.margin_boxes.is_empty() {
         return;
@@ -5685,7 +5684,7 @@ fn attach_margin_boxes(
     let content = geo.content_rect();
 
     for mb in &spec.margin_boxes {
-        let text = render_margin_content(&mb.content, flow, total_pages, page_start);
+        let text = render_margin_content(&mb.content, mb, flow, page_local, total_pages, page_start);
         if text.is_empty() {
             continue;
         }
@@ -5842,7 +5841,9 @@ fn resolve_string_value(
 
 fn render_margin_content(
     pieces: &[ContentPiece],
+    mb: &MarginBoxSpec,
     flow: &Flow,
+    page_local: &[(String, i32)],
     total_pages: usize,
     page_start: &RunningStrings,
 ) -> String {
@@ -5855,13 +5856,150 @@ fn render_margin_content(
             }
             ContentPiece::CounterPage => out.push_str(&flow.page_number().to_string()),
             ContentPiece::CounterPages => out.push_str(&total_pages.to_string()),
-            ContentPiece::CounterRef(_) => out.push('0'),
+            ContentPiece::CounterRef(name) => {
+                out.push_str(&margin_counter_value(name, mb, flow, page_local).to_string())
+            }
+            // `counters()` in a page/margin context resolves to the single
+            // innermost value: css-page-3 §8 obscures the outer scopes rather
+            // than nesting, so the separator never joins (documented residual).
+            ContentPiece::CountersRef { name, .. } => {
+                out.push_str(&margin_counter_value(name, mb, flow, page_local).to_string())
+            }
             ContentPiece::TargetCounter { .. } => {}
             ContentPiece::TargetText { .. } => {}
             ContentPiece::Leader(_) => {}
         }
     }
     out
+}
+
+/// Whether a counter name is one of the css-page-3 built-ins (`page`,
+/// `pages`), which the `@page`/margin counter machinery handles separately
+/// (and which `pages` cannot be reset/incremented at all, §8).
+fn is_builtin_counter(name: &str) -> bool {
+    name.eq_ignore_ascii_case("page") || name.eq_ignore_ascii_case("pages")
+}
+
+/// Apply the `@page` context's `page` counter reset/increment at page start
+/// (css-page-3 §8). The auto-increment defaults to 1 and is replaced by an
+/// explicit `counter-increment: page N` (content-008/009); a
+/// `counter-reset: page N` sets the value first (reset-then-increment,
+/// css2.1 §12.4).
+fn apply_page_counter(spec: &PageSpec, flow: &mut Flow) {
+    if let CounterValue::List(list) = &spec.counter_reset {
+        if let Some((_, n)) = list.iter().rev().find(|(name, _)| name == "page") {
+            flow.page_counter = *n;
+        }
+    }
+    let mut incr = 1;
+    if let CounterValue::List(list) = &spec.counter_increment {
+        let names: Vec<i32> = list
+            .iter()
+            .filter(|(name, _)| name == "page")
+            .map(|(_, v)| *v)
+            .collect();
+        if !names.is_empty() {
+            incr = names.iter().sum();
+        }
+    }
+    flow.page_counter += incr;
+}
+
+/// Apply the `@page` context's named counter reset/increment after the body
+/// lays out (css-page-3 §8). A reset creates a page-local shadow (returned)
+/// that hides the threaded document counter for THIS page only; an increment
+/// on a name not reset this page threads onto `flow.counters` (content-010/
+/// 012's `counter-increment: foo` on a page with no reset).
+fn apply_page_named_counters(spec: &PageSpec, flow: &mut Flow) -> Vec<(String, i32)> {
+    let mut page_local: Vec<(String, i32)> = Vec::new();
+    if let CounterValue::List(list) = &spec.counter_reset {
+        for (name, n) in list {
+            if is_builtin_counter(name) {
+                continue;
+            }
+            match page_local.iter_mut().find(|(k, _)| k == name) {
+                Some((_, v)) => *v = *n,
+                None => page_local.push((name.clone(), *n)),
+            }
+        }
+    }
+    if let CounterValue::List(list) = &spec.counter_increment {
+        for (name, n) in list {
+            if is_builtin_counter(name) {
+                continue;
+            }
+            if let Some((_, v)) = page_local.iter_mut().find(|(k, _)| k == name) {
+                *v += *n;
+            } else {
+                match flow.counters.iter_mut().find(|(k, _)| k == name) {
+                    Some((_, v)) => *v += *n,
+                    None => flow.counters.push((name.clone(), *n)),
+                }
+            }
+        }
+    }
+    page_local
+}
+
+/// Resolve one named counter in a margin box's scope (css-page-3 §8): the
+/// box's own reset > the page-context reset shadow > the threaded document
+/// counter, then the box's own increment. `page`/`pages` never reach here
+/// (they resolve via `CounterPage`/`CounterPages`).
+fn margin_counter_value(
+    name: &str,
+    mb: &MarginBoxSpec,
+    flow: &Flow,
+    page_local: &[(String, i32)],
+) -> i32 {
+    let mut value = page_local
+        .iter()
+        .find(|(k, _)| k == name)
+        .map(|(_, v)| *v)
+        .or_else(|| flow.counters.iter().find(|(k, _)| k == name).map(|(_, v)| *v))
+        .unwrap_or(0);
+    if let CounterValue::List(list) = &mb.counter_reset {
+        for (n, v) in list {
+            if n == name {
+                value = *v;
+            }
+        }
+    }
+    if let CounterValue::List(list) = &mb.counter_increment {
+        for (n, v) in list {
+            if n == name {
+                value += *v;
+            }
+        }
+    }
+    value
+}
+
+/// Apply one element's `counter-reset` then `counter-increment` (css2.1 §12.4
+/// order) to the threaded document counter state: the `page` counter field and
+/// the named `flow.counters` map. Shared between [`Ctx::layout_box`] (every
+/// fresh element box) and the `html` root seeding in [`paginate`] (the root is
+/// never laid out — layout starts at `body`).
+fn apply_document_counters(style: &ComputedStyle, flow: &mut Flow) {
+    for (name, n) in &style.counter_reset {
+        if name.eq_ignore_ascii_case("page") {
+            flow.page_counter = *n;
+        } else {
+            match flow.counters.iter_mut().find(|(k, _)| k == name) {
+                Some((_, v)) => *v = *n,
+                None => flow.counters.push((name.clone(), *n)),
+            }
+        }
+    }
+    for (name, n) in &style.counter_increment {
+        if name.eq_ignore_ascii_case("page") {
+            flow.page_counter += *n;
+        } else {
+            match flow.counters.iter_mut().find(|(k, _)| k == name) {
+                Some((_, v)) => *v += *n,
+                None => flow.counters.push((name.clone(), *n)),
+            }
+        }
+    }
 }
 
 /// Collect bookmark outline entries (CORE-128) in DOM (pre-order / document)
@@ -6001,7 +6139,8 @@ fn resolve_bookmark_label(
     for piece in &style.bookmark_label {
         match piece {
             crate::paged::ContentPiece::Literal(s) => out.push_str(s),
-            crate::paged::ContentPiece::CounterRef(name) => {
+            crate::paged::ContentPiece::CounterRef(name)
+            | crate::paged::ContentPiece::CountersRef { name, .. } => {
                 if let Some(snaps) = counter_snaps.get(&id) {
                     let val = snaps
                         .iter()

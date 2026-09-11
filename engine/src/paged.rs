@@ -194,6 +194,12 @@ pub enum ContentPiece {
     CounterPages,
     /// `counter(name)` — a named counter (decimal).
     CounterRef(String),
+    /// `counters(name, separator)` — a named counter's value in scope
+    /// (css-page-3 §8). Page/margin contexts *obscure* the document counter
+    /// rather than nest, so a single innermost value is the correct rendering
+    /// for every current fixture; the separator is retained for a future
+    /// scope-chain join.
+    CountersRef { name: String, separator: String },
     /// `target-counter(<target>, <counter-name>)` — the value of
     /// `<counter-name>` on the PAGE the target element lands on (css-gcpm-3
     /// §7 / CORE-129). The target is an `attr(name)` reference (the attribute
@@ -225,6 +231,10 @@ pub struct MarginBoxStyle {
     pub font_size: Option<Scalar>,
     pub font_weight: Option<f32>,
     pub font_style: Option<crate::css::FontStyle>,
+    /// Margin-context `counter-reset` (css-page-3 §8). `None` = not declared.
+    pub counter_reset: Option<CounterValue>,
+    /// Margin-context `counter-increment`.
+    pub counter_increment: Option<CounterValue>,
 }
 
 impl MarginBoxStyle {
@@ -253,6 +263,12 @@ impl MarginBoxStyle {
         }
         if other.font_style.is_some() {
             self.font_style = other.font_style;
+        }
+        if other.counter_reset.is_some() {
+            self.counter_reset = other.counter_reset.clone();
+        }
+        if other.counter_increment.is_some() {
+            self.counter_increment = other.counter_increment.clone();
         }
     }
 }
@@ -328,6 +344,20 @@ pub enum PageLength {
     Inherit,
 }
 
+/// The parsed value of `counter-reset` / `counter-increment` in a page or
+/// margin context (css-page-3 §8). `none` and `inherit` are keywords; a list
+/// is `name [integer]` groups (default integer: 0 for reset, 1 for increment).
+#[derive(Clone, Debug, PartialEq, Default)]
+pub enum CounterValue {
+    /// `none` — no counters reset / incremented.
+    #[default]
+    None,
+    /// `inherit` — take the enclosing context's value (resolved at spec time).
+    Inherit,
+    /// An explicit `(name, value)` list, in declaration order.
+    List(Vec<(String, i32)>),
+}
+
 /// One parsed `@page` rule.
 #[derive(Clone, Debug)]
 pub struct PageRule {
@@ -361,6 +391,10 @@ pub struct PageRule {
     pub background: Option<Color>,
     /// `page-orientation` — how the content rotates within the page box.
     pub page_orientation: Option<PageOrientation>,
+    /// Page-context `counter-reset` (css-page-3 §8). `None` = not declared.
+    pub counter_reset: Option<CounterValue>,
+    /// Page-context `counter-increment`.
+    pub counter_increment: Option<CounterValue>,
     /// Margin-box declarations, in source order.
     pub margin_boxes: Vec<MarginBoxDecl>,
     /// Page-context inherited style (css-page-3 §6): these inherit into the
@@ -395,6 +429,11 @@ pub struct MarginBoxSpec {
     pub line_height: Scalar,
     pub text_align: crate::css::TextAlign,
     pub vertical_align: VerticalAlign,
+    /// Resolved margin-context `counter-reset` (`inherit` already resolved
+    /// against the page context). `None` = the box does not obscure.
+    pub counter_reset: CounterValue,
+    /// Resolved margin-context `counter-increment`.
+    pub counter_increment: CounterValue,
 }
 
 /// A fully-resolved page spec for one fragmentainer: geometry plus the margin
@@ -411,6 +450,10 @@ pub struct PageSpec {
     pub background: Option<Color>,
     pub page_orientation: Option<PageOrientation>,
     pub margin_boxes: Vec<MarginBoxSpec>,
+    /// Page-context `counter-reset` (resolved from the winning @page rules).
+    pub counter_reset: CounterValue,
+    /// Page-context `counter-increment`.
+    pub counter_increment: CounterValue,
 }
 
 impl PageSpec {
@@ -692,6 +735,8 @@ fn parse_one_page_rule(prelude: &str, body: &str, order: u32) -> Option<PageRule
         border_color: None,
         background: None,
         page_orientation: None,
+        counter_reset: None,
+        counter_increment: None,
         margin_boxes: Vec::new(),
         color: None,
         font_family: None,
@@ -800,6 +845,10 @@ fn parse_margin_box_decls(body: &str) -> (Option<Option<Vec<ContentPiece>>>, Mar
             "font-weight" => style.font_weight = parse_font_weight(value),
             "font-style" => style.font_style = parse_font_style(value),
             "font" => apply_font_shorthand(&mut style, value),
+            // Margin-context counters (css-page-3 §8). `inherit` is resolved
+            // against the page context at spec-resolution time.
+            "counter-reset" => style.counter_reset = Some(parse_counter_value(value, 0)),
+            "counter-increment" => style.counter_increment = Some(parse_counter_value(value, 1)),
             _ => {}
         }
     }
@@ -995,6 +1044,15 @@ fn apply_page_decl(rule: &mut PageRule, decl: &str) {
             }
         }
         "page-orientation" => rule.page_orientation = parse_page_orientation(value),
+        // Page-context counters (css-page-3 §8). `inherit` inherits from the
+        // root element, which the page parser cannot see; resolve to `None`
+        // (no reset/increment) — same as the css-wide `none` initial.
+        "counter-reset" => {
+            rule.counter_reset = Some(parse_counter_value(value, 0));
+        }
+        "counter-increment" => {
+            rule.counter_increment = Some(parse_counter_value(value, 1));
+        }
         // Page-context style that INHERITS into the margin boxes
         // (css-page-3 §6: "properties that apply to the page-margin boxes can
         // also be set within the page context; if inheritable ... they
@@ -1138,6 +1196,44 @@ pub fn parse_length(s: &str) -> Option<Scalar> {
     Some(Scalar(pt))
 }
 
+/// Parse a `counter-reset` / `counter-increment` value into a [`CounterValue`].
+/// `none` → no counters; `inherit` → the enclosing context's value (resolved
+/// at spec time); anything else is a `name [integer]` group list (default
+/// integer: 0 for reset, 1 for increment).
+fn parse_counter_value(value: &str, default: i32) -> CounterValue {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "none" => CounterValue::None,
+        "inherit" => CounterValue::Inherit,
+        _ => CounterValue::List(parse_counters(value, default)),
+    }
+}
+
+/// Parse `counter-reset` / `counter-increment` groups: `name [integer]`, the
+/// integer defaulting to `default` when omitted. Multiple groups in one value
+/// (`foo foo foo`) produce one entry each, so application sums the deltas.
+fn parse_counters(value: &str, default: i32) -> Vec<(String, i32)> {
+    let mut out = Vec::new();
+    let toks: Vec<&str> = value.split_whitespace().collect();
+    let mut i = 0;
+    while i < toks.len() {
+        let name = toks[i].to_string();
+        i += 1;
+        let n = if i < toks.len() {
+            match toks[i].parse::<i32>() {
+                Ok(v) => {
+                    i += 1;
+                    v
+                }
+                Err(_) => default,
+            }
+        } else {
+            default
+        };
+        out.push((name, n));
+    }
+    out
+}
+
 /// Extract the attribute name from a `target-counter`/`target-text` argument
 /// list (`attr(href)` → `href`). Absent/malformed → `None` (callers fall back
 /// to `href`, the overwhelmingly common form).
@@ -1228,6 +1324,32 @@ pub fn parse_content(value: &str) -> Vec<ContentPiece> {
                     pieces.push(ContentPiece::CounterRef(name.to_string()));
                 }
             }
+            "counters" => {
+                // counters(name, separator) — split on the first comma; the
+                // separator is a quoted string (default "."). The `page` and
+                // `pages` built-ins resolve to their single values (the page
+                // context never nests them); other names keep the separator
+                // for a future scope-chain join.
+                let (name, sep) = match args.split_once(',') {
+                    Some((n, s)) => (
+                        n.trim(),
+                        s.trim()
+                            .trim_matches(|c| c == '"' || c == '\'')
+                            .to_string(),
+                    ),
+                    None => (args.trim(), ".".to_string()),
+                };
+                if name.eq_ignore_ascii_case("page") {
+                    pieces.push(ContentPiece::CounterPage);
+                } else if name.eq_ignore_ascii_case("pages") {
+                    pieces.push(ContentPiece::CounterPages);
+                } else {
+                    pieces.push(ContentPiece::CountersRef {
+                        name: name.to_string(),
+                        separator: sep,
+                    });
+                }
+            }
             "target-counter" => {
                 // target-counter(attr(href)[, counter-name]) — the first arg
                 // names the attribute to read; the optional second arg names
@@ -1306,6 +1428,10 @@ pub fn resolve_page_spec(
     );
     let mut background = None;
     let mut page_orientation = None;
+    // Page-context counters (css-page-3 §8), cascaded per property like the
+    // rest: later matching rules win; `None` = no declaration in any rule.
+    let mut counter_reset: Option<CounterValue> = None;
+    let mut counter_increment: Option<CounterValue> = None;
     // Page-box padding + border accumulators (CORE-144).
     let mut padding = (
         PageLength::Abs(Scalar::ZERO),
@@ -1407,6 +1533,12 @@ pub fn resolve_page_spec(
         if let Some(o) = r.page_orientation {
             page_orientation = Some(o);
         }
+        if r.counter_reset.is_some() {
+            counter_reset = r.counter_reset.clone();
+        }
+        if r.counter_increment.is_some() {
+            counter_increment = r.counter_increment.clone();
+        }
         for mb in &r.margin_boxes {
             match boxes.iter_mut().find(|(n, _, _)| *n == mb.name) {
                 Some((_, c, s)) => {
@@ -1434,6 +1566,18 @@ pub fn resolve_page_spec(
             page_font_style = r.font_style;
         }
     }
+
+    // Resolve the page-context counter values. `inherit` in the page context
+    // inherits from the root element, which the page parser cannot see — fold
+    // it to `none` (no reset/increment), matching the css-wide initial.
+    let page_counter_reset = match counter_reset.unwrap_or(CounterValue::None) {
+        CounterValue::Inherit => CounterValue::None,
+        v => v,
+    };
+    let page_counter_increment = match counter_increment.unwrap_or(CounterValue::None) {
+        CounterValue::Inherit => CounterValue::None,
+        v => v,
+    };
 
     // Resolve margins to concrete values against the final page size. `Inherit`
     // resolves to the root element's computed margin (the page context inherits
@@ -1548,6 +1692,11 @@ pub fn resolve_page_spec(
                 vertical_align: style
                     .vertical_align
                     .unwrap_or_else(|| name.default_vertical_align()),
+                counter_reset: resolve_box_counter(style.counter_reset.clone(), &page_counter_reset),
+                counter_increment: resolve_box_counter(
+                    style.counter_increment.clone(),
+                    &page_counter_increment,
+                ),
             })
         })
         .collect();
@@ -1570,6 +1719,19 @@ pub fn resolve_page_spec(
         background,
         page_orientation,
         margin_boxes,
+        counter_reset: page_counter_reset,
+        counter_increment: page_counter_increment,
+    }
+}
+
+/// Resolve a margin box's `counter-reset` / `counter-increment` against the
+/// page context: `None` (no declaration) → the box does not obscure (`None`);
+/// `inherit` → the page context's resolved value; anything else passes through.
+fn resolve_box_counter(box_val: Option<CounterValue>, page_val: &CounterValue) -> CounterValue {
+    match box_val {
+        None => CounterValue::None,
+        Some(CounterValue::Inherit) => page_val.clone(),
+        Some(v) => v,
     }
 }
 
