@@ -908,12 +908,19 @@ fn knuth_plass(items: &[Item], max_width: f64, justify: bool) -> Vec<usize> {
                 badness(ratio)
             };
             let cls = fitness_class(ratio);
+            // A FORCED break's -inf penalty enforces legality structurally
+            // (the prefix guard), not numerically: feeding -inf into the
+            // demerit formula poisons every downstream path with -inf and
+            // destroys tie-breaking (all subsequent lines tie at -inf and the
+            // adjacent-predecessor tiebreak picks per-word lines — CORE-158).
+            // Mandatory breaks cost a plain 0 demerit.
+            let effective_penalty = if is_forced { 0.0 } else { penalty };
             let mut demerit = {
                 let base = 1.0 + b;
-                if penalty >= 0.0 {
-                    base * base + penalty * penalty
+                if effective_penalty >= 0.0 {
+                    base * base + effective_penalty * effective_penalty
                 } else {
-                    base * base - penalty * penalty
+                    base * base - effective_penalty * effective_penalty
                 }
             };
             if (cls - base_fit).abs() > 1 {
