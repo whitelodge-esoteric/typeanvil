@@ -303,6 +303,58 @@ pub fn render_with_options(
             }
         }
 
+        // Page-box outline (CORE-153): a ring painted OUTSIDE the page border
+        // box (the page area) by `outline-offset`. Four filled rects form the
+        // ring (deterministic, no stroke state); it spans distance
+        // [offset, offset+width] beyond the page area, matching css-ui-3 §2.2
+        // (positive offset draws the outline further out — page-box-010's
+        // 40px offset from a 50px margin lands on the page edge). The ring
+        // lies in the margin area, so it never overlaps laid-out content.
+        if let Some((ow, oc, oo)) = page.outline {
+            let ow = ow.to_f32();
+            if ow > 0.0 {
+                let ox = page.content_origin.x.to_f32();
+                let oy = page.content_origin.y.to_f32();
+                let cw = page.content_size.0.to_f32();
+                let ch = page.content_size.1.to_f32();
+                let o = oo.to_f32();
+                let w = ow;
+                // Inner boundary = page area expanded by `offset`; outer =
+                // expanded by `offset + width`.
+                let (ix0, iy0) = (ox - o, oy - o);
+                let (ix1, iy1) = (ox + cw + o, oy + ch + o);
+                let (ex0, ey0) = (ix0 - w, iy0 - w);
+                let ew = (ix1 + w) - ex0; // outer width = cw + 2o + 2w
+                let sides: [(f32, f32, f32, f32); 4] = [
+                    (ex0, ey0, ew, w), // top
+                    (ex0, iy1, ew, w), // bottom
+                    (ex0, iy0, w, iy1 - iy0), // left
+                    (ix1, iy0, w, iy1 - iy0), // right
+                ];
+                let mut pb = krilla::geom::PathBuilder::new();
+                for (px, py, pw, ph) in sides {
+                    if pw <= 0.0 || ph <= 0.0 {
+                        continue;
+                    }
+                    if let Some(rect) = Rect::from_xywh(px, py, pw, ph) {
+                        pb.push_rect(rect);
+                    }
+                }
+                if let Some(path) = pb.finish() {
+                    surface.set_fill(Some(solid_fill(oc)));
+                    if tagged {
+                        surface.start_tagged(ContentTag::Artifact(Artifact::with_kind(
+                            ArtifactType::Background,
+                        )));
+                        surface.draw_path(&path);
+                        surface.end_tagged();
+                    } else {
+                        surface.draw_path(&path);
+                    }
+                }
+            }
+        }
+
         // Two passes over the fragment tree so backgrounds sit under text.
         // Each collected item carries its OWNER: the nearest ancestor
         // fragment with a source DOM node (CORE-111). Unsourced items are

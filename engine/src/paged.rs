@@ -387,6 +387,13 @@ pub struct PageRule {
     /// Paints between the margin area and the padding area.
     pub border_width: Option<Scalar>,
     pub border_color: Option<Color>,
+    /// Page-box outline (css-ui-3 §2.2 + css-page-3): a stroked rect painted
+    /// OUTSIDE the page border box (the page area) by `outline_offset`.
+    /// Width/color come from the `outline` shorthand (style keywords ignored,
+    /// like border); `outline-offset` is a separate longhand.
+    pub outline_width: Option<Scalar>,
+    pub outline_color: Option<Color>,
+    pub outline_offset: Option<Scalar>,
     /// Page box background color (paints the whole page, under content).
     pub background: Option<Color>,
     /// `page-orientation` — how the content rotates within the page box.
@@ -447,6 +454,9 @@ pub struct PageSpec {
     pub padding: PageMargins,
     /// Page-box border: uniform width (points) + color. `None` width = none.
     pub border: Option<(Scalar, Color)>,
+    /// Page-box outline: (width, color, offset) in points. `None` = no
+    /// outline. Painted outside the page area by `offset` (css-ui-3 §2.2).
+    pub outline: Option<(Scalar, Color, Scalar)>,
     pub background: Option<Color>,
     pub page_orientation: Option<PageOrientation>,
     pub margin_boxes: Vec<MarginBoxSpec>,
@@ -733,6 +743,9 @@ fn parse_one_page_rule(prelude: &str, body: &str, order: u32) -> Option<PageRule
         padding_left: None,
         border_width: None,
         border_color: None,
+        outline_width: None,
+        outline_color: None,
+        outline_offset: None,
         background: None,
         page_orientation: None,
         counter_reset: None,
@@ -1035,6 +1048,29 @@ fn apply_page_decl(rule: &mut PageRule, decl: &str) {
                 }
             }
         }
+        // Page-box outline (CORE-153): `outline` shorthand (width + color,
+        // style keywords ignored like border) plus the separate
+        // `outline-offset` longhand. `outline: none` suppresses the ring.
+        "outline" => {
+            if value.eq_ignore_ascii_case("none") {
+                rule.outline_width = Some(Scalar::ZERO);
+            } else {
+                for tok in value.split_whitespace() {
+                    if let Some(c) = crate::css::parse_css_color(tok) {
+                        rule.outline_color = Some(c);
+                    } else if let Some(l) = parse_length(tok) {
+                        rule.outline_width = Some(l);
+                    }
+                }
+            }
+        }
+        "outline-width" => rule.outline_width = parse_length(value),
+        "outline-color" => {
+            if let Some(c) = crate::css::parse_css_color(value) {
+                rule.outline_color = Some(c);
+            }
+        }
+        "outline-offset" => rule.outline_offset = parse_length(value),
         // An invalid color value is NOT assigned: css-syntax drops invalid
         // declarations at parse time, so a later bad `background` must not
         // clobber an earlier valid one (cascade fallback, CORE-153).
@@ -1440,6 +1476,10 @@ pub fn resolve_page_spec(
         PageLength::Abs(Scalar::ZERO),
     );
     let mut border: Option<(Scalar, Color)> = None;
+    // Page-box outline accumulators (CORE-153).
+    let mut outline_width: Option<Scalar> = None;
+    let mut outline_color: Option<Color> = None;
+    let mut outline_offset: Option<Scalar> = None;
     // Margin boxes accumulate by name; later matches merge property-by-property
     // (a later `@page` rule that only sets `color` must keep the earlier
     // `content`, per the cascade). `content` is three-state so an explicit
@@ -1526,6 +1566,15 @@ pub fn resolve_page_spec(
         }
         if let Some(w) = r.border_width {
             border = Some((w, r.border_color.unwrap_or(Color::BLACK)));
+        }
+        if let Some(w) = r.outline_width {
+            outline_width = Some(w);
+        }
+        if let Some(c) = r.outline_color {
+            outline_color = Some(c);
+        }
+        if let Some(o) = r.outline_offset {
+            outline_offset = Some(o);
         }
         if let Some(c) = r.background {
             background = Some(c);
@@ -1716,6 +1765,18 @@ pub fn resolve_page_spec(
             left: pad_l,
         },
         border: border_color.map(|c| (page_border, c)),
+        // Outline paints only when a width or color was declared (a bare
+        // `outline-offset` alone does not paint: css-ui-3 outline-style
+        // defaults to none). Width/color defaults: medium (3px) / black.
+        outline: if outline_width.is_some() || outline_color.is_some() {
+            Some((
+                outline_width.unwrap_or_else(|| Scalar(2.25)),
+                outline_color.unwrap_or(Color::BLACK),
+                outline_offset.unwrap_or(Scalar::ZERO),
+            ))
+        } else {
+            None
+        },
         background,
         page_orientation,
         margin_boxes,
