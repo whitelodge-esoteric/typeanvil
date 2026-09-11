@@ -347,6 +347,9 @@ pub struct Fragmentainer {
     /// propagation (default white). The `@page` box background is separate
     /// (`Fragmentainer::background`) and paints under this fill.
     pub canvas_background: Option<crate::css::Color>,
+    /// Page-box outline (CORE-153): (width, color, offset) resolved to points.
+    /// Painted outside the page border box (the page area) by `offset`.
+    pub outline: Option<(crate::geom::Scalar, crate::css::Color, crate::geom::Scalar)>,
 }
 
 impl Fragmentainer {
@@ -370,6 +373,7 @@ impl Fragmentainer {
             content_origin: Point::default(),
             content_size: size,
             canvas_background: None,
+            outline: None,
         }
     }
 }

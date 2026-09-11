@@ -971,6 +971,7 @@ fn paginate(
         fragmentainer.background = spec.background;
         fragmentainer.page_orientation = spec.page_orientation;
         fragmentainer.canvas_background = canvas_background;
+        fragmentainer.outline = spec.outline;
         // Record the content-box origin (CORE-127 slice b): the fixed-position
         // attachment pass shifts anchor-page fragments to each page's own
         // geometry when a named page resolves a different size/margin.
@@ -1096,7 +1097,8 @@ fn paginate(
         // paint on one side.
         let page_blank = fragmentainer.root.children.is_empty()
             && fragmentainer.background.is_none()
-            && fragmentainer.canvas_background.is_none();
+            && fragmentainer.canvas_background.is_none()
+            && fragmentainer.outline.is_none();
         let is_last = incoming.is_none();
 
         pages.push(fragmentainer);
@@ -1117,6 +1119,7 @@ fn paginate(
         fragmentainer.content_origin = Point::new(content.x, content.y);
         fragmentainer.content_size = (content.width, content.height);
         fragmentainer.canvas_background = canvas_background;
+        fragmentainer.outline = spec.outline;
         attach_margin_boxes(
             &mut fragmentainer,
             &spec,

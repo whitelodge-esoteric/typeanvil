@@ -59,6 +59,8 @@ use style::values::computed::length::{
 use style::values::computed::position::{Inset as StyloInset, ZIndex as StyloZIndex};
 use style::values::computed::Color as ComputedColor;
 use style::values::computed::{Length, PositionProperty, Size as StyloSize};
+use style::values::computed::{Gradient as ComputedGradient, Image as StyloImage};
+use style::values::generics::image::GradientItem;
 use style::values::specified::align::AlignFlags;
 use style::values::specified::box_::{DisplayInside, DisplayOutside};
 use style::values::specified::font::FONT_MEDIUM_PX;
@@ -1720,6 +1722,21 @@ impl CascadeSession {
             }
             _ => None,
         };
+        // CORE-153: a `linear-gradient` whose color stops are all the SAME
+        // absolute color collapses to that solid color (alpha preserved). The
+        // canvas-background seam then paints it OVER the `@page` fill; the
+        // PDF fill opacity composites the alpha. General gradients are out of
+        // scope and ignored. Only the first solid gradient is taken.
+        let background_color = background_color.or_else(|| {
+            background
+                .clone_background_image()
+                .0
+                .iter()
+                .find_map(|img| match img {
+                    StyloImage::Gradient(g) => solid_gradient_color(g),
+                    _ => None,
+                })
+        });
 
         let font_size = px_to_pt(font.clone_font_size().computed_size().px() as f64);
         let font_weight = font.clone_font_weight().value();
@@ -2305,6 +2322,40 @@ fn walk<'a>(
 /// return `None`, so callers can retain the prior valid declaration.
 pub fn parse_css_color(s: &str) -> Option<Color> {
     borders::parse_color(s)
+}
+
+/// CORE-153: collapse a `linear-gradient` whose color stops are all the same
+/// absolute color to that solid color (alpha preserved). Only this form is
+/// modeled — a multi-stop or hinted gradient is out of scope and returns
+/// `None` (the background-image is ignored, as before).
+fn solid_gradient_color(g: &ComputedGradient) -> Option<Color> {
+    let items = match g {
+        ComputedGradient::Linear { items, .. } => items,
+        _ => return None,
+    };
+    let mut solid: Option<Color> = None;
+    for item in items.iter() {
+        let stop = match item {
+            GradientItem::SimpleColorStop(c) => c,
+            GradientItem::ComplexColorStop { color, .. } => color,
+            // An interpolation hint implies a multi-color blend: not solid.
+            GradientItem::InterpolationHint(_) => return None,
+        };
+        let abs = match stop {
+            ComputedColor::Absolute(c) if !c.is_transparent() => {
+                let [r, g, b, a] = c.to_nscolor().to_le_bytes();
+                Color { r, g, b, a }
+            }
+            // currentcolor / color-mix / transparent: not a paintable solid.
+            _ => return None,
+        };
+        match solid {
+            None => solid = Some(abs),
+            Some(prev) if prev != abs => return None,
+            Some(_) => {}
+        }
+    }
+    solid
 }
 
 /// Resolve the document CANVAS background (CORE-144, css-backgrounds-3 §2.2 +
