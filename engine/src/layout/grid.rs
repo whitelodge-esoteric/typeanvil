@@ -289,6 +289,28 @@ impl Ctx<'_> {
             }
         }
 
+
+        // css-grid-1 §12.8: align-content normal behaves as stretch — auto
+        // rows of a container with a DEFINITE height grow equally to fill
+        // it (page-box-002/005/008 refs: a height:100vh grid wrapper must
+        // fill the page area). The definite height is the container's own
+        // resolved height (100vh resolves via CORE-140), not the page.
+        let rows_total: Scalar = row_sizes.iter().fold(Scalar::ZERO, |a, b| a + *b)
+            + row_gap * (rows.len().saturating_sub(1) as f64);
+        if let Some(definite) = self
+            .resolved_height(&self.styles[id])
+            .filter(|h| h.get() > rows_total.get())
+        {
+            let leftover = clamp0(definite - rows_total);
+            let n_auto = auto_rows.len();
+            if n_auto > 0 {
+                let per = Scalar(leftover.get() / n_auto as f64);
+                for &ri in &auto_rows {
+                    row_sizes[ri] = row_sizes[ri] + per;
+                }
+            }
+        }
+
         // --- 4. Track offsets. ---------------------------------------------
         let mut col_offsets: Vec<Scalar> = Vec::with_capacity(cols.len());
         let mut x = Scalar::ZERO;
