@@ -1004,6 +1004,11 @@ pub struct ComputedStyle {
     /// `text-align` computed value (typography layer: justify must reach
     /// layout). Read from stylo in [`convert`]; inherited.
     pub text_align: TextAlign,
+    /// Inline base direction (css-writing-modes-1 §1.2): `false` = ltr
+    /// (initial), `true` = rtl. Drives `text-align: start/end` resolution
+    /// and the block-box anchor side (over/under-constrained margins
+    /// resolve toward the inline-END edge under rtl — CORE-166).
+    pub rtl: bool,
     /// `hyphens` computed value (typography layer). Filled by the author-CSS
     /// pass like the break longhands; inherited.
     pub hyphens: Hyphens,
@@ -1091,6 +1096,7 @@ impl ComputedStyle {
             orphans: 2,
             widows: 1,
             text_align: TextAlign::Start,
+            rtl: false,
             hyphens: Hyphens::Manual,
             feature_settings: Vec::new(),
             ot_features: Vec::new(),
@@ -1550,6 +1556,11 @@ impl CascadeSession {
         let margin = values.get_margin();
         let padding = values.get_padding();
         let text = values.get_inherited_text();
+        // Inline base direction (css-writing-modes-1 §1.2) — CORE-166.
+        let rtl = matches!(
+            values.get_inherited_box().clone_direction(),
+            style::properties::generated::longhands::direction::computed_value::T::Rtl
+        );
         // Computed border widths (CORE-126): stylo resolves the `border`
         // shorthand (thin/medium/thick + lengths) exactly, so the dedicated
         // author-CSS border pass can keep its selector rules but inline and
@@ -2044,6 +2055,7 @@ impl CascadeSession {
             orphans: 2,
             widows: 1,
             text_align,
+            rtl,
             hyphens: Hyphens::Manual,
             // Paged-media element props are likewise absent from the servo
             // stylo build; filled by `apply_paged_properties` (see `cascade`).

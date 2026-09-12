@@ -1490,6 +1490,7 @@ pub fn resolve_page_spec(
     global_index: usize,
     cli: &PageGeometry,
     inherit_margins: PageMargins,
+    rtl_progression: bool,
 ) -> PageSpec {
     let mut size = (cli.width, cli.height);
     let mut width: Option<PageLength> = None;
@@ -1541,7 +1542,7 @@ pub fn resolve_page_spec(
     // rules; :none pseudo weaker than :left/:right weaker than :first.
     let mut matching: Vec<&PageRule> = rules
         .iter()
-        .filter(|r| rule_matches(r, page_name, global_index))
+        .filter(|r| rule_matches(r, page_name, global_index, rtl_progression))
         .collect();
     matching.sort_by_key(|r| {
         let name_spec = if r.name.is_some() { 1 } else { 0 };
@@ -1878,8 +1879,15 @@ fn resolve_area(len: Option<PageLength>, page_dim: Scalar) -> Option<Scalar> {
     }
 }
 
-/// Whether a rule matches the given page name and index parity.
-fn rule_matches(rule: &PageRule, page_name: Option<&str>, global_index: usize) -> bool {
+/// Whether a rule matches the given page name and index parity. Under root
+/// rtl (`rtl_progression`, css-page-3 §4.1 — CORE-166) the left/right page
+/// progression flips: page 1 is a `:left` page.
+fn rule_matches(
+    rule: &PageRule,
+    page_name: Option<&str>,
+    global_index: usize,
+    rtl_progression: bool,
+) -> bool {
     // Name: a named rule matches only when that name is in effect; the default
     // page (name None) always applies as the base.
     match (&rule.name, page_name) {
@@ -1887,20 +1895,27 @@ fn rule_matches(rule: &PageRule, page_name: Option<&str>, global_index: usize) -
         (Some(_), _) => return false,
         (None, _) => {}
     }
-    pseudo_matches(rule.pseudo, global_index)
+    pseudo_matches(rule.pseudo, global_index, rtl_progression)
 }
 
 /// Whether a page pseudo matches the given zero-based page index.
 ///
 /// css-page-3: page 1 (index 0) is `:first` and `:right` (LTR progression);
-/// odd 1-based indices are `:right`, even are `:left`.
-fn pseudo_matches(pseudo: PagePseudo, global_index: usize) -> bool {
+/// odd 1-based indices are `:right`, even are `:left`. Under root rtl the
+/// progression flips (page 1 = `:left` — CORE-166).
+fn pseudo_matches(pseudo: PagePseudo, global_index: usize, rtl_progression: bool) -> bool {
     let one_based = global_index + 1;
+    // The parity term decides `:right`/`:left`; root rtl inverts it.
+    let right = if rtl_progression {
+        one_based % 2 == 0
+    } else {
+        one_based % 2 == 1
+    };
     match pseudo {
         PagePseudo::None => true,
         PagePseudo::First => global_index == 0,
-        PagePseudo::Right => one_based % 2 == 1,
-        PagePseudo::Left => one_based % 2 == 0,
+        PagePseudo::Right => right,
+        PagePseudo::Left => !right,
     }
 }
 
@@ -2000,7 +2015,7 @@ mod tests {
             margin_bottom: Scalar(36.0),
             margin_left: Scalar(36.0),
         };
-        let spec = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero());
+        let spec = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero(), false);
         assert_eq!(spec.size, (Scalar(240.0), Scalar(84.0)));
         assert_eq!(spec.margins.left, Scalar(48.0));
         assert_eq!(spec.margins.right, Scalar(48.0));
@@ -2021,9 +2036,9 @@ mod tests {
             margin_bottom: Scalar(36.0),
             margin_left: Scalar(36.0),
         };
-        let p1 = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero());
+        let p1 = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero(), false);
         assert_eq!(p1.size, (Scalar(216.0), Scalar(360.0))); // portrait of 5x3in
-        let p2 = resolve_page_spec(&rules, None, 1, &cli, PageMargins::zero());
+        let p2 = resolve_page_spec(&rules, None, 1, &cli, PageMargins::zero(), false);
         assert_eq!(p2.size, (Scalar(360.0), Scalar(216.0))); // landscape (default)
     }
 
@@ -2070,10 +2085,17 @@ mod tests {
 
     #[test]
     fn pseudo_parity() {
-        assert!(pseudo_matches(PagePseudo::First, 0));
-        assert!(!pseudo_matches(PagePseudo::First, 1));
-        assert!(pseudo_matches(PagePseudo::Right, 0)); // page 1
-        assert!(pseudo_matches(PagePseudo::Left, 1)); // page 2
+        assert!(pseudo_matches(PagePseudo::First, 0, false));
+        assert!(!pseudo_matches(PagePseudo::First, 1, false));
+        assert!(pseudo_matches(PagePseudo::Right, 0, false)); // page 1
+        assert!(pseudo_matches(PagePseudo::Left, 1, false));
+        // CORE-166: root rtl flips the left/right page progression — page 1
+        // is a `:left` page (css-page-3 §4.1, Chromium-verified).
+        assert!(pseudo_matches(PagePseudo::Left, 0, true));
+        assert!(pseudo_matches(PagePseudo::Right, 1, true));
+        assert!(!pseudo_matches(PagePseudo::Right, 0, true));
+        // `:first` is direction-independent.
+        assert!(pseudo_matches(PagePseudo::First, 0, true)); // page 2
     }
 
     #[test]
@@ -2110,7 +2132,7 @@ mod tests {
             margin_bottom: Scalar(36.0),
             margin_left: Scalar(36.0),
         };
-        let spec = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero());
+        let spec = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero(), false);
         assert_eq!(spec.size, (Scalar(300.0), Scalar(600.0)));
         assert_eq!(spec.padding.top, Scalar(30.0));
         assert_eq!(spec.padding.right, Scalar(60.0));
@@ -2198,7 +2220,7 @@ mod tests {
             margin_bottom: Scalar(37.5),
             margin_left: Scalar(37.5),
         };
-        let spec = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero());
+        let spec = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero(), false);
         assert_eq!(spec.margin_boxes.len(), 2);
         let a = &spec.margin_boxes[0];
         assert_eq!(a.color, Color::rgb(0, 0, 255));

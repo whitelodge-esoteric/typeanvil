@@ -947,12 +947,14 @@ fn paginate(
             PageCtx::Reset => current_name = None,
             PageCtx::Carry => {}
         }
+        let rtl_progression = styles[dom.find_tag("html").unwrap_or(dom.root)].rtl;
         let spec = resolve_page_spec(
             page_rules,
             current_name.as_deref(),
             page_index,
             cli,
             inherit_margins,
+            rtl_progression,
         );
         // The `page` counter's @page-context reset/increment applies at page
         // start (css-page-3 §8): increment BEFORE the body lays out, so a
@@ -1176,7 +1178,7 @@ fn paginate(
     }
 
     if pages.is_empty() {
-        let spec = resolve_page_spec(page_rules, None, 0, cli, inherit_margins);
+        let spec = resolve_page_spec(page_rules, None, 0, cli, inherit_margins, false);
         apply_page_counter(&spec, &mut flow);
         let page_local = apply_page_named_counters(&spec, &mut flow);
         let mut fragmentainer = Fragmentainer::new(0, spec.size);
@@ -1216,7 +1218,7 @@ fn paginate(
             // Degenerate: MAX_PAGES=0 path (no pages at all). Fall back to the
             // CLI geometry's content rect — nothing fixed exists to place
             // anyway, but the code must stay total.
-            resolve_page_spec(page_rules, None, 0, cli, inherit_margins)
+            resolve_page_spec(page_rules, None, 0, cli, inherit_margins, false)
                 .geometry()
                 .content_rect()
         });
@@ -1907,9 +1909,14 @@ impl<'a> Ctx<'a> {
         // (css-box-3 §3; oracle-verified 2026-09-12 — the border band overlays
         // the box edge and the content box begins after it). inner_width
         // already subtracts the border widths.
-        let inner_left = Self::frag_border_x(style, origin_x)
-            + style.border_left
-            + style.padding_left;
+        // CORE-166: under rtl the border box anchors at the inline-END edge
+        // (leftover space lands in the start margin); LTR keeps margin-left.
+        let border_x = if style.rtl {
+            Self::frag_border_x_rtl(style, origin_x, avail_width, box_border_w)
+        } else {
+            Self::frag_border_x(style, origin_x)
+        };
+        let inner_left = border_x + style.border_left + style.padding_left;
         let inner_width = box_border_w
             - style.padding_left
             - style.padding_right
@@ -3459,7 +3466,7 @@ impl<'a> Ctx<'a> {
         } else {
             box_height
         };
-        let origin = Point::new(Self::frag_border_x(style, origin_x), box_top);
+        let origin = Point::new(border_x, box_top);
         let mut fragment = Fragment::block(origin, (box_border_w, paint_height));
         if let Some(bg) = style.background_color {
             if paint_height.get() > 0.0 {
@@ -5034,6 +5041,26 @@ impl<'a> Ctx<'a> {
     /// at margin-left). `margin-left: auto` computes to 0 in stylo's
     /// `lp_or_auto_to_pt`, so no auto-centering resolve is needed in v1
     /// (the WPT auto-centering refs need it — Stage 3 follow-up).
+    ///
+    /// Under rtl (CORE-166) a block-level box anchors at the inline-END
+    /// edge (css-writing-modes-1 §2.2 + css2.1 §10.3.3 mirrored): the
+    /// border box sits at `origin + avail − margin_right − width`, so
+    /// under-constrained leftover space lands in the inline-start (left)
+    /// margin and over-constrained resolution drops the START margin.
+    /// `margin_left: auto` already computes to 0 (css.rs), which makes the
+    /// one-auto-margin case push the box to the right edge for free.
+    /// Oracle-verified 2026-09-12 (Chromium, minimal rtl fixture): a
+    /// `width:100px; margin-right:500px` box stays at the left edge (the
+    /// end margin is honored); a plain 100px box hugs the right edge.
+    fn frag_border_x_rtl(
+        style: &ComputedStyle,
+        origin_x: Scalar,
+        avail_width: Scalar,
+        width: Scalar,
+    ) -> Scalar {
+        origin_x + avail_width - style.margin_right - width
+    }
+
     fn frag_border_x(style: &ComputedStyle, origin_x: Scalar) -> Scalar {
         origin_x + style.margin_left
     }
@@ -5222,9 +5249,26 @@ impl<'a> Ctx<'a> {
     ) -> Scalar {
         let free = (inner_width.get() - drawn.get()).max(0.0);
         let off = match style.text_align {
-            TextAlign::Start | TextAlign::Left | TextAlign::Justify => 0.0,
+            TextAlign::Left | TextAlign::Justify => 0.0,
+            TextAlign::Right => free,
+            // Logical start/end resolve through the element's inline base
+            // direction (css-writing-modes-1 §2.2 — CORE-166): start is the
+            // right edge under rtl, end the left edge.
+            TextAlign::Start => {
+                if style.rtl {
+                    free
+                } else {
+                    0.0
+                }
+            }
+            TextAlign::End => {
+                if style.rtl {
+                    0.0
+                } else {
+                    free
+                }
+            }
             TextAlign::Center => free * 0.5,
-            TextAlign::Right | TextAlign::End => free,
         };
         inner_left + Scalar(off)
     }
