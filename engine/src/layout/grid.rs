@@ -473,6 +473,7 @@ impl Ctx<'_> {
                 consumed_chars: None,
                 flex: None,
                 deferred_once: false,
+                cross_override: None,
             };
             fragment.break_token = Some(tok.clone());
             Some(tok)

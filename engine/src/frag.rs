@@ -258,6 +258,11 @@ pub struct BreakToken {
     /// when no fragmentainer can ever fit the row (e.g. a repeating header
     /// eats into every page), so the row force-places instead.
     pub deferred_once: bool,
+    /// Flex cross-axis stretch (css-flexbox-1 §9.4 step 4): the used cross
+    /// size a flex container resolved for this item. Honored by the block
+    /// path like a declared height (larger-of content vs target) so a
+    /// stretched item's paint box grows; pagination stays content-based.
+    pub cross_override: Option<Scalar>,
 }
 
 impl BreakToken {
