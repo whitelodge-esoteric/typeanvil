@@ -941,6 +941,13 @@ pub struct ComputedStyle {
     pub margin_right: Scalar,
     pub margin_bottom: Scalar,
     pub margin_left: Scalar,
+    /// `margin: auto` flags (css-flexbox-1 §8.1: auto margins on flex items
+    /// absorb free space — layout needs to know which margins were `auto`,
+    /// not just their resolved 0).
+    pub margin_top_auto: bool,
+    pub margin_right_auto: bool,
+    pub margin_bottom_auto: bool,
+    pub margin_left_auto: bool,
     pub padding_top: Scalar,
     pub padding_right: Scalar,
     pub padding_bottom: Scalar,
@@ -1070,6 +1077,10 @@ impl ComputedStyle {
             margin_right: Scalar::ZERO,
             margin_bottom: Scalar::ZERO,
             margin_left: Scalar::ZERO,
+            margin_top_auto: false,
+            margin_right_auto: false,
+            margin_bottom_auto: false,
+            margin_left_auto: false,
             padding_top: Scalar::ZERO,
             padding_right: Scalar::ZERO,
             padding_bottom: Scalar::ZERO,
@@ -1920,10 +1931,20 @@ impl CascadeSession {
             LineHeight::Length(l) => px_to_pt(l.px() as f64),
         };
 
+        let margin_auto = |v: &style::values::computed::Margin| {
+            matches!(
+                v,
+                style::values::generics::length::GenericMargin::Auto
+            )
+        };
         let margin_top = lp_or_auto_to_pt(&margin.clone_margin_top());
         let margin_right = lp_or_auto_to_pt(&margin.clone_margin_right());
         let margin_bottom = lp_or_auto_to_pt(&margin.clone_margin_bottom());
         let margin_left = lp_or_auto_to_pt(&margin.clone_margin_left());
+        let margin_top_auto = margin_auto(&margin.clone_margin_top());
+        let margin_right_auto = margin_auto(&margin.clone_margin_right());
+        let margin_bottom_auto = margin_auto(&margin.clone_margin_bottom());
+        let margin_left_auto = margin_auto(&margin.clone_margin_left());
         let padding_top = nn_lp_to_pt(&padding.clone_padding_top());
         let padding_right = nn_lp_to_pt(&padding.clone_padding_right());
         let padding_bottom = nn_lp_to_pt(&padding.clone_padding_bottom());
@@ -2003,6 +2024,10 @@ impl CascadeSession {
             margin_right,
             margin_bottom,
             margin_left,
+            margin_top_auto,
+            margin_right_auto,
+            margin_bottom_auto,
+            margin_left_auto,
             padding_top,
             padding_right,
             padding_bottom,

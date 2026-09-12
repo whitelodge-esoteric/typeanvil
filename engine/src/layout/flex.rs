@@ -255,10 +255,19 @@ impl<'a> Ctx<'a> {
                 // fragmentainer; counting the full measure inflates the
                 // line's cross size and shifts following siblings (WPT 046).
                 let child_tok = self.child_incoming(token, item.block_index);
-                if child_tok.is_break_before() {
+                let placed = if child_tok.is_break_before() {
                     natural
                 } else {
                     Scalar((natural.get() - child_tok.consumed_block_size.get()).max(0.0))
+                };
+                // css-flexbox-1 §4.3: a DECLARED cross size (height on a row)
+                // sizes the item before align-self/stretch — an empty styled
+                // div (background box) measures 0 naturally but paints at its
+                // declared height. Take the max so content never shrinks.
+                let declared = self.resolved_height(&self.styles[item.id]);
+                match declared {
+                    Some(d) if d.get() > placed.get() => d,
+                    _ => placed,
                 }
             };
         }
@@ -318,9 +327,30 @@ impl<'a> Ctx<'a> {
                 cursor += size + gap.get();
             }
             lines.push(cur);
+            // css-flexbox-1 §9.4 §3: a SINGLE-line flex container with a
+            // definite cross size stretches the line to the container's
+            // inner cross size (auto cross-margins and align-self resolve
+            // against it). Multi-line (wrap) lines keep their content cross.
+            if !wrap && lines.len() == 1 {
+                let definite_cross = style
+                    .height
+                    .map(|h| {
+                        h - style.padding_top
+                            - style.padding_bottom
+                            - style.border_top
+                            - style.border_bottom
+                    })
+                    .filter(|h| h.get() > lines[0].cross.get());
+                if let Some(h) = definite_cross {
+                    lines[0].cross = h;
+                }
+            }
         }
 
-        // Justify-content distributes slack inside each line.
+        // Justify-content distributes slack inside each line. css-flexbox-1
+        // §8.1: auto margins on a flex item absorb free space BEFORE
+        // justify-content, and their presence disables justify-content for
+        // the line. Free space splits equally among the line's auto margins.
         let justify = style.justify_content;
         for line in &mut lines {
             let used: f64 = line
@@ -332,6 +362,32 @@ impl<'a> Ctx<'a> {
                 })
                 .sum();
             let slack = (inner_width.get() - used).max(0.0);
+            let auto_margin_count: usize = line
+                .items
+                .iter()
+                .map(|&i| {
+                    let st = &self.styles[items[i].id];
+                    (st.margin_left_auto as usize) + (st.margin_right_auto as usize)
+                })
+                .sum();
+            if auto_margin_count > 0 {
+                let per = Scalar(slack / auto_margin_count as f64);
+                // Walk the line left-to-right: each item's left auto margin
+                // consumes `per` BEFORE the item, its right auto margin
+                // AFTER it (offsets accumulate).
+                let mut acc = Scalar::ZERO;
+                for (k, &i) in line.items.iter().enumerate() {
+                    let st = &self.styles[items[i].id];
+                    if st.margin_left_auto {
+                        acc = acc + per;
+                    }
+                    line.offsets[k] = line.offsets[k] + acc;
+                    if st.margin_right_auto {
+                        acc = acc + per;
+                    }
+                }
+                continue;
+            }
             match justify {
                 crate::css::JustifyContent::FlexEnd => {
                     for off in &mut line.offsets {
@@ -449,6 +505,12 @@ impl<'a> Ctx<'a> {
                 let item = &items[item_idx];
                 let child_tok = self.child_incoming(token, item.block_index);
 
+                // css-flexbox-1 §8.1: auto margins on a flex item absorb
+                // free space and take precedence over align-self. Both cross
+                // margins auto → the item centers in the line.
+                let cstyle = &self.styles[item.id];
+                let cross_auto =
+                    cstyle.margin_top_auto && cstyle.margin_bottom_auto;
                 // Cross-axis alignment within the line (align-self, default
                 // auto → container align-items).
                 let align = match self.styles[item.id].align_self {
@@ -460,13 +522,17 @@ impl<'a> Ctx<'a> {
                     },
                     other => other,
                 };
-                let cross_offset = match align {
-                    AlignSelf::FlexEnd => {
-                        let d = line_cross - item.cross_size;
-                        if d.get() > 0.0 { d } else { Scalar::ZERO }
+                let cross_offset = if cross_auto {
+                    (line_cross - item.cross_size) * 0.5
+                } else {
+                    match align {
+                        AlignSelf::FlexEnd => {
+                            let d = line_cross - item.cross_size;
+                            if d.get() > 0.0 { d } else { Scalar::ZERO }
+                        }
+                        AlignSelf::Center => (line_cross - item.cross_size) * 0.5,
+                        _ => Scalar::ZERO,
                     }
-                    AlignSelf::Center => (line_cross - item.cross_size) * 0.5,
-                    _ => Scalar::ZERO,
                 };
                 let item_top = line_top + cross_offset;
 
