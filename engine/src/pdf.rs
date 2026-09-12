@@ -355,6 +355,96 @@ pub fn render_with_options(
             }
         }
 
+        // CORE-165 page-chrome rings, painted ABOVE the page/canvas fills and
+        // BELOW all content (css-page-3 §3.1: page bg < canvas < page borders
+        // < document contents). Both rings sit at the page area rect's outer
+        // edge:
+        // - @page border ring: from `@page { border }` (current-color
+        //   resolved in paged.rs).
+        // - html root border ring: the root element's own border — the root
+        //   box fragments per page and its border repeats at each fragment's
+        //   edge (page-box-000's ref `html { border: 20px solid green }`).
+        // When both declare the same geometry they overlap identically (the
+        // reftest pairs author the same border on one side each).
+        let ring_rects = |ox: f32,
+                          oy: f32,
+                          cw: f32,
+                          ch: f32,
+                          bw: f32|
+         -> [(f32, f32, f32, f32); 4] {
+            [
+                (ox, oy, cw, bw),             // visually-top (y-up: oy is bottom)
+                (ox, oy + ch - bw, cw, bw),   // visually-bottom
+                (ox, oy, bw, ch),             // left
+                (ox + cw - bw, oy, bw, ch),   // right
+            ]
+        };
+        // NOTE on coordinates: content_origin/size are in the PDF emitter's
+        // y-down page space (the canvas fill above uses them directly and
+        // Chromium-compare passes), so the ring bands map directly.
+        if let Some((bw, bc)) = page.page_border {
+            let bwf = bw.to_f32();
+            if bwf > 0.0 && !page.page_chrome_hidden {
+                let (ox, oy) = (
+                    page.content_origin.x.to_f32(),
+                    page.content_origin.y.to_f32(),
+                );
+                let (cw, ch) = (page.content_size.0.to_f32(), page.content_size.1.to_f32());
+                let mut pb = krilla::geom::PathBuilder::new();
+                for (rx, ry, rw, rh) in ring_rects(ox, oy, cw, ch, bwf.min(cw / 2.0).min(ch / 2.0)) {
+                    if rw <= 0.0 || rh <= 0.0 {
+                        continue;
+                    }
+                    if let Some(rect) = Rect::from_xywh(rx, ry, rw, rh) {
+                        pb.push_rect(rect);
+                    }
+                }
+                if let Some(path) = pb.finish() {
+                    surface.set_fill(Some(solid_fill(bc)));
+                    if tagged {
+                        surface.start_tagged(ContentTag::Artifact(Artifact::with_kind(
+                            ArtifactType::Background,
+                        )));
+                        surface.draw_path(&path);
+                        surface.end_tagged();
+                    } else {
+                        surface.draw_path(&path);
+                    }
+                }
+            }
+        }
+        if let Some((bw, bc, _pads)) = page.root_border {
+            let bwf = bw.to_f32();
+            if bwf > 0.0 {
+                let (ox, oy) = (
+                    page.content_origin.x.to_f32(),
+                    page.content_origin.y.to_f32(),
+                );
+                let (cw, ch) = (page.content_size.0.to_f32(), page.content_size.1.to_f32());
+                let mut pb = krilla::geom::PathBuilder::new();
+                for (rx, ry, rw, rh) in ring_rects(ox, oy, cw, ch, bwf.min(cw / 2.0).min(ch / 2.0)) {
+                    if rw <= 0.0 || rh <= 0.0 {
+                        continue;
+                    }
+                    if let Some(rect) = Rect::from_xywh(rx, ry, rw, rh) {
+                        pb.push_rect(rect);
+                    }
+                }
+                if let Some(path) = pb.finish() {
+                    surface.set_fill(Some(solid_fill(bc)));
+                    if tagged {
+                        surface.start_tagged(ContentTag::Artifact(Artifact::with_kind(
+                            ArtifactType::Background,
+                        )));
+                        surface.draw_path(&path);
+                        surface.end_tagged();
+                    } else {
+                        surface.draw_path(&path);
+                    }
+                }
+            }
+        }
+
         // Two passes over the fragment tree so backgrounds sit under text.
         // Each collected item carries its OWNER: the nearest ancestor
         // fragment with a source DOM node (CORE-111). Unsourced items are
