@@ -3158,6 +3158,7 @@ mod borders {
     fn parse_border_value(value: &str) -> (Option<Scalar>, Option<Color>) {
         let mut width = None;
         let mut color = None;
+        let mut saw_style = false;
         for tok in value.split_whitespace() {
             if tok.eq_ignore_ascii_case("none") || tok == "0" {
                 width = Some(Scalar::ZERO);
@@ -3168,6 +3169,7 @@ mod borders {
                 "solid" | "dashed" | "dotted" | "double" | "groove" | "ridge" | "inset" | "outset"
                     | "hidden"
             ) {
+                saw_style = true;
                 continue;
             }
             if let Some(s) = parse_length(tok) {
@@ -3177,6 +3179,12 @@ mod borders {
             if let Some(c) = parse_color(tok) {
                 color = Some(c);
             }
+        }
+        // css-backgrounds-3 §4.5: an omitted border width means `medium`
+        // (3px = 2.25pt) — `border: solid` paints a medium band. `none`/`0`
+        // explicitly zeroed above wins (its presence means width was given).
+        if width.is_none() && saw_style {
+            width = Some(Scalar(2.25));
         }
         (width, color)
     }

@@ -386,6 +386,9 @@ pub struct PageRule {
     /// Page-box border (uniform width + color; style keywords ignored).
     /// Paints between the margin area and the padding area.
     pub border_width: Option<Scalar>,
+    /// `visibility: hidden` in the page context (css-page-3): hides the page
+    /// box's own decorations (border) while document content stays visible.
+    pub visibility_hidden: bool,
     pub border_color: Option<Color>,
     /// Page-box outline (css-ui-3 §2.2 + css-page-3): a stroked rect painted
     /// OUTSIDE the page border box (the page area) by `outline_offset`.
@@ -454,6 +457,10 @@ pub struct PageSpec {
     pub padding: PageMargins,
     /// Page-box border: uniform width (points) + color. `None` width = none.
     pub border: Option<(Scalar, Color)>,
+    /// `@page { visibility: hidden }` — page box decorations don't paint
+    /// (css-page-3); the border still insets content (visibility is
+    /// paint-only).
+    pub visibility_hidden: bool,
     /// Page-box outline: (width, color, offset) in points. `None` = no
     /// outline. Painted outside the page area by `offset` (css-ui-3 §2.2).
     pub outline: Option<(Scalar, Color, Scalar)>,
@@ -742,6 +749,7 @@ fn parse_one_page_rule(prelude: &str, body: &str, order: u32) -> Option<PageRule
         padding_bottom: None,
         padding_left: None,
         border_width: None,
+        visibility_hidden: false,
         border_color: None,
         outline_width: None,
         outline_color: None,
@@ -993,6 +1001,10 @@ fn apply_page_decl(rule: &mut PageRule, decl: &str) {
     let value = value.trim();
     match prop.as_str() {
         "size" => rule.size = parse_size(value),
+        // Page-context visibility (css-page-3): `hidden` hides the page box's
+        // decorations; document content remains visible (page-visibility-
+        // hidden-001).
+        "visibility" => rule.visibility_hidden = value.trim().eq_ignore_ascii_case("hidden"),
         "width" => rule.width = parse_page_length(value),
         "height" => rule.height = parse_page_length(value),
         "margin" => {
@@ -1040,11 +1052,37 @@ fn apply_page_decl(rule: &mut PageRule, decl: &str) {
         // Page-box border (CORE-144): uniform width + color; style keywords
         // and widths like `thin`/`medium` parse to a fallback width.
         "border" | "border-top" | "border-right" | "border-bottom" | "border-left" => {
+            // css-backgrounds-3 §4.5: an omitted width means `medium`
+            // (3px = 2.25pt) — `border: solid` paints a medium band
+            // (page-margin-auto-and-non-zero). `none`/`hidden` zero it.
+            let mut width: Option<Scalar> = None;
+            let mut color: Option<crate::css::Color> = None;
+            let mut saw_style = false;
             for tok in value.split_whitespace() {
                 if let Some(c) = crate::css::parse_css_color(tok) {
-                    rule.border_color = Some(c);
+                    color = Some(c);
                 } else if let Ok(px) = tok.trim_end_matches("px").parse::<f64>() {
-                    rule.border_width = Some(crate::geom::Scalar(px * 0.75));
+                    width = Some(crate::geom::Scalar(px * 0.75));
+                } else {
+                    let lower = tok.to_ascii_lowercase();
+                    if lower == "none" || lower == "hidden" {
+                        width = Some(Scalar::ZERO);
+                    } else {
+                        saw_style = true;
+                    }
+                }
+            }
+            let w = width.unwrap_or_else(|| {
+                if saw_style || color.is_some() {
+                    crate::geom::Scalar(2.25)
+                } else {
+                    Scalar::ZERO
+                }
+            });
+            if w.get() > 0.0 {
+                rule.border_width = Some(w);
+                if let Some(c) = color {
+                    rule.border_color = Some(c);
                 }
             }
         }
@@ -1469,6 +1507,7 @@ pub fn resolve_page_spec(
     let mut counter_reset: Option<CounterValue> = None;
     let mut counter_increment: Option<CounterValue> = None;
     // Page-box padding + border accumulators (CORE-144).
+    let mut visibility_hidden = false;
     let mut padding = (
         PageLength::Abs(Scalar::ZERO),
         PageLength::Abs(Scalar::ZERO),
@@ -1582,6 +1621,9 @@ pub fn resolve_page_spec(
         if let Some(o) = r.page_orientation {
             page_orientation = Some(o);
         }
+        if r.visibility_hidden {
+            visibility_hidden = true;
+        }
         if r.counter_reset.is_some() {
             counter_reset = r.counter_reset.clone();
         }
@@ -1679,7 +1721,18 @@ pub fn resolve_page_spec(
     // stays `size - margins` (the margin boxes anchor there); the padding
     // band only narrows the painted chrome outward-in.
     let page_border = border.map(|(w, _)| w).unwrap_or(Scalar::ZERO);
-    let border_color = border.map(|(_, c)| c);
+    // currentColor (css-backgrounds-3 §3): an omitted border-color takes the
+    // page's final cascaded `color` (resolved at used-value time, so
+    // `@page :first { color: orange }` colors page 1's border — page-box-005).
+    // A declared border-color wins; the BLACK default (set where the border
+    // was accumulated) only survives when the page declared no color at all.
+    let border_color = border.map(|(_, c)| {
+        if c == Color::BLACK {
+            page_color.unwrap_or(c)
+        } else {
+            c
+        }
+    });
     let resolve_pad = |len: PageLength, page_dim: Scalar| -> Scalar {
         match len {
             PageLength::Abs(v) => v,
@@ -1687,10 +1740,15 @@ pub fn resolve_page_spec(
             _ => Scalar::ZERO,
         }
     };
-    let mut pad_t = resolve_pad(padding.0, size.1) - page_border;
-    let mut pad_r = resolve_pad(padding.1, size.0) - page_border;
-    let mut pad_b = resolve_pad(padding.2, size.1) - page_border;
-    let mut pad_l = resolve_pad(padding.3, size.0) - page_border;
+    // CORE-165 correction: the border sits OUTSIDE the padding (border box ⊃
+    // padding box ⊃ content box, css-box-3 §3), so the padding band keeps its
+    // declared size — the earlier `pad - border_width` subtraction modeled
+    // Chromium's geometry wrong (page-box-011 oracle: content inset =
+    // border + padding, both bands full width).
+    let mut pad_t = resolve_pad(padding.0, size.1);
+    let mut pad_r = resolve_pad(padding.1, size.0);
+    let mut pad_b = resolve_pad(padding.2, size.1);
+    let mut pad_l = resolve_pad(padding.3, size.0);
     let zero = Scalar::ZERO;
     if pad_t.get() < 0.0 {
         pad_t = zero;
@@ -1765,6 +1823,7 @@ pub fn resolve_page_spec(
             left: pad_l,
         },
         border: border_color.map(|c| (page_border, c)),
+        visibility_hidden,
         // Outline paints only when a width or color was declared (a bare
         // `outline-offset` alone does not paint: css-ui-3 outline-style
         // defaults to none). Width/color defaults: medium (3px) / black.

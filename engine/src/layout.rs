@@ -891,6 +891,27 @@ fn paginate(
     // it (spec §4).
     let mut current_name: Option<String> = None;
 
+    // CORE-165 html-root-box: the `<html>` element's own border (and padding)
+    // paint as page chrome on every page — the root box is fragmented per
+    // page, its border repeating at the fragment's edges (Chromium print
+    // model; page-box-000's ref `html { border: 20px solid green }`).
+    // Background does NOT paint here: it propagates to the canvas (CORE-144).
+    let html_root_border = dom.find_tag("html").and_then(|id| {
+        let s = &styles[id];
+        // Scalar has no Ord: explicit max via if-comparisons.
+        let mut w = s.border_top;
+        if s.border_right.get() > w.get() { w = s.border_right; }
+        if s.border_bottom.get() > w.get() { w = s.border_bottom; }
+        if s.border_left.get() > w.get() { w = s.border_left; }
+        (w.get() > 0.0).then(|| {
+            (
+                w,
+                s.border_color.unwrap_or(crate::css::Color::BLACK),
+                (s.padding_top, s.padding_right, s.padding_bottom, s.padding_left),
+            )
+        })
+    });
+
     while let Some(mut token) = incoming.take() {
         let page_index = pages.len();
         // A deferred page-change break (CORE-127 slice a) carried out of a
@@ -940,6 +961,43 @@ fn paginate(
         let geo = spec.geometry();
         let content = geo.content_rect();
 
+        // CORE-165: the body content box sits INSIDE the @page border+padding
+        // bands (Chromium insets document content by the page box's chrome —
+        // page-box-011's oracle text at border+padding offset). The bands
+        // themselves paint at the content-rect edges (pdf.rs). Content never
+        // goes negative: over-tall chrome clamps to the rect.
+        let border_w = spec.border.map(|(w, _)| w).unwrap_or(Scalar::ZERO);
+        // The html root's own border/padding ALSO insets the body (the body's
+        // containing block is the html content box). The ring paints at the
+        // page-area edge either way; the inset mirrors Chromium (both reftest
+        // sides inset their text identically).
+        let (root_bw, _rc, root_pads) = html_root_border
+            .unwrap_or((Scalar::ZERO, crate::css::Color::BLACK, (Scalar::ZERO, Scalar::ZERO, Scalar::ZERO, Scalar::ZERO)));
+        // Cap at half the rect (chrome can't overlap itself); a degenerate
+        // rect (over-tall margins → negative height) caps chrome at 0.
+        let half_h = Scalar((content.height.get() * 0.5).max(0.0));
+        let half_w = Scalar((content.width.get() * 0.5).max(0.0));
+        let clamp = |v: Scalar, cap: Scalar| {
+            let v = if v.get() < 0.0 { Scalar::ZERO } else { v };
+            if v.get() > cap.get() { cap } else { v }
+        };
+        let chrome_t = clamp(border_w + spec.padding.top + root_bw + root_pads.0, half_h);
+        let chrome_b = clamp(border_w + spec.padding.bottom + root_bw + root_pads.2, half_h);
+        let chrome_l = clamp(border_w + spec.padding.left + root_bw + root_pads.3, half_w);
+        let chrome_r = clamp(border_w + spec.padding.right + root_bw + root_pads.1, half_w);
+        let inner_w = content.width - chrome_l - chrome_r;
+        let inner_h = content.height - chrome_t - chrome_b;
+        // The INSET rect feeds body layout only; content_origin/content_size
+        // below stay at the FULL page-area rect (the canvas fill and the
+        // chrome rings anchor there — CORE-144/CORE-165).
+        let body_rect = Rect::new(
+            content.x + chrome_l,
+            content.y + chrome_t,
+            if inner_w.get() < 0.0 { Scalar::ZERO } else { inner_w },
+            if inner_h.get() < 0.0 { Scalar::ZERO } else { inner_h },
+        );
+        let content = body_rect;
+
         let icb = icb_content.unwrap_or(content);
         let ctx = Ctx {
             dom,
@@ -972,13 +1030,21 @@ fn paginate(
         fragmentainer.page_orientation = spec.page_orientation;
         fragmentainer.canvas_background = canvas_background;
         fragmentainer.outline = spec.outline;
-        // Record the content-box origin (CORE-127 slice b): the fixed-position
+        // CORE-165 page chrome: the @page border ring (current-color
+        // resolved) and the html root's own border ring paint per page.
+        fragmentainer.page_border = spec.border;
+        fragmentainer.page_chrome_hidden = spec.visibility_hidden;
+        fragmentainer.root_border = html_root_border;
+        // Record the PAGE-AREA origin (CORE-127 slice b): the fixed-position
         // attachment pass shifts anchor-page fragments to each page's own
         // geometry when a named page resolves a different size/margin.
-        fragmentainer.content_origin = Point::new(content.x, content.y);
+        // CORE-165: this stays the FULL page-area rect (chrome rings and the
+        // canvas fill anchor here; body lays out in the inset rect).
+        let full = geo.content_rect();
+        fragmentainer.content_origin = Point::new(full.x, full.y);
         // The content SIZE joins it (CORE-144): the canvas-background fill
         // covers the content rect, which needs width and height.
-        fragmentainer.content_size = (content.width, content.height);
+        fragmentainer.content_size = (full.width, full.height);
 
         // CORE-107: lay the body full-height first, then reserve the footnote
         // area if any call marker PLACED on this page (`pending_footnotes`).
@@ -1120,6 +1186,9 @@ fn paginate(
         fragmentainer.content_size = (content.width, content.height);
         fragmentainer.canvas_background = canvas_background;
         fragmentainer.outline = spec.outline;
+        fragmentainer.page_border = spec.border;
+        fragmentainer.page_chrome_hidden = spec.visibility_hidden;
+        fragmentainer.root_border = html_root_border;
         attach_margin_boxes(
             &mut fragmentainer,
             &spec,
@@ -1834,13 +1903,21 @@ impl<'a> Ctx<'a> {
                 }
             }
         };
-        let inner_left = Self::frag_border_x(style, origin_x) + style.padding_left;
+        // Content starts INSIDE the border: border-box x + border + padding
+        // (css-box-3 §3; oracle-verified 2026-09-12 — the border band overlays
+        // the box edge and the content box begins after it). inner_width
+        // already subtracts the border widths.
+        let inner_left = Self::frag_border_x(style, origin_x)
+            + style.border_left
+            + style.padding_left;
         let inner_width = box_border_w
             - style.padding_left
             - style.padding_right
             - style.border_left
             - style.border_right;
-        let content_top = box_top + padding_top;
+        let content_top = box_top
+            + (if fresh { style.border_top } else { Scalar::ZERO })
+            + padding_top;
 
         // Build the ordered child-item list (stable, document order).
         // When the box carries generated `content`, that content *replaces*
@@ -3394,10 +3471,28 @@ impl<'a> Ctx<'a> {
         // border draws INSIDE the fragment rect (css-backgrounds-3): with
         // content-box sizing the declared width excludes it, so shrink the
         // content area handed to children by the border widths.
-        if style.border_top.get() > 0.0
-            || style.border_right.get() > 0.0
-            || style.border_bottom.get() > 0.0
-            || style.border_left.get() > 0.0
+        // Rebase children to be parent-relative: each child's offset (and any
+        // text baseline) is stored relative to this fragment's own top-left, so
+        // the tree carries LayoutNG-style parent-relative geometry. The PDF
+        // walk re-accumulates absolutes from the fragmentainer down.
+        for child in &mut children {
+            child.offset = Point::new(child.offset.x - origin.x, child.offset.y - origin.y);
+            if let FragmentContent::Text(run) = &mut child.content {
+                run.baseline = Point::new(run.baseline.x - origin.x, run.baseline.y - origin.y);
+            }
+        }
+        let has_block_child = children
+            .iter()
+            .any(|c| matches!(c.kind, crate::frag::FragmentKind::Block));
+        fragment.children = children;
+        // Table cells attach their borders in the table path (border-collapse
+        // aware); a block-path attach here would double the band.
+        let is_table_cell = style.display == crate::css::Display::TableCell;
+        if !is_table_cell
+            && (style.border_top.get() > 0.0
+                || style.border_right.get() > 0.0
+                || style.border_bottom.get() > 0.0
+                || style.border_left.get() > 0.0)
         {
             let color = style.border_color.unwrap_or(crate::css::Color::BLACK);
             let border_box = BorderBox {
@@ -3423,20 +3518,6 @@ impl<'a> Ctx<'a> {
                 }
             }
         }
-        // Rebase children to be parent-relative: each child's offset (and any
-        // text baseline) is stored relative to this fragment's own top-left, so
-        // the tree carries LayoutNG-style parent-relative geometry. The PDF
-        // walk re-accumulates absolutes from the fragmentainer down.
-        for child in &mut children {
-            child.offset = Point::new(child.offset.x - origin.x, child.offset.y - origin.y);
-            if let FragmentContent::Text(run) = &mut child.content {
-                run.baseline = Point::new(run.baseline.x - origin.x, run.baseline.y - origin.y);
-            }
-        }
-        let has_block_child = children
-            .iter()
-            .any(|c| matches!(c.kind, crate::frag::FragmentKind::Block));
-        fragment.children = children;
         // Map this fragment back to its DOM node so target-counter and PDF
         // bookmarks can find the page it landed on.
         fragment.source = Some(id);

@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-16
-updated: 2026-09-09
+updated: 2026-09-12
 sidebar_position: 3
 tags: [css, paged-media, page, layout, engine]
 spec_id: paged-media-css
@@ -444,10 +444,28 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   background paints the CANVAS over the page CONTENT area, under all content
   but above the `@page` box fill (so page margins keep the page box's own
   background); the donor box paints none of its own. Vertical percentage
-  `@page` padding resolves against the page HEIGHT; the page-box border
-  thickens into the padding band outward-in. The page-box `@page` padding
-  and border declarations affect only the painted chrome — the page AREA
-  (content box) stays `size − margins`.
+  `@page` padding resolves against the page HEIGHT.
+- **html-root-box (CORE-165)** → the `<html>` element's own border paints as
+  page chrome: a band at the page-area rect's edge on every page (the root
+  box fragments per page; its border repeats per fragment). The root's
+  background still propagates to the canvas (CORE-144) — never double-painted.
+- **Page chrome insets content (CORE-165)** → document content lays out
+  inside the `@page` border+padding bands AND the html root's border/padding
+  (the body's containing block is the html content box; Chromium-verified:
+  page-box-011 oracle text at border+padding offset). The chrome bands paint
+  at the full page-area rect's edges; a degenerate rect (margins taller than
+  the page) clamps chrome to 0. Border+padding no longer merge: the border
+  band keeps its own width and the padding band its declared size
+  (css-box-3 §3: border box ⊃ padding box ⊃ content box — superseding
+  CORE-144's border-eats-padding model).
+- **`@page` border currentColor (CORE-165)** → an omitted `border-color`
+  resolves at used-value time to the page's cascaded `color`
+  (css-backgrounds-3 §3; page-box-005: `@page :first { color: orange }`
+  colors page 1's border).
+- **Block content respects its border (CORE-165)** → a block's content box
+  starts after its border widths, not just its padding (css-box-3 §3;
+  oracle-verified: bordered div text at border+padding offset). inner_width
+  already subtracted the borders; the content origin now matches.
 - **`position: fixed` under canvas propagation** → the fixed clone attaches
   after the page's body content, and the canvas fill of the FINAL pass is
   the only one emitted (multi-pass TOC/counter documents produce one

@@ -355,6 +355,24 @@ pub struct Fragmentainer {
     /// Page-box outline (CORE-153): (width, color, offset) resolved to points.
     /// Painted outside the page border box (the page area) by `offset`.
     pub outline: Option<(crate::geom::Scalar, crate::css::Color, crate::geom::Scalar)>,
+    /// @page border ring (CORE-144/165): uniform width + color, painted as a
+    /// band at the OUTER edge of the page area rect on every page. Width is
+    /// always Some when a border was declared — even when hidden — because
+    /// the border still insets content (visibility affects paint, never
+    /// layout); `hidden` flags the suppressed paint.
+    pub page_border: Option<(crate::geom::Scalar, crate::css::Color)>,
+    /// `@page { visibility: hidden }` (css-page-3): the page box's own
+    /// decorations do not paint; document content stays visible.
+    pub page_chrome_hidden: bool,
+    /// html root box border (CORE-165): (width, color, padding-t/r/b/l). The
+    /// root element's own border paints at the page area edge on every page
+    /// (the root box repeats per fragment); its background propagates to the
+    /// canvas instead (CORE-144).
+    pub root_border: Option<(
+        crate::geom::Scalar,
+        crate::css::Color,
+        (crate::geom::Scalar, crate::geom::Scalar, crate::geom::Scalar, crate::geom::Scalar),
+    )>,
 }
 
 impl Fragmentainer {
@@ -378,6 +396,9 @@ impl Fragmentainer {
             content_origin: Point::default(),
             content_size: size,
             canvas_background: None,
+            page_border: None,
+            page_chrome_hidden: false,
+            root_border: None,
             outline: None,
         }
     }
