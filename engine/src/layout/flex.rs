@@ -347,6 +347,52 @@ impl<'a> Ctx<'a> {
             }
         }
 
+        // css-flexbox-1 §9.4 step 4: items whose align-self resolves to
+        // `stretch` (the default) and whose cross size is AUTO grow to fill
+        // the line's cross size, minus their vertical margins. Auto cross
+        // margins take precedence over stretch (§8.1), and a declared
+        // height keeps its specified size. Stretched targets are recorded
+        // (block_index → target) so the placement pass can hand them to the
+        // paint path via the child token.
+        let mut stretched: std::collections::HashMap<usize, Scalar> =
+            std::collections::HashMap::new();
+        for line in &mut lines {
+            let stretch_ids: Vec<usize> = line
+                .items
+                .iter()
+                .copied()
+                .filter(|&i| {
+                    let st = &self.styles[items[i].id];
+                    if st.margin_top_auto || st.margin_bottom_auto {
+                        return false;
+                    }
+                    if self.resolved_height(st).is_some() {
+                        return false;
+                    }
+                    match st.align_self {
+                        AlignSelf::Auto => {
+                            matches!(style.align_items, crate::css::AlignItems::Stretch)
+                        }
+                        AlignSelf::Stretch => true,
+                        _ => false,
+                    }
+                })
+                .collect();
+            for i in stretch_ids {
+                let st = &self.styles[items[i].id];
+                // The item's MARGIN box fills the line (css-flexbox-1 §9.4
+                // step 4); cross_size is margin-inclusive, so the target is
+                // the line cross itself and the paint border-box subtracts
+                // the margins.
+                let target = line.cross;
+                let paint_target = target - st.margin_top - st.margin_bottom;
+                if target.get() > items[i].cross_size.get() {
+                    items[i].cross_size = target;
+                    stretched.insert(items[i].block_index, paint_target);
+                }
+            }
+        }
+
         // Justify-content distributes slack inside each line. css-flexbox-1
         // §8.1: auto margins on a flex item absorb free space BEFORE
         // justify-content, and their presence disables justify-content for
@@ -503,14 +549,19 @@ impl<'a> Ctx<'a> {
             while k < line_items.len() {
                 let item_idx = line_items[k];
                 let item = &items[item_idx];
-                let child_tok = self.child_incoming(token, item.block_index);
 
                 // css-flexbox-1 §8.1: auto margins on a flex item absorb
                 // free space and take precedence over align-self. Both cross
-                // margins auto → the item centers in the line.
+                // margins auto → the item centers in the line; a LONE auto
+                // margin absorbs ALL the free space on its side (a zero
+                // margin on the opposite side does not disable it).
                 let cstyle = &self.styles[item.id];
                 let cross_auto =
                     cstyle.margin_top_auto && cstyle.margin_bottom_auto;
+                let cross_lone_top =
+                    cstyle.margin_top_auto && !cstyle.margin_bottom_auto;
+                let cross_lone_bottom =
+                    !cstyle.margin_top_auto && cstyle.margin_bottom_auto;
                 // Cross-axis alignment within the line (align-self, default
                 // auto → container align-items).
                 let align = match self.styles[item.id].align_self {
@@ -522,8 +573,15 @@ impl<'a> Ctx<'a> {
                     },
                     other => other,
                 };
+                let cross_free = line_cross - item.cross_size;
                 let cross_offset = if cross_auto {
-                    (line_cross - item.cross_size) * 0.5
+                    cross_free * 0.5
+                } else if cross_lone_top {
+                    // All free space goes above the item → packed to the end.
+                    if cross_free.get() > 0.0 { cross_free } else { Scalar::ZERO }
+                } else if cross_lone_bottom {
+                    // All free space goes below → packed to the start.
+                    Scalar::ZERO
                 } else {
                     match align {
                         AlignSelf::FlexEnd => {
@@ -543,6 +601,16 @@ impl<'a> Ctx<'a> {
                 } else {
                     inner_left + lines[li].offsets[k]
                 };
+
+                let mut child_tok = self.child_incoming(token, item.block_index);
+                // A stretched item (§9.4 step 4, applied in Phase A) carries
+                // its resolved cross size to the paint path: the block path
+                // grows the paint box to it like a declared height.
+                if let Some(target) = stretched.get(&item.block_index) {
+                    if child_tok.is_break_before() {
+                        child_tok.cross_override = Some(*target);
+                    }
+                }
 
                 let res = self.layout_box(
                     item.id,
@@ -641,6 +709,7 @@ impl<'a> Ctx<'a> {
                 consumed_chars: None,
                 flex: Some(flex_state),
                 deferred_once: false,
+                cross_override: None,
             };
             fragment.break_token = Some(tok.clone());
             Some(tok)
@@ -892,6 +961,7 @@ impl<'a> Ctx<'a> {
                 consumed_chars: None,
                 flex: None,
                 deferred_once: false,
+                cross_override: None,
             };
             fragment.break_token = Some(tok.clone());
             Some(tok)

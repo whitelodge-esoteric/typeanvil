@@ -5,7 +5,7 @@ type: spec
 status: in-review
 owner: elijah
 created: 2026-08-18
-updated: 2026-08-24
+updated: 2026-09-12
 sidebar_position: 10
 tags: [engine, layout, css-flexbox, css-break, fragmentation]
 spec_id: flexbox-fragmentation
@@ -124,6 +124,19 @@ The engine shall:
    sizes) is carried in the break token; page N+1 resumes without relayout of
    page N's items.
 8. Keep the CLI contract and determinism guarantees unchanged.
+9. **Cross-axis auto margins (css-flexbox-1 §8.1, CORE-153)**: an item's
+   auto cross margins absorb the line's free space and take precedence over
+   `align-self`. Both sides auto → the item centers in the line; a LONE auto
+   margin absorbs ALL the free space on its side (a zero margin on the
+   opposite side does not disable it — `margin-top: auto; margin-bottom: 0`
+   packs the item to the line's end).
+10. **Cross-axis stretch (css-flexbox-1 §9.4 step 4, CORE-153)**: an item
+   whose align-self resolves to `stretch` (the default) with an AUTO cross
+   size and no auto cross margins grows so its MARGIN box fills the line's
+   cross size. The flex container records the resolved used cross size in
+   the item's child break token (`cross_override`); the block paint path
+   grows the paint box to it like a declared height (never shrinking, so
+   overflow text does not clip). Pagination stays content-based.
 
 ## Interfaces
 

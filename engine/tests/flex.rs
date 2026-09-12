@@ -141,9 +141,13 @@ fn column_stack_with_gap() {
 
 #[test]
 fn row_stretch_cross_size() {
-    // The engine's block path ignores `height` (CORE-66 auto-height
-    // self-consistency), so the cross size is CONTENT-based: the tall item
-    // uses a bigger font, making its natural line height the line's cross.
+    // css-flexbox-1 §9.4 step 4: items with auto cross sizes and the
+    // default align-self:stretch GROW to the line's cross size (the
+    // tallest item's natural height). The engine's block path ignores
+    // `height` (CORE-66 auto-height self-consistency), so the line cross
+    // is CONTENT-based: the tall item uses a bigger font, making its
+    // natural line height the line's cross; the short item then stretches
+    // to match it.
     let html = r#"
     <style>
       @page { size: 5in 3in; margin: 0.5in; }
@@ -165,9 +169,10 @@ fn row_stretch_cross_size() {
     let (_ax, _ay, _aw, ah) = box_of(&out, 0, a);
     let (_bx, _by, _bw, bh) = box_of(&out, 0, b);
     let (_fx, _fy, _fw, fh) = box_of(&out, 0, flex);
-    // a: 16pt → line 19.2pt; b: 30pt → line 36pt. The line cross is b's.
+    // a: 16pt → line 19.2pt; b: 30pt → line 36pt. The line cross is b's;
+    // a then stretches to the same 36pt (margin box fills the line).
     assert!((bh - 36.0).abs() < 0.01, "tall item line is 36pt, got {bh}");
-    assert!(ah < bh, "short item is shorter than the tall item: {ah} < {bh}");
+    assert!((ah - 36.0).abs() < 0.01, "short item stretches to 36pt, got {ah}");
     // The container's height equals the line's cross size (the tallest item).
     assert!((fh - 36.0).abs() < 0.01, "container is one line of cross 36pt, got {fh}");
 }

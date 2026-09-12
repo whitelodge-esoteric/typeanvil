@@ -1665,7 +1665,6 @@ impl<'a> Ctx<'a> {
                 empty: true,
             };
         }
-
         // Replaced element: `<img>` and inline `<svg>` (CORE-131) lay out as
         // a monolithic block-level box (CORE-106 spec Behavior 2). Sizing per
         // spec Behavior 6; a box that does not fit defers whole to the next
@@ -2254,6 +2253,7 @@ impl<'a> Ctx<'a> {
                                     consumed_chars: None,
                                     flex: None,
                 deferred_once: false,
+                                    cross_override: None,
                                 },
                             });
                             broke = true;
@@ -2466,6 +2466,7 @@ impl<'a> Ctx<'a> {
                                     consumed_chars: Some(src_offset),
                                     flex: None,
                 deferred_once: false,
+                                    cross_override: None,
                                 },
                             });
                             broke = true;
@@ -3347,6 +3348,15 @@ impl<'a> Ctx<'a> {
                     box_height = target;
                 }
             }
+            // Flex cross-axis stretch (css-flexbox-1 §9.4 step 4): the flex
+            // container resolved a used cross size for this item. Grow the
+            // paint box to it like a declared height (never shrink: overflow
+            // text must not clip). Pagination stays content-based.
+            if let Some(target) = token.cross_override {
+                if target.get() > box_height.get() {
+                    box_height = target;
+                }
+            }
         }
 
         // Background fill spans the box's border box in this fragmentainer
@@ -3441,6 +3451,7 @@ impl<'a> Ctx<'a> {
                 consumed_chars: None,
                 flex: None,
                 deferred_once: false,
+                cross_override: None,
             };
             fragment.break_token = Some(tok.clone());
             Some(tok)
@@ -3865,6 +3876,7 @@ impl<'a> Ctx<'a> {
                 consumed_chars: None,
                 flex: None,
                 deferred_once: false,
+                cross_override: None,
             };
             fragment.break_token = Some(tok.clone());
             Some(tok)
@@ -3989,6 +4001,7 @@ impl<'a> Ctx<'a> {
                 consumed_chars: None,
                 flex: None,
                 deferred_once: false,
+                cross_override: None,
             };
             fragment.break_token = Some(tok.clone());
             Some(tok)
@@ -4208,6 +4221,7 @@ impl<'a> Ctx<'a> {
                 consumed_chars: None,
                 flex: None,
                 deferred_once: false,
+                cross_override: None,
             };
             fragment.break_token = Some(tok.clone());
             Some(tok)
