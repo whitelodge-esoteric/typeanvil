@@ -2,10 +2,10 @@
 title: Fragmentation Core
 slug: /specifications/fragmentation-core
 type: spec
-status: draft
+status: approved
 owner: elijah
 created: 2026-08-16
-updated: 2026-09-12
+updated: 2026-09-13
 sidebar_position: 2
 tags: [layout, fragmentation, css-break, engine]
 spec_id: fragmentation-core
@@ -116,16 +116,27 @@ The engine shall:
 10. **Never slice monolithic content**: a monolithic box (line, image, tall
     fixed-height box) taller than the fragmentainer overflows it, with
     last-resort breakpoints placing it.
-11. **Truncate margins at fragmentainer boundaries**: margins adjoining a page
+11. **Occupy the specified extent in flow (CORE-167)**: a fresh block box
+    with a declared `height` (box-sizing honored) occupies that extent in
+    pagination — the cursor advances by it and a fresh child whose extent
+    fits one fragmentainer but not the remaining space defers whole to the
+    next page. Own-inline overflow still clamps the flow extent down to
+    content (`height: 0` divs, page-size-007/008), and block-child overflow
+    keeps the content extent (block-002-wm-*). An extent crossing the
+    fragmentainer edge paints through it without emitting a continuation —
+    empty declared-height boxes are treated as monolithic (the CORE-143
+    page-change fixtures pin this; true extent fragmentation is future
+    work gated on a full-suite A/B).
+12. **Truncate margins at fragmentainer boundaries**: margins adjoining a page
     break do not transfer across it (css-break-3).
-12. **Be O(n)**: each box is laid out a bounded number of times per flow; a
+13. **Be O(n)**: each box is laid out a bounded number of times per flow; a
     1,000-page synthetic document paginates without super-linear cost.
-13. **Emit PDF by walking the fragment tree**: `pdf.rs` reads fragmentainers
+14. **Emit PDF by walking the fragment tree**: `pdf.rs` reads fragmentainers
     and their descendants; there is no second pagination pass.
-14. **Keep the CLI contract unchanged**: `typeanvil render <input.html>
+15. **Keep the CLI contract unchanged**: `typeanvil render <input.html>`
     --page-width ... -o out.pdf` (the harness adapter contract) still works as
     specified in the WPT harness spec.
-15. **Stay deterministic**: identical input yields byte-identical output.
+16. **Stay deterministic**: identical input yields byte-identical output.
 
 ## Interfaces
 
