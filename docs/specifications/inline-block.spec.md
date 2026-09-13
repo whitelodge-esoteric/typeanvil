@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: Elijah Boston
 created: 2026-08-25
-updated: 2026-08-25
+updated: 2026-09-13
 sidebar_position: 24
 tags: [css-display-3, layout, core-120]
 spec_id: SPEC-inline-block
@@ -60,6 +60,14 @@ this residual.
    edge with the text baseline.
 7. Surrounding text lines shall wrap around placed inline-blocks using the
    same intrusion mechanism as floats.
+8. The line box shall grow to CONTAIN an atomic box that is taller than the
+   current line (CORE-171). Aligning a tall box's bottom margin edge to a
+   short line's baseline places the box above the block's content top: a
+   `100px x 50px` empty inline-block as the first line painted only a 13.9pt
+   slice at the page edge (Chromium paints it in full from the page top). The
+   shift that performs the baseline alignment shall therefore be clamped so
+   the box never starts above the line top; boxes that fit the line keep their
+   baseline alignment unchanged.
 
 ## Interfaces
 
@@ -77,6 +85,12 @@ this residual.
   then the box appears whole on the following page.
 - Unit test: an inline-block child paints its border as a box (pixel scan or
   fragment-tree assertion), not folded into the parent text run.
+- Given a `100px x 50px` empty inline-block as the first line of a block, when
+  rendered, then its background fragment is 75pt x 37.5pt at a page-absolute y
+  of 0 or more — the box is fully visible, not a slice above the page top
+  (`core171_inline_block_height.rs::inline_block_declared_height_paints_full_height`).
+  The same box as `display:block` stays 75pt x 37.5pt
+  (`core171_inline_block_height.rs::block_declared_height_paints_full_height`).
 - Harness gate: css-break flexbox bucket fixed − regressed ≥ 0, targeting
   rows 081a-d / 082a-d.
 
