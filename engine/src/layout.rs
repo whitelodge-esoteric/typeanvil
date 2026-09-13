@@ -2688,6 +2688,17 @@ impl<'a> Ctx<'a> {
                                     (seg_w, lh),
                                     run,
                                 ));
+                                // CORE-172: an inline-block is inline-level
+                                // content, so one that follows bare text shares
+                                // that line and starts at the text's advance
+                                // width (css-display-3 §2.7). Hand this line's
+                                // end to the atomic pen state, or the first
+                                // atomic after text restarts at the line origin
+                                // and paints over the characters.
+                                atomic_line_active = true;
+                                atomic_line_top = y;
+                                atomic_pen_x = x + lr.drawn_width();
+                                atomic_line_h = lh;
                                 // CORE-107: register call markers placed by
                                 // THIS segment line (segment text starts at
                                 // `seg_base` in the item's text — the
