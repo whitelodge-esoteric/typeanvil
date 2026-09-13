@@ -922,7 +922,12 @@ fn paginate(
         // (page-size-007/008 empty-page fix, CORE-145).
         if !token.is_break_before() && token.child_tokens.len() == 1 {
             let only = &token.child_tokens[0];
-            if only.token.is_break_before() && only.index == 0 {
+            if only.token.is_break_before() && only.index == 0
+                // CORE-130: a page float's `break_before_deferred` token must
+                // survive — re-absorbing it would drop `deferred_once` and
+                // the float would defer again on every page (never placed).
+                && !only.token.deferred_once
+            {
                 token = only.token.clone();
             }
         }
@@ -2951,6 +2956,131 @@ impl<'a> Ctx<'a> {
                         i += 1;
                         continue;
                     }
+                    if cstyle.float.is_page_float() {
+                        // ---- page float (CORE-130, css-page-4) ----
+                        // The box pins to the page's content-box top/bottom
+                        // edge instead of joining the line-level float
+                        // lanes. Monolithic placement (abspos template): the
+                        // box lays its full content once against
+                        // `Scalar(f64::MAX)` — no break, no resume token —
+                        // and defers whole to the next page when it cannot
+                        // fit here (css-page-4 §2.3: a page float that does
+                        // not fit moves to the next fragmentainer).
+                        // Band geometry: top floats stack DOWN from the
+                        // content-box top; bottom/next-page floats stack UP
+                        // from the content-box bottom edge (`bottom_limit`,
+                        // document order, css-page-4 §2.4).
+                        // Band height: the declared border-box extent when
+                        // present, else the content measure. `measure_block`
+                        // SUMS the CORE-167 extent and the content, so it
+                        // cannot size a declared-height band directly.
+                        let band_h = match self.resolved_height(cstyle) {
+                            Some(hh) => {
+                                let target = if cstyle.box_sizing
+                                    == crate::css::StyloBoxSizing::BorderBox
+                                {
+                                    hh
+                                } else {
+                                    hh + cstyle.padding_top
+                                        + cstyle.padding_bottom
+                                        + cstyle.border_top
+                                        + cstyle.border_bottom
+                                };
+                                target + cstyle.margin_top + cstyle.margin_bottom
+                            }
+                            None => {
+                                self.measure_block(*child, inner_width)
+                            }
+                        };
+                        let fh = band_h;
+                        let fits_page = fh.get() <= self.page_height.get();
+                        // `deferred_once` (break_before_deferred) marks a
+                        // float this pass already deferred once: the next
+                        // page must place it, never defer again (no loop).
+                        // `next-page` defers on FIRST encounter regardless
+                        // of room (css-page-4 §2.5) — a default break-before
+                        // token is indistinguishable from "no token", so the
+                        // flag is the only "already deferred" signal.
+                        let must_place = child_tok.deferred_once;
+                        let must_defer =
+                            cstyle.float == Float::NextPage && !must_place;
+                        let fits_here = fits_page && y + fh <= bottom_limit;
+                        if (placed && !fits_here && !must_place) || must_defer {
+                            // Defer whole: the float starts fresh on the next
+                            // page. `break_before_deferred` (CORE-109) marks
+                            // it as having deferred once so the next page
+                            // must place it, never defer again (no loop).
+                            seen_all = false;
+                            outgoing_children.push(ChildToken {
+                                index: i,
+                                token: BreakToken::break_before_deferred(),
+                            });
+                            broke = true;
+                            break;
+                        }
+                        let pf_y = if cstyle.float == Float::Bottom {
+                            // Bottom edge: above already-placed bottom floats
+                            // (they stack upward from the page bottom, page
+                            // bottom first). `next-page` defers to the next
+                            // fragmentainer and then behaves as a TOP float
+                            // there (css-page-4 §2.5), so only `bottom` uses
+                            // this branch.
+                            let mut band_bottom = bottom_limit;
+                            for f in &flow.active_floats {
+                                if f.side == Float::Bottom && f.y.get() < band_bottom.get() {
+                                    band_bottom = f.y;
+                                }
+                            }
+                            band_bottom - fh
+                        } else {
+                            // Top edge (top + next-page-after-defer): below
+                            // already-placed top floats (document order,
+                            // css-page-4 §2.4).
+                            let mut band_top = content_top;
+                            for f in &flow.active_floats {
+                                if f.side == Float::Top && f.bottom().get() > band_top.get() {
+                                    band_top = f.bottom();
+                                }
+                            }
+                            band_top
+                        };
+                        let res = self.layout_box(
+                            *child,
+                            inner_left,
+                            inner_width,
+                            pf_y,
+                            Scalar(f64::MAX),
+                            placed,
+                            &child_tok,
+                            flow,
+                        );
+                        children.push(res.fragment);
+                        placed = true;
+                        oof_placed = true;
+                        // Register the band as an intrusion with the PAGE-FLOAT
+                        // side: `segment_geometry` ignores these sides (text
+                        // is never shortened), but the next same-edge float's
+                        // band stacking reads the rectangle.
+                        flow.active_floats.push(PlacedFloat {
+                            id: *child,
+                            x: inner_left,
+                            y: pf_y,
+                            width: inner_width,
+                            height: fh,
+                            side: cstyle.float,
+                        });
+                        // A TOP float's band occupies the in-flow top: text
+                        // after it starts BELOW the band (css-page-4 §3 —
+                        // in-flow content flows beside page floats only in
+                        // the remaining band; v1 pushes body text below a
+                        // top-float band). A bottom float leaves the cursor
+                        // untouched (its band hangs at the page bottom edge).
+                        if cstyle.float == Float::Top && pf_y + fh > y {
+                            y = pf_y + fh;
+                        }
+                        i += 1;
+                        continue;
+                    }
                     if cstyle.float != Float::None {
                         // CORE-118: floats do not participate in margin
                         // collapse (documented deviation, spec §Scope) — the
@@ -4940,7 +5070,10 @@ impl<'a> Ctx<'a> {
                         right = f.width;
                     }
                 }
-                Float::None => {}
+                // Page floats occupy their own edge band, not the line's
+                // left/right lanes (CORE-130): text beside them is pushed
+                // below by the float's bottom, not shortened.
+                _ => {}
             }
         }
         let reduced = inner_width - left - right;

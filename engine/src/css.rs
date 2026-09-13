@@ -634,13 +634,26 @@ pub enum ColumnSpan {
     All,
 }
 
-/// The computed `float` value (css-box-3 §2).
+/// The computed `float` value (css-box-3 §2). Page-float keywords
+/// (`top`/`bottom`/`next-page`/`snap`, CORE-130) pin the box to the page's
+/// content-box edge instead of the line-level exclusion zone; `snap` maps to
+/// `Top` (nearest-edge resolution is `PageFloat::Top` for v1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum Float {
     #[default]
     None,
     Left,
     Right,
+    Top,
+    Bottom,
+    NextPage,
+}
+
+impl Float {
+    /// True for the page-float family (css-page-4 §page-floats).
+    pub fn is_page_float(self) -> bool {
+        matches!(self, Float::Top | Float::Bottom | Float::NextPage)
+    }
 }
 
 /// The computed `position` value (css-position-3 §3). `Sticky` maps to
@@ -3672,11 +3685,17 @@ mod paged_props {
             "float" if value.trim().eq_ignore_ascii_case("footnote") => {
                 Some(PagedDecl::FloatFootnote(true))
             }
+            // CORE-130: page floats ride the same hand-rolled pass — the
+            // stylo seam maps unknown float keywords to None.
             "float" => {
                 let v = value.trim().to_ascii_lowercase();
                 match v.as_str() {
                     "left" => Some(PagedDecl::FloatSide(super::Float::Left)),
                     "right" => Some(PagedDecl::FloatSide(super::Float::Right)),
+                    "top" => Some(PagedDecl::FloatSide(super::Float::Top)),
+                    "bottom" => Some(PagedDecl::FloatSide(super::Float::Bottom)),
+                    "next-page" => Some(PagedDecl::FloatSide(super::Float::NextPage)),
+                    "snap" => Some(PagedDecl::FloatSide(super::Float::Top)),
                     _ => None,
                 }
             }
