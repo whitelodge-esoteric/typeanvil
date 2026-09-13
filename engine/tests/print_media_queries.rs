@@ -544,13 +544,26 @@ fn mq_media_wrapped_page_keeps_margin_boxes() {
         w,
         h
     );
-    // The margin box renders as a line fragment whose text is "folio";
-    // it lives in the page margin (y >= content bottom).
-    let folio = page.root.children.iter().any(|f| {
-        f.offset.y.get() > h / 2.0
-            && matches!(&f.content, typeanvil::frag::FragmentContent::Text(run)
-                if run.text.contains("folio"))
-    });
+    // The margin box renders as a box fragment whose text run is "folio"; it
+    // lives in the page margin (y >= content bottom). CORE-141 gave margin
+    // boxes their own background/border box, so the run is a DESCENDANT of a
+    // box fragment rather than a direct child of the page — walk the subtree,
+    // mirroring the emitter's rule that a run's baseline is parent-relative.
+    fn find_folio(f: &typeanvil::frag::Fragment, px: f64, py: f64, half_h: f64) -> bool {
+        let ay = py + f.offset.y.get();
+        if let typeanvil::frag::FragmentContent::Text(run) = &f.content {
+            if py + run.baseline.y.get() > half_h && run.text.contains("folio") {
+                return true;
+            }
+        }
+        let ax = px + f.offset.x.get();
+        f.children.iter().any(|c| find_folio(c, ax, ay, half_h))
+    }
+    let folio = page
+        .root
+        .children
+        .iter()
+        .any(|f| find_folio(f, 0.0, 0.0, h / 2.0));
     assert!(folio, "media-wrapped @page margin box must survive the seam");
 }
 

@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-16
-updated: 2026-09-12
+updated: 2026-09-13
 sidebar_position: 3
 tags: [css, paged-media, page, layout, engine]
 spec_id: paged-media-css
@@ -84,6 +84,10 @@ market.
 - Side margin boxes (`@left-*`, `@right-*` — vertical writing-mode boxes):
   parsed and positioned, but content is treated as a single horizontal line
   (no rotation); vertical writing modes are out of scope.
+- Margin-box `background-image` (a `url()` background parses to no fill),
+  multi-line margin-box content (`content: "a\a b"`, `white-space: pre-wrap`),
+  and per-side border colours (one colour paints all four sides). CORE-141
+  records these as the remaining margin-box gaps.
 - Footnotes, cross-references beyond `target-counter(..., page)`, named
   counter styles (roman etc.), `target-text`.
 - CSS `size: landscape/portrait` keywords beyond the named page-size keywords
@@ -195,6 +199,38 @@ The engine shall:
 15. **Keep the CLI contract**: `typeanvil render <input.html> --page-width ...
     --page-height ... --margin-* ... -o out.pdf` still works (flags are now
     defaults that `@page` may override).
+16. **Size and paint the page-margin boxes (CORE-141)**: each margin box shall
+    be a real CSS box. The engine shall parse the box-model declarations of a
+    margin box (`width`, `height`, the `margin-*` and `padding-*` longhands and
+    their shorthands, `border`/`border-<side>`, `background`/`background-color`)
+    and merge them property-by-property across `@page` rules.
+    - The engine shall resolve each edge's used sizes by css-page-3 §5.3.2:
+      the three boxes of an edge share the page area's extent along it, an
+      `auto` size is resolved from the box's max-content and min-content sizes
+      by the §5.3.2.2 three-step flex distribution, and a box whose size is
+      declared keeps it. Auto margins on that axis are zero (§5.3.2.1). The
+      start box is flush with the start edge, the middle box is centered, the
+      end box is flush with the end edge (§5.3.2.4).
+    - The engine shall resolve the fixed dimension by §5.3.3: the box's
+      margins, borders, padding and size shall sum to the page margin on that
+      edge; an auto size takes the space the margins leave; when both margins
+      are auto they are equal (which centers the box in the band); and in the
+      over-constrained case the margin facing away from the page center is
+      treated as auto (the end margin for a bottom/right box, the start margin
+      otherwise).
+    - A corner box shall be fixed in both dimensions: its width is the side
+      page margin and its height the top/bottom page margin meeting there.
+    - Each box shall paint its background over its border box and its border
+      as a band inside that box, and shall place its generated content inside
+      the content box with its resolved `text-align` / `vertical-align`.
+      A box whose content is empty (`content: ""`) shall still generate and
+      paint.
+    - A declared page area (`@page { width; height }`) shall size the page box
+      as area + margins when the CLI geometry cannot hold it: over-constrained
+      values resize the page box to the margin edges (css-page-3 §3) instead of
+      clamping the area. The WPT margin-box fixtures depend on this, because
+      each declares a test area and a reference page box that differ by exactly
+      the margins.
 
 ## Interfaces
 
@@ -391,6 +427,28 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     alpha 0, nested overlap) prints OK and the script exits 0.
     Command from this worktree's root:
     `/Users/elijah/workspace/typeanvil/.venv/bin/python probe/core153_alpha/probe_alpha.py engine/target/debug/typeanvil`.
+
+23. **Margin-box sizing** — Given the `@page` declarations of
+    `css-page-3 §5.3.2`'s own worked example (left box min 4em / max 17em,
+    right box min 2em / max 5em, 20em available), when the two boxes are sized,
+    then they come out 15.375em and 4.625em and fill the display width
+    (`margin_box::tests::distributes_between_mins_when_max_overflows`).
+24. **Margin-box fixed dimension** — Given a declared height with both margins
+    auto, when the band is solved, then the box is centered in the band; given
+    an auto height, then it fills what the margins leave; given declared
+    height and both margins, then the over-constrained rule drops the ignored
+    edge's margin
+    (`margin_box::tests::fixed_dimension_centers_with_auto_margins`,
+    `margin_box::tests::fixed_dimension_auto_height_fills_the_band`,
+    `margin_box::tests::fixed_dimension_overconstrained_drops_the_ignored_edge`).
+25. **Margin-box paint** — Given `@page { margin: 4em; @top-left { background:
+    hotpink; content: "" } }`, when rendered, then the box's border box covers
+    its resolved share of the page area and the fill is visible, with the
+    content placed inside the content box.
+26. **Page box grows to a declared area** — Given `@page { margin: 6em;
+    width: 20em; height: 16em }` on a 5in×3in CLI default, when rendered, then
+    the page box is 32em×28em and the page area is 20em×16em, so a reference
+    that declares the same 32em box renders at the same size.
 
 ## Edge Cases
 

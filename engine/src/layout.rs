@@ -50,8 +50,8 @@ mod flex;
 mod grid;
 mod multicol;
 use crate::paged::{
-    parse_page_rules, resolve_page_spec, ContentPiece, CounterValue, MarginBoxName, MarginBoxSpec,
-    MarginRow, PageMargins, PageRule, PageSpec, RunningStrings, VerticalAlign,
+    parse_page_rules, resolve_page_spec, ContentPiece, CounterValue, MarginBoxSpec, PageMargins,
+    PageRule, PageSpec, RunningStrings, VerticalAlign,
 };
 use crate::table::{measure_columns, measure_rows};
 use crate::typography::{break_paragraph, LineResult};
@@ -6080,104 +6080,150 @@ fn attach_margin_boxes(
     }
     let content = geo.content_rect();
 
+    // 1. Resolve the generated text of each box and measure it. §5.3.2.2
+    //    distributes the edge between boxes using their min-content (widest
+    //    word) and max-content (whole line) sizes.
+    let mut shaped: Vec<Option<crate::typography::ShapeRun>> =
+        Vec::with_capacity(spec.margin_boxes.len());
+    let mut metrics: Vec<crate::margin_box::BoxMetrics> =
+        Vec::with_capacity(spec.margin_boxes.len());
     for mb in &spec.margin_boxes {
         let text = render_margin_content(&mb.content, mb, flow, page_local, total_pages, page_start);
-        if text.is_empty() {
+        let sh = if text.is_empty() {
+            None
+        } else {
+            // Shape the resolved content so non-ASCII (em dash, curly quotes,
+            // ·) renders as a real glyph with a ToUnicode mapping — never raw
+            // UTF-8 bytes (CORE-83). Margin boxes are one line; no
+            // microtypography.
+            Some(crate::typography::shape_word(&text, mb.font_size, mb.font_face))
+        };
+        metrics.push(crate::margin_box::BoxMetrics {
+            min_inline: min_content_width(&text, mb.font_size, mb.font_face),
+            max_inline: sh.as_ref().map(|s| s.width).unwrap_or(Scalar::ZERO),
+            block: mb.line_height,
+        });
+        shaped.push(sh);
+    }
+
+    // 2. Resolve each box's page-absolute geometry (css-page-3 §5.3): the row
+    //    sizing that distributes an edge between its three boxes, the fixed
+    //    dimension that fills the page margin, and the corner boxes sized by
+    //    the two margins that meet there.
+    let placed = crate::margin_box::place_boxes(
+        &spec.margin_boxes,
+        &metrics,
+        geo.width,
+        geo.height,
+        (content.x, content.y, content.width, content.height),
+        [
+            geo.margin_top,
+            geo.margin_right,
+            geo.margin_bottom,
+            geo.margin_left,
+        ],
+    );
+
+    // 3. Emit one fragment per generated box, carrying its background and
+    //    border so the existing PDF fragment walk paints them.
+    for (i, mb) in spec.margin_boxes.iter().enumerate() {
+        let Some(pb) = placed[i] else {
             continue;
-        }
-        let face = mb.font_face;
-        let font_size = mb.font_size;
-        let lh = mb.line_height;
-        // Shape the resolved content so non-ASCII (em dash, curly quotes, ·)
-        // renders as a real glyph with a ToUnicode mapping — never raw UTF-8
-        // bytes (CORE-83). Margin boxes are one line; no microtypography.
-        let shaped = crate::typography::shape_word(&text, font_size, face);
-        let (slot_x, slot_w, slot_y) =
-            margin_box_slot(mb.name, geo, &content, lh, mb.text_align, mb.vertical_align);
-        let text_w = shaped.width;
-        let x = match mb.text_align {
-            // CORE-117: center-aligned boxes center on the CONTENT-box
-            // midline ((left+right)/2), not within a fixed third-slot. A wide
-            // running head then spills into adjacent slots symmetrically
-            // (css-page-3 margin-box geometry, matches Prince 16.2).
-            TextAlign::Center => {
-                content.x + Scalar((content.width.get() - text_w.get()) * 0.5)
+        };
+        let (box_x, box_y, box_w, box_h) = (pb.x, pb.y, pb.w, pb.h);
+        let (cx, cy, cw, ch) = pb.content_rect();
+        let mut fragment = Fragment::block(Point::new(box_x, box_y), (box_w, box_h));
+        if let Some(bg) = mb.background {
+            if box_w.get() > 0.0 && box_h.get() > 0.0 {
+                fragment.content = FragmentContent::Background(bg);
             }
-            // End-aligned margin boxes anchor their RIGHT edge at the
-            // content-box right edge and grow LEFTWARD into the middle slot
-            // when wider than one third (css-page-3 margin-box geometry).
-            TextAlign::Right | TextAlign::End => content.x + content.width - text_w,
-            _ => slot_x,
-        };
-        let baseline = slot_y + crate::typography::baseline_offset(font_size, lh, face);
-        let run = TextRun {
-            text: shaped.text,
-            baseline: Point::new(x, baseline),
-            font_size,
-            color: mb.color,
-            font_face: face,
-            glyphs: shaped.glyphs,
-            expansion: 0.0,
-            protrude_left: Scalar::ZERO,
-            protrude_right: Scalar::ZERO,
-        };
-        let mut line = Fragment::line(Point::new(x, slot_y), (slot_w, lh), run);
-        line.kind = FragmentKind::Line;
-        fragmentainer.root.children.push(line);
+        }
+        // The border is attached AFTER `content` is set: the block path's
+        // insert-then-overwrite trap (CORE-165) loses the band when a
+        // background fragment is replaced afterwards.
+        if pb.border.iter().any(|w| w.get() > 0.0) {
+            let color = border_paint_color(mb);
+            let border_box = BorderBox {
+                top: pb.border[0],
+                right: pb.border[1],
+                bottom: pb.border[2],
+                left: pb.border[3],
+                color,
+            };
+            match fragment.content {
+                FragmentContent::Background(_) => {
+                    // Zero-offset child so the border strokes ON TOP of the
+                    // fill (the CORE-100 model).
+                    let mut bf = Fragment::block(Point::new(Scalar::ZERO, Scalar::ZERO), (box_w, box_h));
+                    bf.content = FragmentContent::Border(border_box);
+                    fragment.children.push(bf);
+                }
+                _ => fragment.content = FragmentContent::Border(border_box),
+            }
+        }
+        if let Some(run_shaped) = shaped[i].take() {
+            let text_w = run_shaped.width;
+            let lh = mb.line_height;
+            let x = match mb.text_align {
+                TextAlign::Center => Scalar(cx.get() + (cw.get() - text_w.get()) * 0.5),
+                TextAlign::Right | TextAlign::End => Scalar(cx.get() + cw.get() - text_w.get()),
+                _ => cx,
+            };
+            let line_top = cy + vertical_slot(mb.vertical_align, ch, lh);
+            let baseline =
+                line_top + crate::typography::baseline_offset(mb.font_size, lh, mb.font_face);
+            let run = TextRun {
+                text: run_shaped.text,
+                baseline: Point::new(x, baseline),
+                font_size: mb.font_size,
+                color: mb.color,
+                font_face: mb.font_face,
+                glyphs: run_shaped.glyphs,
+                expansion: 0.0,
+                protrude_left: Scalar::ZERO,
+                protrude_right: Scalar::ZERO,
+            };
+            // Child coordinates are parent-relative: the box fragment carries
+            // the page-absolute origin, so the line is relative to it.
+            let mut line = Fragment::line(
+                Point::new(x - box_x, line_top - box_y),
+                (text_w, lh),
+                run,
+            );
+            line.kind = FragmentKind::Line;
+            if let FragmentContent::Text(r) = &mut line.content {
+                r.baseline = Point::new(r.baseline.x - box_x, r.baseline.y - box_y);
+            }
+            fragment.children.push(line);
+        }
+        fragmentainer.root.children.push(fragment);
     }
 }
 
-/// The (x, width, y) slot for a margin box in the page margin area, honoring
-/// the box's resolved `text-align` (inline axis) and `vertical-align` (block
-/// axis).
-fn margin_box_slot(
-    name: MarginBoxName,
-    geo: &PageGeometry,
-    content: &crate::geom::Rect,
-    lh: Scalar,
-    text_align: TextAlign,
-    vertical_align: VerticalAlign,
-) -> (Scalar, Scalar, Scalar) {
-    let third = content.width * (1.0 / 3.0);
-    match name.row() {
-        MarginRow::Top => {
-            let y = vertical_slot(vertical_align, geo.margin_top, lh);
-            let (x, w) = horizontal_slot(text_align, content, third);
-            (x, w, y)
-        }
-        MarginRow::Bottom => {
-            let band_top = geo.height - geo.margin_bottom;
-            let y = band_top + vertical_slot(vertical_align, geo.margin_bottom, lh);
-            let (x, w) = horizontal_slot(text_align, content, third);
-            (x, w, y)
-        }
-        MarginRow::Left => {
-            let x = Scalar::ZERO;
-            let w = geo.margin_left;
-            let y = content.y + vertical_slot(vertical_align, content.height, lh);
-            (x, w, y)
-        }
-        MarginRow::Right => {
-            let x = geo.width - geo.margin_right;
-            let w = geo.margin_right;
-            let y = content.y + vertical_slot(vertical_align, content.height, lh);
-            (x, w, y)
+/// The min-content inline size of margin-box content: the width of its widest
+/// word (css-sizing-3 §5.1). Empty content measures zero.
+fn min_content_width(text: &str, font_size: Scalar, face: crate::fonts::FaceId) -> Scalar {
+    let mut widest = Scalar::ZERO;
+    for word in text.split_whitespace() {
+        let w = crate::typography::shape_word(word, font_size, face).width;
+        if w.get() > widest.get() {
+            widest = w;
         }
     }
+    widest
 }
 
-/// Horizontal slot (x, width) for a top/bottom margin box.
-fn horizontal_slot(
-    text_align: TextAlign,
-    content: &crate::geom::Rect,
-    third: Scalar,
-) -> (Scalar, Scalar) {
-    match text_align {
-        TextAlign::Left | TextAlign::Start => (content.x, third),
-        TextAlign::Center => (content.x + third, third),
-        TextAlign::Right | TextAlign::End => (content.x + third + third, third),
-        TextAlign::Justify => (content.x, third),
+/// The colour a margin box's border paints with: the first declared side
+/// colour, else black (the UA default for `currentColor` borders here).
+fn border_paint_color(mb: &crate::paged::MarginBoxSpec) -> crate::css::Color {
+    for side in [mb.border_top, mb.border_right, mb.border_bottom, mb.border_left] {
+        if let Some((w, c)) = side {
+            if w.get() > 0.0 {
+                return c;
+            }
+        }
     }
+    crate::css::Color::BLACK
 }
 
 /// Vertical offset within a margin band for `top`/`middle`/`bottom` alignment.

@@ -225,6 +225,27 @@ pub enum ContentPiece {
 pub struct MarginBoxStyle {
     pub color: Option<Color>,
     pub background: Option<Color>,
+    /// Margin-box `width` — the VARIABLE dimension of a top/bottom margin box
+    /// (css-page-3 §5.3.2). `None` = not declared, which the sizing algorithm
+    /// treats as `auto`.
+    pub width: Option<PageLength>,
+    /// Margin-box `height` — the FIXED dimension of a top/bottom margin box
+    /// (css-page-3 §5.3.3). `None` = not declared (`auto`).
+    pub height: Option<PageLength>,
+    pub margin_top: Option<PageLength>,
+    pub margin_right: Option<PageLength>,
+    pub margin_bottom: Option<PageLength>,
+    pub margin_left: Option<PageLength>,
+    pub padding_top: Option<PageLength>,
+    pub padding_right: Option<PageLength>,
+    pub padding_bottom: Option<PageLength>,
+    pub padding_left: Option<PageLength>,
+    /// Per-side border: width in points + colour. `None` = no border on that
+    /// side (declared `none`/`hidden` or never declared).
+    pub border_top: Option<(Scalar, Color)>,
+    pub border_right: Option<(Scalar, Color)>,
+    pub border_bottom: Option<(Scalar, Color)>,
+    pub border_left: Option<(Scalar, Color)>,
     pub text_align: Option<crate::css::TextAlign>,
     pub vertical_align: Option<VerticalAlign>,
     pub font_family: Option<Vec<crate::fonts::FamilySpec>>,
@@ -246,6 +267,32 @@ impl MarginBoxStyle {
         if other.background.is_some() {
             self.background = other.background;
         }
+        // The box model (§5.3). Each `Option` is copied only when the later
+        // rule declared that property, so a rule that sets just `width` keeps
+        // the borders a previous rule established.
+        macro_rules! merge_opt {
+            ($($f:ident),* $(,)?) => {
+                $(if other.$f.is_some() {
+                    self.$f = other.$f.clone();
+                })*
+            };
+        }
+        merge_opt!(
+            width,
+            height,
+            margin_top,
+            margin_right,
+            margin_bottom,
+            margin_left,
+            padding_top,
+            padding_right,
+            padding_bottom,
+            padding_left,
+            border_top,
+            border_right,
+            border_bottom,
+            border_left,
+        );
         if other.text_align.is_some() {
             self.text_align = other.text_align;
         }
@@ -439,6 +486,23 @@ pub struct MarginBoxSpec {
     pub line_height: Scalar,
     pub text_align: crate::css::TextAlign,
     pub vertical_align: VerticalAlign,
+    /// The box model this margin box builds inside the page margin area
+    /// (css-page-3 §5.3). `None` on a length = `auto` for the sizing
+    /// algorithms; `None` on a border side = no border.
+    pub width: Option<PageLength>,
+    pub height: Option<PageLength>,
+    pub margin_top: Option<PageLength>,
+    pub margin_right: Option<PageLength>,
+    pub margin_bottom: Option<PageLength>,
+    pub margin_left: Option<PageLength>,
+    pub padding_top: Option<PageLength>,
+    pub padding_right: Option<PageLength>,
+    pub padding_bottom: Option<PageLength>,
+    pub padding_left: Option<PageLength>,
+    pub border_top: Option<(Scalar, Color)>,
+    pub border_right: Option<(Scalar, Color)>,
+    pub border_bottom: Option<(Scalar, Color)>,
+    pub border_left: Option<(Scalar, Color)>,
     /// Resolved margin-context `counter-reset` (`inherit` already resolved
     /// against the page context). `None` = the box does not obscure.
     pub counter_reset: CounterValue,
@@ -859,6 +923,43 @@ fn parse_margin_box_decls(body: &str) -> (Option<Option<Vec<ContentPiece>>>, Mar
                     style.background = Some(c);
                 }
             }
+            // Margin-box box model (css-page-3 §5.3): the box that the margin
+            // box's own `margin`/`border`/`padding`/`size` declarations build
+            // inside the page margin area. `width` is the variable dimension of
+            // a top/bottom box, `height` its fixed dimension (§5.3.2, §5.3.3).
+            "width" => style.width = parse_page_length(value),
+            "height" => style.height = parse_page_length(value),
+            "margin" => {
+                if let Some((t, r, b, l)) = parse_margin_shorthand(value) {
+                    style.margin_top = Some(t);
+                    style.margin_right = Some(r);
+                    style.margin_bottom = Some(b);
+                    style.margin_left = Some(l);
+                }
+            }
+            "margin-top" => style.margin_top = parse_page_length(value),
+            "margin-right" => style.margin_right = parse_page_length(value),
+            "margin-bottom" => style.margin_bottom = parse_page_length(value),
+            "margin-left" => style.margin_left = parse_page_length(value),
+            "padding" | "padding-top" | "padding-right" | "padding-bottom" | "padding-left" => {
+                apply_padding_decl(&mut style, &prop, value);
+            }
+            "border" | "border-top" | "border-right" | "border-bottom" | "border-left" => {
+                if let Some(side) = parse_border_side(value) {
+                    match prop.as_str() {
+                        "border" => {
+                            style.border_top = Some(side);
+                            style.border_right = Some(side);
+                            style.border_bottom = Some(side);
+                            style.border_left = Some(side);
+                        }
+                        "border-top" => style.border_top = Some(side),
+                        "border-right" => style.border_right = Some(side),
+                        "border-bottom" => style.border_bottom = Some(side),
+                        _ => style.border_left = Some(side),
+                    }
+                }
+            }
             "text-align" => style.text_align = parse_text_align(value),
             "vertical-align" => style.vertical_align = parse_vertical_align(value),
             "font-family" => style.font_family = Some(parse_family_list(value)),
@@ -1228,6 +1329,90 @@ fn parse_margin_shorthand(value: &str) -> Option<(PageLength, PageLength, PageLe
         [t, r, b, l] => Some((*t, *r, *b, *l)),
         _ => None,
     }
+}
+
+/// Apply a `padding` / `padding-<side>` declaration to a margin box.
+///
+/// `auto` is not a valid padding value; such a declaration is ignored rather
+/// than treated as zero, so a bogus value cannot silently clear a real one.
+fn apply_padding_decl(style: &mut MarginBoxStyle, prop: &str, value: &str) {
+    fn one(value: &str) -> Option<PageLength> {
+        match parse_page_length(value) {
+            Some(PageLength::Abs(p)) => Some(PageLength::Abs(p)),
+            Some(PageLength::Percent(f)) => Some(PageLength::Percent(f)),
+            _ => None,
+        }
+    }
+    let mut assign = |which: &str, v: Option<PageLength>| {
+        let Some(v) = v else { return };
+        match which {
+            "padding-top" => style.padding_top = Some(v),
+            "padding-right" => style.padding_right = Some(v),
+            "padding-bottom" => style.padding_bottom = Some(v),
+            _ => style.padding_left = Some(v),
+        }
+    };
+    if prop != "padding" {
+        assign(prop, one(value));
+        return;
+    }
+    let Some((t, r, b, l)) = parse_margin_shorthand(value) else {
+        return;
+    };
+    let vals: [(PageLength, &str); 4] = [
+        (t, "padding-top"),
+        (r, "padding-right"),
+        (b, "padding-bottom"),
+        (l, "padding-left"),
+    ];
+    for (v, which) in vals {
+        let v = match v {
+            PageLength::Abs(_) | PageLength::Percent(_) => Some(v),
+            _ => None,
+        };
+        assign(which, v);
+    }
+}
+
+/// The `medium` border width (css-backgrounds-3 §4.3) in points: 3px.
+const MEDIUM_BORDER: Scalar = Scalar(2.25);
+
+/// Parse one `border` / `border-<side>` value into `(width, colour)`.
+///
+/// Only the visible styles are honoured (this engine strokes every style as a
+/// solid band, the CORE-165 model). `none` / `hidden` return a zero-width
+/// border so an explicit declaration CLEARS an earlier one — `None` means
+/// "nothing declared".
+fn parse_border_side(value: &str) -> Option<(Scalar, Color)> {
+    let mut width: Option<Scalar> = None;
+    let mut color: Option<Color> = None;
+    let mut visible = false;
+    for part in value.split_whitespace() {
+        match part.to_ascii_lowercase().as_str() {
+            "none" | "hidden" => return Some((Scalar::ZERO, Color::BLACK)),
+            "solid" | "dashed" | "dotted" | "double" | "groove" | "ridge" | "inset"
+            | "outset" => visible = true,
+            "thin" => width = Some(Scalar(1.0)),
+            "medium" => width = Some(MEDIUM_BORDER),
+            "thick" => width = Some(Scalar(5.0)),
+            _ => {
+                if let Some(w) = parse_length(part) {
+                    width = Some(w);
+                } else if let Some(c) = crate::css::parse_css_color(part) {
+                    color = Some(c);
+                }
+            }
+        }
+    }
+    if !visible {
+        // `border: 2px` alone leaves the initial `border-style: none`.
+        return None;
+    }
+    let w = width.unwrap_or(MEDIUM_BORDER);
+    if w.get() <= 0.0 {
+        return Some((Scalar::ZERO, Color::BLACK));
+    }
+    Some((w, color.unwrap_or(Color::BLACK)))
 }
 
 /// Parse one margin/size value: `auto`, `inherit`, a percentage, or an
@@ -1688,6 +1873,27 @@ pub fn resolve_page_spec(
     let area_w = resolve_area(width, size.0).unwrap_or(size.0 - margin_left - margin_right);
     let area_h = resolve_area(height, size.1).unwrap_or(size.1 - margin_top - margin_bottom);
 
+    // css-page-3 §3: with a DEFINITE page area the page box is sized by that
+    // area plus its margins — over-constrained values resize the containing
+    // block to coincide with the margin edges rather than clamping the area.
+    // The CLI geometry is only the default box, so a declared area that does
+    // not fit GROWS the page box. The WPT margin-box fixtures depend on this:
+    // each declares a test area and a reference box that differ by exactly the
+    // margins (`@page { margin: 6em; width: 20em }` vs a reference page of
+    // 32em), so both sides must come out the same size.
+    if width.is_some() {
+        let need = area_w + margin_left + margin_right;
+        if need.get() > size.0.get() {
+            size.0 = need;
+        }
+    }
+    if height.is_some() {
+        let need = area_h + margin_top + margin_bottom;
+        if need.get() > size.1.get() {
+            size.1 = need;
+        }
+    }
+
     // Leftover space on each axis: distributed to auto margins (equal split
     // when both auto), or to the end margin when overconstrained (css-page-3
     // §4.1: "the used value of the right/bottom margin absorbs the extra").
@@ -1800,6 +2006,22 @@ pub fn resolve_page_spec(
                 vertical_align: style
                     .vertical_align
                     .unwrap_or_else(|| name.default_vertical_align()),
+                // §5.3 box model: carried through unresolved (percentages need
+                // the containing block, which is only known at layout time).
+                width: style.width,
+                height: style.height,
+                margin_top: style.margin_top,
+                margin_right: style.margin_right,
+                margin_bottom: style.margin_bottom,
+                margin_left: style.margin_left,
+                padding_top: style.padding_top,
+                padding_right: style.padding_right,
+                padding_bottom: style.padding_bottom,
+                padding_left: style.padding_left,
+                border_top: style.border_top,
+                border_right: style.border_right,
+                border_bottom: style.border_bottom,
+                border_left: style.border_left,
                 counter_reset: resolve_box_counter(style.counter_reset.clone(), &page_counter_reset),
                 counter_increment: resolve_box_counter(
                     style.counter_increment.clone(),
