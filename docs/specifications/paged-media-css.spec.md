@@ -517,6 +517,23 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   but above the `@page` box fill (so page margins keep the page box's own
   background); the donor box paints none of its own. Vertical percentage
   `@page` padding resolves against the page HEIGHT.
+- **`@page` logical margins/padding map per writing mode (CORE-153)** → the
+  `margin-inline-*` / `margin-block-*` longhands and their `padding-*`
+  counterparts stay SYMBOLIC through the `@page` parser and map to physical
+  edges at resolution time against the page context's EFFECTIVE writing
+  mode (css-writing-modes-1 logical properties): the cascaded
+  `@page { writing-mode }` wins, else the page context inherits the ROOT
+  element's computed mode (css-page-3 §3). Under vertical-rl, inline
+  percentages resolve against the page HEIGHT and block percentages against
+  the WIDTH, with inline-start = top, inline-end = bottom, block-start =
+  right, block-end = left (page-box-008/009; their refs simulate the
+  margins with border widths 16/32/48/80 top/right/bottom/left). Document
+  content still lays out horizontal-tb (CORE-127's orthogonal-flow
+  suppression); only the page context's margin/padding geometry is
+  writing-mode aware. Zero WPT status flips on landing — page-box-008/009
+  remain FAIL on separate residuals (vertical-rl block geometry, a
+  declared-height ref fragmentation bug) — but the margin bands now match
+  the refs' border simulation exactly.
 - **html-root-box (CORE-165)** → the `<html>` element's own border paints as
   page chrome: a band at the page-area rect's edge on every page (the root
   box fragments per page; its border repeats per fragment). The root's

@@ -996,6 +996,7 @@ fn paginate(
             PageCtx::Carry => {}
         }
         let rtl_progression = styles[dom.find_tag("html").unwrap_or(dom.root)].rtl;
+        let root_writing_mode = styles[dom.find_tag("html").unwrap_or(dom.root)].writing_mode;
         let spec = resolve_page_spec(
             page_rules,
             current_name.as_deref(),
@@ -1003,6 +1004,7 @@ fn paginate(
             cli,
             inherit_margins,
             rtl_progression,
+            root_writing_mode,
         );
         // The `page` counter's @page-context reset/increment applies at page
         // start (css-page-3 §8): increment BEFORE the body lays out, so a
@@ -1319,7 +1321,8 @@ fn paginate(
     }
 
     if pages.is_empty() {
-        let spec = resolve_page_spec(page_rules, None, 0, cli, inherit_margins, false);
+        let root_writing_mode = styles[dom.find_tag("html").unwrap_or(dom.root)].writing_mode;
+        let spec = resolve_page_spec(page_rules, None, 0, cli, inherit_margins, false, root_writing_mode);
         apply_page_counter(&spec, &mut flow);
         let page_local = apply_page_named_counters(&spec, &mut flow);
         let mut fragmentainer = Fragmentainer::new(0, spec.size);
@@ -1361,7 +1364,8 @@ fn paginate(
             // Degenerate: MAX_PAGES=0 path (no pages at all). Fall back to the
             // CLI geometry's content rect — nothing fixed exists to place
             // anyway, but the code must stay total.
-            resolve_page_spec(page_rules, None, 0, cli, inherit_margins, false)
+            let root_writing_mode = styles[dom.find_tag("html").unwrap_or(dom.root)].writing_mode;
+            resolve_page_spec(page_rules, None, 0, cli, inherit_margins, false, root_writing_mode)
                 .geometry()
                 .content_rect()
         });
