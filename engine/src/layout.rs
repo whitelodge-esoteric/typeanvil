@@ -2970,6 +2970,25 @@ impl<'a> Ctx<'a> {
                         );
                     let shift = base_y + Scalar(style.font_size.get() * -desc_em)
                         - (y + cstyle.margin_top + ah);
+                    // CORE-171: a box TALLER than the line must not be pushed
+                    // above the line's top. css2 §10.8 grows the line box to
+                    // contain an atomic box — aligning a 50px inline-block to a
+                    // 19px strut baseline put it almost entirely above the
+                    // block's content top (it painted as a 19px slice at the
+                    // page edge). Chromium paints such a box in full from the
+                    // page top. Clamp the shift so the box starts at the line
+                    // top; `atomic_line_h` below still grows the line to the
+                    // box's height, so the following content moves down with
+                    // it. Small atomics keep their baseline alignment, which is
+                    // what the flexbox alignment tests pin.
+                    let shift = {
+                        let box_top_before = y + cstyle.margin_top;
+                        if box_top_before.get() + shift.get() < line_top.get() {
+                            Scalar(line_top.get() - box_top_before.get())
+                        } else {
+                            shift
+                        }
+                    };
                     fn rebase_subtree(fragment: &mut Fragment, shift: Scalar) {
                         fragment.offset.y = fragment.offset.y + shift;
                         if let FragmentContent::Text(run) = &mut fragment.content {
