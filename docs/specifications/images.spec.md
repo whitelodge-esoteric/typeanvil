@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-21
-updated: 2026-08-22
+updated: 2026-09-13
 sidebar_position: 23
 tags: [engine, pdf, images, layout, determinism]
 spec_id: images
@@ -210,7 +210,10 @@ pure no-op gate).
   the content box it paints clipped to the page (krilla clips at the page
   boundary). Prince probes pending; recorded if divergent.
 - **`<img>` inside margin boxes / generated content**: NOT supported in v1
-  (margin-box content pipeline is text-only). Recorded limitation.
+  (margin-box content pipeline is text-only) — EXCEPT `content: url(<path>)`
+  inside a `@page` margin box, which paints the image at its intrinsic size
+  (CORE-141). An `<img>` ELEMENT inside a margin box is still unsupported:
+  margin boxes take generated content, not element subtrees.
 - **Same image, different display sizes**: one cache entry, multiple
   fragments scaling the shared XObject.
 - **Percent width inside a float**: resolves against the float's containing
