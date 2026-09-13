@@ -763,6 +763,51 @@ pub enum Hyphens {
     Auto,
 }
 
+/// White space handling for a text run (css-text-3 §5, css-text-4). Mapped
+/// from stylo's computed `white-space` shorthand — servo splits it into the
+/// `white-space-collapse` and `text-wrap-mode` longhands, both read off the
+/// inherited-text struct in `convert`. `normal` (collapse + wrap) is the
+/// default.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum WhiteSpace {
+    /// Collapse space sequences; newlines become spaces; soft wrap.
+    #[default]
+    Normal,
+    /// `pre` — preserve everything; newlines are hard breaks; no soft wrap.
+    Pre,
+    /// `nowrap` — collapse, never soft-wrap.
+    NoWrap,
+    /// `pre-wrap` — preserve everything; hard breaks at newlines; soft wrap.
+    PreWrap,
+    /// `pre-line` — collapse space runs; hard breaks at newlines; soft wrap.
+    PreLine,
+    /// `break-spaces` — like pre-wrap but every space is a soft wrap op.
+    BreakSpaces,
+}
+
+impl WhiteSpace {
+    /// Do newlines in the source force line breaks?
+    pub fn preserves_breaks(self) -> bool {
+        matches!(
+            self,
+            WhiteSpace::Pre | WhiteSpace::PreWrap | WhiteSpace::PreLine | WhiteSpace::BreakSpaces
+        )
+    }
+
+    /// Are space runs preserved instead of collapsed?
+    pub fn preserves_spaces(self) -> bool {
+        matches!(
+            self,
+            WhiteSpace::Pre | WhiteSpace::PreWrap | WhiteSpace::BreakSpaces
+        )
+    }
+
+    /// Is soft wrapping at the content-box width enabled?
+    pub fn soft_wraps(self) -> bool {
+        !matches!(self, WhiteSpace::Pre | WhiteSpace::NoWrap)
+    }
+}
+
 /// The computed `font-style` value (css-fonts-4 §3). Oblique folds into italic.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FontStyle {
@@ -1012,6 +1057,10 @@ pub struct ComputedStyle {
     /// `hyphens` computed value (typography layer). Filled by the author-CSS
     /// pass like the break longhands; inherited.
     pub hyphens: Hyphens,
+    /// White space handling (css-text-3 §5 / css-text-4). Mapped from
+    /// stylo's computed `white-space` longhand pair in `convert`; inherited
+    /// by the cascade.
+    pub white_space: WhiteSpace,
     /// Explicit OpenType feature settings (CORE-113): packed big-endian tag +
     /// value pairs copied verbatim from stylo's computed
     /// `font-feature-settings`. Empty for the default (`normal`).
@@ -1098,6 +1147,7 @@ impl ComputedStyle {
             text_align: TextAlign::Start,
             rtl: false,
             hyphens: Hyphens::Manual,
+            white_space: WhiteSpace::Normal,
             feature_settings: Vec::new(),
             ot_features: Vec::new(),
             page: None,
@@ -1400,7 +1450,7 @@ impl CascadeSession {
         // vs Prince and flipped prose page counts at line-height 1.2.
         body { margin: 0; }
         blockquote { margin: 1.12em 22.5pt; }
-        pre { margin: 1.12em 0; font-family: monospace; }
+        pre { margin: 1.12em 0; font-family: monospace; white-space: pre; }
         table { border-collapse: collapse; }
         td, th { display: table-cell; }
     "#;
@@ -2057,6 +2107,31 @@ impl CascadeSession {
             text_align,
             rtl,
             hyphens: Hyphens::Manual,
+            white_space: {
+                use style::properties::longhands::text_wrap_mode::computed_value::T
+                    as StyloTextWrapMode;
+                use style::properties::longhands::white_space_collapse::computed_value::T
+                    as StyloWhiteSpaceCollapse;
+                // css-text-4: the `white-space` shorthand is a fixed mapping
+                // of (collapse, wrap-mode). `preserve-spaces` is gecko-only.
+                match (
+                    text.clone_white_space_collapse(),
+                    text.clone_text_wrap_mode(),
+                ) {
+                    (StyloWhiteSpaceCollapse::Preserve, StyloTextWrapMode::Nowrap) => {
+                        WhiteSpace::Pre
+                    }
+                    (StyloWhiteSpaceCollapse::Preserve, _) => WhiteSpace::PreWrap,
+                    (StyloWhiteSpaceCollapse::PreserveBreaks, _) => WhiteSpace::PreLine,
+                    (StyloWhiteSpaceCollapse::BreakSpaces, _) => WhiteSpace::BreakSpaces,
+                    // `preserve-spaces` is a gecko-only value, absent from the
+                    // servo build's enum (verified stylo 0.20 longhands.toml).
+                    (StyloWhiteSpaceCollapse::Collapse, StyloTextWrapMode::Nowrap) => {
+                        WhiteSpace::NoWrap
+                    }
+                    (StyloWhiteSpaceCollapse::Collapse, _) => WhiteSpace::Normal,
+                }
+            },
             // Paged-media element props are likewise absent from the servo
             // stylo build; filled by `apply_paged_properties` (see `cascade`).
             page: None,

@@ -566,6 +566,9 @@ fn space_glue_with_features(
 /// Tokenize a paragraph into the K-P item stream. Words are shaped; spaces
 /// become glue; `hyphenate` adds intra-word hyphen penalties from `hypher`;
 /// each [`FORCED_BREAK_CHAR`] sentinel becomes a forced break item (CORE-159).
+/// Under `preserve` (css-text-3 pre-family white space, CORE-151), source
+/// newlines also become forced breaks and interior space runs are preserved
+/// verbatim as unbreakable boxes instead of collapsing to glue.
 ///
 /// Returns the items plus a parallel `box_ends` vec: for each item, the
 /// SOURCE byte offset in `text` just past that item's text (meaningful for
@@ -583,14 +586,102 @@ fn build_items(
     face: FaceId,
     hyphenate: bool,
     features: &[(u32, u32)],
+    ws: crate::css::WhiteSpace,
 ) -> (Vec<Item>, Vec<usize>) {
     let glue = space_glue_with_features(font_size, face, features);
     let hyphen_run = shape_word_with_features("-", font_size, face, features);
     let mut items: Vec<Item> = Vec::new();
     let mut box_ends: Vec<usize> = Vec::new();
+
+    // --- preserved white space (css-text-3 pre family, CORE-151) ------------
+    // Newlines are forced breaks; interior whitespace runs keep their verbatim
+    // width as unbreakable boxes; a zero-natural glue after a run offers a
+    // soft-wrap point only when the value soft-wraps (`pre-wrap`,
+    // `break-spaces`). No justification glue is emitted on this path.
+    if ws.preserves_spaces() {
+        let mut i = 0usize;
+        while i < text.len() {
+            let c = text[i..].chars().next().unwrap();
+            if c == '\r' || c == '\n' || c == FORCED_BREAK_CHAR {
+                // CRLF counts as one break (css-text-3 §5.1). A `<br>`
+                // sentinel inside a pre block is a break like a newline.
+                if c == '\r' && text[i + 1..].starts_with('\n') {
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+                items.push(Item::Penalty {
+                    penalty: f64::NEG_INFINITY,
+                    width: Scalar::ZERO,
+                    hyphen: None,
+                    forced: true,
+                });
+                box_ends.push(i);
+                continue;
+            }
+            if c.is_whitespace() {
+                // Preserved run: shaped verbatim (each space/tab keeps its
+                // advance), unbreakable as a unit.
+                let run_start = i;
+                while i < text.len() {
+                    let c2 = text[i..].chars().next().unwrap();
+                    if c2 != '\r' && c2 != '\n' && c2 != FORCED_BREAK_CHAR && c2.is_whitespace() {
+                        i += c2.len_utf8();
+                    } else {
+                        break;
+                    }
+                }
+                let run = &text[run_start..i];
+                items.push(Item::Box(shape_word_with_features(
+                    run, font_size, face, features,
+                )));
+                box_ends.push(i);
+                if ws.soft_wraps() {
+                    // Soft-wrap opportunity after the run (pre-wrap): a
+                    // zero-penalty breakpoint — legal after a box, adds no
+                    // width, and materializes no glyph (a zero GLUE here
+                    // would emit a spurious space in the rebuilt line text).
+                    items.push(Item::Penalty {
+                        penalty: 0.0,
+                        width: Scalar::ZERO,
+                        hyphen: None,
+                        forced: false,
+                    });
+                    box_ends.push(0);
+                }
+                continue;
+            }
+            // A word: a maximal run of non-whitespace, non-break characters.
+            let word_start = i;
+            while i < text.len() {
+                let c2 = text[i..].chars().next().unwrap();
+                if c2 == '\n' || c2 == '\r' || c2 == FORCED_BREAK_CHAR || c2.is_whitespace() {
+                    break;
+                }
+                i += c2.len_utf8();
+            }
+            let word = &text[word_start..i];
+            push_word(
+                &mut items,
+                &mut box_ends,
+                word,
+                word_start,
+                font_size,
+                hyphenate,
+                &hyphen_run,
+                face,
+                features,
+            );
+        }
+        return (items, box_ends);
+    }
+
+    // --- collapsed white space (normal / nowrap / pre-line) -----------------
     // Walk words with their real byte offsets in `text` (split_whitespace
     // loses them and would not split on the forced-break sentinel; a manual
     // scan keeps the source mapping AND turns sentinels into forced breaks).
+    // Under `pre-line` a source newline ALSO becomes a forced break.
+    let preserve_breaks = ws.preserves_breaks();
     let mut i = 0usize;
     let mut first = true;
     while i < text.len() {
@@ -602,7 +693,7 @@ fn build_items(
         let mut forced_here = false;
         while i < text.len() {
             let c = text[i..].chars().next().unwrap();
-            if c == FORCED_BREAK_CHAR {
+            if c == FORCED_BREAK_CHAR || (preserve_breaks && c == '\n') {
                 items.push(Item::Penalty {
                     penalty: f64::NEG_INFINITY,
                     width: Scalar::ZERO,
@@ -1164,6 +1255,12 @@ fn materialize_line(
 /// `max_width` is the content width in points. `hyphenate` offers Liang
 /// hyphenation breaks; `justify` distributes glue so non-final lines fill the
 /// content width. Deterministic pure function of its inputs.
+///
+/// The element's [`WhiteSpace`] reaches layout through `style.white_space`
+/// (CORE-151): pre-family values preserve newlines as forced breaks and space
+/// runs verbatim; `pre`/`nowrap` suppress soft wrap (the caller passes an
+/// unbounded `max_width`); justification and hyphenation are forced off on
+/// break-preserving runs.
 pub fn break_paragraph(
     text: &str,
     max_width: Scalar,
@@ -1171,19 +1268,39 @@ pub fn break_paragraph(
     hyphenate: bool,
     justify: bool,
 ) -> Vec<LineResult> {
-    // Spec edge cases: empty runs and whitespace-only runs produce no lines.
-    if text.trim().is_empty() {
+    let ws = style.white_space;
+    // Spec edge cases: empty runs and whitespace-only runs produce no lines —
+    // EXCEPT a preserved break run: newlines-only text is real empty lines
+    // under `pre` (the trim() test would wrongly swallow them).
+    if ws.preserves_spaces() {
+        if text.is_empty() {
+            return Vec::new();
+        }
+    } else if text.trim().is_empty() {
         return Vec::new();
     }
+    // `pre`/`nowrap` do not soft-wrap: measure each hard-broken line against
+    // an unbounded width so the DP keeps it whole (CORE-151). A line longer
+    // than the content box then overflows like a browser's.
+    let max_width = if ws.soft_wraps() {
+        max_width
+    } else {
+        Scalar(f64::INFINITY)
+    };
     let font_size = style.font_size;
     let face = style.font_face;
     // Resolve OpenType features ONCE per paragraph (CORE-113); every shaped
     // box (words, hyphen glyph, spaces) sees the identical list.
     let features = &style.ot_features[..];
-    let (items, box_ends) = build_items(text, font_size, face, hyphenate, features);
+    let (items, box_ends) = build_items(text, font_size, face, hyphenate, features, ws);
     if items.is_empty() {
         return Vec::new();
     }
+    // A break-preserving run never justifies (no justification glue exists on
+    // the preserved path; CSS keeps hard-broken lines ragged) and never
+    // hyphenates inside a pre line.
+    let justify = justify && !ws.preserves_breaks();
+    let hyphenate = hyphenate && !ws.preserves_breaks();
     let breaks = knuth_plass(&items, max_width.get(), justify);
     // The inter-word space glyph, shaped once per paragraph.
     let space_run = shape_word_with_features(" ", font_size, face, features);
