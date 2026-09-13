@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-09-12
 sidebar_position: 2
 tags: [layout, fragmentation, css-break, engine]
 spec_id: fragmentation-core
@@ -242,3 +242,88 @@ Given/When/Then, each mapping to a real test in `engine/tests/`:
   `ComputedStyle` seam).
 - WPT: css-break-3 spec (w3.org/TR/css-break-3), css-break print-reftests
   (~640 files).
+
+## Addendum: Explicit-Height Block Continuation (CORE-152)
+
+`updated: 2026-09-09`. Narrowed slice of CORE-152: continuation of an
+ordinary block with an explicit CSS `height` that extends past the
+fragmentainer, in the block path only (`layout_box`). Wrapper / flex / grid
+continuation is out of scope here and remains tracked by CORE-152.
+
+### Problem
+
+`layout_box` resolves an explicit `height` only on the box's final fragment
+(`box_height = max(content, declared)` when `!broke`) and never emits a
+continuation token for the unused declared extent. A block that declares more
+height than the current fragmentainer holds paints its full declared
+rectangle on the first page (overflowing it) and generates no further
+fragments: an empty 450pt block in a 144pt content box renders exactly one
+page instead of four.
+
+### Behavior
+
+1. An ordinary block with a resolved `height` whose border box extends past
+   the fragmentainer bottom SHALL continue: each fragmentainer it touches
+   holds exactly one fragment of the box, and fragments appear on every page
+   until the declared extent is consumed.
+2. The last continuation fragment SHALL be sized so the sum of fragment
+   heights plus inter-fragment spacing (truncated margins/padding at the
+   fragmentainer boundaries) equals the declared border box.
+3. `box-sizing` SHALL behave as on the single-fragment path: `content-box`
+   adds padding and border to the declared content height; `border-box`
+   treats the declared height as the border box.
+4. A following in-flow sibling SHALL be placed after the box's last
+   fragment, at the declared bottom edge, on the page where the extent ends.
+5. Content inside the box that is taller than the declared height SHALL
+   still paint (the `max(content, declared)` rule) and SHALL NOT clip.
+6. A box whose content is taller than its declared height and taller than
+   the fragmentainer SHALL fragment by content as today (content
+   continuation takes precedence over height continuation); the height
+   mechanism only supplies extent where content ends first.
+7. Zero-height boxes (declared or content) SHALL NOT generate continuation
+   pages.
+8. Progress: every continuation fragment of the box SHALL either place
+   content or consume declared extent; the page loop SHALL terminate (no
+   token with zero remaining extent and no pending children may leave
+   `seen_all_children` false).
+
+### Acceptance Criteria
+
+| # | Test | Asserts |
+|---|------|---------|
+| AC1 | `height_continuation_page_count` | Empty 450pt block, 144pt page content box → 4 pages (144+144+144+18 = 450) |
+| AC2 | `height_continuation_fragment_heights` | First three fragments 144pt tall; tail fragment 18pt; fragment heights sum to 450pt |
+| AC3 | `height_continuation_sibling_placement` | The sibling after the block paints on the final page, at or below the block's tail-fragment bottom |
+| AC4 | `height_continuation_no_spurious_pages` | Empty 144pt block in a 144pt content box → 1 page (no trailing empty page) |
+| AC5 | `height_continuation_box_sizing_border_box` | 450pt border-box height with 10pt vertical padding spans the same 4 pages as a bare 450pt content-box block |
+| AC6 | `height_continuation_forced_child_consumes_extent` | Forced `break-before` child inside a 450pt parent, 144pt page content box → 4 pages (Chromium-verified); text order preserved |
+
+AC1–AC6 live in `engine/tests/fragmentation.rs`. Behavioral regression risk
+is bounded by the existing fragmentation, floats, and page-size suites; any
+regression there blocks the slice (WPT A/B against the frozen baseline
+remains the gate).
+
+### Continuation-vs-forced-break semantics
+
+The resume guard that suppresses a spurious trailing page
+(`seen_all_children` with no pending child tokens) keys on child completion
+only. Height continuation is orthogonal: when the box's declared extent is
+not yet consumed, a resumed page with all children emits a zero-child slice
+of the remaining extent.
+
+When a box that declares a `height` CONTINUES past a fragmentainer (whether
+by child overflow, a forced child break, or declared-extent overflow), the
+box's block-size progress for that page SHALL be measured to the
+FRAGMENTAINER EDGE, not to the placed content bottom (css-break-3 §5.3: the
+space from the break point to the fragmentainer edge counts toward the
+box's specified block-size progress). Without this, a forced child break
+with room left on the page consumes no progress at all and the skipped
+space re-renders as extra pages (observed: 5 pages where Chromium renders
+4 for a forced break inside a 450pt parent on a 144pt content box). The
+rule is scoped to declared-height boxes: without `height`,
+`consumed_block_size` has no block-path reader, and a zero-height fragment
+makes no progress, so the page loop still terminates.
+
+A forced break itself never marks the box finished while
+`declared − consumed > 0`; the next page continues the remaining extent.
+

@@ -381,3 +381,246 @@ fn determinism_multi_page() {
     let pages = hay.matches("/Type /Page\n").count() + hay.matches("/Type/Page/").count();
     assert!(pages == 0 || pages >= 2, "expected multi-page PDF, saw {pages} markers");
 }
+
+// --- 8. Explicit-height continuation (CORE-152 addendum) --------------------
+
+/// First descendant fragment sourced from `id`, pre-order.
+fn find_source(frag: &Fragment, id: usize) -> Option<&Fragment> {
+    if frag.source == Some(id) {
+        return Some(frag);
+    }
+    for c in &frag.children {
+        if let Some(f) = find_source(c, id) {
+            return Some(f);
+        }
+    }
+    None
+}
+
+/// All fragments (any page) sourced from `id`, page order then pre-order.
+fn fragments_of<'a>(layout: &'a Layout, id: usize) -> Vec<&'a Fragment> {
+    let mut out = Vec::new();
+    for page in &layout.pages {
+        collect_source(&page.root, id, &mut out);
+    }
+    out
+}
+
+fn collect_source<'a>(frag: &'a Fragment, id: usize, out: &mut Vec<&'a Fragment>) {
+    if frag.source == Some(id) {
+        out.push(frag);
+    }
+    for c in &frag.children {
+        collect_source(c, id, out);
+    }
+}
+
+/// The element with the given `id` attribute (never a positional child index,
+/// which can hit whitespace TEXT nodes).
+fn dom_by_id(dom: &Dom, id: &str) -> usize {
+    dom.nodes
+        .iter()
+        .position(|n| {
+            matches!(&n.kind, typeanvil::dom::NodeKind::Element(e) if e.id.as_deref() == Some(id))
+        })
+        .unwrap_or_else(|| panic!("no element with id {id}"))
+}
+
+/// AC1: an empty block with an explicit height spanning more than one
+/// fragmentainer produces one fragment per page until the extent is consumed:
+/// 450pt over a 144pt content box = 4 pages.
+#[test]
+fn height_continuation_page_count() {
+    let html = r#"<html><head><style>
+        @page { size: 200pt 200pt; margin: 28pt; }
+        body { margin: 0; }
+        #a { height: 450pt; }
+        #b { height: 40pt; background: #eef; }
+    </style></head><body>
+    <div id="a"></div>
+    <div id="b"></div>
+    </body></html>"#;
+    let layout = lay(html, PageGeometry {
+        width: Scalar(200.0),
+        height: Scalar(200.0),
+        margin_top: Scalar(28.0),
+        margin_right: Scalar(28.0),
+        margin_bottom: Scalar(28.0),
+        margin_left: Scalar(28.0),
+    });
+    assert_eq!(layout.pages.len(), 4, "height continuation page count");
+}
+
+/// AC2: fragment heights — pages 1-2 hold full 144pt slices, page 3 the next
+/// 144pt slice, page 4 the final 18pt; the four fragment heights sum to the
+/// declared 450pt border box.
+#[test]
+fn height_continuation_fragment_heights() {
+    let html = r#"<html><head><style>
+        @page { size: 200pt 200pt; margin: 28pt; }
+        body { margin: 0; }
+        #a { height: 450pt; }
+    </style></head><body>
+    <div id="a"></div>
+    </body></html>"#;
+    let dom = Dom::parse(html).unwrap();
+    let layout = lay(html, PageGeometry {
+        width: Scalar(200.0),
+        height: Scalar(200.0),
+        margin_top: Scalar(28.0),
+        margin_right: Scalar(28.0),
+        margin_bottom: Scalar(28.0),
+        margin_left: Scalar(28.0),
+    });
+    assert_eq!(layout.pages.len(), 4);
+    let a = dom_by_id(&dom, "a");
+    let frags = fragments_of(&layout, a);
+    assert_eq!(frags.len(), 4, "one fragment per page");
+    for (i, f) in frags.iter().enumerate().take(3) {
+        assert!(
+            (f.size.1.get() - 144.0).abs() < 0.5,
+            "fragment {i} height {:?} != 144pt",
+            f.size.1
+        );
+    }
+    assert!(
+        (frags[3].size.1.get() - 18.0).abs() < 0.5,
+        "tail fragment height {:?} != 18pt",
+        frags[3].size.1
+    );
+    let total: f64 = frags.iter().map(|f| f.size.1.get()).sum();
+    assert!(
+        (total - 450.0).abs() < 0.5,
+        "fragment heights must sum to the declared border box: {total}"
+    );
+}
+
+/// AC3: the sibling after the tall block paints on the final page, below the
+/// block's tail fragment.
+#[test]
+fn height_continuation_sibling_placement() {
+    let html = r#"<html><head><style>
+        @page { size: 200pt 200pt; margin: 28pt; }
+        body { margin: 0; }
+        #a { height: 450pt; }
+        #b { height: 40pt; background: #eef; }
+    </style></head><body>
+    <div id="a"></div>
+    <div id="b"></div>
+    </body></html>"#;
+    let dom = Dom::parse(html).unwrap();
+    let layout = lay(html, PageGeometry {
+        width: Scalar(200.0),
+        height: Scalar(200.0),
+        margin_top: Scalar(28.0),
+        margin_right: Scalar(28.0),
+        margin_bottom: Scalar(28.0),
+        margin_left: Scalar(28.0),
+    });
+    assert_eq!(layout.pages.len(), 4);
+    let (a, b) = (dom_by_id(&dom, "a"), dom_by_id(&dom, "b"));
+    let b_frag = find_source(&layout.pages[3].root, b).expect("sibling on final page");
+    let a_tail = find_source(&layout.pages[3].root, a).expect("block tail on final page");
+    assert!(
+        b_frag.offset.y.get() >= a_tail.offset.y.get() + a_tail.size.1.get() - 0.5,
+        "sibling y {:?} must sit at or below the block bottom {}",
+        b_frag.offset.y,
+        a_tail.offset.y.get() + a_tail.size.1.get()
+    );
+}
+
+/// AC4: a declared height that exactly fits one fragmentainer produces no
+/// spurious continuation pages.
+#[test]
+fn height_continuation_no_spurious_pages() {
+    let html = r#"<html><head><style>
+        @page { size: 200pt 200pt; margin: 28pt; }
+        body { margin: 0; }
+        #a { height: 144pt; }
+    </style></head><body>
+    <div id="a"></div>
+    </body></html>"#;
+    let layout = lay(html, PageGeometry {
+        width: Scalar(200.0),
+        height: Scalar(200.0),
+        margin_top: Scalar(28.0),
+        margin_right: Scalar(28.0),
+        margin_bottom: Scalar(28.0),
+        margin_left: Scalar(28.0),
+    });
+    assert_eq!(layout.pages.len(), 1, "exact fit must not spawn pages");
+}
+
+/// AC5: box-sizing border-box — the declared height includes padding, so a
+/// 450pt border-box block with 10pt vertical padding spans the same pages as
+/// a bare 450pt content-box block (padding lives INSIDE the extent).
+#[test]
+fn height_continuation_box_sizing_border_box() {
+    let html = r#"<html><head><style>
+        @page { size: 200pt 200pt; margin: 28pt; }
+        body { margin: 0; }
+        #a { height: 450pt; box-sizing: border-box; padding: 10pt 0; }
+        #b { height: 40pt; background: #eef; }
+    </style></head><body>
+    <div id="a"></div>
+    <div id="b"></div>
+    </body></html>"#;
+    let layout = lay(html, PageGeometry {
+        width: Scalar(200.0),
+        height: Scalar(200.0),
+        margin_top: Scalar(28.0),
+        margin_right: Scalar(28.0),
+        margin_bottom: Scalar(28.0),
+        margin_left: Scalar(28.0),
+    });
+    assert_eq!(layout.pages.len(), 4, "border-box height continuation pages");
+}
+
+/// AC6 (CORE-152 blocker, Chromium-verified): a FORCED child break inside a
+/// declared-height parent still consumes the parent's declared extent.
+/// CSS Break 3 §5.3: the space from the break point to the fragmentainer
+/// edge counts toward the box's specified block-size progress. Chromium
+/// renders this fixture as 4 pages: page 1 ends at the forced break (144pt
+/// counted), pages 2-3 continue the extent (144+144), page 4 holds the final
+/// 18pt plus the following sibling. Counting only placed content yields 5.
+#[test]
+fn height_continuation_forced_child_consumes_extent() {
+    let html = r#"<html><head><style>
+        @page { size: 200pt 200pt; margin: 28pt; }
+        body, p { margin: 0; }
+        #a { height: 450pt; }
+        #c { break-before: page; }
+        #b { height: 30pt; background: #eef; }
+    </style></head><body>
+    <div id="a">first text<p id="c">forced child</p></div>
+    <div id="b">following sibling</div>
+    </body></html>"#;
+    let layout = lay(html, PageGeometry {
+        width: Scalar(200.0),
+        height: Scalar(200.0),
+        margin_top: Scalar(28.0),
+        margin_right: Scalar(28.0),
+        margin_bottom: Scalar(28.0),
+        margin_left: Scalar(28.0),
+    });
+    assert_eq!(
+        layout.pages.len(),
+        4,
+        "forced child break inside a declared-height parent consumes the \
+         skipped extent (css-break-3 §5.3): 144+144+144+18 = 450pt"
+    );
+    let lines: Vec<String> = layout
+        .pages
+        .iter()
+        .flat_map(|p| page_lines(p))
+        .collect();
+    assert_eq!(
+        lines,
+        vec![
+            "first text".to_string(),
+            "forced child".to_string(),
+            "following sibling".to_string(),
+        ],
+        "text order preserved: parent text, forced child, sibling"
+    );
+}
