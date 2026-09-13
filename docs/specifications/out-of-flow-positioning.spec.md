@@ -5,11 +5,12 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-18
-updated: 2026-09-04
+updated: 2026-09-13
 sidebar_position: 9
 tags: [engine, layout, css-position, css-break, fragmentation]
 spec_id: out-of-flow-positioning
 issue_id: CORE-64
+superseded_by_note: Behaviors 5/9 refined by CORE-169 (2026-09-13)
 applies_to: engine 0.x
 dependencies: [fragmentation-core, wpt-conformance-harness]
 ---
@@ -113,10 +114,17 @@ The engine shall:
    sibling layout; a relative box is a valid containing block for descendants.
 8. Paint positioned siblings in `z-index` order (higher first); `auto` paints
    in tree order. Painting happens after in-flow content.
-9. Keep the monolithic rule for abspos content taller than the fragmentainer:
-   the box is PLACED ONCE (like last-resort lines) and may overflow the page
-   bottom; it never slices and never resumes across pages — the abspos item
-   needs no break token.
+9. Keep the monolithic rule for PINNED abspos content — a box anchored by
+   any inset, or whose containing block is a positioned ancestor — taller
+   than the fragmentainer: the box is PLACED ONCE (like last-resort lines)
+   and may overflow the page bottom; it never slices and never resumes
+   across pages — the abspos item needs no break token. REFINED (CORE-169):
+   a PAGE-ANCHORED abspos box (auto insets, initial containing block) at
+   its static position with a declared extent fragments across
+   fragmentainers like an in-flow box (css-break-3 §2.3 class A): when it
+   does not fit the remaining space, it defers whole to the next page
+   (one deferral, then force-place — the CORE-109 guard), and its fragments
+   attach page-locally, each page's own `@page` context applying.
 10. Stay deterministic: containing-block resolution and offsets are pure
     arithmetic in document order.
 
@@ -166,6 +174,22 @@ The engine shall:
     box) is the fallback.
   - `abspos: Vec<Fragment>` — abspos fragments with page-absolute offsets,
     drained into the fragmentainer root after each page.
+  - `abspos_jobs: Vec<AbsposJob>` (CORE-169) — page-anchored abspos boxes
+    queued to continue on the NEXT fragmentainer; snapshotted at page start
+    (`drained_jobs`), drained after the body layout of the page that
+    follows the deferral. Each job lays ONE fragment through the
+    block-family dispatch (`layout_table_like`) with a real `bottom_limit`
+    (so CORE-167's declared-height fragmentation slices it), pushing
+    fragments DIRECTLY into the current fragmentainer root.
+  - `abspos_resume_tokens: BTreeMap<NodeId, BreakToken>` (CORE-169) — the
+    continuation token of a box whose drain fragment broke again.
+  - `abspos_finished: Vec<NodeId>` (CORE-169) — boxes the drain placed to
+    completion; the body item loop drops their stale pending tokens.
+  - Body item-loop rule (CORE-169): a child carrying a `deferred_once`
+    child token is drain-owned — the body never re-renders it; it carries
+    the token forward (with `broke = true`, keeping the page loop alive)
+    while a job or resume token exists for it, and drops the token once
+    the drain finished the box.
 - In the block item loop, a child with `position: Absolute | Fixed` takes the
   **out-of-flow branch** (parallel to the CORE-62 float branch): resolve the
   containing block (nearest positioned ancestor, else the page content box;
@@ -222,6 +246,12 @@ Each criterion maps to a test in `engine/tests/position.rs` (helpers mirror
    relative (no crash, offsets applied).
 8. **Determinism.** Two renders are byte-identical; the full existing engine
    test suite still passes.
+9. **Page-anchored abspos fragmentation (CORE-169).** Given a page-anchored
+   `position: absolute` container with declared-height children spanning
+   more than the remaining fragmentainer space, the box defers to a fresh
+   page and its children slice at fragmentainer edges; each page's own
+   `:left`/`:right` `@page` context applies per fragment
+   (page-margin-007).
 
 ## Edge Cases
 
@@ -233,7 +263,9 @@ Each criterion maps to a test in `engine/tests/position.rs` (helpers mirror
 - Negative insets: allowed; box may extend beyond the containing block.
 - Containing block spans a page boundary: box lands on the first page
   containing the anchor (behavior 5); deterministic.
-- Abspos box taller than the fragmentainer: monolithic overflow, never sliced.
+- Abspos box taller than the fragmentainer: pinned boxes (insets or a
+  positioned containing block) overflow monolithically, never sliced;
+  page-anchored boxes (CORE-169) fragment at fragmentainer edges.
 - Abspos inside a table cell: containing block resolution follows the same
   ancestor rule (the cell's positioned ancestor, else the page) — basic
   behavior only, deeper table+abspos interactions deferred.

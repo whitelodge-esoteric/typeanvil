@@ -1,5 +1,5 @@
 ---
-title: Inline Base Direction (direction: rtl)
+title: "Inline Base Direction (direction: rtl)"
 slug: /specifications/inline-base-direction
 type: spec
 status: in-review
