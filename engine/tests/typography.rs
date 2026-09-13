@@ -832,3 +832,87 @@ fn br_element_end_to_end() {
         "<br> must split the run into two lines"
     );
 }
+
+// --- CORE-151: white-space: pre ---------------------------------------------
+
+/// Line count = newline count + 1 under `pre`, regardless of how narrow the
+/// content box is (pre lines never soft-wrap). Spaces are preserved verbatim:
+/// leading indentation survives, and the rebuilt line text carries the exact
+/// source run — no collapse, no justification glue.
+#[test]
+fn white_space_pre_line_count_and_indent() {
+    // A <p> styled white-space: pre (the css.rs UA `pre` rule is also probed
+    // by the e2e test below); this one drives the breaker directly.
+    let style = p_style(
+        "<html><body><style>p { white-space: pre; }</style><p>t</p></body></html>",
+    );
+    assert_eq!(style.white_space, typeanvil::css::WhiteSpace::Pre);
+    let src = "aaa:\n  x: 1\n  y: 22\nbbb:";
+    let lines = break_paragraph(src, Scalar(10.0), &style, false, false);
+    assert_eq!(
+        lines.len(),
+        4,
+        "pre: line count must equal newline count + 1 even at a 10pt measure"
+    );
+    // Preserved leading spaces on the indented lines (2-source-space runs).
+    assert!(lines[1].text.starts_with("  "), "indent must survive: {:?}", lines[1].text);
+    assert!(lines[2].text.starts_with("  "), "indent must survive: {:?}", lines[2].text);
+    // A run of 3 interior spaces keeps its width: shaped verbatim, not
+    // collapsed to one space (the natural width must exceed one space glyph).
+    let wide = break_paragraph("a   b", Scalar(10.0), &style, false, false);
+    assert_eq!(wide.len(), 1);
+    let narrow = break_paragraph("a b", Scalar(10.0), &style, false, false);
+    assert_eq!(narrow.len(), 1);
+    assert!(
+        wide[0].natural_width > narrow[0].natural_width,
+        "3 spaces must measure wider than 1 under pre"
+    );
+}
+
+/// `normal` text is unchanged: newlines become spaces (collapse), the
+/// historical engine behavior (the acceptance test for NOT regressing it).
+#[test]
+fn white_space_normal_still_collapses() {
+    let style = p_style("<html><body><p>t</p></body></html>");
+    let lines = break_paragraph("aaa\nbbb", Scalar(400.0), &style, false, false);
+    assert_eq!(lines.len(), 1, "normal: newline collapses to a space");
+    assert_eq!(lines[0].text, "aaa bbb");
+}
+
+/// `pre-wrap`: same line splitting as pre, but an overlong line soft-wraps.
+#[test]
+fn white_space_pre_wrap_soft_wraps() {
+    let style = p_style(
+        "<html><body><style>p { white-space: pre-wrap; }</style><p>t</p></body></html>",
+    );
+    assert_eq!(style.white_space, typeanvil::css::WhiteSpace::PreWrap);
+    // One long source line (no newlines) must still soft-wrap at 50pt.
+    let lines = break_paragraph("aaa bbb ccc ddd", Scalar(50.0), &style, false, false);
+    assert!(lines.len() > 1, "pre-wrap soft-wraps overlong lines");
+    // An indented continuation keeps its spaces; "    bbbb cc" needs three
+    // lines at a 50pt measure (4sp+bbbb+sp = 43.4pt, cc = 12pt — cc wraps).
+    let indented = break_paragraph("aa:\n    bbbb cc", Scalar(50.0), &style, false, false);
+    assert_eq!(indented.len(), 3);
+    assert!(indented[1].text.starts_with("    "));
+}
+
+/// End-to-end: `<pre>` with the UA rule renders one line per source line,
+/// matching the Prince behavior on the CORE-148 report fixture shape.
+#[test]
+fn pre_element_end_to_end() {
+    let layout = lay(
+        "<html><body><pre>scheduler:\n  latency: 5\nreplication:\n  hot: 5</pre></body></html>",
+        geometry(5.0, 3.0, 0.5),
+    );
+    let texts = page_texts(&layout.pages[0]);
+    assert_eq!(
+        texts,
+        vec![
+            "scheduler:".to_string(),
+            "  latency: 5".to_string(),
+            "replication:".to_string(),
+            "  hot: 5".to_string(),
+        ],
+        "<pre> must preserve source line structure and indentation"
+    );
+}
