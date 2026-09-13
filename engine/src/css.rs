@@ -883,6 +883,22 @@ impl ViewportLen {
 
 
 
+/// The page context's writing mode (css-writing-modes-1 §1.1). The engine
+/// lays out document content horizontal-tb only, but the PAGE CONTEXT
+/// inherits the root element's mode (css-page-3 §3) and an explicit
+/// `@page { writing-mode }` can override it — the @page logical
+/// margin/padding axis mapping depends on the mode (page-box-008/009).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PageWritingMode {
+    /// horizontal-tb: inline = left/right, block = top/bottom.
+    #[default]
+    HorizontalTb,
+    /// vertical-rl: inline = top/bottom, block = right/left.
+    VerticalRl,
+    /// vertical-lr: inline = top/bottom, block = left/right.
+    VerticalLr,
+}
+
 /// Fully computed style for one element. This is the cascade's output contract;
 /// layout and PDF read only this.
 #[derive(Clone, Debug)]
@@ -1067,6 +1083,13 @@ pub struct ComputedStyle {
     /// and the block-box anchor side (over/under-constrained margins
     /// resolve toward the inline-END edge under rtl — CORE-166).
     pub rtl: bool,
+    /// The computed writing mode (css-writing-modes-1 §1.1). The engine's
+    /// content layout is horizontal-tb only, but the PAGE CONTEXT inherits
+    /// this from the root element (css-page-3 §3), and the @page logical
+    /// margin/padding axis mapping depends on it (page-box-008/009 —
+    /// inline/block percentages resolve against the swapped physical axes
+    /// under vertical-rl). Read from stylo, which resolves the cascade.
+    pub writing_mode: PageWritingMode,
     /// `hyphens` computed value (typography layer). Filled by the author-CSS
     /// pass like the break longhands; inherited.
     pub hyphens: Hyphens,
@@ -1159,6 +1182,7 @@ impl ComputedStyle {
             widows: 1,
             text_align: TextAlign::Start,
             rtl: false,
+            writing_mode: PageWritingMode::HorizontalTb,
             hyphens: Hyphens::Manual,
             white_space: WhiteSpace::Normal,
             feature_settings: Vec::new(),
@@ -1624,6 +1648,23 @@ impl CascadeSession {
             values.get_inherited_box().clone_direction(),
             style::properties::generated::longhands::direction::computed_value::T::Rtl
         );
+        // Page-context writing mode (css-writing-modes-1 §1.1): the ROOT
+        // element's computed mode is inherited by the page context
+        // (css-page-3 §3); the @page logical margin/padding axis mapping
+        // reads it (page-box-008/009). stylo resolves the cascade.
+        let writing_mode = match values.get_inherited_box().clone_writing_mode() {
+            style::logical_geometry::WritingModeProperty::VerticalRl => {
+                PageWritingMode::VerticalRl
+            }
+            style::logical_geometry::WritingModeProperty::VerticalLr => {
+                PageWritingMode::VerticalLr
+            }
+            style::logical_geometry::WritingModeProperty::HorizontalTb => {
+                PageWritingMode::HorizontalTb
+            }
+            #[cfg(feature = "gecko")]
+            _ => PageWritingMode::HorizontalTb,
+        };
         // Computed border widths (CORE-126): stylo resolves the `border`
         // shorthand (thin/medium/thick + lengths) exactly, so the dedicated
         // author-CSS border pass can keep its selector rules but inline and
@@ -2119,6 +2160,7 @@ impl CascadeSession {
             widows: 1,
             text_align,
             rtl,
+            writing_mode,
             hyphens: Hyphens::Manual,
             white_space: {
                 use style::properties::longhands::text_wrap_mode::computed_value::T
@@ -3569,9 +3611,11 @@ mod paged_props {
     /// One paged-media declaration keyed to a field.
     enum PagedDecl {
         Page(Option<String>),
-        /// `writing-mode: <value>` — recorded as a boolean flag only (CORE-127
-        /// orthogonal-flow suppression; the value itself is unused in v1).
-        WritingMode,
+        /// `writing-mode: <value>` — recorded for BOTH the CORE-127
+        /// orthogonal-flow suppression flag AND the page context's inherited
+        /// writing mode (page-box-008: the @page logical margin axis mapping
+        /// reads the ROOT element's computed mode, css-page-3 §3).
+        WritingMode(super::PageWritingMode),
         /// `display: <value>` from an inline style (CORE-127): the stylo
         /// inline-style seam ignores display, so the paged pass carries it —
         /// fixtures rely on inline `display: flex / inline-block / none`.
@@ -3648,9 +3692,18 @@ mod paged_props {
                     Some(PagedDecl::Page(Some(v.to_string())))
                 }
             }
-            // Flag only (CORE-127): the value (vertical-rl etc.) is unused in
-            // v1; presence alone suppresses page-change breaks in the subtree.
-            "writing-mode" => Some(PagedDecl::WritingMode),
+            // CORE-127 orthogonal-flow suppression (flag) + the page
+            // context's inherited writing mode (the value — the @page
+            // logical margin axis mapping reads the root's computed mode).
+            "writing-mode" => {
+                let v = value.trim().to_ascii_lowercase();
+                let wm = match v.as_str() {
+                    "vertical-rl" => super::PageWritingMode::VerticalRl,
+                    "vertical-lr" => super::PageWritingMode::VerticalLr,
+                    _ => super::PageWritingMode::HorizontalTb,
+                };
+                Some(PagedDecl::WritingMode(wm))
+            }
             // Inline-only (CORE-127): the stylo seam ignores inline display,
             // so the paged pass carries it for the fixtures that need it.
             "display" if !value.trim().is_empty() => {
@@ -3871,7 +3924,8 @@ mod paged_props {
                                     won[id].page = Some(prio);
                                 }
                             }
-                            PagedDecl::WritingMode => {
+                            PagedDecl::WritingMode(v) => {
+                                styles[id].writing_mode = *v;
                                 styles[id].writing_mode_declared = true;
                             }
                             PagedDecl::Display(v) => {
@@ -4018,7 +4072,8 @@ mod paged_props {
                             won[id].bookmark_state = Some(prio);
                         }
                     }
-                    PagedDecl::WritingMode => {
+                    PagedDecl::WritingMode(v) => {
+                        styles[id].writing_mode = v;
                         styles[id].writing_mode_declared = true;
                     }
                     PagedDecl::Display(v) => {

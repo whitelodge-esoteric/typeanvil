@@ -428,6 +428,14 @@ pub struct PageRule {
     pub margin_right: Option<PageLength>,
     pub margin_bottom: Option<PageLength>,
     pub margin_left: Option<PageLength>,
+    /// Logical margins (css-page-3 §5.1 / css-logical-1), kept SYMBOLIC:
+    /// they map to physical edges at resolution time against the page
+    /// context's effective writing mode (page-box-008/009 — inline/block
+    /// axes swap under vertical-rl). Physical decls stay in the fields above.
+    pub margin_inline_start: Option<PageLength>,
+    pub margin_inline_end: Option<PageLength>,
+    pub margin_block_start: Option<PageLength>,
+    pub margin_block_end: Option<PageLength>,
     /// Page-box padding (css-page-3 §5.1 subset: shorthand + longhands).
     /// Percentages resolve against the page-box size (vertical ones against
     /// the HEIGHT, unlike regular boxes) at spec resolution time.
@@ -435,6 +443,14 @@ pub struct PageRule {
     pub padding_right: Option<PageLength>,
     pub padding_bottom: Option<PageLength>,
     pub padding_left: Option<PageLength>,
+    /// Logical padding longhands, kept symbolic like the logical margins.
+    pub padding_inline_start: Option<PageLength>,
+    pub padding_inline_end: Option<PageLength>,
+    pub padding_block_start: Option<PageLength>,
+    pub padding_block_end: Option<PageLength>,
+    /// `writing-mode` declared in the @page rule (css-page-3 §3.2). `None` =
+    /// not declared → the page context inherits the ROOT element's mode.
+    pub writing_mode: Option<crate::css::PageWritingMode>,
     /// Page-box border (uniform width + color; style keywords ignored).
     /// Paints between the margin area and the padding area.
     pub border_width: Option<Scalar>,
@@ -813,10 +829,19 @@ fn parse_one_page_rule(prelude: &str, body: &str, order: u32) -> Option<PageRule
         margin_right: None,
         margin_bottom: None,
         margin_left: None,
+        margin_inline_start: None,
+        margin_inline_end: None,
+        margin_block_start: None,
+        margin_block_end: None,
         padding_top: None,
         padding_right: None,
         padding_bottom: None,
         padding_left: None,
+        padding_inline_start: None,
+        padding_inline_end: None,
+        padding_block_start: None,
+        padding_block_end: None,
+        writing_mode: None,
         border_width: None,
         visibility_hidden: false,
         border_color: None,
@@ -1125,16 +1150,25 @@ fn apply_page_decl(rule: &mut PageRule, decl: &str) {
         "margin-right" => rule.margin_right = parse_page_length(value),
         "margin-bottom" => rule.margin_bottom = parse_page_length(value),
         "margin-left" => rule.margin_left = parse_page_length(value),
-        // Logical margins in page context (css-page-3 §5.1, css-logical-1).
-        // The engine's page context is horizontal-tb ltr (vertical writing
-        // modes are a non-goal), so inline = left/right, block = top/bottom.
-        // The two-value `margin-inline`/`margin-block` shorthands are NOT
-        // handled (single-value parser); the four longhands cover the WPT
-        // fixtures.
-        "margin-inline-start" => rule.margin_left = parse_page_length(value),
-        "margin-inline-end" => rule.margin_right = parse_page_length(value),
-        "margin-block-start" => rule.margin_top = parse_page_length(value),
-        "margin-block-end" => rule.margin_bottom = parse_page_length(value),
+        // Logical margins in page context (css-page-3 §5.1, css-logical-1),
+        // kept SYMBOLIC: they map to physical edges in `resolve_page_spec`
+        // against the page context's effective writing mode (the page's own
+        // `writing-mode` decl, else inherited from the root element —
+        // page-box-008/009). The two-value `margin-inline`/`margin-block`
+        // shorthands are NOT handled (single-value parser); the four
+        // longhands cover the WPT fixtures.
+        "margin-inline-start" => rule.margin_inline_start = parse_page_length(value),
+        "margin-inline-end" => rule.margin_inline_end = parse_page_length(value),
+        "margin-block-start" => rule.margin_block_start = parse_page_length(value),
+        "margin-block-end" => rule.margin_block_end = parse_page_length(value),
+        "writing-mode" => {
+            rule.writing_mode = match value.trim().to_ascii_lowercase().as_str() {
+                "horizontal-tb" => Some(crate::css::PageWritingMode::HorizontalTb),
+                "vertical-rl" => Some(crate::css::PageWritingMode::VerticalRl),
+                "vertical-lr" => Some(crate::css::PageWritingMode::VerticalLr),
+                _ => None,
+            };
+        }
         // Page-box padding (CORE-144): shorthand + longhands. Percentages
         // stay symbolic; `resolve_page_spec` applies them against the page
         // box (vertical ones against the page HEIGHT, css-page-3 §5.1 — the
@@ -1151,10 +1185,10 @@ fn apply_page_decl(rule: &mut PageRule, decl: &str) {
         "padding-right" => rule.padding_right = parse_page_length(value),
         "padding-bottom" => rule.padding_bottom = parse_page_length(value),
         "padding-left" => rule.padding_left = parse_page_length(value),
-        "padding-inline-start" => rule.padding_left = parse_page_length(value),
-        "padding-inline-end" => rule.padding_right = parse_page_length(value),
-        "padding-block-start" => rule.padding_top = parse_page_length(value),
-        "padding-block-end" => rule.padding_bottom = parse_page_length(value),
+        "padding-inline-start" => rule.padding_inline_start = parse_page_length(value),
+        "padding-inline-end" => rule.padding_inline_end = parse_page_length(value),
+        "padding-block-start" => rule.padding_block_start = parse_page_length(value),
+        "padding-block-end" => rule.padding_block_end = parse_page_length(value),
         // Page-box border (CORE-144): uniform width + color; style keywords
         // and widths like `thin`/`medium` parse to a fallback width.
         "border" | "border-top" | "border-right" | "border-bottom" | "border-left" => {
@@ -1689,6 +1723,7 @@ pub fn resolve_page_spec(
     cli: &PageGeometry,
     inherit_margins: PageMargins,
     rtl_progression: bool,
+    root_writing_mode: crate::css::PageWritingMode,
 ) -> PageSpec {
     let mut size = (cli.width, cli.height);
     let mut width: Option<PageLength> = None;
@@ -1756,6 +1791,53 @@ pub fn resolve_page_spec(
         (layer_key, name_spec, pseudo_spec, r.order)
     });
 
+    // The page context's effective writing mode (css-page-3 §3.2): the
+    // cascaded `@page { writing-mode }` wins; otherwise the page context
+    // inherits the ROOT element's computed mode. Logical margin/padding
+    // declarations map to physical edges against this (page-box-008/009 —
+    // under vertical-rl, inline = top/bottom and block = right/left).
+    let mut page_wm: Option<crate::css::PageWritingMode> = None;
+    for r in &matching {
+        if r.writing_mode.is_some() {
+            page_wm = r.writing_mode;
+        }
+    }
+    let eff_wm = page_wm.unwrap_or(root_writing_mode);
+    // Logical → physical edge map per writing mode. Index = logical
+    // property (0=inline-start, 1=inline-end, 2=block-start, 3=block-end);
+    // value = physical slot (0=top, 1=right, 2=bottom, 3=left). The
+    // percentage axis follows the physical slot: top/bottom % → HEIGHT,
+    // left/right % → WIDTH (resolve_margin below).
+    let logical_slots = |wm: crate::css::PageWritingMode| -> [usize; 4] {
+        match wm {
+            crate::css::PageWritingMode::HorizontalTb => [3, 1, 0, 2],
+            crate::css::PageWritingMode::VerticalRl => [0, 2, 1, 3],
+            crate::css::PageWritingMode::VerticalLr => [0, 2, 3, 1],
+        }
+    };
+    let m_slots = logical_slots(eff_wm);
+    let p_slots = m_slots;
+    let set_margin = |margins: &mut (PageLength, PageLength, PageLength, PageLength),
+                      slot: usize,
+                      v: PageLength| {
+        match slot {
+            0 => margins.0 = v,
+            1 => margins.1 = v,
+            2 => margins.2 = v,
+            _ => margins.3 = v,
+        }
+    };
+    let set_padding = |padding: &mut (PageLength, PageLength, PageLength, PageLength),
+                       slot: usize,
+                       v: PageLength| {
+        match slot {
+            0 => padding.0 = v,
+            1 => padding.1 = v,
+            2 => padding.2 = v,
+            _ => padding.3 = v,
+        }
+    };
+
     for r in matching {
         if let Some(s) = r.size {
             size = match s {
@@ -1801,6 +1883,35 @@ pub fn resolve_page_spec(
         }
         if let Some(v) = r.padding_left {
             padding.3 = v;
+        }
+        // Logical margins/padding map to physical edges per the page
+        // context's effective writing mode. Edge case: within ONE rule,
+        // a logical decl beats an earlier physical decl regardless of
+        // source order (the fields are stored separately) — WPT fixtures
+        // never mix the two forms in one rule.
+        if let Some(v) = r.margin_inline_start {
+            set_margin(&mut margins, m_slots[0], v);
+        }
+        if let Some(v) = r.margin_inline_end {
+            set_margin(&mut margins, m_slots[1], v);
+        }
+        if let Some(v) = r.margin_block_start {
+            set_margin(&mut margins, m_slots[2], v);
+        }
+        if let Some(v) = r.margin_block_end {
+            set_margin(&mut margins, m_slots[3], v);
+        }
+        if let Some(v) = r.padding_inline_start {
+            set_padding(&mut padding, p_slots[0], v);
+        }
+        if let Some(v) = r.padding_inline_end {
+            set_padding(&mut padding, p_slots[1], v);
+        }
+        if let Some(v) = r.padding_block_start {
+            set_padding(&mut padding, p_slots[2], v);
+        }
+        if let Some(v) = r.padding_block_end {
+            set_padding(&mut padding, p_slots[3], v);
         }
         if let Some(w) = r.border_width {
             border = Some((w, r.border_color.unwrap_or(Color::BLACK)));
@@ -2238,7 +2349,7 @@ mod tests {
             margin_bottom: Scalar(36.0),
             margin_left: Scalar(36.0),
         };
-        let spec = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero(), false);
+        let spec = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero(), false, crate::css::PageWritingMode::HorizontalTb);
         assert_eq!(spec.size, (Scalar(240.0), Scalar(84.0)));
         assert_eq!(spec.margins.left, Scalar(48.0));
         assert_eq!(spec.margins.right, Scalar(48.0));
@@ -2259,9 +2370,9 @@ mod tests {
             margin_bottom: Scalar(36.0),
             margin_left: Scalar(36.0),
         };
-        let p1 = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero(), false);
+        let p1 = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero(), false, crate::css::PageWritingMode::HorizontalTb);
         assert_eq!(p1.size, (Scalar(216.0), Scalar(360.0))); // portrait of 5x3in
-        let p2 = resolve_page_spec(&rules, None, 1, &cli, PageMargins::zero(), false);
+        let p2 = resolve_page_spec(&rules, None, 1, &cli, PageMargins::zero(), false, crate::css::PageWritingMode::HorizontalTb);
         assert_eq!(p2.size, (Scalar(360.0), Scalar(216.0))); // landscape (default)
     }
 
@@ -2355,12 +2466,79 @@ mod tests {
             margin_bottom: Scalar(36.0),
             margin_left: Scalar(36.0),
         };
-        let spec = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero(), false);
+        let spec = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero(), false, crate::css::PageWritingMode::HorizontalTb);
         assert_eq!(spec.size, (Scalar(300.0), Scalar(600.0)));
         assert_eq!(spec.padding.top, Scalar(30.0));
         assert_eq!(spec.padding.right, Scalar(60.0));
         assert_eq!(spec.padding.bottom, Scalar(90.0));
         assert_eq!(spec.padding.left, Scalar(120.0));
+    }
+
+    #[test]
+    fn logical_margins_map_per_writing_mode() {
+        // page-box-008/009: a vertical-rl page context maps inline % → the
+        // vertical axis and block % → the horizontal axis (css-writing-modes-1
+        // logical properties; the refs simulate the margins with border widths
+        // 16/32/48/80 top/right/bottom/left). 400px = 300pt, 800px = 600pt.
+        let rules = parse_page_rules(
+            "@page { writing-mode: vertical-rl; size: 400px 800px; \
+             margin-inline-start: 2%; margin-block-start: 8%; \
+             margin-inline-end: 6%; margin-block-end: 20%; \
+             padding-inline-start: 2%; padding-block-start: 8%; \
+             padding-inline-end: 6%; padding-block-end: 20%; }",
+        );
+        let cli = PageGeometry {
+            width: Scalar(360.0),
+            height: Scalar(216.0),
+            margin_top: Scalar(36.0),
+            margin_right: Scalar(36.0),
+            margin_bottom: Scalar(36.0),
+            margin_left: Scalar(36.0),
+        };
+        let spec = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero(), false, crate::css::PageWritingMode::HorizontalTb);
+        // @page declares vertical-rl itself → the page writing mode is
+        // vertical-rl regardless of the root's mode.
+        assert_eq!(spec.size, (Scalar(300.0), Scalar(600.0)));
+        assert_eq!(spec.margins.top, Scalar(12.0)); // inline-start 2% of 600
+        assert_eq!(spec.margins.right, Scalar(24.0)); // block-start 8% of 300
+        assert_eq!(spec.margins.bottom, Scalar(36.0)); // inline-end 6% of 600
+        assert_eq!(spec.margins.left, Scalar(60.0)); // block-end 20% of 300
+        assert_eq!(spec.padding.top, Scalar(12.0));
+        assert_eq!(spec.padding.right, Scalar(24.0));
+        assert_eq!(spec.padding.bottom, Scalar(36.0));
+        assert_eq!(spec.padding.left, Scalar(60.0));
+    }
+
+    #[test]
+    fn logical_margins_inherit_root_writing_mode() {
+        // page-box-008: NO @page writing-mode decl — the page context
+        // inherits the ROOT element's vertical-rl (css-page-3 §3), so the
+        // logical margins map like the sibling test above.
+        let rules = parse_page_rules(
+            "@page { size: 400px 800px; \
+             margin-inline-start: 2%; margin-block-start: 8%; \
+             margin-inline-end: 6%; margin-block-end: 20%; }",
+        );
+        let cli = PageGeometry {
+            width: Scalar(360.0),
+            height: Scalar(216.0),
+            margin_top: Scalar(36.0),
+            margin_right: Scalar(36.0),
+            margin_bottom: Scalar(36.0),
+            margin_left: Scalar(36.0),
+        };
+        let spec = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero(), false, crate::css::PageWritingMode::VerticalRl);
+        assert_eq!(spec.margins.top, Scalar(12.0));
+        assert_eq!(spec.margins.right, Scalar(24.0));
+        assert_eq!(spec.margins.bottom, Scalar(36.0));
+        assert_eq!(spec.margins.left, Scalar(60.0));
+        // Same rules with a horizontal-tb root keep the old (default) mapping:
+        // inline-start → left, 2% of the WIDTH (300pt) = 6pt.
+        let spec_tb = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero(), false, crate::css::PageWritingMode::HorizontalTb);
+        assert_eq!(spec_tb.margins.left, Scalar(6.0));
+        assert_eq!(spec_tb.margins.right, Scalar(18.0)); // inline-end 6% of 300
+        assert_eq!(spec_tb.margins.top, Scalar(48.0)); // block-start 8% of 600
+        assert_eq!(spec_tb.margins.bottom, Scalar(120.0)); // block-end 20% of 600
     }
 
     #[test]
@@ -2443,7 +2621,7 @@ mod tests {
             margin_bottom: Scalar(37.5),
             margin_left: Scalar(37.5),
         };
-        let spec = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero(), false);
+        let spec = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero(), false, crate::css::PageWritingMode::HorizontalTb);
         assert_eq!(spec.margin_boxes.len(), 2);
         let a = &spec.margin_boxes[0];
         assert_eq!(a.color, Color::rgb(0, 0, 255));
