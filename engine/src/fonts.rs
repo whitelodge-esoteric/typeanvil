@@ -534,6 +534,11 @@ mod tests {
         assert_eq!(face_path(FACE_BOLD), "/System/Library/Fonts/Supplemental/Arial Bold.ttf");
     }
 
+    // System-face resolution depends on the host's font database (fontdb
+    // scans /System/Library/Fonts on macOS). These tests assert macOS
+    // system faces and are meaningless elsewhere (e.g. the Linux dev
+    // container, CORE-168).
+    #[cfg(target_os = "macos")]
     #[test]
     fn resolve_georgia_picks_system_face() {
         let specs = vec![FamilySpec::Name("Georgia".into()), FamilySpec::Serif];
@@ -544,6 +549,7 @@ mod tests {
         assert_eq!(r.fallbacks[0], FACE_REGULAR);
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn weight_matching_nearest_side() {
         // Georgia has 400/700; target 500 → within band: ascending >500? no;
