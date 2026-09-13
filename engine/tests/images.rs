@@ -626,3 +626,44 @@ fn broken_svg_falls_back_to_broken_entry() {
         hay.matches("/Subtype/Image").count() + hay.matches("/Subtype /Image").count();
     assert_eq!(image_objects, 0, "broken svg embeds no raster");
 }
+
+// --- CORE-141: `content: url(...)` inside a page-margin box ---------------------
+
+/// A margin box's `content: url(...)` paints the image at its intrinsic size on
+/// the box's line, after any preceding text. Before this the margin-box content
+/// pipeline was text-only, so the image was silently dropped (and the
+/// `css-page/margin-boxes/content-003` reference could not be satisfied).
+#[test]
+fn margin_box_content_url_paints_intrinsic_image() {
+    let dir = TempDir::new().unwrap();
+    let png = make_png(100, 50, [0, 255, 0]);
+    let p = write_fixture(&dir, "green.png", &png);
+
+    // The top page margin is 50px = 37.5pt, exactly the image's height.
+    let html = format!(
+        "<html><head><style>\
+         @page {{ margin: 0; margin-top: 50px;\
+                  @top-left {{ content: \"Ti \" url({}); }} }}\
+         body {{ margin: 0 }}\
+         </style></head><body></body></html>",
+        p.display()
+    );
+    let lay = lay_in(&html, Some(&dir));
+
+    let frags = image_fragments(&lay);
+    assert_eq!(frags.len(), 1, "one margin-box image fragment: {frags:?}");
+    let (_, x, y, w, h) = frags[0];
+    // 100px x 0.75 = 75pt wide; 50px x 0.75 = 37.5pt tall (intrinsic size).
+    assert!(
+        (w - 75.0).abs() < 0.5 && (h - 37.5).abs() < 0.5,
+        "intrinsic size {w}x{h} pt, expected 75x37.5"
+    );
+    // Replaced content follows the text on the box's single line...
+    assert!(x > 0.0, "image must follow the text on the line, got x={x}");
+    // ...and the line box grows to the image, so the whole image is inside the
+    // margin band rather than hanging above it.
+    assert!(
+        y >= -0.01 && y + h <= 37.6,
+        "image must sit inside the 37.5pt top margin band, got y={y} h={h}"
+    );
+}

@@ -500,6 +500,8 @@ pub fn layout_with_images_and_store(
             &image_infos,
             &fn_numbers,
             canvas_background,
+            images,
+            base_url,
         );
         collected_links = sink.into_inner();
         // Converged when the target map is unchanged between passes AND the
@@ -864,6 +866,10 @@ fn paginate(
     image_infos: &BTreeMap<NodeId, ImageInfo>,
     fn_numbers: &BTreeMap<NodeId, usize>,
     canvas_background: Option<crate::css::Color>,
+    // Margin boxes resolve `content: url(...)` through the same store as
+    // `<img src>` (CORE-141), so the page loop needs both.
+    images: &mut crate::images::ImageStore,
+    base_url: Option<&std::path::Path>,
 ) -> (
     Vec<Fragmentainer>,
     BTreeMap<NodeId, usize>,
@@ -1173,6 +1179,8 @@ fn paginate(
             total_pages,
             &page_start_strings,
             &page_local,
+            images,
+            base_url,
         );
         // The page's assignment log is consumed: the next page's `first`/
         // `last`/`first-except` must see only THEIR assignments; `running`
@@ -1335,6 +1343,8 @@ fn paginate(
             total_pages,
             &flow.running,
             &page_local,
+            images,
+            base_url,
         );
         pages.push(fragmentainer);
     }
@@ -5902,6 +5912,9 @@ impl<'a> Ctx<'a> {
                     push_side(&mut before, &mut after, leader_char, &v);
                 }
                 ContentPiece::Leader(ch) => leader_char = Some(*ch),
+            // Element generated content paints no image in this engine; the
+            // margin-box path owns `url()` content (CORE-141).
+            ContentPiece::Image(_) => {}
             }
         }
         match leader_char {
@@ -6359,6 +6372,8 @@ fn attach_margin_boxes(
     total_pages: usize,
     page_start: &RunningStrings,
     page_local: &[(String, i32)],
+    images: &mut crate::images::ImageStore,
+    base_url: Option<&std::path::Path>,
 ) {
     if spec.margin_boxes.is_empty() {
         return;
@@ -6372,6 +6387,8 @@ fn attach_margin_boxes(
         Vec::with_capacity(spec.margin_boxes.len());
     let mut metrics: Vec<crate::margin_box::BoxMetrics> =
         Vec::with_capacity(spec.margin_boxes.len());
+    let mut box_images: Vec<Option<([u8; 32], Scalar, Scalar, bool)>> =
+        Vec::with_capacity(spec.margin_boxes.len());
     for mb in &spec.margin_boxes {
         let text = render_margin_content(&mb.content, mb, flow, page_local, total_pages, page_start);
         let sh = if text.is_empty() {
@@ -6383,12 +6400,37 @@ fn attach_margin_boxes(
             // microtypography.
             Some(crate::typography::shape_word(&text, mb.font_size, mb.font_face))
         };
+        // `content: url(...)` — intern the image exactly like an `<img src>`
+        // and use its natural size (96 DPI pixels -> points) as atomic line
+        // content (css-page-3 margin boxes replace the element, so the image
+        // is replaced content of its intrinsic size).
+        let image = first_image_piece(&mb.content).and_then(|src| {
+            let key = images.intern(&src, base_url, None).ok()?;
+            match images.get(&key) {
+                Some(crate::images::ImageEntry::Loaded(img)) => Some((
+                    key,
+                    Scalar(img.width_px as f64 * 0.75),
+                    Scalar(img.height_px as f64 * 0.75),
+                    false,
+                )),
+                _ => Some((key, Scalar::ZERO, Scalar::ZERO, true)),
+            }
+        });
+        let img_w = image.as_ref().map(|(_, w, _, _)| *w).unwrap_or(Scalar::ZERO);
+        let img_h = image.as_ref().map(|(_, _, h, _)| *h).unwrap_or(Scalar::ZERO);
+        let text_max = sh.as_ref().map(|s| s.width).unwrap_or(Scalar::ZERO);
+        let block = if img_h.get() > mb.line_height.get() {
+            img_h
+        } else {
+            mb.line_height
+        };
         metrics.push(crate::margin_box::BoxMetrics {
-            min_inline: min_content_width(&text, mb.font_size, mb.font_face),
-            max_inline: sh.as_ref().map(|s| s.width).unwrap_or(Scalar::ZERO),
-            block: mb.line_height,
+            min_inline: min_content_width(&text, mb.font_size, mb.font_face) + img_w,
+            max_inline: text_max + img_w,
+            block,
         });
         shaped.push(sh);
+        box_images.push(image);
     }
 
     // 2. Resolve each box's page-absolute geometry (css-page-3 §5.3): the row
@@ -6446,17 +6488,36 @@ fn attach_margin_boxes(
                 _ => fragment.content = FragmentContent::Border(border_box),
             }
         }
-        if let Some(run_shaped) = shaped[i].take() {
-            let text_w = run_shaped.width;
-            let lh = mb.line_height;
-            let x = match mb.text_align {
-                TextAlign::Center => Scalar(cx.get() + (cw.get() - text_w.get()) * 0.5),
-                TextAlign::Right | TextAlign::End => Scalar(cx.get() + cw.get() - text_w.get()),
-                _ => cx,
+        let lh = mb.line_height;
+        // The line box holds the text AND an optional image. A replaced inline
+        // box proves its own ascent (its height), so the line box grows to it
+        // and the baseline sits at the tallest ascent — otherwise a 50px image
+        // would extend above the box (css2 §10.8).
+        let img_box_h = box_images
+            .get(i)
+            .and_then(|o| o.as_ref())
+            .map(|(_, _, h, _)| *h)
+            .unwrap_or(Scalar::ZERO);
+        let eff_h = if img_box_h.get() > lh.get() {
+            img_box_h
+        } else {
+            lh
+        };
+        let line_top = cy + vertical_slot(mb.vertical_align, ch, eff_h);
+        let strut_baseline = crate::typography::baseline_offset(mb.font_size, lh, mb.font_face);
+        let baseline = line_top
+            + if img_box_h.get() > strut_baseline.get() {
+                img_box_h
+            } else {
+                strut_baseline
             };
-            let line_top = cy + vertical_slot(mb.vertical_align, ch, lh);
-            let baseline =
-                line_top + crate::typography::baseline_offset(mb.font_size, lh, mb.font_face);
+        let text_w = shaped[i].as_ref().map(|s| s.width).unwrap_or(Scalar::ZERO);
+        let x = match mb.text_align {
+            TextAlign::Center => Scalar(cx.get() + (cw.get() - text_w.get()) * 0.5),
+            TextAlign::Right | TextAlign::End => Scalar(cx.get() + cw.get() - text_w.get()),
+            _ => cx,
+        };
+        if let Some(run_shaped) = shaped[i].take() {
             let run = TextRun {
                 text: run_shaped.text,
                 baseline: Point::new(x, baseline),
@@ -6481,8 +6542,32 @@ fn attach_margin_boxes(
             }
             fragment.children.push(line);
         }
+        // An image in the box's content follows the text on the same line and
+        // sits on that line's baseline (a replaced inline box).
+        if let Some(Some((key, img_w, img_h, broken))) = box_images.get(i) {
+            if img_w.get() > 0.0 && img_h.get() > 0.0 {
+                let ix = x + text_w;
+                let iy = baseline - *img_h;
+                let mut img =
+                    Fragment::block(Point::new(ix - box_x, iy - box_y), (*img_w, *img_h));
+                img.content = FragmentContent::Image(crate::frag::ImageRun {
+                    key: *key,
+                    alt: None,
+                    broken: *broken,
+                });
+                fragment.children.push(img);
+            }
+        }
         fragmentainer.root.children.push(fragment);
     }
+}
+
+/// The first `url(...)` image in a margin box's generated content, if any.
+fn first_image_piece(pieces: &[ContentPiece]) -> Option<String> {
+    pieces.iter().find_map(|p| match p {
+        ContentPiece::Image(src) => Some(src.clone()),
+        _ => None,
+    })
 }
 
 /// The min-content inline size of margin-box content: the width of its widest
@@ -6582,6 +6667,9 @@ fn render_margin_content(
             ContentPiece::StringRef(name, kw) => {
                 out.push_str(&resolve_string_value(name, *kw, flow, page_start))
             }
+            // An image piece contributes no text; the margin-box emitter
+            // places it as replaced content on the same line.
+            ContentPiece::Image(_) => {}
             ContentPiece::CounterPage => out.push_str(&flow.page_number().to_string()),
             ContentPiece::CounterPages => out.push_str(&total_pages.to_string()),
             ContentPiece::CounterRef(name) => {
@@ -6867,6 +6955,7 @@ fn resolve_bookmark_label(
     for piece in &style.bookmark_label {
         match piece {
             crate::paged::ContentPiece::Literal(s) => out.push_str(s),
+            crate::paged::ContentPiece::Image(_) => {}
             crate::paged::ContentPiece::CounterRef(name)
             | crate::paged::ContentPiece::CountersRef { name, .. } => {
                 if let Some(snaps) = counter_snaps.get(&id) {

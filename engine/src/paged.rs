@@ -215,6 +215,11 @@ pub enum ContentPiece {
     TargetText { attr: String },
     /// `leader('.')` — fill to the content edge with a repeating character.
     Leader(char),
+    /// `url(<path>)` — an image painted inline in the box's single line
+    /// (css-page-3 margin boxes replace the element, so the image is atomic
+    /// content of natural size). The path is resolved and interned in the
+    /// image store at layout time, like an `<img src>`.
+    Image(String),
 }
 
 /// The style declarations of one page-margin box (css-page-3 §5–§6, the
@@ -1573,6 +1578,14 @@ pub fn parse_content(value: &str) -> Vec<ContentPiece> {
                 };
                 pieces.push(ContentPiece::StringRef(name.to_string(), kw));
             }
+            "url" => {
+                // `url(<path>)` — strip quotes/whitespace; an empty path is
+                // dropped (no image).
+                let path = args.trim().trim_matches(['"', '\'']).trim();
+                if !path.is_empty() {
+                    pieces.push(ContentPiece::Image(path.to_string()));
+                }
+            }
             "counter" => {
                 let name = args.split(',').next().unwrap_or("").trim();
                 if name.eq_ignore_ascii_case("page") {
@@ -1873,26 +1886,14 @@ pub fn resolve_page_spec(
     let area_w = resolve_area(width, size.0).unwrap_or(size.0 - margin_left - margin_right);
     let area_h = resolve_area(height, size.1).unwrap_or(size.1 - margin_top - margin_bottom);
 
-    // css-page-3 §3: with a DEFINITE page area the page box is sized by that
-    // area plus its margins — over-constrained values resize the containing
-    // block to coincide with the margin edges rather than clamping the area.
-    // The CLI geometry is only the default box, so a declared area that does
-    // not fit GROWS the page box. The WPT margin-box fixtures depend on this:
-    // each declares a test area and a reference box that differ by exactly the
-    // margins (`@page { margin: 6em; width: 20em }` vs a reference page of
-    // 32em), so both sides must come out the same size.
-    if width.is_some() {
-        let need = area_w + margin_left + margin_right;
-        if need.get() > size.0.get() {
-            size.0 = need;
-        }
-    }
-    if height.is_some() {
-        let need = area_h + margin_top + margin_bottom;
-        if need.get() > size.1.get() {
-            size.1 = need;
-        }
-    }
+    // NOTE (CORE-141 follow-up): an earlier attempt grew the page box to a
+    // declared page area plus its margins. It flipped no tests (the one flip in
+    // that landing came from the §5.3 margin-box geometry, and the fixture it
+    // was credited with declares no area at all), `width`/`height` are not
+    // css-page-3 page descriptors, and Chromium keeps the page at the requested
+    // size. Growing the box also contradicts the CLI contract ("honour the
+    // page-size and margin flags exactly"). The area is still honoured inside
+    // the page box, as CORE-144 specified.
 
     // Leftover space on each axis: distributed to auto margins (equal split
     // when both auto), or to the end margin when overconstrained (css-page-3

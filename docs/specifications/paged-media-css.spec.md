@@ -149,7 +149,14 @@ The engine shall:
 6. **Render margin-box content**: `content` values of literal text,
    `string(name)`, `counter(page)`, and `counter(<name>)` are resolved at
    fragmentainer build time; each margin box is one line, no wrapping,
-   deterministically clipped if it overflows its box. Literal non-ASCII
+   deterministically clipped if it overflows its box.
+   A `url(<path>)` piece (CORE-141) shall paint its image as replaced inline
+   content of that image's INTRINSIC size (96 DPI pixels converted to points),
+   following any text on the same line. The line box shall grow to the image
+   (css2 §10.8): a 50px image in a 50px page margin fills the band and the
+   text baseline moves to the image's bottom margin edge, rather than the image
+   hanging above the box. The path resolves like an `<img src>` and is interned
+   in the same image store, so the PDF emitter embeds it once. Literal non-ASCII
    (em dash, curly quotes, `·`) is shaped like body text — a real glyph
    with a ToUnicode mapping, never raw UTF-8 bytes as Latin-1 (CORE-83).
 7. **Thread running strings**: `string-set: <name> content()` on an element
@@ -225,12 +232,12 @@ The engine shall:
       the content box with its resolved `text-align` / `vertical-align`.
       A box whose content is empty (`content: ""`) shall still generate and
       paint.
-    - A declared page area (`@page { width; height }`) shall size the page box
-      as area + margins when the CLI geometry cannot hold it: over-constrained
-      values resize the page box to the margin edges (css-page-3 §3) instead of
-      clamping the area. The WPT margin-box fixtures depend on this, because
-      each declares a test area and a reference page box that differ by exactly
-      the margins.
+    - A declared page area (`@page { width; height }`) shall be honoured
+      INSIDE the page box (CORE-144) and shall NOT resize the page box: the
+      requested page size is the page size. An earlier attempt grew the box to
+      area + margins; it flipped no tests, `width`/`height` are not css-page-3
+      page descriptors, Chromium keeps the requested size, and the CLI contract
+      requires the page-size flags to be honoured exactly.
 
 ## Interfaces
 
@@ -449,6 +456,13 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     width: 20em; height: 16em }` on a 5in×3in CLI default, when rendered, then
     the page box is 32em×28em and the page area is 20em×16em, so a reference
     that declares the same 32em box renders at the same size.
+
+27. **Margin-box image content** — Given
+    `@page { margin: 0; margin-top: 50px; @top-left { content: "Ti "
+    url(green.png) } }` and a 100x50 PNG, when laid out, then one image
+    fragment is produced at 75pt x 37.5pt (the image's intrinsic size) with a
+    positive x (after the text) and inside the 37.5pt top margin band
+    (`images.rs::margin_box_content_url_paints_intrinsic_image`).
 
 ## Edge Cases
 
