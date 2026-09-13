@@ -76,6 +76,17 @@ this residual.
    `100x50` inline-block paints the box at x 0..99 over the text instead of
    after it (Chromium: 40..139).
 
+10. A line whose atomic box is TALLER than the strut shall move its baseline
+   DOWN to the box's bottom margin edge (CORE-173), and the text fragments
+   already placed on that line shall ride the shift. css2 §10.8.1 gives a
+   replaced inline box with no in-flow line boxes its bottom margin edge as the
+   baseline, so the line box grows to that ascent: the box spans
+   `line_top..line_top + h` and the baseline sits at `line_top + h`. Without
+   this the text stayed at the line top while the box filled the line
+   (Chromium, `content-003`'s reference: text ink y 39..53 with the box at
+   0..49; the engine drew the text at 3..18). A line whose atomics fit the
+   strut keeps today's baseline alignment.
+
 ## Interfaces
 
 - `css.rs`: add `Display::InlineBlock`; map stylo
@@ -92,6 +103,9 @@ this residual.
   then the box appears whole on the following page.
 - Unit test: an inline-block child paints its border as a box (pixel scan or
   fragment-tree assertion), not folded into the parent text run.
+- Given `Hello` followed by a 100x50 inline-block on one line, when rendered,
+  then the text run's baseline is the box's bottom margin edge
+  (`core173_tall_inline_block_baseline.rs::tall_inline_block_moves_the_line_baseline_down`).
 - Given `Hello` followed by a `100x50` inline-block on the same line, when
   rendered, then the box's left edge is at or beyond the text's right edge and
   the box does not overlap the line origin

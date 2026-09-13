@@ -3010,6 +3010,33 @@ impl<'a> Ctx<'a> {
                             shift
                         }
                     };
+                    // CORE-173: an atomic box taller than the line's strut owns
+                    // the line's baseline. A replaced inline box with no in-flow
+                    // line boxes takes its bottom margin edge as its baseline
+                    // (css2 §10.8.1), so the line box grows and the BASELINE
+                    // moves down by `box height - strut ascent`. Text already
+                    // placed on this line rides that shift; without it the text
+                    // stayed at the line top while the box filled the line
+                    // (Chromium, content-003's reference: text ink y 39..53 with
+                    // the box at y 0..49; we drew the text at y 3..18).
+                    let strut_baseline = base_y - line_top;
+                    let delta = Scalar((ah.get() - strut_baseline.get()).max(0.0));
+                    if delta.get() > 0.0 {
+                        for child in children.iter_mut() {
+                            // Only TEXT on this line rides the shift: it shares
+                            // the line the atomic was placed on (the atomic's
+                            // own top is set by the clamp below). A previously
+                            // placed atomic on the same line must NOT move —
+                            // moving it would break side-by-side inline-blocks.
+                            if child.offset.y.get() != line_top.get() {
+                                continue;
+                            }
+                            if let FragmentContent::Text(run) = &mut child.content {
+                                child.offset.y = child.offset.y + delta;
+                                run.baseline.y = run.baseline.y + delta;
+                            }
+                        }
+                    }
                     fn rebase_subtree(fragment: &mut Fragment, shift: Scalar) {
                         fragment.offset.y = fragment.offset.y + shift;
                         if let FragmentContent::Text(run) = &mut fragment.content {
