@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: Elijah Boston
 created: 2026-08-25
-updated: 2026-09-13
+updated: 2026-09-14
 sidebar_position: 24
 tags: [css-display-3, layout, core-120]
 spec_id: SPEC-inline-block
@@ -68,6 +68,13 @@ this residual.
    shift that performs the baseline alignment shall therefore be clamped so
    the box never starts above the line top; boxes that fit the line keep their
    baseline alignment unchanged.
+9. An inline-block that follows bare text on the same line shall start at that
+   text's advance width (CORE-172), not at the line origin. The bare-text path
+   shall hand the end of each placed line to the atomic pen state, and the
+   `fits_line`/wrap decision shall use that same pen position. This is what
+   `css-page/margin-boxes/content-003`'s reference needs: `Hello` followed by a
+   `100x50` inline-block paints the box at x 0..99 over the text instead of
+   after it (Chromium: 40..139).
 
 ## Interfaces
 
@@ -85,6 +92,11 @@ this residual.
   then the box appears whole on the following page.
 - Unit test: an inline-block child paints its border as a box (pixel scan or
   fragment-tree assertion), not folded into the parent text run.
+- Given `Hello` followed by a `100x50` inline-block on the same line, when
+  rendered, then the box's left edge is at or beyond the text's right edge and
+  the box does not overlap the line origin
+  (`core172_inline_block_after_text.rs::inline_block_after_text_starts_after_it`;
+  confirmed to fail without the fix with `box x=0, text right edge=27.3`).
 - Given a `100px x 50px` empty inline-block as the first line of a block, when
   rendered, then its background fragment is 75pt x 37.5pt at a page-absolute y
   of 0 or more — the box is fully visible, not a slice above the page top
