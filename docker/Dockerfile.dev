@@ -1,0 +1,23 @@
+# Dev container for Typeanvil: Rust engine builds/tests + Python harness.
+# Runs workloads that exhaust host memory (16 GB Mac) inside a capped VM.
+FROM rust:1.97-bookworm
+
+ENV CARGO_TERM_COLOR=always
+
+# Python 3.11 (bookworm default) + harness deps. playwright is optional at
+# runtime (oracle engine) but installed so the full harness works.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3-pip \
+ && rm -rf /var/lib/apt/lists/*
+RUN python3 --version && python3 -m pip install --no-cache-dir --break-system-packages \
+      pillow \
+      pypdfium2 \
+      playwright \
+ && python3 -m playwright install chromium --with-deps
+
+# Non-root user matching common CI practice; work mounted at /work.
+RUN useradd -ms /bin/bash dev
+USER dev
+WORKDIR /work
+
+# Engine source is mounted; nothing to build here so the image stays cached.

@@ -1,0 +1,21 @@
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev
+    image: typeanvil-dev
+    mem_limit: 6g          # host headroom; Docker Desktop VM caps at 8 GB
+    cpus: 4
+    pids_limit: 512
+    working_dir: /work
+    volumes:
+      - .:/work
+      - ${TYPEANVIL_MAIN:-~/workspace/typeanvil}:/main:ro   # WPT fixtures
+      - dev-target:/work/engine/target                       # per-worktree? no — compose is main-only; prefer dev-container.sh for worktrees
+      - dev-cargo-home:/cargo-home
+    environment:
+      CARGO_HOME: /cargo-home
+
+volumes:
+  dev-target:
+  dev-cargo-home:
