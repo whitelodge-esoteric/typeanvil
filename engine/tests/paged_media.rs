@@ -1050,7 +1050,7 @@ fn page_change_break_between_empty_page_declaring_divs() {
     let html = r#"<html><head><style>
         @page { margin: 0; }
         @page :first { margin: 1in; }
-        div { width: 1in; height: 1in; border: 2px solid red; }
+        div { width: 1in; height: 1in; border: 2px solid red; box-sizing: border-box; }
     </style></head><body>
         <div style="page: a; border-color: lightblue"></div>
         <div style="page: b; border-color: pink"></div>
@@ -1071,7 +1071,7 @@ fn page_change_break_to_undeclared_sibling_page() {
     let html = r#"<html><head><style>
         @page { margin: 0; }
         @page a { margin: 1in; }
-        div { width: 1in; height: 1in; border: 2px solid red; }
+        div { width: 1in; height: 1in; border: 2px solid red; box-sizing: border-box; }
     </style></head><body>
         <div style="page: a; border-color: lightblue"></div>
         <div style="border-color: pink"></div>
@@ -1081,6 +1081,34 @@ fn page_change_break_to_undeclared_sibling_page() {
         layout.pages.len(),
         2,
         "page:a div followed by an undeclared div (default page) must break"
+    );
+}
+
+/// CORE-152 addendum: with default `box-sizing: content-box`, a 1in div + 2px
+/// borders inside an exactly 1in page content box (3in page − 1in top + 1in
+/// bottom margins) overflows by the borders, so the declared extent
+/// continues onto a second page BEFORE the page:a→b boundary — three pages
+/// total. Independently measured with playwright Chromium (page.pdf 5x3in,
+/// 0.5in margins, prefer_css_page_size): 3 pages. The old engine suppressed
+/// the continuation (2 pages, background overflow past the fragmentainer);
+/// the corrected height-continuation model (css-break-3 box splitting)
+/// yields the extra fragment. The two tests above use border-box precisely
+/// to keep their page:a→b invariant free of this overflow.
+#[test]
+fn content_box_border_overflow_continues_extent() {
+    let html = r#"<html><head><style>
+        @page { margin: 0; }
+        @page :first { margin: 1in; }
+        div { width: 1in; height: 1in; border: 2px solid red; }
+    </style></head><body>
+        <div style="page: a; border-color: lightblue"></div>
+        <div style="page: b; border-color: pink"></div>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    assert_eq!(
+        layout.pages.len(),
+        3,
+        "content-box 1in+4px border box in a 1in content height continues before the page:a→b boundary"
     );
 }
 

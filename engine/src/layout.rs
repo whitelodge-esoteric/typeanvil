@@ -1998,15 +1998,34 @@ impl<'a> Ctx<'a> {
         // `child_tokens` come positionally; a break-before child token means
         // start that child fresh there.
         // `HasSeenAllChildren` with no pending child tokens means this box
-        // finished every child on an earlier fragmentainer: nothing remains,
-        // so terminate rather than emit a spurious trailing page.
+        // finished every child on an earlier fragmentainer: normally nothing
+        // remains, so terminate rather than emit a spurious trailing page.
+        // Exception (CORE-152 addendum): a declared `height` may still have
+        // extent to consume. When it does, fall through — `start_index =
+        // items.len()` below skips the finished children and the
+        // height-continuation tail emits the next slice of the declared box.
         if !fresh && token.seen_all_children && token.child_tokens.is_empty() {
-            return BlockResult {
-                fragment: Fragment::block(Point::new(origin_x, top), (avail_width, Scalar::ZERO)),
-                used: Scalar::ZERO,
-                outgoing: None,
-                empty: true,
-            };
+            let height_remains = style.height.map_or(false, |mut declared| {
+                if style.box_sizing != crate::css::StyloBoxSizing::BorderBox {
+                    declared = declared
+                        + style.padding_top
+                        + style.padding_bottom
+                        + style.border_top
+                        + style.border_bottom;
+                }
+                declared.get() - token.consumed_block_size.get() > 1e-6
+            });
+            if !height_remains {
+                return BlockResult {
+                    fragment: Fragment::block(
+                        Point::new(origin_x, top),
+                        (avail_width, Scalar::ZERO),
+                    ),
+                    used: Scalar::ZERO,
+                    outgoing: None,
+                    empty: true,
+                };
+            }
         }
 
         // A positioned box becomes the containing block for its abspos
@@ -3416,6 +3435,15 @@ impl<'a> Ctx<'a> {
         // block measure path stays content-based, so pagination is unchanged
         // for auto-height boxes; an explicit height only overrides the paint
         // box (larger of content/declared so overflow text never clips).
+        // CORE-152 addendum — declared-extent continuation: when the content
+        // finished but the declared extent runs past the fragmentainer, the
+        // box CONTINUES. This fragment is sliced at the fragmentainer bottom
+        // and a token carries the remaining declared extent; the resumed pass
+        // emits the next slice (and so on) until the extent is consumed. The
+        // declared height therefore fragments like content does, instead of
+        // painting one giant overflowing rectangle.
+        // Target border-box extent implied by the declared height, if any.
+        let mut declared_extent: Option<Scalar> = None;
         if !broke {
             if let Some(mut declared) = self.resolved_height(style) {
                 // Content-box sizing: the declared height excludes padding
@@ -3427,9 +3455,13 @@ impl<'a> Ctx<'a> {
                         + style.border_top
                         + style.border_bottom;
                 }
-                let target = declared;
-                if target.get() > box_height.get() {
-                    box_height = target;
+                // A resumed fragmentainer measures only its own slice of the
+                // content; the box's remaining declared extent is measured
+                // from the token's running total, not from this fragment's
+                // content height.
+                declared_extent = Some(declared - token.consumed_block_size);
+                if declared_extent.unwrap().get() > box_height.get() {
+                    box_height = declared_extent.unwrap();
                 }
             }
             // Flex cross-axis stretch (css-flexbox-1 §9.4 step 4): the flex
@@ -3449,13 +3481,46 @@ impl<'a> Ctx<'a> {
         // the fill painted the full containing-block width, so inline
         // `margin-left` shifted only text, never the painted box (WPT refs
         // position colored boxes with margins pervasively).
-        //
         // css-break-3 fill-to-edge: a box that CONTINUES past this page (a
         // middle fragment) extends its background paint to the fragmentainer
         // bottom edge — only the LAST fragment ends at the content edge
         // (Chromium-verified, page-size-007 test page 1: the yellow container
         // paints full-bleed while its float rows continue). Paint-box only:
         // `used` stays content-based so pagination never sees the fill.
+        // CORE-152 addendum: decide whether the box still overflows
+        // the fragmentainer: the declared extent may continue even though no
+        // CHILD broke (`broke` above is child-driven only). Gated on a
+        // declared height — content-only overflow keeps its existing
+        // last-resort model (e.g. float bottoms extend `y` past the
+        // fragmentainer without a break).
+        if let Some(remaining) = declared_extent {
+            // Compare the remaining declared extent to the fragmentainer room
+            // INDEPENDENTLY of box_height: box_height above was raised to
+            // `remaining`, so `remaining > max(box_height, room)` could never
+            // hold. Two cases:
+            // - content <= room but extent > room: the declared extent itself
+            //   overflows the fragmentainer → slice it (CORE-152 continuation).
+            // - content > room (child-driven `broke` above): the content path
+            //   already sliced; the declared extent rides on top of the same
+            //   token via `height_continues` below.
+            let room = bottom_limit - box_top;
+            if !broke && remaining.get() > room.get() {
+                // Zero/negative room: no slice possible on this page. The box
+                // ends here (no token) so the page loop always makes progress;
+                // the pathological case needs the box to start at the
+                // fragmentainer bottom, which the resume path cannot produce
+                // (resumes start at the content top).
+                if room.get() > 0.0 {
+                    broke = true;
+                    seen_all = true;
+                    // Slice the extent to the room; the token carries what
+                    // remains. Child fragments were laid within `room` above,
+                    // so no child content is lost — the extent overflows, not
+                    // the children.
+                    box_height = room;
+                }
+            }
+        }
         let paint_height = if broke && style.background_color.is_some() {
             let fill = bottom_limit - box_top;
             if fill.get() > box_height.get() {
@@ -3529,8 +3594,40 @@ impl<'a> Ctx<'a> {
         // bookmarks can find the page it landed on.
         fragment.source = Some(id);
 
-        let outgoing = if broke {
-            let consumed = token.consumed_block_size + box_height;
+        // CORE-152 addendum: `seen_all` records "children finished", not "box
+        // finished". A height-continuation slice (the overflow branch above)
+        // may break with every child done — the token must still resume so
+        // the resumed pass hits `start_index = items.len()` (CORE-116)
+        // and re-enters this block, which emits the next slice. Progress
+        // guard: a fully-consumed box emits no token and cannot loop pages.
+        let height_continues = declared_extent
+            .map_or(false, |rem| rem.get() - box_height.get() > 1e-6);
+        let outgoing = if broke || height_continues {
+            // css-break-3 §5.3: a box that CONTINUES past this fragmentainer
+            // makes block-size progress to the fragmentainer edge — its
+            // fragment fills the page (the same extent as the fill-to-edge
+            // paint band above). Declared-extent progress must consume that
+            // full extent, not just the placed content height: otherwise
+            // skipped room (e.g. a forced child break with space left on the
+            // page) is consumed by nothing and re-renders as extra pages
+            // (Chromium: forced child in a 450pt parent = 4 pages, counting
+            // 144pt on the break page). Scoped to declared-height boxes:
+            // without `height`, `consumed_block_size` has no block-path
+            // reader, and empty fragments (box_height 0) make no progress.
+            let progressed = if broke
+                && style.height.is_some()
+                && box_height.get() > 0.0
+            {
+                let room = bottom_limit - box_top;
+                if room.get() > box_height.get() {
+                    room
+                } else {
+                    box_height
+                }
+            } else {
+                box_height
+            };
+            let consumed = token.consumed_block_size + progressed;
             let tok = BreakToken {
                 consumed_block_size: consumed,
                 seen_all_children: seen_all,
