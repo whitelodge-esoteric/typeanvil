@@ -612,3 +612,51 @@ fn placed_abspos_still_counts_for_a_leading_forced_break() {
         "a placed abspos is content on this page, so the following forced break fires"
     );
 }
+
+// --- CORE-169: page-anchored abspos fragments across pages ------------------
+
+/// A page-anchored abspos container (auto insets, no positioned ancestor)
+/// taller than the remaining fragmentainer space defers to the next page and
+/// fragments there (css-break-3 §2.3 class A), instead of painting
+/// monolithically over this page's content. Its declared-height children
+/// slice at the fragmentainer edge (CORE-167 machinery).
+#[test]
+fn page_anchored_abspos_fragments_across_pages() {
+    let html = r#"<html><head><style>
+        @page { margin: 0; }
+        body { margin: 0; }
+        .fill { height: 150pt; background: #111; }
+        .abs { position: absolute; }
+        .abs > div { box-sizing: border-box; height: 150pt; width: 100pt; }
+    </style></head><body>
+        <div class="fill"></div>
+        <div class="abs"><div style="background: #f00"></div><div style="background: #0f0"></div></div>
+    </body></html>"#;
+    let dom = dom_of(html);
+    let aid = node_id_by_class(&dom, "abs");
+    let layout = lay(html, geometry(5.0, 3.0, 0.0));
+    // Page 1: the 150pt filler; the abspos container (2x150pt = 300pt) does
+    // not fit the remaining 66pt → defers whole. Page 2: first 150pt child
+    // fills the page (216pt content height) and fragments; page 3: the rest.
+    assert!(
+        layout.pages.len() >= 3,
+        "deferral must create a fresh page for the abspos box, got {} pages",
+        layout.pages.len()
+    );
+    // Page 1 must NOT hold the abspos container's fragments.
+    assert!(
+        page_abspos_fragments(&layout, 0, aid).is_empty(),
+        "deferred abspos box paints nothing on the deferral page"
+    );
+    // Page 2 holds the box's first fragment, at the content top.
+    let frags = page_abspos_fragments(&layout, 1, aid);
+    assert!(
+        !frags.is_empty(),
+        "abspos box starts on the page after the deferral"
+    );
+    assert_close(
+        frags[0].offset.y,
+        Scalar(0.0),
+        "class-A resume anchors at the fragmentainer top",
+    );
+}

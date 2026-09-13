@@ -1,5 +1,5 @@
 ---
-title: white-space: pre — preformatted text preservation
+title: "white-space: pre — preformatted text preservation"
 type: spec
 status: in-review
 owner: Elijah Boston

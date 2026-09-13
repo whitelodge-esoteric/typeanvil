@@ -1,5 +1,5 @@
 ---
-title: Page floats — float: top/bottom/next-page/snap
+title: "Page floats — float: top/bottom/next-page/snap"
 type: spec
 status: approved
 owner: elijah

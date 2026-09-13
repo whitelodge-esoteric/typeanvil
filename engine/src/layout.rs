@@ -197,6 +197,23 @@ struct Flow {
     /// fragmentainer root's children after each page (css-break-3: the
     /// fragmentainer is their parent, not the CSS containing block).
     abspos: Vec<(Option<i32>, Fragment)>,
+    /// CORE-169: abspos boxes waiting to continue on the NEXT fragmentainer.
+    /// A page-anchored `position: absolute` box at its static position with
+    /// auto insets fragments across pages like an in-flow box (css-break-3
+    /// §2.3 class A); when it runs past the fragmentainer bottom, the
+    /// out-of-flow branch enqueues the box here instead of painting
+    /// monolithically. `paginate` drains the queue after each page's body
+    /// layout — the job lays through the normal block path with a real
+    /// `bottom_limit`, re-enqueuing while the box's token continues.
+    abspos_jobs: Vec<AbsposJob>,
+    /// CORE-169: abspos boxes whose drain fragment broke again, with their
+    /// CONTINUATION token for the next page's block-path resume.
+    /// CORE-169: the continuation token of an abspos box that broke during
+    /// its drain fragment (keyed by node; consumed on the next drain).
+    abspos_resume_tokens: std::collections::BTreeMap<NodeId, BreakToken>,
+    /// CORE-169: abspos boxes the drain has placed to completion. The body
+    /// item loop drops their stale pending tokens (never re-renders them).
+    abspos_finished: Vec<NodeId>,
     /// Footnote elements registered during THIS page's body layout, in call
     /// order (CORE-107). Registration happens when a marker's line actually
     /// places (a call pushed to the next page takes its note along). Drained
@@ -240,6 +257,17 @@ impl Flow {
         self.page_counter
     }
 }
+
+/// CORE-169: an abspos box queued to continue on the NEXT fragmentainer.
+/// Pushed by the out-of-flow branch's class-A deferral; drained by
+/// `paginate` on the following page (snapshot at page start, drained after
+/// that page's body layout). Jobs always start at the page-content top —
+/// a class-A break resumes the box at the fragmentainer start.
+#[derive(Clone, Copy, Debug)]
+struct AbsposJob {
+    id: NodeId,
+}
+
 
 #[derive(Clone, Debug, Default)]
 struct TableContinuation {
@@ -850,6 +878,9 @@ fn paginate(
         pending_floats: Vec::new(),
         abspos_cb: None,
         abspos: Vec::new(),
+        abspos_jobs: Vec::new(),
+        abspos_resume_tokens: std::collections::BTreeMap::new(),
+        abspos_finished: Vec::new(),
         pending_footnotes: Vec::new(),
         page_string_sets: Vec::new(),
         counters: Vec::new(),
@@ -942,6 +973,12 @@ fn paginate(
         // block resets too (origins are page-absolute).
         flow.active_floats = flow.pending_floats.clone();
         flow.abspos_cb = None;
+        // CORE-169: snapshot the abspos continuation jobs AT PAGE START —
+        // only jobs queued on EARLIER pages drain here; anything this page's
+        // body defers waits for the next snapshot. This keeps job→page
+        // mapping strict: one deferral, then the box starts on the very next
+        // page.
+        let drained_jobs = std::mem::take(&mut flow.abspos_jobs);
 
         // Resolve the named page in effect for this page: a `page:<name>` box
         // that starts fresh at the top of this page switches the context; a
@@ -1116,6 +1153,7 @@ fn paginate(
             fragmentainer.root.children.push(res.fragment);
         }
 
+
         // @page named-counter reset/increment applies AFTER the body (so the
         // document's own declarations — e.g. `html { counter-reset: foo }` on
         // page 1 — are seen first). A reset shadows the threaded counter for
@@ -1158,6 +1196,81 @@ fn paginate(
             }
         }
 
+        // Out-of-flow fragments attach to the page root (css-break-3: the
+        // fragmentainer is their parent, not the CSS containing block).
+        // Stable sort by z-index (None/auto first = painted below); ties keep
+        // document order. Their offsets are ALREADY page-absolute (the
+        // out-of-flow branch lays against `content.x`/`content.y` directly),
+        // matching the margin-box and footnote attachments — the emitter's
+        // root walk treats every root child as page-absolute. (The old
+        // content-origin subtraction double-shifted out-of-flow paint up-left
+        // by the margin size; slice (a)'s simple fixtures passed only because
+        // test and ref shifted identically.)
+        if !flow.abspos.is_empty() {
+            flow.abspos.sort_by_key(|(z, _)| *z);
+            for (_, frag) in std::mem::take(&mut flow.abspos) {
+                fragmentainer.root.children.push(frag);
+            }
+        }
+
+        // CORE-169: drain the abspos continuation jobs snapshot at page
+        // start — each lays its box's NEXT fragment into THIS page's
+        // fragmentainer through the normal block path (real `bottom_limit`,
+        // so CORE-167's declared-height fragmentation slices it at the page
+        // edge). Fragments push DIRECTLY to the fragmentainer root (never
+        // through flow.abspos — that pool re-attaches on the NEXT page and
+        // would double-paint). A box that broke again re-enqueues for the
+        // next page with its CONTINUATION token. Per-page `:left`/`:right`
+        // page specs apply naturally (page-margin-007's p5/7 cyan vs p6
+        // pink); a class-A break resumes the box at the fragmentainer start
+        // (css-break-3 §2.3).
+        for job in drained_jobs {
+            let jstyle = &styles[job.id];
+            let (jw, _) = ctx.measure_float(job.id, content.width);
+            // Dispatch through the FULL block-family router (tables, flex,
+            // grid, multicol — not just layout_box): a flex/grid abspos
+            // container must fragment through its own path, same as the
+            // body's item loop dispatches.
+            let jres = match flow.abspos_resume_tokens.remove(&job.id) {
+                Some(tok) => ctx.layout_table_like(
+                    job.id,
+                    content.x,
+                    jw,
+                    content.y,
+                    content.y + content.height,
+                    true,
+                    &tok,
+                    &mut flow,
+                ),
+                None => {
+                    let fresh_tok = BreakToken::break_before();
+                    ctx.layout_table_like(
+                        job.id,
+                        content.x,
+                        jw,
+                        content.y,
+                        content.y + content.height,
+                        true,
+                        &fresh_tok,
+                        &mut flow,
+                    )
+                }
+            };
+            fragmentainer.root.children.push(jres.fragment);
+            match jres.outgoing {
+                // The box continues: re-enqueue for the NEXT fragmentainer.
+                Some(tok) => {
+                    flow.abspos_jobs.push(AbsposJob { id: job.id });
+                    flow.abspos_resume_tokens.insert(job.id, tok);
+                }
+                // Finished: record it so the body's pending token for this
+                // box drops (no stale re-render or spurious resume).
+                None => {
+                    flow.abspos_finished.push(job.id);
+                }
+            }
+        }
+
         // A trailing page that paints NOTHING is dropped: the page loop is
         // deterministic, so nothing can depend on a blank final page existing
         // (no cross-page state resolves against the page count mid-loop).
@@ -1171,11 +1284,26 @@ fn paginate(
         let page_blank = fragmentainer.root.children.is_empty()
             && fragmentainer.background.is_none()
             && fragmentainer.canvas_background.is_none()
-            && fragmentainer.outline.is_none();
+            && fragmentainer.outline.is_none()
+            // CORE-169: a drain-only page holds (or will hold) abspos
+            // fragments — keep it while a continuation job is pending.
+            && flow.abspos_jobs.is_empty();
         let is_last = incoming.is_none();
 
         pages.push(fragmentainer);
         incoming = res.outgoing;
+        // CORE-169: the body token is None once in-flow content ends, but a
+        // drain job may still be mid-box (its continuation queued during
+        // THIS page's drain). The loop must keep paging until the drain
+        // finishes, or the last fragment(s) of the abspos box vanish.
+        if incoming.is_none() && !flow.abspos_jobs.is_empty() {
+            // A pure-continuation token (NOT break_before — that would reset
+            // the named-page context via PageCtx::Reset and fire forced-break
+            // logic): the body's early-out places nothing, the drain runs.
+            let mut carry = BreakToken::default();
+            carry.seen_all_children = true;
+            incoming = Some(carry);
+        }
 
         if pages.len() >= MAX_PAGES {
             break;
@@ -1235,6 +1363,9 @@ fn paginate(
             pending_floats: Vec::new(),
             abspos_cb: None,
             abspos: Vec::new(),
+            abspos_jobs: Vec::new(),
+            abspos_resume_tokens: std::collections::BTreeMap::new(),
+            abspos_finished: Vec::new(),
             pending_footnotes: Vec::new(),
             page_string_sets: Vec::new(),
             counters: Vec::new(),
@@ -1454,11 +1585,54 @@ impl<'a> Ctx<'a> {
         style.height
     }
 
+    /// Percentage `height` resolution (css-sizing-3 §5.3, CORE-169): a
+    /// percentage resolves against the containing block's height when it is
+    /// DEFINITE — the nearest ancestor with a resolved (non-percentage)
+    /// specified extent. Indefinite chains stay indefinite (None), keeping
+    /// the auto-height self-consistency CORE-66 relies on. Scoped to
+    /// explicit `height: <pct>%`: the flex-only `height_percent` consumer
+    /// is untouched.
+    fn resolved_height_or_percent(&self, id: NodeId, style: &ComputedStyle) -> Option<Scalar> {
+        if let Some(v) = self.resolved_height(style) {
+            return Some(v);
+        }
+        let pct = style.height_percent?;
+        // Walk up to the nearest ancestor with a definite specified extent.
+        let mut cur = self.dom.nodes[id].parent;
+        while let Some(p) = cur {
+            let ps = &self.styles[p];
+            if ps.position != crate::css::Position::Static
+                || self.specified_extent(p, ps).is_some()
+            {
+                // Definite parent (or any positioned/abspos CB): resolve.
+                if let Some(ext) = self.specified_extent(p, ps) {
+                    // Percentage height is against the CB's CONTENT height:
+                    // border-box extent minus padding/border chrome.
+                    let chrome = ps.padding_top + ps.padding_bottom;
+                    let content_h = (ext.get() - chrome.get()).max(0.0);
+                    return Some(Scalar(content_h * pct));
+                }
+                // Positioned ancestor without declared height: indefinite
+                // unless it's the abspos fill case; treat as indefinite.
+                if ps.position != crate::css::Position::Static {
+                    return None;
+                }
+            }
+            cur = self.dom.nodes[p].parent;
+        }
+        // No definite ancestor: against the page content box (the initial
+        // containing block is definite — page-margin-007's ref relies on
+        // `height: 100%` inside a definite-height wrapper, but a bare
+        // percentage at the body level resolves against the page).
+        let page_content_h = self.page_height.get();
+        Some(Scalar((page_content_h * pct).max(0.0)))
+    }
+
     /// A fresh box's specified border-box extent (CORE-167): the computed
     /// `height` with box-sizing honored — content-box adds padding + border
     /// (css-sizing-3 §5.1). `None` = auto: the content model applies.
-    fn specified_extent(&self, style: &ComputedStyle) -> Option<Scalar> {
-        let mut declared = self.resolved_height(style)?;
+    fn specified_extent(&self, id: NodeId, style: &ComputedStyle) -> Option<Scalar> {
+        let mut declared = self.resolved_height_or_percent(id, style)?;
         if style.box_sizing != crate::css::StyloBoxSizing::BorderBox {
             declared = declared
                 + style.padding_top
@@ -2026,7 +2200,7 @@ impl<'a> Ctx<'a> {
         // the height-continuation tail emits the next slice of the box.
         if !fresh && token.seen_all_children && token.child_tokens.is_empty() {
             let height_remains = self
-                .specified_extent(style)
+                .specified_extent(id, style)
                 .is_some_and(|ext| ext.get() - token.consumed_block_size.get() > 1e-6);
             if !height_remains {
                 return BlockResult {
@@ -2047,7 +2221,7 @@ impl<'a> Ctx<'a> {
         // box whose predecessor's extent ended exactly at the page edge
         // produces no continuation and silently vanishes.
         if fresh && placed && !token.deferred_once {
-            if let Some(ext) = self.specified_extent(style) {
+            if let Some(ext) = self.specified_extent(id, style) {
                 if ext.get() > 0.0 && box_top.get() >= bottom_limit.get() {
                     return BlockResult {
                         fragment: Fragment::block(
@@ -2900,6 +3074,50 @@ impl<'a> Ctx<'a> {
                         continue;
                     }
                     if matches!(cstyle.position, Position::Absolute | Position::Fixed) {
+                        // CORE-169: a box the abspos DRAIN owns (its job was
+                        // queued on an earlier page) does not re-enter the
+                        // body item loop — the drain lays its fragments
+                        // page-locally, and a body re-render would duplicate
+                        // them. If the drain FINISHED the box, its pending
+                        // token is stale: drop it (mark seen-all so the
+                        // resume walk terminates cleanly). If it is still
+                        // pending, carry the token forward unchanged.
+                        let child_tok_owned =
+                            token.child_tokens.iter().find(|c| c.index == i).map(|c| c.token.clone());
+                        if child_tok_owned
+                            .as_ref()
+                            .map(|t| t.deferred_once)
+                            .unwrap_or(false)
+                        {
+                            if flow.abspos_finished.contains(child) {
+                                // The box is done: no token, no broke. When
+                                // this was the only carried child the parent
+                                // emits no outgoing token and the page loop
+                                // terminates with no extra page.
+                            } else if let Some(ct) = child_tok_owned {
+                                // Still draining — but only keep the page
+                                // loop alive when the drain will actually
+                                // place this box: a queued job or a pending
+                                // resume token. Otherwise the box is
+                                // stranded (drain finished elsewhere):
+                                // carry nothing, emit nothing.
+                                let job_queued = flow
+                                    .abspos_jobs
+                                    .iter()
+                                    .any(|j| j.id == *child)
+                                    || flow.abspos_resume_tokens.contains_key(child);
+                                if job_queued {
+                                    outgoing_children.push(ChildToken {
+                                        index: i,
+                                        token: ct,
+                                    });
+                                    broke = true;
+                                }
+                            }
+                            // Either way: no cursor advance (out of flow).
+                            i += 1;
+                            continue;
+                        }
                         // ---- out-of-flow branch ----
                         // The box is taken out of flow: no cursor advance, no
                         // in-flow height, and its fragment attaches to the
@@ -2922,6 +3140,54 @@ impl<'a> Ctx<'a> {
                         // height (the containing block's own height is not
                         // known mid-layout); `auto` insets sit at the padding
                         // box origin (basic static position).
+                        let has_insets = cstyle.inset_left.is_some()
+                            || cstyle.inset_left_viewport.is_some()
+                            || cstyle.inset_right.is_some()
+                            || cstyle.inset_right_viewport.is_some()
+                            || cstyle.inset_top.is_some()
+                            || cstyle.inset_top_viewport.is_some()
+                            || cstyle.inset_bottom.is_some()
+                            || cstyle.inset_bottom_viewport.is_some();
+                        // CORE-169 class-A deferral (css-break-3 §2.3): a
+                        // PAGE-ANCHORED abspos box — auto insets at the page
+                        // content-box origin, no positioned ancestor — that
+                        // does not fit the remaining fragmentainer space
+                        // defers whole to the next page (continuation job),
+                        // where it fragments through the block path. A box
+                        // anchored by any inset, or to a positioned ancestor,
+                        // keeps the monolithic model (Behavior 9) — its
+                        // position pins it to a specific page region, and the
+                        // pinned tests (fixedpos-010, page-name-abspos-002)
+                        // rely on that.
+                        let page_anchored = cstyle.position == Position::Absolute
+                            && !has_insets
+                            && flow.abspos_cb.is_none();
+                        // Only a box that has not STARTED may defer; a
+                        // resumed abspos fragment is placed where the token
+                        // carries it. `deferred_once` on the PARENT token
+                        // stops a box taller than every fragmentainer from
+                        // deferring twice (one deferral, then force-place,
+                        // matching the CORE-109 row guard).
+                        if page_anchored
+                            && child_tok.is_break_before()
+                            && placed
+                            && !token.deferred_once
+                            && y.get() + fh.get() > bottom_limit.get()
+                        {
+                            // Defer: enqueue the continuation job and force a
+                            // page break so the next page starts fresh. The
+                            // deferred_once flag tells the next page's body
+                            // that this child is drain-owned (skip, never
+                            // re-render) — the drain consumes the job.
+                            flow.abspos_jobs.push(AbsposJob { id: *child });
+                            seen_all = false;
+                            outgoing_children.push(ChildToken {
+                                index: i,
+                                token: BreakToken::break_before_deferred(),
+                            });
+                            broke = true;
+                            break;
+                        }
                         let x = match self.resolved_inset(cstyle.inset_left, cstyle.inset_left_viewport) {
                             Some(l) => cb_origin.x + l,
                             None => match self.resolved_inset(cstyle.inset_right, cstyle.inset_right_viewport) {
@@ -3320,7 +3586,7 @@ impl<'a> Ctx<'a> {
                     if res.outgoing.is_none()
                         && child_tok.is_break_before()
                         && placed
-                        && self.specified_extent(&self.styles[*child])
+                        && self.specified_extent(*child, &self.styles[*child])
                             .is_some_and(|ext| {
                                 ext.get() <= self.page_height.get()
                                     && y.get() + ext.get() > bottom_limit.get()
@@ -3619,7 +3885,7 @@ impl<'a> Ctx<'a> {
         // sizing honored) competes with content. The REMAINING portion for
         // a resumed box is measured from the token's running total, not
         // from this fragment's content height. `None` = auto.
-        let remaining_spec: Option<Scalar> = self.resolved_height(style).map(|mut declared| {
+        let remaining_spec: Option<Scalar> = self.resolved_height_or_percent(id, style).map(|mut declared| {
             if style.box_sizing != crate::css::StyloBoxSizing::BorderBox {
                 // Content-box sizing: the declared height excludes padding
                 // AND border (css-sizing-3 §5.1) — add both to the target.
@@ -4766,7 +5032,7 @@ impl<'a> Ctx<'a> {
             style.margin_top + style.padding_top + style.padding_bottom + style.margin_bottom;
         // The declared extent competes with content (border-box terms, like
         // layout_box's `specified_extent`).
-        if let Some(ext) = self.specified_extent(style) {
+        if let Some(ext) = self.specified_extent(id, style) {
             let chrome = style.padding_top + style.padding_bottom;
             let content_target = ext - chrome + style.margin_top + style.margin_bottom;
             if content_target.get() > h.get() {
