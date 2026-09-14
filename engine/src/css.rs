@@ -897,6 +897,24 @@ pub enum PageWritingMode {
     VerticalRl,
     /// vertical-lr: inline = top/bottom, block = left/right.
     VerticalLr,
+    /// sideways-rl: block = right/left, inline = top/bottom, glyphs rotated
+    /// 90° clockwise (css-writing-modes-3 §3.1). Same block axis as
+    /// `vertical-rl`, so it shares that variant's logical→physical edge map.
+    SidewaysRl,
+    /// sideways-lr: block = left/right, inline = BOTTOM/top, glyphs rotated
+    /// 90° counter-clockwise (css-writing-modes-3 §3.1). Its inline axis runs
+    /// bottom-to-top, so its edge map differs from `vertical-lr`'s.
+    SidewaysLr,
+}
+
+impl PageWritingMode {
+    /// True when the block axis is HORIZONTAL — every mode except
+    /// `horizontal-tb` (css-writing-modes-3 §3.1). Callers use this to decide
+    /// axis questions (is a subtree orthogonal? does a block fill the page's
+    /// inline axis?) without listing the four vertical variants each time.
+    pub fn is_vertical(self) -> bool {
+        !matches!(self, PageWritingMode::HorizontalTb)
+    }
 }
 
 /// Fully computed style for one element. This is the cascade's output contract;
@@ -3805,6 +3823,12 @@ mod paged_props {
                 let wm = match v.as_str() {
                     "vertical-rl" => super::PageWritingMode::VerticalRl,
                     "vertical-lr" => super::PageWritingMode::VerticalLr,
+                    // Sideways modes are vertical modes (css-writing-modes-3
+                    // §3.1): the block axis is horizontal, so the @page
+                    // logical margin/padding axis mapping and the
+                    // orthogonal-flow predicate must see them as such.
+                    "sideways-rl" => super::PageWritingMode::SidewaysRl,
+                    "sideways-lr" => super::PageWritingMode::SidewaysLr,
                     _ => super::PageWritingMode::HorizontalTb,
                 };
                 Some(PagedDecl::WritingMode(wm))

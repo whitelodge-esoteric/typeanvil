@@ -2172,7 +2172,13 @@ impl<'a> Ctx<'a> {
         let root_wm = self.styles[self.dom.find_tag("html").unwrap_or(self.dom.root)]
             .writing_mode;
         let border_x =
-            if style.rtl || root_wm == crate::css::PageWritingMode::VerticalRl {
+            if style.rtl
+                || matches!(
+                    root_wm,
+                    crate::css::PageWritingMode::VerticalRl
+                        | crate::css::PageWritingMode::SidewaysRl
+                )
+            {
                 Self::frag_border_x_rtl(style, origin_x, avail_width, box_border_w)
             } else {
                 Self::frag_border_x(style, origin_x)
@@ -5776,13 +5782,7 @@ impl<'a> Ctx<'a> {
     /// an htb page, and its ref forces the same break with `break-after:
     /// page`).
     fn orthogonal_flow(&self, id: NodeId) -> bool {
-        let vertical = |m: crate::css::PageWritingMode| {
-            matches!(
-                m,
-                crate::css::PageWritingMode::VerticalRl | crate::css::PageWritingMode::VerticalLr
-            )
-        };
-        vertical(self.writing_mode_at(id)) != vertical(self.page_flow_writing_mode())
+        self.writing_mode_at(id).is_vertical() != self.page_flow_writing_mode().is_vertical()
     }
 
     /// The first (`last = false`) or last (`last = true`) in-flow content
@@ -7590,6 +7590,53 @@ mod core153_vertical_rl_tests {
         assert_eq!(w, 315.0, "420px width");
         assert!((ax - 30.0).abs() < 0.01, "right-anchored: x={} want 30", ax);
         let _ = ay;
+    }
+
+    /// Sideways modes are vertical page flows (css-writing-modes-3 §3.1): the
+    /// block axis is horizontal, so the root's mode must resolve through the
+    /// paged-media pass (stylo's servo build maps `sideways-*` to
+    /// horizontal-tb) and the right-anchoring rule follows the block axis —
+    /// sideways-rl runs right-to-left like vertical-rl, sideways-lr
+    /// left-to-right like vertical-lr.
+    #[test]
+    fn sideways_modes_are_vertical_page_flows() {
+        for (mode, want_x) in [("sideways-rl", 30.0), ("sideways-lr", 0.0)] {
+            let html = format!(
+                r#"
+                <html><head><style>
+                    html {{ writing-mode: {mode}; }}
+                    @page {{ size: 480px 288px; margin: 0; }}
+                    body {{ margin: 0; }}
+                    .box {{ width: 420px; margin-right: 20px; background: yellow; }}
+                </style></head><body>
+                <div class="box">x</div>
+                </body></html>
+            "#
+            );
+            let dom = Dom::parse(&html).expect("parse");
+            let css = css_of(&html);
+            let stylesheet = Stylesheet::parse(css);
+            let page_geo = PageGeometry {
+                width: Scalar(360.0),
+                height: Scalar(216.0),
+                margin_top: Scalar(0.0),
+                margin_right: Scalar(0.0),
+                margin_bottom: Scalar(0.0),
+                margin_left: Scalar(0.0),
+            };
+            let styles = crate::css::cascade_evaluated(&dom, css, &page_geo);
+            let rw = styles[dom.find_tag("html").unwrap_or(dom.root)].writing_mode;
+            assert!(rw.is_vertical(), "{mode} must report a vertical page flow, got {rw:?}");
+            let laid = layout(&dom, &stylesheet, page_geo);
+            let found = boxes(&laid, 0)
+                .into_iter()
+                .find(|(_, _, w, _h)| (*w - 315.0).abs() < 1.0);
+            let (ax, _ay, _w, _h) = found.expect("box paint box present");
+            assert!(
+                (ax - want_x).abs() < 0.01,
+                "{mode}: block-start anchoring x={ax} want {want_x}"
+            );
+        }
     }
 }
 
