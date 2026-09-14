@@ -852,6 +852,27 @@ fn collect_fixed_ids(dom: &Dom, styles: &[ComputedStyle], root: NodeId) -> Vec<N
     out
 }
 
+/// Whether a fragment (recursively) paints NOTHING: no own paint, no glyphs,
+/// no children that paint. Used by the trailing-blank-page drop (CORE-176).
+/// A fragment with paint content (Background/Border) counts as paint-free
+/// only when its SIZE is zero; a bare box (`None` content) only when its
+/// HEIGHT is zero — a sized bare fragment is layout state, not blank page
+/// (CORE-152's declared-height continuation tail: an 18pt content-less slice
+/// whose page exists because the box's extent occupies it; dropping it broke
+/// the fragments-sum-to-extent contract). A Text run only when it has no
+/// glyphs; an Image always paints (even a broken image draws a placeholder).
+fn paints_nothing(f: &Fragment) -> bool {
+    let own = match &f.content {
+        FragmentContent::None => f.size.1.get() <= 0.0,
+        FragmentContent::Background(_) | FragmentContent::Border(_) => {
+            f.size.0.get() <= 0.0 || f.size.1.get() <= 0.0
+        }
+        FragmentContent::Text(run) => run.glyphs.is_empty(),
+        FragmentContent::Image(_) => false,
+    };
+    own && f.break_token.is_none() && f.children.iter().all(paints_nothing)
+}
+
 #[allow(clippy::type_complexity)]
 fn paginate(
     dom: &Dom,
@@ -1281,24 +1302,44 @@ fn paginate(
             }
         }
 
-        // A trailing page that paints NOTHING is dropped: the page loop is
-        // deterministic, so nothing can depend on a blank final page existing
-        // (no cross-page state resolves against the page count mid-loop).
-        // Without this, a float that deferred whole at the page end could
-        // leave a body-only page with an empty fragment (zero-height root
-        // child, no abspos, no margin boxes) — an extra blank page the refs
-        // do not have (page-size-007/008, CORE-145). Only the LAST page can
-        // be blank: every other page's outgoing token means content resumes
-        // after it, and content-after implies the break boundary carried
-        // paint on one side.
-        let page_blank = fragmentainer.root.children.is_empty()
+        // A trailing page that paints NOTHING is dropped (CORE-176): the
+        // page loop is deterministic, so nothing can depend on a blank final
+        // page existing. Two guards keep it honest:
+        // 1. Only the LAST page can drop (`res.outgoing.is_none()`): any
+        //    other page's outgoing token means content resumes after it.
+        //    (The dead pre-existing binding tested the page's INCOMING token
+        //    — always None on page 1 — and was never read.)
+        // 2. A FORCED break that demanded this page keeps it: Chromium
+        //    renders `<div style="break-after: page">one</div>` as two
+        //    pages, the second blank. The forced-break fact rides the
+        //    outgoing token (`break_before: true` emitted by the forced
+        //    break), so a demanded page has `token.is_break_before()` —
+        //    exclude it from the drop.
+        // `page_blank` walks the fragment tree (an empty CHILD counts as
+        // blank: the overflowing-grid repro's last page holds an empty
+        // root child), treating zero-size Background/Border fragments and
+        // glyph-less Text runs as paint-free.
+        let page_forced = token.is_break_before();
+        let page_blank = paints_nothing(&fragmentainer.root)
             && fragmentainer.background.is_none()
             && fragmentainer.canvas_background.is_none()
             && fragmentainer.outline.is_none()
+            && fragmentainer.page_border.is_none()
+            && !fragmentainer.page_chrome_hidden
+            && fragmentainer.root_border.is_none()
             // CORE-169: a drain-only page holds (or will hold) abspos
             // fragments — keep it while a continuation job is pending.
             && flow.abspos_jobs.is_empty();
-        let is_last = incoming.is_none();
+        let is_final = res.outgoing.is_none();
+
+        if is_final && page_blank && !page_forced {
+            // Drop the page: do not push it, and let the loop end (no
+            // outgoing token → `incoming.take()` returns None next round).
+            // The `if pages.is_empty()` fallback below still yields one
+            // blank page for an EMPTY document, so a zero-page render is
+            // impossible.
+            break;
+        }
 
         pages.push(fragmentainer);
         incoming = res.outgoing;
@@ -4031,7 +4072,14 @@ impl<'a> Ctx<'a> {
                         }
                     }
 
-                    // Forced break-after: rest goes to the next page.
+                    // Forced break-after: rest goes to the next page. A
+                    // TRAILING forced break (last item) is absorbed: the
+                    // used value of a forced break at the end of the
+                    // document produces no page (Chromium oracle: both
+                    // `<div style="break-after: page">one</div>` and the
+                    // basic-pagination-001 body render ONE page — the
+                    // diagnostic-step-2 assumption on the issue was wrong,
+                    // CORE-176).
                     if cstyle.break_after.is_forced() && i + 1 < items.len() {
                         seen_all = false;
                         outgoing_children.push(ChildToken {
@@ -5250,22 +5298,33 @@ impl<'a> Ctx<'a> {
             - style.padding_right;
         let mut h =
             style.margin_top + style.padding_top + style.padding_bottom + style.margin_bottom;
-        // The declared extent competes with content (border-box terms, like
-        // layout_box's `specified_extent`).
-        if let Some(ext) = self.specified_extent(id, style) {
-            let chrome = style.padding_top + style.padding_bottom;
-            let content_target = ext - chrome + style.margin_top + style.margin_bottom;
-            if content_target.get() > h.get() {
-                h = content_target;
-            }
-        }
+        // Content competes with the DECLARED extent (never adds to it), but
+        // always adds to the margin/padding pedestal (CORE-176). A flex
+        // child with `height: 9em` and three 1em text lines measures 9em
+        // (the lines live INSIDE the declared box; css-sizing-3 §4: the
+        // used height is the greater of the declared extent and the content
+        // minimum — `layout_box` sizes the same box via `remaining_spec`/
+        // `box_height` max at layout time). Summing both inflated every
+        // grid/flex measure that crossed a declared-height flex child: the
+        // margin-boxes refs' `auto` rows measured 240pt where the fixture
+        // arithmetic is 15em = 180pt, and the overflow fragmented pages
+        // that should have fit one. With NO declared extent the pedestal
+        // must stay additive (an auto box with `margin-bottom: 2em` and one
+        // line measures 3em, not 2em) — competing content against the
+        // pedestal silently dropped short content and shifted fixedpos-004's
+        // ref.
+        let chrome = style.padding_top + style.padding_bottom;
+        let declared_target = self
+            .specified_extent(id, style)
+            .map(|ext| ext - chrome + style.margin_top + style.margin_bottom);
+        let mut content_h = Scalar::ZERO;
         for item in self.collect_items(id) {
             match item {
                 Item::Text(text, _, _) => {
                     // The SAME breaker layout uses, so measured heights match
                     // laid-out heights (`break-inside: avoid` correctness).
                     let lines = self.break_paragraph(&text, inner_width, style);
-                    h = h + style.line_height * (lines.len() as f64);
+                    content_h = content_h + style.line_height * (lines.len() as f64);
                 }
                 Item::Atomic(child) | Item::Block(child) => {
                     // A float does not add in-flow height: its own fragment
@@ -5285,12 +5344,22 @@ impl<'a> Ctx<'a> {
                     // layout_image places.
                     let child_el = self.dom.nodes[child].kind.element();
                     if child_el.is_some_and(|el| el.tag == "img" || el.tag == "svg") {
-                        h = h + self.measure_image(child, inner_width);
+                        content_h = content_h + self.measure_image(child, inner_width);
                         continue;
                     }
-                    h = h + self.measure_block(child, inner_width);
+                    content_h = content_h + self.measure_block(child, inner_width);
                 }
             }
+        }
+        // Content stacks on the pedestal; a DECLARED extent competes with the
+        // whole stack (css-sizing-3 §4: used height = max(declared
+        // extent, content height), both in margin-box terms). An auto box
+        // keeps the pure additive stack.
+        let used = content_h + h;
+        if let Some(target) = declared_target {
+            h = if target.get() > used.get() { target } else { used };
+        } else {
+            h = used;
         }
         h
     }

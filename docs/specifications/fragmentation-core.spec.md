@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: elijah
 created: 2026-08-16
-updated: 2026-09-13
+updated: 2026-09-14
 sidebar_position: 2
 tags: [layout, fragmentation, css-break, engine]
 spec_id: fragmentation-core
@@ -229,6 +229,15 @@ Given/When/Then, each mapping to a real test in `engine/tests/`:
   resort), no infinite relayout loop.
 - **Forced break inside an avoid box** → forced break wins; the box fragments
   at the forced boundary.
+- **Trailing blank page** (CORE-176) → a final page whose fragment tree paints
+  nothing is dropped. Guards: only the LAST page (outgoing token is none); a
+  sized bare fragment is layout state, not blank (a declared-height
+  continuation tail slice keeps its page even with content-less paint). A
+  TRAILING forced break (last item) is absorbed and produces no page
+  (Chromium-verified: the used value of a forced break at the end of the
+  document produces no page; basic-pagination-001 codifies this), so no
+  forced-break exception to the drop exists. An empty document still renders
+  exactly one page via the post-loop fallback.
 - **Margin at a page boundary** → a fragmented box's continuation truncates
   its top margin at the fragmentainer edge; a FRESH box at a page start keeps
   its top margin (css-break-3 §3.1, refined in CORE-153 toward the spec and
