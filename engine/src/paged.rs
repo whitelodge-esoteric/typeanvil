@@ -230,6 +230,11 @@ pub enum ContentPiece {
 pub struct MarginBoxStyle {
     pub color: Option<Color>,
     pub background: Option<Color>,
+    /// `background-image: url(...)` (or the url piece of the `background`
+    /// shorthand) — the raw source path, interned against `base_url` at
+    /// layout time like `content: url(...)`. The image tiles over the box at
+    /// its natural size, clipped to the border box (css-backgrounds-3 §2.1).
+    pub background_image: Option<String>,
     /// Margin-box `width` — the VARIABLE dimension of a top/bottom margin box
     /// (css-page-3 §5.3.2). `None` = not declared, which the sizing algorithm
     /// treats as `auto`.
@@ -271,6 +276,9 @@ impl MarginBoxStyle {
         }
         if other.background.is_some() {
             self.background = other.background;
+        }
+        if other.background_image.is_some() {
+            self.background_image = other.background_image.clone();
         }
         // The box model (§5.3). Each `Option` is copied only when the later
         // rule declared that property, so a rule that sets just `width` keeps
@@ -501,6 +509,9 @@ pub struct MarginBoxSpec {
     pub content: Vec<ContentPiece>,
     pub color: Color,
     pub background: Option<Color>,
+    /// Resolved `background-image` source path (interned at layout time
+    /// against `base_url`; tiles over the border box at natural size).
+    pub background_image: Option<String>,
     pub font_size: Scalar,
     pub font_face: crate::fonts::FaceId,
     pub font_fallbacks: Vec<crate::fonts::FaceId>,
@@ -912,6 +923,29 @@ fn parse_one_page_rule(prelude: &str, body: &str, order: u32) -> Option<PageRule
     Some(rule)
 }
 
+/// Extract the first `url(<path>)` from a declaration value.
+///
+/// Returns the path (unquoted/trimmed) plus the value with that token
+/// removed, so `background: lime url(x)` still parses as a colour after the
+/// image is taken. `(None, value)` when there is no `url(` token (or its
+/// path is empty).
+fn split_url_piece(value: &str) -> (Option<String>, String) {
+    let lower = value.to_ascii_lowercase();
+    let Some(start) = lower.find("url(") else {
+        return (None, value.to_string());
+    };
+    let after = &value[start + 4..];
+    let Some(end_rel) = after.find(')') else {
+        return (None, value.to_string());
+    };
+    let path = after[..end_rel].trim().trim_matches(['"', '\'']).trim();
+    let mut rest = String::with_capacity(value.len());
+    rest.push_str(&value[..start]);
+    rest.push_str(&after[end_rel + 1..]);
+    let src = (!path.is_empty()).then(|| path.to_string());
+    (src, rest)
+}
+
 /// Parse one margin-box body into `(content, style)`.
 ///
 /// A margin box's declarations follow the CSS2.1 margin-context property list
@@ -948,9 +982,26 @@ fn parse_margin_box_decls(body: &str) -> (Option<Option<Vec<ContentPiece>>>, Mar
                     style.color = Some(c);
                 }
             }
-            "background" | "background-color" => {
+            "background" => {
+                // The shorthand may carry a colour AND an image
+                // (`lime url(x)`): strip the url() piece, then parse what
+                // remains as the colour (css-backgrounds-3 §2).
+                let (image, color_part) = split_url_piece(value);
+                if let Some(src) = image {
+                    style.background_image = Some(src);
+                }
+                if let Some(c) = crate::css::parse_css_color(color_part.trim()) {
+                    style.background = Some(c);
+                }
+            }
+            "background-color" => {
                 if let Some(c) = crate::css::parse_css_color(value) {
                     style.background = Some(c);
+                }
+            }
+            "background-image" => {
+                if let Some(src) = split_url_piece(value).0 {
+                    style.background_image = Some(src);
                 }
             }
             // Margin-box box model (css-page-3 §5.3): the box that the margin
@@ -2108,6 +2159,7 @@ pub fn resolve_page_spec(
                 content,
                 color: style.color.or(page_color).unwrap_or(Color::BLACK),
                 background: style.background,
+                background_image: style.background_image.clone(),
                 font_size,
                 font_face: resolved.primary,
                 font_fallbacks: resolved.fallbacks,
@@ -2567,6 +2619,40 @@ mod tests {
         assert_eq!(b.style.font_style, Some(crate::css::FontStyle::Italic));
         // No `content` declaration: the box is not generated.
         assert_eq!(r.margin_boxes[1].content, None);
+    }
+
+    #[test]
+    fn parses_margin_box_background_image() {
+        // css-backgrounds-3 §2: `background-image: url(...)` and the url()
+        // piece of the `background` shorthand carry an image source; the
+        // shorthand can hold a colour AND an image; quoted paths strip.
+        let rules = parse_page_rules(
+            "@page { @top-left { background: url(logo.png); } \
+             @top-center { background: lime url(tile.png); } \
+             @top-right { background-image: url(\"quoted.png\"); } \
+             @bottom-left { background-color: red; } }",
+        );
+        let r = &rules[0];
+        let boxes = &r.margin_boxes;
+        assert_eq!(
+            boxes[0].style.background_image.as_deref(),
+            Some("logo.png"),
+            "shorthand url() becomes the image source"
+        );
+        assert_eq!(boxes[0].style.background, None, "no colour in a url-only shorthand");
+        assert_eq!(
+            boxes[1].style.background_image.as_deref(),
+            Some("tile.png"),
+            "shorthand colour+image keeps both pieces"
+        );
+        assert_eq!(boxes[1].style.background, Some(Color::rgb(0, 255, 0)));
+        assert_eq!(
+            boxes[2].style.background_image.as_deref(),
+            Some("quoted.png"),
+            "longhand strips quotes"
+        );
+        assert_eq!(boxes[3].style.background_image, None, "background-color never sets an image");
+        assert_eq!(boxes[3].style.background, Some(Color::rgb(255, 0, 0)));
     }
 
     #[test]

@@ -869,6 +869,9 @@ fn paints_nothing(f: &Fragment) -> bool {
         }
         FragmentContent::Text(run) => run.glyphs.is_empty(),
         FragmentContent::Image(_) => false,
+        FragmentContent::BackgroundImage(_) => {
+            f.size.0.get() <= 0.0 || f.size.1.get() <= 0.0
+        }
     };
     own && f.break_token.is_none() && f.children.iter().all(paints_nothing)
 }
@@ -6723,6 +6726,30 @@ fn attach_margin_boxes(
         if let Some(bg) = mb.background {
             if box_w.get() > 0.0 && box_h.get() > 0.0 {
                 fragment.content = FragmentContent::Background(bg);
+            }
+        }
+        // `background-image: url(...)` — intern like `<img>` content and
+        // emit a zero-offset child sized to the whole border box; the PDF
+        // pass tiles it at natural size UNDER the border (bg_images draws
+        // after solid backgrounds, before borders).
+        if let Some(src) = &mb.background_image {
+            if box_w.get() > 0.0 && box_h.get() > 0.0 {
+                if let Ok(key) = images.intern(src, base_url, None) {
+                    if let Some(crate::images::ImageEntry::Loaded(img)) = images.get(&key) {
+                        let mut bif = Fragment::block(
+                            Point::new(Scalar::ZERO, Scalar::ZERO),
+                            (box_w, box_h),
+                        );
+                        bif.content =
+                            FragmentContent::BackgroundImage(crate::frag::BackgroundImageRun {
+                                key,
+                                tile_w: Scalar(img.width_px as f64 * 0.75),
+                                tile_h: Scalar(img.height_px as f64 * 0.75),
+                                broken: false,
+                            });
+                        fragment.children.push(bif);
+                    }
+                }
             }
         }
         // The border is attached AFTER `content` is set: the block path's

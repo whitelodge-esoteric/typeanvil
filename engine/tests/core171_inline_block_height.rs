@@ -79,6 +79,7 @@ fn dump(l: &Layout) -> String {
                 return;
             }
             FragmentContent::Image(_) => "Image",
+            FragmentContent::BackgroundImage(_) => "BackgroundImage",
             FragmentContent::None => "None",
         };
         out.push_str(&format!(

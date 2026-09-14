@@ -465,6 +465,10 @@ pub fn render_with_options(
         let mut texts: Vec<TextItem> = Vec::new();
         // (x, y, w, h, store key, owner) — the rect is the fragment's own size.
         let mut images: Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)> = Vec::new();
+        // Tiled background images, drawn after solid backgrounds and before
+        // borders (css-backgrounds-3 §2.1 painting order). Same shape as
+        // `images`; the rect is the border box the tiles cover.
+        let mut bg_images: Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)> = Vec::new();
         collect(
             &page.root,
             0.0,
@@ -474,6 +478,7 @@ pub fn render_with_options(
             &mut borders,
             &mut texts,
             &mut images,
+            &mut bg_images,
         );
 
         for (x, y, w, h, color, owner) in &backgrounds {
@@ -504,6 +509,79 @@ pub fn render_with_options(
                     surface.draw_path(&path);
                 }
             }
+        }
+
+        // Tiled background images: after solid backgrounds, before borders
+        // (css-backgrounds-3 §2.1 order). Each tile is drawn at the image's
+        // natural size from the box's top-left (default background-position
+        // 0% 0%), clipped to the border box so an edge tile never bleeds into
+        // a neighbouring box. Broken images carry no payload and paint
+        // nothing.
+        for (x, y, w, h, key, owner) in &bg_images {
+            if !x.is_finite() || !y.is_finite() || !w.is_finite() || !h.is_finite() {
+                continue;
+            }
+            if *w <= 0.0 || *h <= 0.0 {
+                continue;
+            }
+            let Some(stored) = layout.images.get(key) else {
+                continue;
+            };
+            let crate::images::ImageEntry::Loaded(img) = stored else {
+                continue;
+            };
+            let tile_w = img.width_px as f32 * 0.75;
+            let tile_h = img.height_px as f32 * 0.75;
+            if tile_w <= 0.0 || tile_h <= 0.0 {
+                continue;
+            }
+            let raw = krilla::Data::from(img.original.clone());
+            let kimg = match img.kind {
+                crate::images::ImageKind::Png => krilla::image::Image::from_png(raw, false),
+                crate::images::ImageKind::Jpeg => krilla::image::Image::from_jpeg(raw, false),
+                // CORE-131: SVG is rasterized to PNG at intern time; the
+                // `original` bytes already carry the raster.
+                crate::images::ImageKind::Svg => krilla::image::Image::from_png(raw, false),
+            };
+            let Ok(kimg) = kimg else {
+                continue;
+            };
+            // Clip once to the border box: a partial edge tile shows the
+            // tile's own top-left portion at natural scale — exactly what
+            // clipped repeat produces.
+            let Some(rect) = Rect::from_xywh(*x, *y, *w, *h) else {
+                continue;
+            };
+            let mut clip = krilla::geom::PathBuilder::new();
+            clip.push_rect(rect);
+            let Some(clip_path) = clip.finish() else {
+                continue;
+            };
+            surface.push_clip_path(&clip_path, &FillRule::NonZero);
+            let cols = (*w / tile_w).ceil() as i32;
+            let rows = (*h / tile_h).ceil() as i32;
+            for row in 0..rows {
+                let ty = *y + row as f32 * tile_h;
+                for col in 0..cols {
+                    let tx = *x + col as f32 * tile_w;
+                    let Some(size) = krilla::geom::Size::from_wh(tile_w, tile_h) else {
+                        continue;
+                    };
+                    surface.push_transform(&krilla::geom::Transform::from_row(
+                        1.0, 0.0, 0.0, 1.0, tx, ty,
+                    ));
+                    if tagged {
+                        let ident = surface.start_tagged(tag_for_owner(*owner));
+                        surface.draw_image(kimg.clone(), size);
+                        surface.end_tagged();
+                        record_draw(&mut draws, page_idx, ident, *owner);
+                    } else {
+                        surface.draw_image(kimg.clone(), size);
+                    }
+                    surface.pop();
+                }
+            }
+            surface.pop();
         }
 
         // Borders after backgrounds, before text: stroke each side whose
@@ -903,6 +981,7 @@ fn collect(
     )>,
     texts: &mut Vec<TextItem>,
     images: &mut Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)>,
+    bg_images: &mut Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)>,
 ) {
     let abs_x = parent_x + frag.offset.x.to_f32();
     let abs_y = parent_y + frag.offset.y.to_f32();
@@ -961,6 +1040,16 @@ fn collect(
                 my_owner,
             ));
         }
+        FragmentContent::BackgroundImage(run) => {
+            bg_images.push((
+                abs_x,
+                abs_y,
+                frag.size.0.to_f32(),
+                frag.size.1.to_f32(),
+                run.key,
+                my_owner,
+            ));
+        }
         FragmentContent::None => {}
     }
 
@@ -974,6 +1063,7 @@ fn collect(
             borders,
             texts,
             images,
+            bg_images,
         );
     }
 }
