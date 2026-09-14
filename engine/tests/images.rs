@@ -667,3 +667,103 @@ fn margin_box_content_url_paints_intrinsic_image() {
         "image must sit inside the 37.5pt top margin band, got y={y} h={h}"
     );
 }
+
+// --- CORE-141: margin-box `background-image` tiling -------------------------
+
+/// A margin box's `background-image: url(...)` paints a tiled background over
+/// the whole border box: the emitted BackgroundImage fragment covers the box
+/// at zero offset with the image's natural tile size, and sits as the FIRST
+/// child so the PDF pass paints it under the border. Before this a url()
+/// background parsed to no fill, so `css-page/margin-boxes/background-001`
+/// (a lime band from `url(/images/green.png)`) could not match its
+/// lime-div reference.
+#[test]
+fn margin_box_background_image_tiles_over_border_box() {
+    let dir = TempDir::new().unwrap();
+    let png = make_png(100, 50, [0, 255, 0]);
+    let p = write_fixture(&dir, "green.png", &png);
+
+    // The top page margin is 50px = 37.5pt tall; the top-center box spans
+    // the full page-area width (Letter 8.5in = 612pt with @page margin 0).
+    // The colour+image shorthand keeps the root colour fill; the 2px border
+    // then follows the tiled image as a child, exercising paint order.
+    let html = format!(
+        "<html><head><style>\
+         @page {{ margin: 0; margin-top: 50px;\
+                  @top-center {{ content: \"\"; border: 2px solid blue;\
+                                  background: lime url({}); }} }}\
+         body {{ margin: 0 }}\
+         </style></head><body></body></html>",
+        p.display()
+    );
+    let lay = lay_in(&html, Some(&dir));
+
+    // The margin-box fragment carries the tiled background as its first child.
+    fn find_box<'a>(frag: &'a typeanvil::frag::Fragment) -> Option<&'a typeanvil::frag::Fragment> {
+        if frag
+            .children
+            .iter()
+            .any(|c| matches!(c.content, FragmentContent::BackgroundImage(_)))
+        {
+            return Some(frag);
+        }
+        frag.children.iter().find_map(find_box)
+    }
+    let box_frag = lay
+        .pages
+        .iter()
+        .find_map(|p| find_box(&p.root))
+        .expect("margin box fragment carrying the background image");
+    assert!(
+        (box_frag.size.0.get() - 612.0).abs() < 0.5,
+        "band width = page area width, got {}",
+        box_frag.size.0.get()
+    );
+    assert!(
+        (box_frag.size.1.get() - 37.5).abs() < 0.5,
+        "band height = top margin, got {}",
+        box_frag.size.1.get()
+    );
+    // The shorthand's colour fills the root (under the tiled image).
+    assert!(
+        matches!(box_frag.content, FragmentContent::Background(_)),
+        "colour fill paints under the image, got {:?}",
+        box_frag.content
+    );
+
+    let child0 = &box_frag.children[0];
+    let FragmentContent::BackgroundImage(run) = &child0.content else {
+        panic!(
+            "first child must be the tiled background, got {:?}",
+            child0.content
+        );
+    };
+    assert!(!run.broken, "loaded image");
+    // 100px x 0.75 = 75pt, 50px x 0.75 = 37.5pt: the image's natural size.
+    assert!(
+        (run.tile_w.get() - 75.0).abs() < 0.5 && (run.tile_h.get() - 37.5).abs() < 0.5,
+        "natural tile {}x{}pt, expected 75x37.5",
+        run.tile_w.get(),
+        run.tile_h.get()
+    );
+    // Covers the whole border box, anchored at its origin (position 0% 0%).
+    assert_eq!(child0.offset.x.get(), 0.0);
+    assert_eq!(child0.offset.y.get(), 0.0);
+    assert!(
+        (child0.size.0.get() - 612.0).abs() < 0.5 && (child0.size.1.get() - 37.5).abs() < 0.5,
+        "cover box {}x{}pt, expected 612x37.5",
+        child0.size.0.get(),
+        child0.size.1.get()
+    );
+    // The border follows the background in paint order.
+    assert!(
+        matches!(box_frag.children[1].content, FragmentContent::Border(_)),
+        "border must paint over the tiled background"
+    );
+    // The image actually embeds in the PDF, once.
+    let bytes = typeanvil::pdf::render(&lay).unwrap();
+    let hay = String::from_utf8_lossy(&bytes);
+    let image_objects =
+        hay.matches("/Subtype/Image").count() + hay.matches("/Subtype /Image").count();
+    assert_eq!(image_objects, 1, "background image embeds exactly once");
+}

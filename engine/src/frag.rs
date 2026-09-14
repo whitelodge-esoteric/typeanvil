@@ -116,6 +116,11 @@ pub enum FragmentContent {
     /// (CORE-106). The fragment is monolithic — it never splits across
     /// fragmentainers.
     Image(ImageRun),
+    /// A background image tiled over the fragment's rect (CORE-141 margin
+    /// boxes): each tile is drawn at the image's natural size from the box's
+    /// top-left, clipped to the border box (css-backgrounds-3 §2.1 — painted
+    /// under the border, above the background colour).
+    BackgroundImage(BackgroundImageRun),
 }
 
 /// Rendering data for an `<img>` fragment (CORE-106).
@@ -127,6 +132,21 @@ pub struct ImageRun {
     /// Alt text, if any (drawn only for broken-image placeholders).
     pub alt: Option<String>,
     /// True when the source failed to load or decode (placeholder mode).
+    pub broken: bool,
+}
+
+/// Rendering data for a tiled background image (CORE-141 margin boxes).
+#[derive(Clone, Debug)]
+pub struct BackgroundImageRun {
+    /// Cache key (SHA-256 of the source bytes) indexing the engine's
+    /// image store.
+    pub key: [u8; 32],
+    /// Natural tile width in points (96 DPI px -> pt, 0.75 factor), kept
+    /// from layout so the paint pass never re-reads the image store size.
+    pub tile_w: Scalar,
+    /// Natural tile height in points.
+    pub tile_h: Scalar,
+    /// True when the source failed to load or decode (paints nothing).
     pub broken: bool,
 }
 

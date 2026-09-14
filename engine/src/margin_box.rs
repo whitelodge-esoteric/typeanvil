@@ -141,12 +141,23 @@ pub fn resolve_variable(boxes: [Option<&AxisBox>; 3], available: Scalar) -> [Sca
         let (c_min, c_max) = side_extremes(boxes[2]);
         let ac_min = Scalar(2.0 * a_min.get().max(c_min.get()));
         let ac_max = Scalar(2.0 * a_max.get().max(c_max.get()));
-        let pair = distribute_pair(
-            [mid.outer_min(), mid.outer_max()],
-            [ac_min, ac_max],
-            available,
-        );
-        used[1] = pair[0];
+        if ac_max.get() == 0.0 {
+            // No side boxes (or empty ones): the imaginary AC is zero, so
+            // the middle box ALONE takes the whole edge. The "flex factors
+            // assumed 1" fallback would split the space 50/50 with a box
+            // that does not exist; Chrome gives the lone box the full edge
+            // (background-001's @top-center renders a full-width band, and
+            // the non-empty case already does this below via distribute_pair
+            // because AC's factor is then nonzero).
+            used[1] = available;
+        } else {
+            let pair = distribute_pair(
+                [mid.outer_min(), mid.outer_max()],
+                [ac_min, ac_max],
+                available,
+            );
+            used[1] = pair[0];
+        }
     }
     for i in [0usize, 2] {
         if boxes[i].is_some() && !declared[i] {
@@ -680,6 +691,20 @@ mod tests {
         let right = sb(None, 0.0, 0.0);
         let used = resolve_variable([Some(&left), Some(&center), Some(&right)], Scalar(300.0));
         assert_eq!(used[1], Scalar(300.0));
+        assert_eq!(used[0], Scalar::ZERO);
+        assert_eq!(used[2], Scalar::ZERO);
+    }
+
+    /// An EMPTY middle box with no side boxes still takes the whole edge
+    /// (background-001: `@top-center { content: ""; background: url(...) }`
+    /// paints a full-width band; Chrome renders it full-width, and the 50/50
+    /// "assumed 1" fallback would hand half the edge to a box that does not
+    /// exist).
+    #[test]
+    fn empty_middle_box_alone_takes_the_whole_edge() {
+        let center = sb(None, 0.0, 0.0);
+        let used = resolve_variable([None, Some(&center), None], Scalar(264.0));
+        assert_eq!(used[1], Scalar(264.0), "empty lone middle box spans the edge");
         assert_eq!(used[0], Scalar::ZERO);
         assert_eq!(used[2], Scalar::ZERO);
     }

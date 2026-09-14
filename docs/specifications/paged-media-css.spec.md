@@ -84,8 +84,7 @@ market.
 - Side margin boxes (`@left-*`, `@right-*` — vertical writing-mode boxes):
   parsed and positioned, but content is treated as a single horizontal line
   (no rotation); vertical writing modes are out of scope.
-- Margin-box `background-image` (a `url()` background parses to no fill),
-  multi-line margin-box content (`content: "a\a b"`, `white-space: pre-wrap`),
+- Margin-box multi-line content (`content: "a\a b"`, `white-space: pre-wrap`)
   and per-side border colours (one colour paints all four sides). CORE-141
   records these as the remaining margin-box gaps.
 - Footnotes, cross-references beyond `target-counter(..., page)`, named
@@ -232,6 +231,13 @@ The engine shall:
       the content box with its resolved `text-align` / `vertical-align`.
       A box whose content is empty (`content: ""`) shall still generate and
       paint.
+    - A margin box's `background-image: url(...)` (or the url() piece of its
+      `background` shorthand) shall paint the image over the border box
+      tiled at its intrinsic size from the box's top-left (css-backgrounds-3
+      §2.1 default `repeat`/position 0% 0%), clipped to the box so an edge
+      tile never bleeds into a neighbour, and UNDER the border. The
+      shorthand may carry a colour AND an image; the colour paints below the
+      tiled image.
     - A declared page area (`@page { width; height }`) shall be honoured
       INSIDE the page box (CORE-144) and shall NOT resize the page box: the
       requested page size is the page size. An earlier attempt grew the box to
@@ -463,6 +469,15 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     fragment is produced at 75pt x 37.5pt (the image's intrinsic size) with a
     positive x (after the text) and inside the 37.5pt top margin band
     (`images.rs::margin_box_content_url_paints_intrinsic_image`).
+28. **Margin-box background image** — Given
+    `@page { margin: 0; margin-top: 50px; @top-center { content: "";
+    border: 2px solid blue; background: url(green.png) } }` and a 100x50 PNG,
+    when laid out, then the top-center box carries a BackgroundImage fragment
+    as its FIRST child, sized to the whole border box (360pt x 37.5pt) at
+    zero offset, with the image's natural 75pt x 37.5pt tile; the border
+    fragment follows it (paint order: colour < image < border), and the PDF
+    embeds the image exactly once
+    (`images.rs::margin_box_background_image_tiles_over_border_box`).
 
 ## Edge Cases
 
