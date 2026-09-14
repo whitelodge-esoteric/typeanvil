@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-09-04
-updated: 2026-09-04
+updated: 2026-09-14
 sidebar_position: 21
 tags: [layout, css-grid, engine, wpt]
 spec_id: grid-layout
@@ -55,7 +55,13 @@ corpus exercise.
 7. Fragmentation: rows shall be monolithic (like flex lines). A row that
    does not fit the current fragmentainer moves whole to the next page.
    Items never split inside their cell. Resume state names the first
-   unfinished item's block index.
+   unfinished item's block index. (CORE-176 amends: a container with a
+   definite block size whose own box fits the fragmentainer does not
+   fragment at all — rows past the definite height are ink overflow of
+   the box, clipped at the page edge; the monolithic-row break applies
+   only when the container is auto-height or taller than the page.
+   Resume placement starts at the fragmentainer top, never at the resumed
+   row's full track offset.)
 8. Zero-area background rects (empty auto-tracked cells) shall be skipped at
    PDF emit, not treated as fatal.
 

@@ -376,18 +376,35 @@ impl Ctx<'_> {
             }
         }
 
-        // Items grouped by row for placement.
-        let mut y = content_top
-            + row_offsets
-                .get(row_cursor)
-                .copied()
-                .unwrap_or(Scalar::ZERO);
+        // Items grouped by row for placement. Rows advance INCREMENTALLY
+        // (CORE-176): the cursor `y` carries the offset, so a resumed pass
+        // places its first row at the TOP of the fragmentainer. (The old
+        // `content_top + row_offsets[row_cursor]` re-applied the full track
+        // offset of the resume row — every continuation landed BELOW the
+        // page bottom and painted nothing: the empty trailing pages in the
+        // margin-boxes refs.)
+        let mut y = content_top;
+        // css-grid-1 §12.8 + css-break-3: a container with a DEFINITE block
+        // size whose own box fits this fragmentainer does not fragment at
+        // all — rows past the definite height are INK OVERFLOW of the box
+        // (they paint over whatever follows, clipped at the page edge by
+        // the emitter), not a page break. The overflow row model in
+        // Chromium: `height: 100vh` grid body + over-tall content renders
+        // ONE page. Gated on the container's full border-box fitting the
+        // fragmentainer: a box TALLER than the page itself still fragments
+        // normally. Un-definite containers keep the monolithic-row break.
+        let definite_extent = self.resolved_height(&self.styles[id]);
+        let ink_overflow = definite_extent
+            .map(|ext| ext <= bottom_limit - box_top)
+            .unwrap_or(false);
         for ri in row_cursor..n_rows {
             let row_top = y;
             let row_h = row_sizes[ri];
             // Row monolithic: doesn't fit → next page (unless the page is
             // empty — last-resort place, matching flex/block behavior).
-            if placed && row_top + row_h > bottom_limit {
+            // Definite-height ink overflow (above) suppresses the break:
+            // the row paints past the fragmentainer bottom on this page.
+            if placed && !ink_overflow && row_top + row_h > bottom_limit {
                 let first_in_row = placed_items
                     .iter()
                     .find(|it| it.row == ri)
