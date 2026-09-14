@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-16
-updated: 2026-09-13
+updated: 2026-09-14
 sidebar_position: 3
 tags: [css, paged-media, page, layout, engine]
 spec_id: paged-media-css
@@ -560,6 +560,26 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   the only one emitted (multi-pass TOC/counter documents produce one
   fragmentainer set per pass; earlier passes are discarded before emit, so
   the canvas fill can never paint over the fixed clones).
+- **Page-anchored abspos fragments inside, continuations drain (CORE-153)**
+  → a page-anchored `position: absolute` box (auto insets, no positioned
+  ancestor, page content box as containing block) that FITS the remaining
+  fragmentainer still lays with a real bottom limit (not the monolithic
+  `f64::MAX`): a forced `break-before: page` child or natural page-bottom
+  overflow slices the fragment and returns an outgoing token (css-break-3
+  fragments abspos across pages — page-margin-004). The continuation is
+  enqueued as an abspos drain job with its resume token; the body does NOT
+  carry a deferred child token (the drain runs after the body, so a carry
+  would keep paging past the drain's final page — a blank trailing page).
+  When no in-flow content follows, the keepalive drives the drain-only
+  page; a later body with real content skips the box via the
+  drain-owns-it guard (pending job or resume token). Verified: 
+  page-margin-004 flips PASS (Chromium 2 pages / 0 px diff) and
+  monolithic-overflow-013/027 flip PASS. fixedpos-001/002 flip FAIL —
+  EXPOSED accidental passes: our test now paginates the 300vh abspos
+  (Chromium-exact at 3 pages); our REF still renders 1 page because the
+  pinned inset-abspos model (`bottom: -100vh`) never advances the page
+  loop. The ref-pagination of inset-anchored abspos is a documented
+  residual, not a defect of this change.
 
 ## References
 

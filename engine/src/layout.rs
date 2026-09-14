@@ -3236,6 +3236,21 @@ impl<'a> Ctx<'a> {
                         let page_anchored = cstyle.position == Position::Absolute
                             && !has_insets
                             && flow.abspos_cb.is_none();
+                        // CORE-153: a page-anchored abspos whose continuation
+                        // is QUEUED (an earlier direct placement broke inside,
+                        // or a deferral queued it) is drain-owned — the drain
+                        // lays its remaining fragments on the current page,
+                        // and a body re-render would duplicate them. The body
+                        // skips placement entirely; the keepalive keeps the
+                        // page loop alive when nothing else follows.
+                        if page_anchored
+                            && (flow.abspos_jobs.iter().any(|j| j.id == *child)
+                                || flow.abspos_resume_tokens.contains_key(child))
+                        {
+                            oof_placed = true;
+                            i += 1;
+                            continue;
+                        }
                         // Only a box that has not STARTED may defer; a
                         // resumed abspos fragment is placed where the token
                         // carries it. `deferred_once` on the PARENT token
@@ -3276,20 +3291,56 @@ impl<'a> Ctx<'a> {
                                 None => cb_origin.y,
                             },
                         };
-                        // Monolithic placement (spec Behavior 9): the box lays
-                        // its full content once — no page-bottom break, no
-                        // resume token — even when taller than the page.
+                        // Monolithic placement (spec Behavior 9): a PINNED box
+                        // (insets or positioned ancestor) lays its full content
+                        // once — no page-bottom break, no resume token — even
+                        // when taller than the page. A PAGE-ANCHORED box
+                        // (auto insets, ICB) instead fragments against the
+                        // real fragmentainer bottom: css-break-3 fragments
+                        // abspos across pages (page-margin-004's break-before
+                        // child, page-margin-007's tall boxes). With a real
+                        // bottom_limit, a forced internal break or natural
+                        // overflow slices the fragment AND returns an outgoing
+                        // token — see the continuation enqueue below. (The
+                        // f64::MAX bottom_limit also broke the fill-to-edge
+                        // paint box: `paint_height = bottom_limit - box_top`
+                        // became f64::MAX and pdf.rs dropped the huge rects.)
+                        let box_bottom_limit = if page_anchored {
+                            bottom_limit
+                        } else {
+                            Scalar(f64::MAX)
+                        };
                         let res = self.layout_box(
                             *child,
                             x,
                             fw,
                             y,
-                            Scalar(f64::MAX),
+                            box_bottom_limit,
                             placed,
                             &child_tok,
                             flow,
                         );
                         flow.abspos.push((cstyle.z_index, res.fragment));
+                        // CORE-153: a page-anchored abspos placed directly (it
+                        // fit the remaining page) can still break inside — a
+                        // forced `break-before:page` child or natural
+                        // page-bottom overflow returns an outgoing token. Its
+                        // continuation renders on the NEXT page through the
+                        // abspos drain: enqueue the job + resume token. The
+                        // body does NOT break here (no deferred child token):
+                        // when nothing else follows, the keepalive keeps the
+                        // page loop alive with a pure-continuation token and
+                        // the drain page paints the rest (page-margin-004's
+                        // cyan "Page 2"); a later body with real in-flow
+                        // content skips the box via the drain-owns-it guard
+                        // above. (A carry here forced a blank trailing page —
+                        // the drain runs after the body, so the body saw the
+                        // fresh resume token and kept paging past the drain's
+                        // final page.)
+                        if page_anchored && res.outgoing.is_some() {
+                            flow.abspos_jobs.push(AbsposJob { id: *child });
+                            flow.abspos_resume_tokens.insert(*child, res.outgoing.unwrap());
+                        }
                         oof_placed = true;
                         // Advance the ITEM index explicitly (`continue` skips
                         // the trailing `i += 1` — the CORE-62 lesson).
@@ -7043,7 +7094,7 @@ mod core150_tests {
     /// page-absolute coordinates. Mirrors the PDF emitter's walk (pdf.rs):
     /// a Text run's baseline is PARENT-relative — rebased off the parent's
     /// absolute origin, not the fragment's own offset.
-    fn collect_text_baselines(frag: &Fragment, px: f64, py: f64, out: &mut Vec<(f64, f64)>) {
+    pub(super) fn collect_text_baselines(frag: &Fragment, px: f64, py: f64, out: &mut Vec<(f64, f64)>) {
         let ax = px + frag.offset.x.get();
         let ay = py + frag.offset.y.get();
         if let FragmentContent::Text(run) = &frag.content {
@@ -7151,5 +7202,80 @@ mod core150_tests {
             max_body_y,
             band_floor
         );
+    }
+}
+
+#[cfg(test)]
+mod core153_abspos_continuation_tests {
+    use super::*;
+    use super::core150_tests::collect_text_baselines;
+    use crate::css::Stylesheet;
+    use crate::geom::PageGeometry;
+
+    fn geometry() -> PageGeometry {
+        // @page size/margins in the CSS win; this is only the fallback.
+        PageGeometry {
+            width: Scalar(225.0),
+            height: Scalar(225.0),
+            margin_top: Scalar(7.5),
+            margin_right: Scalar(15.0),
+            margin_bottom: Scalar(22.5),
+            margin_left: Scalar(30.0),
+        }
+    }
+
+    /// CORE-153: a page-anchored abspos with a forced `break-before: page`
+    /// child fragments across TWO pages (css-break-3). Before the fix the
+    /// direct placement laid the box against `bottom_limit = f64::MAX`
+    /// (monolithic): the forced child break returned an outgoing token that
+    /// was DROPPED, so "Page 2" never rendered, and the fill-to-edge paint
+    /// box became f64::MAX tall so the PDF rects vanished — page-margin-004
+    /// rendered one BLANK page. Now: page 0 holds the first fragment
+    /// ("Page 1"), the continuation drains page 1 ("Page 2"), and no
+    /// fragment carries an infinite paint height.
+    #[test]
+    fn page_anchored_abspos_break_before_child_fragments_across_pages() {
+        let css = r#"
+            @page { size: 300px; margin: 10px 20px 30px 40px; }
+            .box { position: absolute; box-sizing: border-box; width: 100%;
+                   border: 10px solid; background: yellow; }
+        "#;
+        let html = r#"
+            <html><head><style>CSS</style></head><body>
+            <div class="box">
+              Page 1
+              <div style="break-before: page; background: cyan;">Page 2</div>
+            </div>
+            </body></html>
+        "#
+        .replace("CSS", css);
+        let dom = Dom::parse(&html).expect("parse");
+        let stylesheet = Stylesheet::parse(css);
+        let laid = layout(&dom, &stylesheet, geometry());
+        assert_eq!(laid.pages.len(), 2, "expect exactly two pages, no trailing blank");
+
+        let mut page0 = Vec::new();
+        collect_text_baselines(&laid.pages[0].root, 0.0, 0.0, &mut page0);
+        let mut page1 = Vec::new();
+        collect_text_baselines(&laid.pages[1].root, 0.0, 0.0, &mut page1);
+        assert_eq!(page0.len(), 1, "page 0 must paint only \"Page 1\"");
+        assert_eq!(page1.len(), 1, "page 1 must paint only \"Page 2\"");
+
+        // No fragment may carry the f64::MAX fill-to-edge paint box (pdf.rs
+        // drops such rects — the blank-page symptom).
+        fn assert_finite(frag: &Fragment, path: &str) {
+            assert!(
+                frag.size.0.get().is_finite() && frag.size.1.get().is_finite(),
+                "fragment at {} carries a non-finite size ({:?})",
+                path,
+                frag.size
+            );
+            for c in &frag.children {
+                assert_finite(c, path);
+            }
+        }
+        for (i, page) in laid.pages.iter().enumerate() {
+            assert_finite(&page.root, &format!("page {i} root"));
+        }
     }
 }
