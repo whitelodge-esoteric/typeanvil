@@ -1480,12 +1480,19 @@ impl CascadeSession {
         h6 { bookmark-level: 6; bookmark-state: open; }
         p { margin: 1.12em 0; }
         ul, ol { padding-left: 40pt; margin: 1.12em 0; }
-        // CORE-92: Prince applies no default body margin in print (probe
-        // 2026-08-20: first baseline = content top + half-leading exactly).
-        // The HTML4/WHATWG `body { margin: 8px }` UA default is a screen
-        // convention; honoring it here pushed every page-1 block 6pt down
-        // vs Prince and flipped prose page counts at line-height 1.2.
-        body { margin: 0; }
+        /* CORE-92: Prince applies no default body margin in print (probe
+           2026-08-20: first baseline = content top + half-leading exactly).
+           The HTML4/WHATWG `body { margin: 8px }` UA default is a screen
+           convention; honoring it here pushed every page-1 block 6pt down
+           vs Prince and flipped prose page counts at line-height 1.2.
+           CORE-153 (2026-09-14): the WPT css-page refs (page-box-002/003)
+           simulate the body's UA margin with an inner `margin: 8px` div,
+           and Chromium keeps the 8px margin in print —
+           css-standards-alignment (spec wins over PrinceXML) therefore
+           wins here. Keep this a C-style comment: line comments poison
+           stylo's rule stream, and a literal star-slash pair inside the
+           text closes the comment early (CORE-95). */
+        body { margin: 8px; }
         blockquote { margin: 1.12em 22.5pt; }
         pre { margin: 1.12em 0; font-family: monospace; white-space: pre; }
         table { border-collapse: collapse; }
@@ -2669,7 +2676,14 @@ mod breaks {
             }
             match self.pseudo {
                 None => true,
-                Some(StructuralPseudo::Root) => id == dom.root,
+                // `:root` = the root ELEMENT (html), not the Root node — the
+                // element whose parent is the document root (page-size-012's
+                // `:root { writing-mode: vertical-rl }` sets the page
+                // context's writing mode via this pass).
+                Some(StructuralPseudo::Root) => {
+                    matches!(dom.nodes[id].kind, NodeKind::Element(_))
+                        && dom.nodes[id].parent == Some(dom.root)
+                }
                 Some(p) => structural_pseudo_matches(dom, id, p),
             }
         }
@@ -3147,9 +3161,13 @@ mod borders {
     /// A parsed border declaration: optional per-side widths and a color.
     #[derive(Clone, Debug, PartialEq)]
     enum BorderDecl {
-        /// `border: <width> <style> <color>` — all four sides.
+        /// `border: <width> <style> <color>` or `border-width: 1-4 widths` —
+        /// up to four side widths (top, right, bottom, left; css-backgrounds-3
+        /// §4.3 expands 1/2/3-value forms). `None` per side = unspecified
+        /// (the `medium` default applies only when a style keyword is present
+        /// and no width was given at all).
         Shorthand {
-            width: Option<Scalar>,
+            widths: (Option<Scalar>, Option<Scalar>, Option<Scalar>, Option<Scalar>),
             color: Option<Color>,
         },
         /// `border-top` (etc.) longhand.
@@ -3297,46 +3315,78 @@ mod borders {
     }
 
     /// Parse one declaration's value into a width (if present) + color.
-    fn parse_border_value(value: &str) -> (Option<Scalar>, Option<Color>) {
-        let mut width = None;
+    fn parse_border_value(
+        value: &str,
+    ) -> (
+        Option<Scalar>,
+        Option<Scalar>,
+        Option<Scalar>,
+        Option<Scalar>,
+        Option<Color>,
+    ) {
+        let mut widths: Vec<Scalar> = Vec::new();
         let mut color = None;
         let mut saw_style = false;
         for tok in value.split_whitespace() {
             if tok.eq_ignore_ascii_case("none") || tok == "0" {
-                width = Some(Scalar::ZERO);
+                widths.push(Scalar::ZERO);
                 continue;
             }
             if matches!(
                 tok.to_ascii_lowercase().as_str(),
-                "solid" | "dashed" | "dotted" | "double" | "groove" | "ridge" | "inset" | "outset"
+                "solid"
+                    | "dashed"
+                    | "dotted"
+                    | "double"
+                    | "groove"
+                    | "ridge"
+                    | "inset"
+                    | "outset"
                     | "hidden"
             ) {
                 saw_style = true;
                 continue;
             }
             if let Some(s) = parse_length(tok) {
-                width = Some(s);
+                widths.push(s);
                 continue;
             }
             if let Some(c) = parse_color(tok) {
                 color = Some(c);
             }
         }
+        // css-backgrounds-3 §4.3: the border-width shorthand takes 1-4
+        // lengths; fewer expand (1 = all, 2 = vertical/horizontal, 3 =
+        // top/horizontal/bottom). Previously the LAST token was applied to
+        // every side — `border-width: 40px 80px 120px 160px` painted a
+        // 160px ring (page-box-007 ref).
+        let (w1, w2, w3, w4) = match widths.as_slice() {
+            [] => (None, None, None, None),
+            [a] => (Some(*a), Some(*a), Some(*a), Some(*a)),
+            [a, b] => (Some(*a), Some(*b), Some(*a), Some(*b)),
+            [a, b, c] => (Some(*a), Some(*b), Some(*c), Some(*b)),
+            [a, b, c, d] => (Some(*a), Some(*b), Some(*c), Some(*d)),
+            _ => (None, None, None, None),
+        };
         // css-backgrounds-3 §4.5: an omitted border width means `medium`
         // (3px = 2.25pt) — `border: solid` paints a medium band. `none`/`0`
         // explicitly zeroed above wins (its presence means width was given).
-        if width.is_none() && saw_style {
-            width = Some(Scalar(2.25));
+        if widths.is_empty() && saw_style {
+            let m = Some(Scalar(2.25));
+            return (m, m, m, m, color);
         }
-        (width, color)
+        (w1, w2, w3, w4, color)
     }
 
     fn parse_decl(prop: &str, value: &str) -> Option<BorderDecl> {
         let prop = prop.trim().to_ascii_lowercase();
         let value = value.trim();
-        let (w, c) = parse_border_value(value);
+        let (wt, wr, wb, wl, c) = parse_border_value(value);
         match prop.as_str() {
-            "border" | "border-width" => Some(BorderDecl::Shorthand { width: w, color: c }),
+            "border" | "border-width" => Some(BorderDecl::Shorthand {
+                widths: (wt, wr, wb, wl),
+                color: c,
+            }),
             "border-color" => {
                 if let Some(c) = c {
                     Some(BorderDecl::Color(c))
@@ -3346,22 +3396,22 @@ mod borders {
             }
             "border-top" | "border-top-width" => Some(BorderDecl::Side {
                 side: Side::Top,
-                width: w,
+                width: wt,
                 color: c,
             }),
             "border-right" | "border-right-width" => Some(BorderDecl::Side {
                 side: Side::Right,
-                width: w,
+                width: wr,
                 color: c,
             }),
             "border-bottom" | "border-bottom-width" => Some(BorderDecl::Side {
                 side: Side::Bottom,
-                width: w,
+                width: wb,
                 color: c,
             }),
             "border-left" | "border-left-width" => Some(BorderDecl::Side {
                 side: Side::Left,
-                width: w,
+                width: wl,
                 color: c,
             }),
             // Per-side color longhands (CORE-66, page-orientation mismatch
@@ -3460,23 +3510,28 @@ mod borders {
                     }
                     for decl in &rule.decls {
                         match decl {
-                            BorderDecl::Shorthand { width, color } => {
-                                let st = &mut styles[id];
-                                if let Some(w) = width {
+                            BorderDecl::Shorthand { widths, color } => {
+                                let st = &mut styles[id];                                if let Some(w) = widths.0 {
                                     if won[id].top.is_none_or(|p| prio >= p) {
-                                        st.border_top = *w;
+                                        st.border_top = w;
                                         won[id].top = Some(prio);
                                     }
+                                }
+                                if let Some(w) = widths.1 {
                                     if won[id].right.is_none_or(|p| prio >= p) {
-                                        st.border_right = *w;
+                                        st.border_right = w;
                                         won[id].right = Some(prio);
                                     }
+                                }
+                                if let Some(w) = widths.2 {
                                     if won[id].bottom.is_none_or(|p| prio >= p) {
-                                        st.border_bottom = *w;
+                                        st.border_bottom = w;
                                         won[id].bottom = Some(prio);
                                     }
+                                }
+                                if let Some(w) = widths.3 {
                                     if won[id].left.is_none_or(|p| prio >= p) {
-                                        st.border_left = *w;
+                                        st.border_left = w;
                                         won[id].left = Some(prio);
                                     }
                                 }
@@ -3537,23 +3592,28 @@ mod borders {
                 let prio = (u32::MAX, inline_order);
                 inline_order += 1;
                 match &decl {
-                    BorderDecl::Shorthand { width, color } => {
-                        let st = &mut styles[id];
-                        if let Some(w) = width {
+                    BorderDecl::Shorthand { widths, color } => {
+                        let st = &mut styles[id];                        if let Some(w) = widths.0 {
                             if won[id].top.is_none_or(|p| prio >= p) {
-                                st.border_top = *w;
+                                st.border_top = w;
                                 won[id].top = Some(prio);
                             }
+                        }
+                        if let Some(w) = widths.1 {
                             if won[id].right.is_none_or(|p| prio >= p) {
-                                st.border_right = *w;
+                                st.border_right = w;
                                 won[id].right = Some(prio);
                             }
+                        }
+                        if let Some(w) = widths.2 {
                             if won[id].bottom.is_none_or(|p| prio >= p) {
-                                st.border_bottom = *w;
+                                st.border_bottom = w;
                                 won[id].bottom = Some(prio);
                             }
+                        }
+                        if let Some(w) = widths.3 {
                             if won[id].left.is_none_or(|p| prio >= p) {
-                                st.border_left = *w;
+                                st.border_left = w;
                                 won[id].left = Some(prio);
                             }
                         }
@@ -3593,6 +3653,51 @@ mod borders {
                     }
                 }
             }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        fn widths(s: &str) -> (Option<Scalar>, Option<Scalar>, Option<Scalar>, Option<Scalar>) {
+            let (t, r, b, l, _c) = parse_border_value(s);
+            (t, r, b, l)
+        }
+
+        fn pt(v: f64) -> Option<Scalar> {
+            Some(Scalar(v))
+        }
+
+        /// css-backgrounds-3 §4.3: `border-width` takes 1-4 lengths and
+        /// expands fewer to the remaining sides. Before the fix, only the
+        /// LAST token survived and painted every side (page-box-007 ref
+        /// rendered a 160px ring instead of 40/80/120/160).
+        #[test]
+        fn border_width_shorthand_expands_per_side() {
+            // 1 value → all sides.
+            let (t, r, b, l) = widths("10px");
+            assert_eq!((t, r, b, l), (pt(7.5), pt(7.5), pt(7.5), pt(7.5)));
+            // 2 values → vertical / horizontal.
+            let (t, r, b, l) = widths("10px 20px");
+            assert_eq!((t, r, b, l), (pt(7.5), pt(15.0), pt(7.5), pt(15.0)));
+            // 3 values → top / horizontal / bottom.
+            let (t, r, b, l) = widths("10px 20px 30px");
+            assert_eq!((t, r, b, l), (pt(7.5), pt(15.0), pt(22.5), pt(15.0)));
+            // 4 values → top right bottom left (the page-box-007 shape).
+            let (t, r, b, l) = widths("40px 80px 120px 160px");
+            assert_eq!(
+                (t, r, b, l),
+                (pt(30.0), pt(60.0), pt(90.0), pt(120.0)),
+                "40px 80px 120px 160px must map top/right/bottom/left, not all-160"
+            );
+        }
+
+        /// `border: solid` (style without width) still paints a medium band.
+        #[test]
+        fn border_style_without_width_means_medium() {
+            let (t, r, b, l) = widths("solid hotpink");
+            assert_eq!((t, r, b, l), (pt(2.25), pt(2.25), pt(2.25), pt(2.25)));
         }
     }
 }

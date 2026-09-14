@@ -533,7 +533,33 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   writing-mode aware. Zero WPT status flips on landing — page-box-008/009
   remain FAIL on separate residuals (vertical-rl block geometry, a
   declared-height ref fragmentation bug) — but the margin bands now match
-  the refs' border simulation exactly.
+  the refs' border simulation exactly. Vertical-LR keeps LTR block
+  anchoring (its block axis runs left→right; page-margin-003's ref).
+  This session's composition (CORE-153, 2026-09-14): `:root { writing-mode }`
+  is read via the engine's OWN cascade pass (stylo's servo build does not
+  compute writing-mode for `:root` selectors — the paged pass previously
+  never matched `:root` at all); a block in a vertical writing mode fills
+  its INLINE axis (auto height = the page content box, page-size-012); and
+  a vertical-rl definite-width box with `margin-right` anchors at the RIGHT
+  edge (page-margin-002's ref). page-box-008/009, page-margin-002 and
+  page-size-012 land through this composition.
+- **UA body margin is the WHATWG 8px in print (CORE-153, 2026-09-14)** → the
+  UA sheet's `body { margin: 0 }` (Prince alignment, CORE-92) is REVERSED to
+  `margin: 8px` (6pt): Chromium applies the 8px body margin in print, and
+  the page-box-002/003 refs simulate it with an inner `margin: 8px` div, so
+  css-standards-alignment (spec wins over PrinceXML) decides. The `//`
+  line-comments in UA_CSS previously poisoned stylo's rule stream, so even
+  the OLD `body { margin: 0 }` was never parsed (the initial 0 matched by
+  accident). Flips: page-box-002/003 FAIL→PASS; layers-003 and
+  page-name-margin-001 PASS→FAIL — both are CORE-177 bucket-3 invalid-test
+  candidates (Chrome AND Firefox fail them), so the flips EXPOSE test bugs
+  rather than regress.
+- **Border shorthands apply 1-4 value widths per side (CORE-153,
+  2026-09-14)** → `border-width: 40px 80px 120px 160px` (and the `border`
+  shorthand) previously collapsed every side to the LAST length token;
+  page-box-007's ref renders its 400x800px simulation box with all borders
+  160px. The shorthand now expands per css-backgrounds-3 §4.3 (1→all,
+  2→vertical/horizontal, 3→top/h/bottom, 4→top right bottom left).
 - **html-root-box (CORE-165)** → the `<html>` element's own border paints as
   page chrome: a band at the page-area rect's edge on every page (the root
   box fragments per page; its border repeats per fragment). The root's

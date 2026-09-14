@@ -2119,11 +2119,20 @@ impl<'a> Ctx<'a> {
         // already subtracts the border widths.
         // CORE-166: under rtl the border box anchors at the inline-END edge
         // (leftover space lands in the start margin); LTR keeps margin-left.
-        let border_x = if style.rtl {
-            Self::frag_border_x_rtl(style, origin_x, avail_width, box_border_w)
-        } else {
-            Self::frag_border_x(style, origin_x)
-        };
+        // CORE-153: only VERTICAL-RL right-anchors blocks (its block axis runs
+        // right→left) — `margin-right` on a definite-width box must push it
+        // left from the page's right edge (page-margin-002's ref simulates
+        // the @page margins this way). vertical-lr runs left→right like LTR
+        // (page-margin-003's ref depends on the LTR anchoring). The root's
+        // writing mode governs (it inherits into every box).
+        let root_wm = self.styles[self.dom.find_tag("html").unwrap_or(self.dom.root)]
+            .writing_mode;
+        let border_x =
+            if style.rtl || root_wm == crate::css::PageWritingMode::VerticalRl {
+                Self::frag_border_x_rtl(style, origin_x, avail_width, box_border_w)
+            } else {
+                Self::frag_border_x(style, origin_x)
+            };
         let inner_left = border_x + style.border_left + style.padding_left;
         let inner_width = box_border_w
             - style.padding_left
@@ -4111,6 +4120,28 @@ impl<'a> Ctx<'a> {
             if let Some(target) = token.cross_override {
                 if target.get() > box_height.get() {
                     box_height = target;
+                }
+            }
+            // CORE-153: a block box in a VERTICAL writing mode stretches its
+            // inline axis (the height) to the containing block — block
+            // layout fills the inline extent, so a plain div is as tall as
+            // the page content box (page-size-012's auto-height div = 550x400,
+            // matching its ref's `height: 400px` simulation; Chromium fills
+            // the height too). Skipped for out-of-flow boxes (abspos/fixed/
+            // floats size to content) and declared heights. The ROOT's
+            // writing mode governs (it inherits into every box — the
+            // paged-props pass only sets it on html).
+            if fresh
+                && root_wm != crate::css::PageWritingMode::HorizontalTb
+                && style.height.is_none()
+                && style.height_percent.is_none()
+                && style.height_viewport.is_none()
+                && !matches!(style.position, Position::Absolute | Position::Fixed)
+                && style.float == crate::css::Float::None
+            {
+                let fill = bottom_limit - box_top;
+                if fill.get() > box_height.get() {
+                    box_height = fill;
                 }
             }
         }
@@ -7343,3 +7374,113 @@ mod core153_abspos_continuation_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod core153_vertical_rl_tests {
+    use super::*;
+    use crate::css::Stylesheet;
+    use crate::geom::PageGeometry;
+
+    fn geometry() -> PageGeometry {
+        PageGeometry {
+            width: Scalar(300.0),
+            height: Scalar(600.0),
+            margin_top: Scalar(0.0),
+            margin_right: Scalar(0.0),
+            margin_bottom: Scalar(0.0),
+            margin_left: Scalar(0.0),
+        }
+    }
+
+    fn css_of(html: &str) -> &str {
+        html.split("<style>")
+            .nth(1)
+            .and_then(|s| s.split("</style>").next())
+            .unwrap_or("")
+    }
+    fn boxes(laid: &Layout, page: usize) -> Vec<(f64, f64, f64, f64)> {
+        let mut out = Vec::new();
+        let mut stack = vec![(&laid.pages[page].root, 0.0f64, 0.0f64)];
+        while let Some((frag, px, py)) = stack.pop() {
+            let ax = px + frag.offset.x.get();
+            let ay = py + frag.offset.y.get();
+            out.push((ax, ay, frag.size.0.get(), frag.size.1.get()));
+            for c in &frag.children {
+                stack.push((c, ax, ay));
+            }
+        }
+        out
+    }
+
+    /// A block in a VERTICAL writing mode fills its inline axis: an auto-height
+    /// div is as tall as the page content box (page-size-012's test renders its
+    /// yellow div 550x400 because vertical-rl block layout stretches the inline
+    /// extent; the ref simulates the same box with `height: 400px`).
+    #[test]
+    fn vertical_rl_auto_height_fills_page() {
+        let html = r#"
+            <html><head><style>
+                html { writing-mode: vertical-rl; }
+                @page { size: 600px 400px; margin: 0; }
+                body { margin: 0; }
+            </style></head><body>
+            <div style="background:yellow;">some text</div>
+            </body></html>
+        "#;
+        let dom = Dom::parse(html).expect("parse");
+        let css = css_of(html);
+        let stylesheet = Stylesheet::parse(css);
+        let laid = layout(&dom, &stylesheet, geometry());
+        // The div is 400px = 300pt tall (fills the page inline extent), not the
+        // content height.
+        let found = boxes(&laid, 0)
+            .into_iter()
+            .find(|(_, _, w, h)| *w >= 200.0 && *h > 200.0);
+        let (ax, ay, w, h) = found.expect("div paint box present");
+        assert_eq!(h, 300.0, "auto-height div fills the page height");
+        assert_eq!(w, 450.0, "div width fills the block axis (600px)");
+        let _ = (ax, ay);
+    }
+
+    /// A definite-width box with `margin-right` anchors at the RIGHT edge under
+    /// a vertical-rl root (page-margin-002's ref: `width: calc(100vw - 60px);
+    /// margin-right: 20px` must sit 20px in from the right, not the left).
+    #[test]
+    fn vertical_rl_margin_right_anchors_right() {
+        let html = r#"
+            <html><head><style>
+                html { writing-mode: vertical-rl; }
+                @page { size: 480px 288px; margin: 0; }
+                body { margin: 0; }
+                .box { width: 420px; margin-right: 20px; background: yellow; }
+            </style></head><body>
+            <div class="box">x</div>
+            </body></html>
+        "#;
+        let dom = Dom::parse(html).expect("parse");
+        let css = css_of(html);
+        let stylesheet = Stylesheet::parse(css);
+        let page_geo = PageGeometry {
+            width: Scalar(360.0),
+            height: Scalar(216.0),
+            margin_top: Scalar(0.0),
+            margin_right: Scalar(0.0),
+            margin_bottom: Scalar(0.0),
+            margin_left: Scalar(0.0),
+        };
+        let styles = crate::css::cascade_evaluated(&dom, css, &page_geo);
+        let rw = styles[dom.find_tag("html").unwrap_or(dom.root)].writing_mode;
+        assert_eq!(rw, crate::css::PageWritingMode::VerticalRl);
+        let laid = layout(&dom, &stylesheet, page_geo);
+        // Page = 480x288px -> 360x216pt. The box = 420px = 315pt wide, right
+        // edge at 480-20px = 460px = 345pt, so border-box x = 30pt.
+        let found = boxes(&laid, 0)
+            .into_iter()
+            .find(|(_, _, w, _h)| (*w - 315.0).abs() < 1.0);
+        let (ax, ay, w, _h) = found.expect("div paint box present");
+        assert_eq!(w, 315.0, "420px width");
+        assert!((ax - 30.0).abs() < 0.01, "right-anchored: x={} want 30", ax);
+        let _ = ay;
+    }
+}
+
