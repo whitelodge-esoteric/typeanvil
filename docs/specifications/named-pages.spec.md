@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-09-04
-updated: 2026-09-09
+updated: 2026-09-14
 sidebar_position: 25
 tags: [engine, css-page, paged-media, layout, breaks]
 spec_id: named-pages
@@ -48,10 +48,12 @@ the WPT refs actually encode.
    opposite references (one requires a break inside the abspos wrapper, the
    other requires none). No engine can pass both. The engine currently
    matches `page-name-abspos-002`; Chromium matches `page-name-003`.
-2. Orthogonal flow support: documents with explicit `writing-mode`
-   declarations suppress page-change breaks entirely (the engine paginates
-   every flow horizontally in v1; the orthogonal-writing refs render one
-   page through this engine, so suppression matches them).
+2. Orthogonal flow support: a page-change break is suppressed when the writing
+   mode IN EFFECT at the page-declaring boxes is orthogonal to the PAGE's own
+   flow mode (the engine paginates every flow horizontally in v1, so such a
+   subtree cannot reproduce a vertical mode's pagination; the
+   orthogonal-writing-001/003 refs render one page through this engine, so
+   suppression matches them). Full orthogonal-flow pagination is out of scope.
 3. Page-change breaks inside flex containers, inline-blocks, or between
    bare inline runs (atomic interiors and flex items are not page-grouped).
 4. Residuals with per-test root causes; do not chase via this spec.
@@ -139,14 +141,28 @@ the WPT refs actually encode.
     TEXT arm, not only after a block child: without that, a boundary AFTER a run
     was never compared.
 4. **Suppressions.** No page-change break fires: inside an inline-block
-   (atomic interior), in any subtree whose INTERMEDIATE ancestor-or-self
-   carries an explicit `writing-mode` declaration (`ComputedStyle
-   ::writing_mode_declared`, set by the paged-media pass for both
-   stylesheet and inline declarations), or when the subtree below either
-   side holds no in-flow content. A `writing-mode` declaration on the ROOT
-   element is NOT an interior orthogonal context — it establishes the
-   page's own flow, so root-level sibling page changes still break
-   (`page-name-orthogonal-writing-002`).
+   (atomic interior), when the writing mode IN EFFECT at the page-declaring
+   boxes is ORTHOGONAL to the page's own flow mode, or when the subtree below
+   either side holds no in-flow content. The mode in effect at a box is the
+   nearest ancestor-or-self `writing-mode` declaration
+   (`ComputedStyle::writing_mode_declared`, set by the paged-media pass for
+   both stylesheet and inline declarations), else the page's flow mode; the
+   page's own flow mode is the ROOT element's `writing-mode` (css-page-3 §3).
+   The two modes are compared by AXIS, not by "is any declaration present":
+
+   - A declaration on the ROOT element establishes the page's own flow, so
+     root-level sibling page changes still break
+     (`page-name-orthogonal-writing-002`).
+   - A wrapper that switches the mode and then switches it BACK to the page's
+     own mode is not an orthogonal context, so its page change still breaks
+     (`page-name-orthogonal-writing-004`: `horizontal-tb` inside
+     `vertical-rl` under an htb page; its ref forces the same break with
+     `break-after: page`, and `page_boundaries.rs`
+     `page_change_breaks_when_inner_mode_matches_page_flow` pins it).
+   - A subtree whose mode stays orthogonal to the page's keeps the
+     suppression (`page-name-orthogonal-writing-001/003`;
+     `page_boundaries.rs::page_change_suppressed_when_inner_mode_orthogonal_to_page_flow`).
+
 5. **Selection unchanged.** Page geometry (which `@page` rule applies) is
    still resolved per page start by `active_page_name` (CORE-82).
 6. **Class-A applicability of `page`.** The `page` property applies only to
@@ -189,8 +205,13 @@ Each maps to a live WPT test in the harness (`harness run --filter css-page`):
 - Given page-declaring flex items, no break fires inside the container
   (`page-name-flex-001/002` one page; `flex-003/004` break only where the
   ref forces it outside/below the container).
-- Given an inline-block interior or a writing-mode subtree, no break fires
-  (`page-name-inline-block-001/003`, `page-name-orthogonal-writing-001/002/003`).
+- Given an inline-block interior or an orthogonal-to-the-page writing-mode
+  subtree, no break fires (`page-name-inline-block-001/003`,
+  `page-name-orthogonal-writing-001/003`).
+- Given a mode-switching wrapper whose innermost mode matches the page's own
+  flow, the page change still breaks
+  (`page-name-orthogonal-writing-004`; `page_boundaries.rs`
+  `page_change_breaks_when_inner_mode_matches_page_flow` renders two pages).
 - Given two `page:a` blocks separated by a bare text run, the render is three
   pages — a, default, a (CORE-158; `engine/tests/page_boundaries.rs`
   `p3_named_text_named_breaks_twice`).

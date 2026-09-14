@@ -5737,39 +5737,52 @@ impl<'a> Ctx<'a> {
         self.effective_page(id)
     }
 
-    /// True when an INTERMEDIATE ancestor-or-self of `id` (never the root
-    /// element itself) carries an explicit `writing-mode` declaration.
-    ///
-    /// CORE-127 suppression: the engine paginates every flow horizontally in
-    /// v1, so page-change breaks inside an orthogonal-flow SUBTREE cannot
-    /// match the harness refs (the refs keep the page-declaring pair on one
-    /// page by nesting them in a wrapper that switches writing mode —
-    /// orthogonal-writing-001/003/004). A writing-mode declaration on the
-    /// ROOT element (html) establishes the PAGE's own flow, not an interior
-    /// orthogonal context: the page-change break between root-level siblings
-    /// still fires (orthogonal-writing-002's `page:a`/`page:b` body children
-    /// under `html[writing-mode: vertical-rl]` render two pages in
-    /// Chromium, and its ref's margin overflow produces the same two pages).
-    fn orthogonal_flow(&self, id: NodeId) -> bool {
+    /// The PAGE's own flow writing mode: the ROOT element's `writing-mode`
+    /// (css-page-3 §3 — a declaration on `html` establishes the page context's
+    /// mode, never an interior orthogonal context), defaulting to
+    /// `horizontal-tb`.
+    fn page_flow_writing_mode(&self) -> crate::css::PageWritingMode {
+        self.styles[self.dom.find_tag("html").unwrap_or(self.dom.root)].writing_mode
+    }
+
+    /// The writing mode IN EFFECT at `id`: the nearest ancestor-or-self
+    /// `writing-mode` declaration, else the page's own flow mode. `writing_mode`
+    /// is recorded per element by the paged-media pass (`writing-mode_declared`),
+    /// so the chain walk is the inheritance.
+    fn writing_mode_at(&self, id: NodeId) -> crate::css::PageWritingMode {
         let mut cur = Some(id);
         while let Some(n) = cur {
-            if self.styles[n].writing_mode_declared && !self.is_root_element(n) {
-                return true;
+            if self.styles[n].writing_mode_declared {
+                return self.styles[n].writing_mode;
             }
             cur = self.dom.nodes[n].parent;
         }
-        false
+        self.page_flow_writing_mode()
     }
 
-    /// True when `id` is the root ELEMENT (html) — the direct child of the
-    /// synthetic document node. The document node itself (`dom.root`) is
-    /// never element-styled, so only a real `<html>` element can carry the
-    /// root-level writing-mode that defines the page flow.
-    fn is_root_element(&self, id: NodeId) -> bool {
-        matches!(
-            self.dom.nodes[id].kind,
-            crate::dom::NodeKind::Element(_)
-        ) && self.dom.nodes[id].parent == Some(self.dom.root)
+    /// True when the writing mode IN EFFECT at `id` is ORTHOGONAL to the
+    /// PAGE's own flow — its inline and block axes are swapped relative to the
+    /// page's (css-writing-modes-3 §7.1).
+    ///
+    /// CORE-127 suppression, narrowed by CORE-155: the engine paginates every
+    /// flow horizontally in v1, so a page-change break inside an orthogonal
+    /// SUBTREE cannot match the harness refs (their refs keep the
+    /// page-declaring pair on one page — orthogonal-writing-001/003). The
+    /// predicate is the AXIS of the mode in effect at the page-declaring boxes,
+    /// NOT "does any intermediate ancestor declare a mode": a wrapper that
+    /// switches the mode and then switches it BACK to the page's own mode is
+    /// not an orthogonal context, so its named-page change still breaks
+    /// (orthogonal-writing-004 nests `horizontal-tb` inside `vertical-rl` under
+    /// an htb page, and its ref forces the same break with `break-after:
+    /// page`).
+    fn orthogonal_flow(&self, id: NodeId) -> bool {
+        let vertical = |m: crate::css::PageWritingMode| {
+            matches!(
+                m,
+                crate::css::PageWritingMode::VerticalRl | crate::css::PageWritingMode::VerticalLr
+            )
+        };
+        vertical(self.writing_mode_at(id)) != vertical(self.page_flow_writing_mode())
     }
 
     /// The first (`last = false`) or last (`last = true`) in-flow content

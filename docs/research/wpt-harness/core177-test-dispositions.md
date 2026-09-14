@@ -46,6 +46,20 @@ The sweep classified by wpt.fyi status alone. Local rendering corrects it:
    pages 0 diff). Its wpt.fyi failure is suspected in the LINK annotation
    geometry (pixels cannot see link rects). Verify with a PDF annotation
    dump before treating it either way.
+4. **The four `body-background-*` rows are measured at the HARNESS geometry,
+   not the fixtures' own.** All four declare `@page { size: 800px 600px;
+   margin: 0 }`, but the local oracle runs `PageSpec.wpt_default()` (5×3in,
+   0.5in margins, `prefer_css_page_size=False`), so its per-page slices are
+   not the fixture-designed ones. Read the table as "Chrome shows no
+   structural bug here"; the per-page SLICE expectation comes from each
+   fixture's reference. Derived from the four refs (CORE-155): the canvas is
+   the page-progression strip, with the gradient's 0% end at the start of the
+   FIRST page and its 100% end at the end of the LAST page **in document
+   order, not in physical coordinates** — which is why page 1 is lightgray
+   and page 2 white in all four, even though vlr and vrl progress in opposite
+   directions while both declaring the same `90deg` gradient. Unverified
+   against a browser at the design geometry; the engine's own refs are the
+   gate.
 
 ## Disposition table
 

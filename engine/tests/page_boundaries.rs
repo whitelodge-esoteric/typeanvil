@@ -34,8 +34,15 @@ fn geometry() -> PageGeometry {
 
 /// Lay out a document body (with @page margin 0) and return the layout.
 fn lay_body(body: &str) -> Layout {
+    lay_doc("", "@page { margin: 0; }", body)
+}
+
+/// Lay out `<html {html_attrs}>` with `css` and `body`. A `writing-mode` on the
+/// ROOT element establishes the PAGE's own flow (css-page-3 §3), which the
+/// CORE-155 orthogonal-flow predicate compares against.
+fn lay_doc(html_attrs: &str, css: &str, body: &str) -> Layout {
     let html = format!(
-        r#"<!DOCTYPE html><html><head><style>@page {{ margin: 0; }}</style></head><body>{body}</body></html>"#
+        r#"<!DOCTYPE html><html{html_attrs}><head><style>{css}</style></head><body>{body}</body></html>"#
     );
     let dom = Dom::parse(&html).expect("parse html");
     let mut css = String::new();
@@ -151,5 +158,50 @@ fn page_name_002_shape_renders_eight_pages() {
         4,
         "1st | 2nd | 3rd+Also 3rd | 4th (Chromium renders the fixture's first \
          half as four pages)"
+    );
+}
+
+// --- CORE-155: page changes inside a mode-SWITCHING wrapper -----------------
+//
+// The orthogonal-flow suppression tests the writing mode IN EFFECT at the
+// page-declaring boxes against the PAGE's own flow mode (css-writing-modes-3
+// §7.1), not "is there any intermediate `writing-mode` declaration". The
+// orthogonal-writing family pins all four shapes.
+
+#[test]
+fn page_change_breaks_when_inner_mode_matches_page_flow() {
+    // page-name-orthogonal-writing-004: an `horizontal-tb` wrapper (the page
+    // flow's own mode — the root declares nothing) nested inside a
+    // `vertical-rl` one. The page:a -> page:b change must break: the fixture's
+    // reference forces the same break with `break-after: page`, and Chromium
+    // renders both as two pages.
+    let body = concat!(
+        r#"<div style="writing-mode:vertical-rl">"#,
+        r#"<div style="writing-mode:horizontal-tb">"#,
+        r#"<div style="page:a">a</div><div style="page:b">b</div>"#,
+        r#"</div></div>"#,
+    );
+    assert_eq!(
+        lay_body(body).pages.len(),
+        2,
+        "an htb wrapper inside a vrl wrapper is NOT orthogonal to an htb page"
+    );
+}
+
+#[test]
+fn page_change_suppressed_when_inner_mode_orthogonal_to_page_flow() {
+    // page-name-orthogonal-writing-003: the page flow is horizontal-tb and the
+    // page-declaring pair sits DIRECTLY in the `vertical-rl` wrapper, so the
+    // subtree is orthogonal and the change stays suppressed (1 page — the
+    // fixture's reference has no break and both sides match).
+    let body = concat!(
+        r#"<div style="writing-mode:vertical-rl">"#,
+        r#"<div style="page:a">a</div><div style="page:b">b</div>"#,
+        r#"</div>"#,
+    );
+    assert_eq!(
+        lay_body(body).pages.len(),
+        1,
+        "a vrl subtree under an htb page suppresses the page change"
     );
 }
