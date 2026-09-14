@@ -2701,7 +2701,10 @@ impl<'a> Ctx<'a> {
                                 // and paints over the characters.
                                 atomic_line_active = true;
                                 atomic_line_top = y;
-                                atomic_pen_x = x + lr.drawn_width();
+                                // The atomic continues this line, so it must
+                                // also clear the white-space run trimmed from
+                                // the paragraph's end (CORE-174).
+                                atomic_pen_x = x + lr.drawn_width() + lr.trailing_space;
                                 atomic_line_h = lh;
                                 // CORE-107: register call markers placed by
                                 // THIS segment line (segment text starts at

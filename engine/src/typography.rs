@@ -266,6 +266,17 @@ pub struct LineResult {
     pub protrude_left: Scalar,
     /// Optical hang for the last glyph (punctuation), in points.
     pub protrude_right: Scalar,
+    /// Advance of the collapsible white-space run that was trimmed from the
+    /// END of this line's text, in points (zero when the line has none).
+    ///
+    /// `build_items` drops that run: it is a line-break trim, so the width is
+    /// deliberately absent from [`LineResult::natural_width`] and from
+    /// justification. But an inline-level ATOMIC that continues this line still
+    /// has to clear the space before it (css-text-3 §4.1.1 removes white space
+    /// at a line break, and this space is not at a break). The atomic pen in
+    /// `layout.rs` adds this on top of [`LineResult::drawn_width`] so text and a
+    /// following inline-block keep their space (CORE-174).
+    pub trailing_space: Scalar,
     /// Number of SOURCE bytes this line consumes from the input passed to
     /// [`break_paragraph`] (CORE-91). This is the real byte span of the
     /// line's last box in the original text, minus the previous line's end —
@@ -1244,6 +1255,8 @@ fn materialize_line(
         expansion,
         protrude_left: pl * font_size.get(),
         protrude_right: rr * font_size.get(),
+        // Set by `break_paragraph` on the final line only.
+        trailing_space: Scalar::ZERO,
         // Absolute source end of this line's last box (break_paragraph
         // converts it to the per-line consumed delta; CORE-91).
         consumed: src_end,
@@ -1347,8 +1360,29 @@ pub fn break_paragraph(
             expansion: 0.0,
             protrude_left: Scalar::ZERO,
             protrude_right: Scalar::ZERO,
+            trailing_space: Scalar::ZERO,
             consumed: 0,
         });
+    }
+    // The paragraph's trailing white-space run is a line-break trim, so
+    // `build_items` leaves it out of the items and it reaches no line's natural
+    // width. Record its advance on the FINAL line: an inline-level atomic that
+    // continues that line still has to clear the space (CORE-174). The run
+    // collapses to ONE inter-word space, so the width is one space, not the
+    // run's shaped width. A run holding a forced break is a break, not space
+    // (CSS trims the space before it), and under `preserves_breaks` a source
+    // newline is such a break.
+    if !ws.preserves_spaces() {
+        let trimmed = text.trim_end();
+        let run = &text[trimmed.len()..];
+        if !run.is_empty()
+            && !run.contains(FORCED_BREAK_CHAR)
+            && !(ws.preserves_breaks() && run.contains('\n'))
+        {
+            if let Some(last) = lines.last_mut() {
+                last.trailing_space = space_run.width;
+            }
+        }
     }
     lines
 }
