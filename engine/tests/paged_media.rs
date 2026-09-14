@@ -774,22 +774,25 @@ fn determinism_multi() {
 // decisions and flipped the prose page-count comparison at line-height 1.2.
 
 #[test]
-fn ua_body_margin_is_zero() {
-    // No body rule; pin p's margin to isolate the body UA default.
+fn ua_body_margin_is_8px() {
+    // CORE-153 (2026-09-14): the print UA default is the WHATWG `body {
+    // margin: 8px }` (6pt) — Chromium applies it in print, and the
+    // page-box-002/003 refs simulate it with an inner margin:8px div, so
+    // css-standards-alignment (spec > Prince, which zeroes it) wins. Pin
+    // p's margin to isolate the body UA default.
     let html = "<html><head><style>p { margin: 0; }</style></head><body><p>Hi.</p></body></html>";
-    // 0.5in margin → content top = 36pt. 16px default font → 12pt.
+    // 0.5in margin → content top = 36pt + 8px body margin = 42pt.
     let geo = geometry(5.0, 3.0, 0.5);
     let layout = lay(html, geo);
     let (_, y) = text_pos(&layout.pages[0], "Hi").expect("text must be present");
-    // Expected: 36 (content top) + 12*0.9053 + (12*1.2 − 12*0.9053 − 12*0.2119)/2
-    // = 36 + 10.864 + (14.4 − 10.864 − 2.543)/2 = 47.36 ± 0.1.
-    // The old 8px body margin would have pushed this to ~53.4.
-    let expected = 36.0 + 12.0 * 1854.0 / 2048.0
+    // Expected: 42 (content top + body margin) + 12*0.9053 +
+    // (12*1.2 − 12*0.9053 − 12*0.2119)/2 = 53.36 ± 0.1.
+    let expected = 42.0 + 12.0 * 1854.0 / 2048.0
         + (14.4 - 12.0 * 1854.0 / 2048.0 - 12.0 * 434.0 / 2048.0) * 0.5;
     assert!(
         (y - expected).abs() < 0.1,
-        "UA body margin: baseline y={y:.3} want {expected:.3} (old push was +6pt → ~{:.3})",
-        expected + 6.0
+        "UA body margin: baseline y={y:.3} want {expected:.3} (Prince's 0 margin would be ~{:.3})",
+        expected - 6.0
     );
 }
 
@@ -816,7 +819,7 @@ fn ua_heading_margin_preserved_at_document_start() {
     let geo = geometry(5.0, 3.0, 0.5);
     let layout = lay(html, geo);
     let (_, y) = text_pos(&layout.pages[0], "Heading").expect("text must be present");
-    let expected = 36.0 + 16.0 + 24.0 * 1854.0 / 2048.0
+    let expected = 42.0 + 16.0 + 24.0 * 1854.0 / 2048.0
         + (24.0 * 1.2 - 24.0 * 1854.0 / 2048.0 - 24.0 * 434.0 / 2048.0) * 0.5;
     assert!(
         (y - expected).abs() < 0.1,
@@ -834,7 +837,7 @@ fn ua_heading_font_sizes_are_fixed_pt() {
     let geo = geometry(5.0, 3.0, 0.5);
     let layout = lay(html, geo);
     let (_, y) = text_pos(&layout.pages[0], "Heading").expect("text must be present");
-    let expected = 36.0 + 16.0 + 24.0 * 1854.0 / 2048.0
+    let expected = 42.0 + 16.0 + 24.0 * 1854.0 / 2048.0
         + (24.0 * 1.2 - 24.0 * 1854.0 / 2048.0 - 24.0 * 434.0 / 2048.0) * 0.5;
     assert!(
         (y - expected).abs() < 0.1,
@@ -853,7 +856,7 @@ fn ua_paragraph_margin_is_1_12em_mid_page() {
     let geo = geometry(5.0, 3.0, 0.5);
     let layout = lay(html, geo);
     let (_, y) = text_pos(&layout.pages[0], "Second").expect("text must be present");
-    let expected = 36.0 + 14.4 + 12.0 * 1.12 + 12.0 * 1854.0 / 2048.0
+    let expected = 42.0 + 14.4 + 12.0 * 1.12 + 12.0 * 1854.0 / 2048.0
         + (14.4 - 12.0 * 1854.0 / 2048.0 - 12.0 * 434.0 / 2048.0) * 0.5;
     assert!(
         (y - expected).abs() < 0.1,
@@ -871,7 +874,7 @@ fn ua_h6_margin_is_21pt_mid_page() {
     let geo = geometry(5.0, 3.0, 0.5);
     let layout = lay(html, geo);
     let (_, y) = text_pos(&layout.pages[0], "Six").expect("text must be present");
-    let expected = 36.0 + 14.4 + 21.0 + 8.0 * 1854.0 / 2048.0
+    let expected = 42.0 + 14.4 + 21.0 + 8.0 * 1854.0 / 2048.0
         + (8.0 * 1.2 - 8.0 * 1854.0 / 2048.0 - 8.0 * 434.0 / 2048.0) * 0.5;
     assert!(
         (y - expected).abs() < 0.1,
@@ -1056,9 +1059,13 @@ fn page_change_break_between_empty_page_declaring_divs() {
         <div style="page: b; border-color: pink"></div>
     </body></html>"#;
     let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    // CORE-153 (2026-09-14): the UA body margin (8px) adds 6pt, so the 1in
+    // div no longer fits the 1in-tall first page (margin 1in top+bottom) —
+    // it starts on page 2, and the page:b div forces another break = 3 pages
+    // (Chromium matches: body margin 8px is the print UA default).
     assert_eq!(
         layout.pages.len(),
-        2,
+        3,
         "an empty div with page:a followed by one with page:b must break"
     );
 }
@@ -1077,9 +1084,10 @@ fn page_change_break_to_undeclared_sibling_page() {
         <div style="border-color: pink"></div>
     </body></html>"#;
     let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    // CORE-153 (2026-09-14): same UA-body-margin shift as above — 3 pages.
     assert_eq!(
         layout.pages.len(),
-        2,
+        3,
         "page:a div followed by an undeclared div (default page) must break"
     );
 }
@@ -1131,9 +1139,10 @@ fn named_page_pseudo_without_whitespace_parses() {
     // starts at 2in + 0 = 144pt from the page top edge... assert via the box
     // top: first page's first child y == margin 2in = 144pt.
     let first = &layout.pages[0].root.children[0];
+    // CORE-153: the 8px UA body margin adds 6pt to the 2in @page margin.
     assert!(
-        (first.offset.y.get() - 144.0).abs() < 1.0,
-        "page 1 uses @page a:first margin (2in=144pt), got {}",
+        (first.offset.y.get() - 150.0).abs() < 1.0,
+        "page 1 uses @page a:first margin (2in=144pt) + body margin 6pt, got {}",
         first.offset.y.get()
     );
 }
@@ -1153,8 +1162,9 @@ fn cascade_layers_order_page_margins() {
     </body></html>"#;
     let layout = lay(html, geometry(5.0, 3.0, 0.5));
     let first = &layout.pages[0].root.children[0];
+    // CORE-153: @page margin 0 -> the child's top is the 8px body margin (6pt).
     assert!(
-        first.offset.y.get() < 2.0,
+        (first.offset.y.get() - 6.0).abs() < 1.0,
         "layer2 (margin 0) must beat layer1 (margin 1in) even though layer1's \
          rule appears later in source; got top {}",
         first.offset.y.get()
@@ -1172,7 +1182,7 @@ fn cascade_layers_order_page_margins() {
     let layout2 = lay(html2, geometry(5.0, 3.0, 0.5));
     let first2 = &layout2.pages[0].root.children[0];
     assert!(
-        (first2.offset.y.get() - 72.0).abs() < 2.0,
+        (first2.offset.y.get() - 78.0).abs() < 2.0,
         "layer1 (margin 1in) must beat layer2 (margin 0) after the order \
          swap; got top {}",
         first2.offset.y.get()
@@ -1189,7 +1199,7 @@ fn cascade_layers_order_page_margins() {
     let layout3 = lay(html3, geometry(5.0, 3.0, 0.5));
     let first3 = &layout3.pages[0].root.children[0];
     assert!(
-        (first3.offset.y.get() - 144.0).abs() < 2.0,
+        (first3.offset.y.get() - 150.0).abs() < 2.0,
         "unlayered @page (margin 2in) must beat the layered one; got top {}",
         first3.offset.y.get()
     );

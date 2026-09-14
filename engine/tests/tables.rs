@@ -946,7 +946,7 @@ fn test_row_background_paints_under_cell_backgrounds() {
     // narrower (one column) and has no Background children.
     let is_row_bg = |f: &&Fragment| {
         matches!(f.content, FragmentContent::Background(_))
-            && (f.size.0.get() - 288.0).abs() < 0.5
+            && (f.size.0.get() - 276.0).abs() < 0.5
             && f
                 .children
                 .iter()
@@ -978,7 +978,7 @@ fn test_group_background_paints_under_rows() {
     // has a background-color, so exactly one such fragment may exist.
     let is_group_bg = |f: &&Fragment| {
         matches!(f.content, FragmentContent::Background(_))
-            && (f.size.0.get() - 288.0).abs() < 0.5
+            && (f.size.0.get() - 276.0).abs() < 0.5
             && f.children.iter().any(|row| {
                 row.children
                     .iter()
