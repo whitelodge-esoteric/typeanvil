@@ -9,6 +9,14 @@ sidebar_position: 2
 tags: [wpt, conformance, engine, triage, chrome, firefox]
 ---
 
+> **2026-09-14 correction:** this sweep classified tests from wpt.fyi status
+> alone. The local-Chromium oracle pass
+> ([core177-test-dispositions.md](./core177-test-dispositions.md)) corrected
+> several buckets — most importantly the four `body-background-*` tests are
+> VALID (Chrome near-passes them locally), and three of the "accidental
+> passes" do not reproduce as Chrome failures locally. Where this doc and
+> the dispositions doc disagree, the dispositions doc wins.
+
 # WPT Ground-Truth Sweep 2026-09-14 — Failure Buckets and Browser Reality
 
 A full 283-test harness run on release/2026.9 tip `77fa409`, cross-referenced
