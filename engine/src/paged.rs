@@ -1217,6 +1217,12 @@ fn apply_page_decl(rule: &mut PageRule, decl: &str) {
                 "horizontal-tb" => Some(crate::css::PageWritingMode::HorizontalTb),
                 "vertical-rl" => Some(crate::css::PageWritingMode::VerticalRl),
                 "vertical-lr" => Some(crate::css::PageWritingMode::VerticalLr),
+                // Sideways modes have a horizontal block axis
+                // (css-writing-modes-3 §3.1): the page context's logical
+                // margin/padding mapping must see them, not treat them as
+                // invalid (which would leave the page in horizontal-tb).
+                "sideways-rl" => Some(crate::css::PageWritingMode::SidewaysRl),
+                "sideways-lr" => Some(crate::css::PageWritingMode::SidewaysLr),
                 _ => None,
             };
         }
@@ -1864,6 +1870,12 @@ pub fn resolve_page_spec(
             crate::css::PageWritingMode::HorizontalTb => [3, 1, 0, 2],
             crate::css::PageWritingMode::VerticalRl => [0, 2, 1, 3],
             crate::css::PageWritingMode::VerticalLr => [0, 2, 3, 1],
+            // sideways-rl shares vertical-rl's axes (inline top→bottom,
+            // block right→left). sideways-lr's inline axis runs
+            // bottom→top, so its inline pair is reversed (css-writing-modes-3
+            // §3.1: inline-start is the physical BOTTOM).
+            crate::css::PageWritingMode::SidewaysRl => [0, 2, 1, 3],
+            crate::css::PageWritingMode::SidewaysLr => [2, 0, 3, 1],
         }
     };
     let m_slots = logical_slots(eff_wm);
@@ -2559,6 +2571,47 @@ mod tests {
         assert_eq!(spec.padding.right, Scalar(24.0));
         assert_eq!(spec.padding.bottom, Scalar(36.0));
         assert_eq!(spec.padding.left, Scalar(60.0));
+    }
+
+    #[test]
+    fn logical_margins_map_sideways_modes() {
+        // Sideways modes are vertical modes (css-writing-modes-3 §3.1), so the
+        // @page logical margin/padding axis mapping must treat them as such:
+        // inline % → the HEIGHT axis, block % → the WIDTH axis. sideways-rl
+        // shares vertical-rl's axes; sideways-lr's inline axis runs
+        // bottom→top, so inline-start is the physical BOTTOM.
+        for (mode, want_top, want_right, want_bottom, want_left) in [
+            ("sideways-rl", 12.0, 24.0, 36.0, 60.0),
+            ("sideways-lr", 36.0, 60.0, 12.0, 24.0),
+        ] {
+            let rules = parse_page_rules(&format!(
+                "@page {{ writing-mode: {mode}; size: 400px 800px; \
+                 margin-inline-start: 2%; margin-block-start: 8%; \
+                 margin-inline-end: 6%; margin-block-end: 20%; }}"
+            ));
+            let cli = PageGeometry {
+                width: Scalar(360.0),
+                height: Scalar(216.0),
+                margin_top: Scalar(36.0),
+                margin_right: Scalar(36.0),
+                margin_bottom: Scalar(36.0),
+                margin_left: Scalar(36.0),
+            };
+            let spec = resolve_page_spec(
+                &rules,
+                None,
+                0,
+                &cli,
+                PageMargins::zero(),
+                false,
+                crate::css::PageWritingMode::HorizontalTb,
+            );
+            assert_eq!(spec.size, (Scalar(300.0), Scalar(600.0)), "{mode}");
+            assert_eq!(spec.margins.top, Scalar(want_top), "{mode} top");
+            assert_eq!(spec.margins.right, Scalar(want_right), "{mode} right");
+            assert_eq!(spec.margins.bottom, Scalar(want_bottom), "{mode} bottom");
+            assert_eq!(spec.margins.left, Scalar(want_left), "{mode} left");
+        }
     }
 
     #[test]

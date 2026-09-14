@@ -558,6 +558,25 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   a vertical-rl definite-width box with `margin-right` anchors at the RIGHT
   edge (page-margin-002's ref). page-box-008/009, page-margin-002 and
   page-size-012 land through this composition.
+- **`sideways-rl` / `sideways-lr` are vertical page-context modes (CORE-181,
+  2026-09-14)** → both are valid `writing-mode` values (css-writing-modes-3
+  §3.1) with a HORIZONTAL block axis, so the @page logical margin/padding
+  mapping and the orthogonal-flow predicate must treat them as vertical. They
+  parsed as horizontal in BOTH places: the `@page` parser mapped them to
+  `None`, and the author paged-props pass fell through to `HorizontalTb`
+  while still setting `writing_mode_declared`. `sideways-rl` shares
+  `vertical-rl`'s axes; `sideways-lr`'s inline axis runs bottom-to-top, so its
+  inline pair is REVERSED (inline-start = the physical BOTTOM). This landing
+  flipped ZERO WPT statuses — the two fixtures that depend on sideways parsing
+  (`body-background-slr/srl`) still fail on root-vertical page progression,
+  which CORE-181 owns — so the seam is proven by unit tests instead:
+  `paged::tests::logical_margins_map_sideways_modes` (the logical→physical
+  edge arithmetic for both modes) and
+  `layout::core153_vertical_rl_tests::sideways_modes_are_vertical_page_flows`
+  (the root's mode resolves through the engine's own cascade pass, and
+  block-start anchoring follows the block axis: sideways-rl right-anchors like
+  vertical-rl, sideways-lr runs left-to-right like vertical-lr). Both were
+  proven RED with the mapping reverted.
 - **UA body margin is the WHATWG 8px in print (CORE-153, 2026-09-14)** → the
   UA sheet's `body { margin: 0 }` (Prince alignment, CORE-92) is REVERSED to
   `margin: 8px` (6pt): Chromium applies the 8px body margin in print, and
