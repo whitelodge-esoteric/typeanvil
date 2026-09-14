@@ -87,6 +87,22 @@ this residual.
    0..49; the engine drew the text at 3..18). A line whose atomics fit the
    strut keeps today's baseline alignment.
 
+11. Collapsible white space before an inline-level atomic on the SAME line shall
+   survive: the atomic shall start one space past the text's advance end
+   (CORE-174). css-text-3 §4.1.1 removes white space at a LINE BREAK, and a
+   space that the atomic continues past is not at a break. `build_items` leaves
+   its word loop as soon as a white-space run reaches the end of the text, before
+   pushing the inter-word glue, so that run reached no line's natural width and
+   the atomic restarted at the text's INK end (`Hello` then a `100x50`
+   inline-block put the box at x=36 where Chromium puts it at 40). The run's
+   advance shall be recorded on the final line of the paragraph
+   (`LineResult::trailing_space`, the width of ONE space — the run collapses to
+   one) and added to the atomic pen, and it shall stay out of the line's own
+   drawn width so justification, alignment and measurement do not see it. A
+   white-space run holding a forced break is a break, not space, and a trailing
+   space at a line END still collapses: an atomic that wraps to the next line
+   starts at the line origin.
+
 ## Interfaces
 
 - `css.rs`: add `Display::InlineBlock`; map stylo
@@ -117,6 +133,14 @@ this residual.
   (`core171_inline_block_height.rs::inline_block_declared_height_paints_full_height`).
   The same box as `display:block` stays 75pt x 37.5pt
   (`core171_inline_block_height.rs::block_declared_height_paints_full_height`).
+- Given `Hello` immediately followed by a `100x50` inline-block, when rendered,
+  then the box starts at the text's advance end; and given the same markup with a
+  collapsible run (`Hello`, newline, indentation) before the box, then the box
+  starts exactly one inter-word space further right, while the text's own advance
+  end is unchanged
+  (`core174_space_before_atomic.rs::collapsible_space_before_box_shifts_it_by_one_space`;
+  confirmed to fail without the fix with
+  `got gap=0pt, tight x=27.345703125, spaced x=27.345703125`).
 - Harness gate: css-break flexbox bucket fixed − regressed ≥ 0, targeting
   rows 081a-d / 082a-d.
 
