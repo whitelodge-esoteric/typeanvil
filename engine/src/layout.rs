@@ -2382,6 +2382,18 @@ impl<'a> Ctx<'a> {
         let mut atomic_line_top = y;
         let mut atomic_line_h = Scalar::ZERO;
         let mut atomic_line_active = false;
+        // CORE-175: alignment state of the text line the atomic pen points
+        // at: the segment the text was laid out in and the offset
+        // `aligned_x` applied to it. An atomic that continues the line
+        // re-aligns the WHOLE line's content through the same function
+        // (css2 §16.2).
+        let mut atomic_line_seg_x = inner_left;
+        let mut atomic_line_seg_w = inner_width;
+        let mut atomic_line_align_off = Scalar::ZERO;
+        // True when the CURRENT atomic line was started by a text run (its
+        // alignment offset is meaningful; a line started by an atomic is
+        // packed from the segment origin with no realignment).
+        let mut atomic_line_from_text = false;
         let mut i = start_index;
         while i < items.len() {
             // A deferred page-change break fires when the loop reaches the
@@ -2706,6 +2718,14 @@ impl<'a> Ctx<'a> {
                                 // the paragraph's end (CORE-174).
                                 atomic_pen_x = x + lr.drawn_width() + lr.trailing_space;
                                 atomic_line_h = lh;
+                                // CORE-175: remember the segment geometry and
+                                // the alignment offset this line used, so an
+                                // atomic that continues the line can re-align
+                                // the WHOLE line's content (css2 §16.2).
+                                atomic_line_from_text = true;
+                                atomic_line_seg_x = seg_x;
+                                atomic_line_seg_w = seg_w;
+                                atomic_line_align_off = x - seg_x;
                                 // CORE-107: register call markers placed by
                                 // THIS segment line (segment text starts at
                                 // `seg_base` in the item's text — the
@@ -2942,11 +2962,51 @@ impl<'a> Ctx<'a> {
                     // Whitespace between inline-blocks collapses per normal
                     // inline whitespace processing; the pen never carries
                     // trailing space across an atomic box.
+                    // CORE-175: alignment moves the WHOLE line's content
+                    // (css2 §16.2). The text placed its line unaligned (the
+                    // pen equalled the segment origin + drawn width while
+                    // the glyphs sit at `aligned_x`), so before deciding
+                    // whether the atomic fits, re-align the combined line —
+                    // text AND this box — through `aligned_x`, and shift the
+                    // already-placed text fragments by the same delta. Text
+                    // baselines are parent-relative (the emitter rebases them
+                    // off the parent), so moving each text fragment's offset
+                    // AND its baseline x by `delta` moves the ink exactly
+                    // once (CORE-173's rule: only TEXT rides a line shift).
+                    if atomic_line_from_text {
+                        let combined = (pen_x.get() - atomic_line_seg_x.get()) + aw.get();
+                        let aligned = self.aligned_x(
+                            atomic_line_seg_x,
+                            atomic_line_seg_w,
+                            Scalar(combined),
+                            style,
+                        );
+                        let delta = aligned.get() - atomic_line_seg_x.get()
+                            - atomic_line_align_off.get();
+                        if delta.abs() > 1e-9 {
+                            let d = Scalar(delta);
+                            for child in children.iter_mut() {
+                                if child.offset.y.get() != line_top.get() {
+                                    continue;
+                                }
+                                if let FragmentContent::Text(run) = &mut child.content {
+                                    child.offset.x = child.offset.x + d;
+                                    run.baseline.x = run.baseline.x + d;
+                                }
+                            }
+                            atomic_pen_x = atomic_pen_x + d;
+                            atomic_line_align_off = atomic_line_align_off + d;
+                            pen_x = atomic_pen_x;
+                        }
+                    }
                     let fits_line = (pen_x.get() - inner_left.get()) + aw.get() <= max_w.get();
                     if !fits_line && placed {
                         // Wrap to a new line below everything placed so far.
                         y = line_top + line_h;
                         pen_x = inner_left;
+                        // CORE-175: the wrapped atomic starts a FRESH line at
+                        // the segment origin; no text alignment applies to it.
+                        atomic_line_from_text = false;
                     }
                     // Monolithic deferral (spec Behavior 5): a box taller than
                     // the remaining page space defers whole — unless this page
@@ -3064,6 +3124,10 @@ impl<'a> Ctx<'a> {
                     // Write back through the loop-persistent atomic state so
                     // the NEXT atomic item packs beside this one.
                     atomic_pen_x = pen_x + aw;
+                    // CORE-175: from here the line is atomic-driven; further
+                    // atomics pack from the (already re-aligned) pen with no
+                    // additional text realignment.
+                    atomic_line_from_text = false;
                     let bh = y + cstyle.margin_top + ah - line_top;
                     if bh.get() > line_h.get() {
                         atomic_line_h = bh;

@@ -7,7 +7,7 @@ owner: Elijah Boston
 created: 2026-08-25
 updated: 2026-09-14
 sidebar_position: 24
-tags: [css-display-3, layout, core-120]
+tags: [css-display-3, layout, core-120, core-175]
 spec_id: SPEC-inline-block
 issue_id: CORE-120
 applies_to: engine/src/layout.rs, engine/src/css.rs
@@ -88,20 +88,36 @@ this residual.
    strut keeps today's baseline alignment.
 
 11. Collapsible white space before an inline-level atomic on the SAME line shall
-   survive: the atomic shall start one space past the text's advance end
-   (CORE-174). css-text-3 §4.1.1 removes white space at a LINE BREAK, and a
-   space that the atomic continues past is not at a break. `build_items` leaves
-   its word loop as soon as a white-space run reaches the end of the text, before
-   pushing the inter-word glue, so that run reached no line's natural width and
-   the atomic restarted at the text's INK end (`Hello` then a `100x50`
-   inline-block put the box at x=36 where Chromium puts it at 40). The run's
-   advance shall be recorded on the final line of the paragraph
-   (`LineResult::trailing_space`, the width of ONE space — the run collapses to
-   one) and added to the atomic pen, and it shall stay out of the line's own
-   drawn width so justification, alignment and measurement do not see it. A
-   white-space run holding a forced break is a break, not space, and a trailing
-   space at a line END still collapses: an atomic that wraps to the next line
-   starts at the line origin.
+    survive: the atomic shall start one space past the text's advance end
+    (CORE-174). css-text-3 §4.1.1 removes white space at a LINE BREAK, and a
+    space that the atomic continues past is not at a break. `build_items` leaves
+    its word loop as soon as a white-space run reaches the end of the text, before
+    pushing the inter-word glue, so that run reached no line's natural width and
+    the atomic restarted at the text's INK end (`Hello` then a `100x50`
+    inline-block put the box at x=36 where Chromium puts it at 40). The run's
+    advance shall be recorded on the final line of the paragraph
+    (`LineResult::trailing_space`, the width of ONE space — the run collapses to
+    one) and added to the atomic pen, and it shall stay out of the line's own
+    drawn width so justification, alignment and measurement do not see it. A
+    white-space run holding a forced break is a break, not space, and a trailing
+    space at a line END still collapses: an atomic that wraps to the next line
+    starts at the line origin.
+
+12. Alignment shall move the WHOLE line's content, including an atomic that
+    continues a text line (CORE-175). css2 §16.2: `text-align` positions a
+    line's inline-level content within the line box, and an inline-block
+    following the text is part of that content. When an atomic continues a line
+    that a text run started, the engine shall re-align the combined line — the
+    placed text plus the atomic's margin box — through the same `aligned_x`
+    function the text used, and shift the already-placed TEXT fragments on that
+    line by the same delta (offset AND baseline x; text baselines are
+    parent-relative, so the shift moves each run exactly once). The atomic then
+    starts at the re-aligned pen. This covers `text-align: right`, `center`,
+    `justify` and logical `start`/`end`. Without it, a right-aligned line put
+    the text at the content's right edge while the atomic stayed at the line
+    origin (`Hello` + a 100x50 inline-block: gap between the text's advance end
+    and the box = -360pt). An atomic that WRAPS to a fresh line starts at the
+    segment origin — a new line's alignment is computed from its own content.
 
 ## Interfaces
 
@@ -143,6 +159,12 @@ this residual.
   `got gap=0pt, tight x=27.345703125, spaced x=27.345703125`).
 - Harness gate: css-break flexbox bucket fixed − regressed ≥ 0, targeting
   rows 081a-d / 082a-d.
+- Given `Hello` followed by a `100x50` inline-block on a `text-align: right`
+  (or `center`) line, when rendered, then the gap between the text's advance
+  end and the box's left edge matches the left-aligned case — the box never
+  sits behind the text at the line origin
+  (`core175_atomic_after_aligned_text.rs::atomic_after_right_aligned_text_follows_it`;
+  confirmed to fail without the fix with `gap=-360, box x=0`).
 
 ## Edge Cases
 
