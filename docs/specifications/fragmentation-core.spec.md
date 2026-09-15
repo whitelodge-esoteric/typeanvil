@@ -60,7 +60,11 @@ break optimization pass — start greedy + appeal.
   EXCEPTION (CORE-185): a PINNED abspos whose used inset lands at/past the
   fragmentainer bottom is deferred to the page CONTAINING its offset
   (Chromium fragmented printing) and fragments from there; see
-  `out-of-flow-positioning.spec.md` Behavior 9.
+  `out-of-flow-positioning.spec.md` Behavior 9. EXCEPTION (CORE-187): a PINNED
+  abspos that STARTS inside the page, declares an extent, exceeds the page it
+  starts on, and is not inside a clipping (`overflow` != `visible`) ancestor
+  fragments from that page like an in-flow box; a pinned box that fits itself
+  in one fragmentainer overflows in place instead of paginating.
 - Pagination measurably O(n): a 1,000-page synthetic document lays out without
   super-linear cost.
 - PDF emission walks the fragment tree (no separate pagination pass).

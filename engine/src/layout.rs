@@ -279,6 +279,13 @@ struct AbsposJob {
     /// Page-absolute (x, y) where a pinned box's used inset places its
     /// top-left. `None` = page-anchored job (start at page-content top).
     target: Option<(Scalar, Scalar)>,
+    /// CORE-187: the page's BODY pushed this job while placing the box's
+    /// FIRST fragment on that same page. The pinned drain runs AFTER the
+    /// body, so consuming the job here would paint the continuation over
+    /// the fragment already placed. The pinned loop holds such a job for
+    /// exactly one page; the next page's drain resumes it at the content
+    /// top (class A).
+    defer_one_page: bool,
 }
 
 
@@ -1317,7 +1324,11 @@ fn paginate(
             match jres.outgoing {
                 // The box continues: re-enqueue for the NEXT fragmentainer.
                 Some(tok) => {
-                    flow.abspos_jobs.push(AbsposJob { id: job.id, target: job.target });
+                    flow.abspos_jobs.push(AbsposJob {
+                        id: job.id,
+                        target: job.target,
+                        defer_one_page: false,
+                    });
                     flow.abspos_resume_tokens.insert(job.id, tok);
                 }
                 // Finished: record it so the body's pending token for this
@@ -1352,6 +1363,20 @@ fn paginate(
                 pinned_pending.push(job);
                 continue;
             };
+            if job.defer_one_page {
+                // CORE-187: the page's BODY pushed this continuation while
+                // placing the box's first fragment on THIS page. This drain
+                // runs after that body, so consuming the job now would paint
+                // the continuation over the fragment already here. Hold it
+                // exactly one page; the next drain resumes it at the content
+                // top (class A).
+                pinned_pending.push(AbsposJob {
+                    id: job.id,
+                    target: job.target,
+                    defer_one_page: false,
+                });
+                continue;
+            }
             // Which page contains the offset? Uniform geometry: each page's
             // content box is `content.height` tall, starting at `content.y`
             // below the page top, so the offset's page index is
@@ -1363,8 +1388,15 @@ fn paginate(
                 pinned_pending.push(job);
                 continue;
             }
-            // The offset's local y within this page (content.y + remainder).
-            let local_top = ty - (content.y + Scalar(target_pages as f64 * content.height.get()));
+            // The offset's local y within this page. `ty` is ALREADY
+            // page-local — the out-of-flow branch computes it from the page's
+            // content origin — so only whole content heights come off.
+            // Subtracting `content.y` again moved the box up by the top margin:
+            // fixedpos-004's reference paints its `bottom:-100vh`/`-200vh`
+            // boxes 0.5in too high on pages 2-3, where Chromium (and this
+            // engine's own test side, verified via the oracle) repeats the
+            // fixed clones at the SAME page-local position on every page.
+            let local_top = ty - Scalar(target_pages as f64 * content.height.get());
             let (jw, _) = ctx.measure_float(job.id, content.width);
             let resuming = flow.abspos_resume_tokens.contains_key(&job.id);
             let tok = match flow.abspos_resume_tokens.remove(&job.id) {
@@ -1375,7 +1407,18 @@ fn paginate(
                 None => BreakToken::break_before(),
             };
             let top = if resuming { content.y } else { local_top };
-            let bottom = content.y + content.height;
+            // CORE-187: a box that FITS one fragmentainer paints its overflow
+            // in place — Chromium overflows an abspos box rather than
+            // paginating it (fixedpos-004's reference relies on this: its
+            // `bottom:0`/`-100vh` simulation boxes stay on their own page and
+            // overflow the content edge). Only a box TALLER than a
+            // fragmentainer fragments across pages (CORE-185's 6-page case).
+            let (_, jh) = ctx.measure_float(job.id, content.width);
+            let bottom = if jh.get() <= content.height.get() {
+                Scalar(f64::MAX)
+            } else {
+                content.y + content.height
+            };
             let mut jres = ctx.layout_table_like(job.id, tx, jw, top, bottom, true, &tok, &mut flow);
             // NON-PROGRESS GUARD (CORE-78/CORE-109 shape): some layout paths
             // are MONOLITHIC and ignore break tokens — `layout_image` returns
@@ -1401,7 +1444,11 @@ fn paginate(
             fragmentainer.root.children.push(jres.fragment);
             match jres.outgoing {
                 Some(tok) => {
-                    pinned_pending.push(AbsposJob { id: job.id, target: job.target });
+                    pinned_pending.push(AbsposJob {
+                        id: job.id,
+                        target: job.target,
+                        defer_one_page: false,
+                    });
                     flow.abspos_resume_tokens.insert(job.id, tok);
                 }
                 None => {
@@ -3519,7 +3566,11 @@ impl<'a> Ctx<'a> {
                             // deferred_once flag tells the next page's body
                             // that this child is drain-owned (skip, never
                             // re-render) — the drain consumes the job.
-                            flow.abspos_jobs.push(AbsposJob { id: *child, target: None });
+                            flow.abspos_jobs.push(AbsposJob {
+                                id: *child,
+                                target: None,
+                                defer_one_page: false,
+                            });
                             seen_all = false;
                             outgoing_children.push(ChildToken {
                                 index: i,
@@ -3560,10 +3611,33 @@ impl<'a> Ctx<'a> {
                         // advance. In-flow siblings after it still place on
                         // this page (no loop break).
                         if !page_anchored && y.get() >= bottom_limit.get() {
-                            flow.abspos_jobs.push(AbsposJob { id: *child, target: Some((x, y)) });
+                            flow.abspos_jobs.push(AbsposJob {
+                                id: *child,
+                                target: Some((x, y)),
+                                defer_one_page: false,
+                            });
                             i += 1;
                             continue;
                         }
+                        // CORE-187: a PINNED box that STARTS inside this page
+                        // but does not FIT what is left of it, and can be
+                        // sliced, fragments like an in-flow box (css-break-3
+                        // §2.3 class A) instead of overflowing the page
+                        // invisibly. Chromium slices `top:50px; height:1000px`
+                        // across 6 pages at the harness geometry, and
+                        // fixedpos-004-print's `top:0; height:300vh` child
+                        // across 3. CORE-185 routed only the box whose used
+                        // inset lands AT/PAST the fragmentainer bottom to the
+                        // drain; a box that starts inside was laid whole.
+                        // Scope is a DECLARED extent (the CORE-152 guard):
+                        // without one no block-path reader consumes the
+                        // continuation token, so an auto-height box keeps the
+                        // monolithic model. A box that FITS keeps it too — no
+                        // arithmetic on a boundary the box sits exactly on.
+                        let pinned_fragments = !page_anchored
+                            && !self.clips_overflow_ancestor(*child)
+                            && self.resolved_height(cstyle).is_some()
+                            && y.get() + fh.get() > bottom_limit.get();
                         // Monolithic placement (spec Behavior 9): a PINNED box
                         // (insets or positioned ancestor) lays its full content
                         // once — no page-bottom break, no resume token — even
@@ -3578,7 +3652,7 @@ impl<'a> Ctx<'a> {
                         // f64::MAX bottom_limit also broke the fill-to-edge
                         // paint box: `paint_height = bottom_limit - box_top`
                         // became f64::MAX and pdf.rs dropped the huge rects.)
-                        let box_bottom_limit = if page_anchored {
+                        let box_bottom_limit = if page_anchored || pinned_fragments {
                             bottom_limit
                         } else {
                             Scalar(f64::MAX)
@@ -3610,8 +3684,18 @@ impl<'a> Ctx<'a> {
                         // the drain runs after the body, so the body saw the
                         // fresh resume token and kept paging past the drain's
                         // final page.)
-                        if page_anchored && res.outgoing.is_some() {
-                            flow.abspos_jobs.push(AbsposJob { id: *child, target: None });
+                        // CORE-187: a PINNED slice continues through the PINNED
+                        // drain loop instead (it carries the box's own x and
+                        // the non-progress guard). `defer_one_page` holds it
+                        // for one page — that loop runs later on THIS page,
+                        // where the first fragment already sits.
+                        if (page_anchored || pinned_fragments) && res.outgoing.is_some() {
+                            let target = if page_anchored { None } else { Some((x, y)) };
+                            flow.abspos_jobs.push(AbsposJob {
+                                id: *child,
+                                target,
+                                defer_one_page: !page_anchored,
+                            });
                             flow.abspos_resume_tokens.insert(*child, res.outgoing.unwrap());
                         }
                         oof_placed = true;
@@ -5546,6 +5630,24 @@ impl<'a> Ctx<'a> {
             h = used;
         }
         h
+    }
+
+    /// CORE-187: does any ANCESTOR of `id` clip its overflow
+    /// (css-overflow-3)? A box inside a clipping subtree cannot paginate the
+    /// document — its overflow is clipped, not laid out on a further page.
+    /// Chromium renders `abspos-in-clipped-overflow-print` (a `height:350vh`
+    /// abspos child of an `overflow:clip` box) as ONE page, so such a box
+    /// keeps the monolithic model instead of fragmenting. Walked to the root
+    /// (a clip anywhere above the box clips it).
+    fn clips_overflow_ancestor(&self, id: NodeId) -> bool {
+        let mut cur = self.dom.nodes[id].parent;
+        while let Some(n) = cur {
+            if self.styles[n].clips_overflow {
+                return true;
+            }
+            cur = self.dom.nodes[n].parent;
+        }
+        false
     }
 
     /// Measure a float's margin box: width (explicit `width` clamped to the
