@@ -47,12 +47,36 @@ Every feature starts as a spec; code follows the spec; tests prove the spec.
   machine-parseable second (stable section headings, "shall" for normative
   statements).
 
+## Issue evidence checks
+
+Before implementation or follow-up creation, read
+`docs/conventions/issue-evidence.md` and follow
+`docs/operations/issue-evidence-review.md`.
+
+- Read the full issue and all comments. Follow supersession links and check
+  later landings and unmerged work before accepting a diagnosis.
+- Record observed behavior, expected CSS behavior, and suspected cause
+  separately. Confirm a cause with isolating evidence. Unknown causes remain
+  valid investigation work.
+- Before implementation, rebuild the current branch point and rerun the
+  smallest reproduction. Record `git rev-parse HEAD`, fixture revision,
+  command, runner settings, and durable results. Documentation-only tasks
+  check current document/source evidence and skip engine reproduction.
+- Before filing a residual, remeasure at the landed commit and record the
+  lead's evidence/scope review. Keep same-capability boundary cases on the
+  canonical ticket.
+- Correct the active description when evidence changes. Preserve superseded
+  explanations in marked history. Resolve conflicting specification rules
+  before implementing their behavior. State acceptance criteria as observable
+  results; keep an unproved implementation mechanism provisional.
+
 ## Enforcement
 
-`scripts/validate_docs.py` enforces all of the above. It runs in pre-commit
-(`pre-commit run --all-files`) and CI (`.github/workflows/docs-validation.yml`),
-so a doc that breaks a convention cannot be committed or pushed. Run it
-yourself after touching `docs/`.
+`scripts/validate_docs.py` checks frontmatter and spec naming/slug rules. It
+runs in pre-commit (`pre-commit run --all-files`) and CI
+(`.github/workflows/docs-validation.yml`). Run it after touching `docs/`.
+Issue evidence checks require human/agent review; this validator does not
+inspect Linear or prove diagnoses.
 
 ## Workflow conventions
 
@@ -66,8 +90,10 @@ yourself after touching `docs/`.
 - When an issue closes, delete the Docker assets that belong to it: its build
   volume (`docker volume rm dev-target-<worktree-name>`), any container left
   behind, then the worktree. Each build volume holds about 14 GB. Keep the
-  shared cargo caches and the `typeanvil-dev` image. See
-  `docs/operations/dev-container.md`.
+  shared cargo caches and the `typeanvil-dev` image. Preserve live work,
+  unmerged candidates, and evidence needed by a replacement ticket before
+  cleanup; supersession alone does not authorize their deletion. See
+  `docs/operations/dev-container.md` and `docs/conventions/issue-evidence.md`.
 
 ## Writing style — agent responses
 

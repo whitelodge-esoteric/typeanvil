@@ -76,12 +76,20 @@ Never merge with a failing or skipped step without recording why on the PR.
 
 ## Workflow conventions
 
-- Work is tracked in Linear (team Core, project Typeanvil, issue ids like
+- Work is tracked in Linear (team Core, project TypeAnvil Core, issue ids like
   CORE-57). Reference the issue id in commit messages:
   `feat: ... (CORE-57)`.
+- Before implementation or follow-up creation, apply
+  [Issue evidence and diagnosis](issue-evidence.md). Read all comments and
+  later work, reproduce at the current source revision, and keep observations
+  separate from suspected causes. Unknown causes can proceed as investigation.
+- Correct the active issue description when evidence changes. Before filing a
+  residual, remeasure at the landed commit and record the lead's scope review.
+  Keep same-capability boundary cases on the canonical ticket.
 - End-to-end issue execution (worktree setup → reproduce → fix → gate →
-  land) follows the loop documented in the team's issue-loop process;
-  step ordering there is proven practice, not suggestion.
+  land) includes the [issue evidence review](../operations/issue-evidence-review.md).
+  The evidence review is required human/agent work; the documentation validator
+  cannot verify a diagnosis.
 
 ## Cleanup when an issue closes
 
