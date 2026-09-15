@@ -214,23 +214,26 @@ fn margin_box_runs_are_shaped() {
     let l = lay(html);
     let mut found = false;
     for page in &l.pages {
-        collect_margin_runs(&page.root, &mut |run: &typeanvil::frag::TextRun| {
-            if run.text.contains('\u{2014}') {
-                found = true;
-                assert!(!run.glyphs.is_empty(), "margin box must be shaped");
-                for g in &run.glyphs {
-                    assert!(g.id != 0, "glyph id 0 = .notdef for {:?}", run.text);
-                    assert!(
-                        g.range.start <= g.range.end && g.range.end <= run.text.len(),
-                        "range {:?} out of bounds for {:?}",
-                        g.range,
-                        run.text
-                    );
+        // The margin box sits outside the content root (CORE-179).
+        for root in page.paint_roots() {
+            collect_margin_runs(root, &mut |run: &typeanvil::frag::TextRun| {
+                if run.text.contains('\u{2014}') {
+                    found = true;
+                    assert!(!run.glyphs.is_empty(), "margin box must be shaped");
+                    for g in &run.glyphs {
+                        assert!(g.id != 0, "glyph id 0 = .notdef for {:?}", run.text);
+                        assert!(
+                            g.range.start <= g.range.end && g.range.end <= run.text.len(),
+                            "range {:?} out of bounds for {:?}",
+                            g.range,
+                            run.text
+                        );
+                    }
+                    // The em dash and middle dot must both be present in the run.
+                    assert!(run.text.contains('\u{00B7}'), "missing middle dot");
                 }
-                // The em dash and middle dot must both be present in the run.
-                assert!(run.text.contains('\u{00B7}'), "missing middle dot");
-            }
-        });
+            });
+        }
     }
     assert!(found, "no margin-box run with an em dash found");
 }

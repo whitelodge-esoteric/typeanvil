@@ -42,6 +42,7 @@ use crate::css::{
 use crate::dom::{Dom, NodeId, NodeKind};
 use crate::frag::{
     BorderBox, BreakInside, BreakToken, ChildToken, Fragment, FragmentContent, FragmentKind,
+    MarginBoxFragment,
     Fragmentainer, TextRun,
 };
 use crate::geom::{PageGeometry, Point, Rect, Scalar};
@@ -1253,29 +1254,31 @@ fn paginate(
         // content-origin subtraction double-shifted out-of-flow paint up-left
         // by the margin size; slice (a)'s simple fixtures passed only because
         // test and ref shifted identically.)
+        //
+        // A NEGATIVE z-index puts the box BELOW the in-flow content of its
+        // stacking context (CSS2.1 Appendix E: negative stacking contexts
+        // paint after the context's own background but before any in-flow
+        // block background). The content walk is PRE-ORDER, so "below" means
+        // BEFORE the content fragment in `root.children` — a box pushed after
+        // it would paint on top however negative its z-index. Inserted in
+        // REVERSE so the whole negative run still paints in ascending
+        // z-index order. paint-order-003's reference is the case that
+        // measures this: its `z-index: -1` square must stay behind the
+        // document background.
         if !flow.abspos.is_empty() {
-            flow.abspos.sort_by_key(|(z, _)| *z);
-            for (_, frag) in std::mem::take(&mut flow.abspos) {
+            let mut pool = std::mem::take(&mut flow.abspos);
+            pool.sort_by_key(|(z, _)| *z);
+            let (mut behind, front): (Vec<_>, Vec<_>) = pool
+                .into_iter()
+                .partition(|(z, _)| z.is_some_and(|v| v < 0));
+            for (_, frag) in behind.drain(..).rev() {
+                fragmentainer.root.children.insert(0, frag);
+            }
+            for (_, frag) in front {
                 fragmentainer.root.children.push(frag);
             }
         }
 
-        // Out-of-flow fragments attach to the page root (css-break-3: the
-        // fragmentainer is their parent, not the CSS containing block).
-        // Stable sort by z-index (None/auto first = painted below); ties keep
-        // document order. Their offsets are ALREADY page-absolute (the
-        // out-of-flow branch lays against `content.x`/`content.y` directly),
-        // matching the margin-box and footnote attachments — the emitter's
-        // root walk treats every root child as page-absolute. (The old
-        // content-origin subtraction double-shifted out-of-flow paint up-left
-        // by the margin size; slice (a)'s simple fixtures passed only because
-        // test and ref shifted identically.)
-        if !flow.abspos.is_empty() {
-            flow.abspos.sort_by_key(|(z, _)| *z);
-            for (_, frag) in std::mem::take(&mut flow.abspos) {
-                fragmentainer.root.children.push(frag);
-            }
-        }
 
         // CORE-169: drain the abspos continuation jobs snapshot at page
         // start — each lays its box's NEXT fragment into THIS page's
@@ -1477,6 +1480,10 @@ fn paginate(
         // glyph-less Text runs as paint-free.
         let page_forced = token.is_break_before();
         let page_blank = paints_nothing(&fragmentainer.root)
+            // A margin box paints in the page MARGIN, not the page area, but
+            // it is still a demanded paint (CORE-179): leaving it out of
+            // `root` must not make the page count as blank.
+            && fragmentainer.margin_boxes.is_empty()
             && fragmentainer.background.is_none()
             && fragmentainer.canvas_background.is_none()
             && fragmentainer.outline.is_none()
@@ -7194,7 +7201,17 @@ fn attach_margin_boxes(
                 fragment.children.push(img);
             }
         }
-        fragmentainer.root.children.push(fragment);
+        // css-page-3 §3.1: each margin box is its own stacking context and
+        // the boxes never interleave with document content, so they leave the
+        // content tree here. The emitter paints them as UNITS — one box's
+        // background, border and text together — in (z-index, tree order)
+        // order, which is what lets an overlapping box cover the previous
+        // box's text.
+        fragmentainer.margin_boxes.push(MarginBoxFragment {
+            z_index: mb.z_index.unwrap_or(0),
+            order: mb.name.paint_order(),
+            fragment,
+        });
     }
 }
 
@@ -8160,14 +8177,19 @@ mod core178_tests {
     }
 
     /// Page 0's text baselines, top-to-bottom. Every fixture body is empty, so
-    /// every baseline belongs to a margin box.
+    /// every baseline belongs to a margin box — and since CORE-179 margin
+    /// boxes live in `Fragmentainer::margin_boxes`, NOT in the content root
+    /// (they are their own stacking contexts and paint as units), the walk
+    /// starts at each box subtree.
     fn margin_box_baselines(css: &str) -> Vec<f64> {
         let html = format!("<html><head><style>{css}</style></head><body></body></html>");
         let dom = Dom::parse(&html).expect("parse");
         let sheet = Stylesheet::parse(css);
         let laid = layout(&dom, &sheet, geometry());
         let mut found = Vec::new();
-        collect_text_baselines(&laid.pages[0].root, 0.0, 0.0, &mut found);
+        for mb in &laid.pages[0].margin_boxes {
+            collect_text_baselines(&mb.fragment, 0.0, 0.0, &mut found);
+        }
         let mut ys: Vec<f64> = found.into_iter().map(|(_, y)| y).collect();
         ys.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         ys

@@ -84,9 +84,12 @@ market.
 - Side margin boxes (`@left-*`, `@right-*` — vertical writing-mode boxes):
   parsed and positioned, but content is treated as a single horizontal line
   (no rotation); vertical writing modes are out of scope.
-- Per-side border colours in a margin box (one colour paints all four
-  sides). CORE-179 records the gap; no fixture in `css-page/margin-boxes`
-  declares a per-side border colour today, so nothing exercises it yet.
+- Per-side border colours on a box (one colour paints all four sides), for
+  margin boxes and elements alike. CORE-201 records the gap and the measured
+  reason it flips no WPT test: no fixture in `css-page/margin-boxes` declares
+  a per-side border colour at all, and the fixtures that do declare one fail
+  on pagination rather than on colour (probe: `border-bottom-color: cyan`
+  currently repaints all four bands).
 - Margin-box intrinsic sizing in the box's own writing mode (CORE-184).
   **Measured 2026-09-15 (CORE-182): this — not writing-mode rotation — is what
   the four `css-page/margin-boxes/dimensions-004/006/013/014` targets fail on.**
@@ -276,6 +279,35 @@ The engine shall:
       area + margins; it flipped no tests, `width`/`height` are not css-page-3
       page descriptors, Chromium keeps the requested size, and the CLI contract
       requires the page-size flags to be honoured exactly.
+17. **Page-margin box painting order and `z-index` (CORE-179)**: the engine
+    shall paint a page in css-page-3 §3.1's layer order — page background,
+    document canvas, page borders, document contents, then page-margin boxes —
+    and shall treat the document canvas, the page borders and ALL document
+    content as a single `z-index: 0` stacking context for that purpose.
+    - A margin box shall never interleave with document content: a box paints
+      either entirely in front of that group or entirely behind it.
+    - `z-index` shall apply to a margin box as if it were positioned, and each
+      margin box shall be its own stacking context: a box with a NEGATIVE
+      `z-index` shall paint behind the document canvas and all document
+      content, while `z-index: auto` (used as 0) or a positive value shall
+      paint in front of all document content. Boxes sharing a `z-index` shall
+      paint in the default order below.
+    - The default paint order among margin boxes shall be `@top-left-corner`
+      first, then clockwise: `@top-left`, `@top-center`, `@top-right`,
+      `@top-right-corner`, `@right-top`, `@right-middle`, `@right-bottom`,
+      `@bottom-right-corner`, `@bottom-right`, `@bottom-center`,
+      `@bottom-left`, `@bottom-left-corner`, `@left-bottom`, `@left-middle`,
+      `@left-top`. The order shall follow the BOX, not the order the boxes are
+      declared in the `@page` rule.
+    - Each margin box shall be painted as a UNIT — its background, then its
+      border, then its content — before the next box starts, so an overlapping
+      box covers the previous box's text. The page-wide "all backgrounds, then
+      all borders, then all text" passes do not satisfy this on their own.
+    - A page-anchored out-of-flow box with a NEGATIVE used `z-index` shall
+      attach BEFORE the in-flow content of its page, because the emitter walks
+      the page root in pre-order (CSS2.1 Appendix E: a negative stacking
+      context paints after the context's own background and before any in-flow
+      block background).
 
 ## Interfaces
 
@@ -337,13 +369,27 @@ source: Option<NodeId>   // DOM node that produced this fragment (None for
 
 **`engine/src/layout.rs`**: `layout()` keeps its signature. Internally:
 resolve per-page `PageSpec` before building each `Fragmentainer`; thread
-running-string and page-counter state; attach margin-box fragments to each
-fragmentainer root; run the bounded two-pass TOC resolution when
-`target-counter` appears in the document.
+running-string and page-counter state; attach each margin-box fragment to the
+fragmentainer's `margin_boxes` list (NOT to the content root — a margin box is
+its own stacking context and defaults to painting in front of all content);
+run the bounded two-pass TOC resolution when `target-counter` appears in the
+document.
 
-**`engine/src/pdf.rs`**: unchanged walk (margin boxes are fragments now);
-add outline emission via krilla's `Document::set_outline` built from the
-heading structure.
+**`engine/src/frag.rs`**: `MarginBoxFragment { z_index, order, fragment }` —
+the margin box's stacking key plus its subtree — and
+`Fragmentainer::margin_boxes`. `order` is the box's css-page-3 §3.1 slot, so
+it follows the BOX and not the declaration order. `MarginBoxName::paint_order()`
+(paged.rs) supplies it.
+
+**`engine/src/pdf.rs`**: paints the page in §3.1 layer order. The content walk
+covers document content only; margin boxes paint in two phases around it —
+`z_index < 0` before the canvas fill, `z_index >= 0` after the text pass —
+each phase sorted by `(z_index, order)` and each box painted by
+`paint_margin_box()` as a UNIT (its own background, then border, then
+content). A page-anchored out-of-flow box with a negative used `z-index`
+attaches before the content fragment in the page root. Also: add outline
+emission via krilla's `Document::set_outline` built from the heading
+structure.
 
 **CLI**: unchanged (see the harness spec's engine adapter contract).
 
@@ -531,6 +577,22 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     when the paged parser reads it, then it unescapes to a newline, `A`, the
     quote, and nothing respectively (css-syntax-3 §4.3.7)
     (`paged.rs::unescapes_css_string_escapes`).
+32. **Margin-box paint order and `z-index` (CORE-179)** — Given the 16 margin
+    boxes declared in a non-clockwise order, when the page spec resolves, then
+    each box carries its own css-page-3 §3.1 slot and its declared `z-index`
+    (an undeclared `z-index` is 0), and no margin box fragment sits in the
+    content tree (`margin_box_paint_order.rs::paint_order_is_clockwise_from_top_left_corner`,
+    `::margin_boxes_attach_with_their_stacking_key`,
+    `::z_index_is_parsed_in_the_margin_context_and_defaults_to_auto`). Given a
+    page-anchored out-of-flow box with `z-index: -1`, when the page is laid
+    out, then its fragment precedes the in-flow content fragment in the page
+    root; with an auto `z-index` it follows it
+    (`::negative_z_index_abspos_attaches_before_the_in_flow_content`,
+    `::zero_z_index_abspos_still_attaches_after_the_in_flow_content`). Given
+    `css/css-page/margin-boxes/paint-order-003-print.html` in the WPT gate,
+    when the full suite runs, then the pair matches — it is the fixture that
+    measures a negative-`z-index` margin box staying behind the document
+    background.
 
 ## Edge Cases
 
