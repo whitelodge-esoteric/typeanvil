@@ -4,7 +4,7 @@ type: research
 status: draft
 owner: elijah
 created: 2026-09-14
-updated: 2026-09-14
+updated: 2026-09-15
 sidebar_position: 4
 tags: [wpt, conformance, writing-modes, fragmentation, core-181]
 ---
@@ -170,6 +170,23 @@ breaks. It can only be repaired by also laying out interior vertical subtrees
 vertically — the full writing-mode transposition, not the root-level slice.
 This is the hazard the issue text does not name, and it is worth checking with
 the user before accepting `page-size-012` as a classified flip.
+
+**Update 2026-09-15 (CORE-182).** The geometry half of this is now landed:
+the CORE-153 block-start ANCHORING rule reads the mode IN EFFECT AT THE BOX, so
+an interior `vertical-rl` block anchors from the right. Zero WPT flips. The
+other CORE-153 geometry rule — the vertical inline-extent fill — was deliberately
+NOT re-keyed: widening it regressed the Chromium-verified page count of
+`page-name-orthogonal-writing-003` (1 → 2 pages) because the rule needs a
+DEFINITE containing-block inline size, which the engine does not model. So the
+"orthogonal subtree must stay PHYSICAL" hazard of blocker 1 is still live: the
+fill still applies to orthogonal subtrees under a vertical root. What remains for
+the `page-size-012` pairing is the glyph-run and line-box transposition. Note
+also that a transposition keyed on the mode in effect at the box transposes BOTH
+sides of `page-size-012` — the test's root declaration and the reference's
+interior declarations — so the pair should survive it. The full scoping analysis,
+including why this capability has no standalone gate payoff and why the gate
+cannot see this class of regression, is in
+`core182-interior-writing-mode-scoping.md`.
 
 A second consequence of the same asymmetry: interior `html` / `body` boxes that
 declare a vertical mode (including `@page { writing-mode: vertical-rl }`, as in

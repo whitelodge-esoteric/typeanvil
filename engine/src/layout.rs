@@ -2169,12 +2169,14 @@ impl<'a> Ctx<'a> {
         // the @page margins this way). vertical-lr runs left→right like LTR
         // (page-margin-003's ref depends on the LTR anchoring). The root's
         // writing mode governs (it inherits into every box).
-        let root_wm = self.styles[self.dom.find_tag("html").unwrap_or(self.dom.root)]
-            .writing_mode;
+        // CORE-153 rules, re-keyed on the mode IN EFFECT AT THE BOX (CORE-182):
+        // `writing_mode_at(id)` is the nearest ancestor-or-self declaration, so
+        // an INTERIOR `writing-mode` binds its own subtree — not just the root.
+        let box_wm = self.writing_mode_at(id);
         let border_x =
             if style.rtl
                 || matches!(
-                    root_wm,
+                    box_wm,
                     crate::css::PageWritingMode::VerticalRl
                         | crate::css::PageWritingMode::SidewaysRl
                 )
@@ -4188,8 +4190,33 @@ impl<'a> Ctx<'a> {
             // floats size to content) and declared heights. The ROOT's
             // writing mode governs (it inherits into every box — the
             // paged-props pass only sets it on html).
+            // CORE-153 rule, re-keyed on the mode IN EFFECT AT THE BOX
+            // (CORE-182): an INTERIOR vertical subtree fills its own inline
+            // axis; an orthogonal (`horizontal-tb`) subtree inside a vertical
+            // page does NOT (it is a horizontal flow, and relabelling its axes
+            // would turn its text vertical).
+            // NOTE (CORE-182): this rule is deliberately still keyed on the
+            // PAGE FLOW, not on the box's own mode. Making it follow the box
+            // (`box_wm.is_vertical()`) was built and measured, and it REGRESSED
+            // the Chromium-verified page count of the
+            // page-name-orthogonal-writing-003 shape: an interior `vertical-rl`
+            // wrapper under a horizontal page filled its inline axis (210pt of
+            // a 216pt page) and pushed its second child onto a new page (1 -> 2
+            // pages; `engine/tests/page_boundaries.rs::
+            // page_change_suppressed_when_inner_mode_orthogonal_to_page_flow`).
+            // The rule models "the box fills its CONTAINING BLOCK's inline
+            // size"; for the root/body chain under a vertical page flow the
+            // fragmentainer IS that containing block, but for an interior
+            // vertical box inside a horizontal flow the containing block's
+            // inline extent is content-based and indefinite. Generalising the
+            // rule therefore needs a definite containing-block inline size,
+            // which the engine only models for DECLARED extents
+            // (`specified_extent`, CORE-167). Do not widen the key without that
+            // model. Also note the WPT gate CANNOT catch such a change: the
+            // reftest pairs were self-consistent, so both sides moved together
+            // and the A/B showed zero flips.
             if fresh
-                && root_wm != crate::css::PageWritingMode::HorizontalTb
+                && self.page_flow_writing_mode() != crate::css::PageWritingMode::HorizontalTb
                 && style.height.is_none()
                 && style.height_percent.is_none()
                 && style.height_viewport.is_none()
@@ -7638,5 +7665,70 @@ mod core153_vertical_rl_tests {
             );
         }
     }
+
+    /// CORE-182: the block-start anchoring rule follows the writing mode IN
+    /// EFFECT AT THE BOX, not the root element's. A nested div that declares
+    /// `vertical-rl` inside a HORIZONTAL page flow has a horizontal block axis
+    /// running right-to-left, so its `margin-right` anchors it to the right
+    /// edge — the same rule a vertical ROOT applies to every box. Before
+    /// CORE-182 the rule was keyed on the root, so this interior declaration
+    /// was ignored and the box stayed at the left edge.
+    #[test]
+    fn core182_interior_vertical_declaration_right_anchors() {
+        let html = r#"
+            <html><head><style>
+                @page { size: 600px 400px; margin: 0; }
+                body { margin: 0; }
+                .box { writing-mode: vertical-rl; width: 200px;
+                       margin-right: 20px; background: yellow; }
+            </style></head><body>
+            <div class="box">x</div>
+            </body></html>
+        "#;
+        let dom = Dom::parse(html).expect("parse");
+        let css = css_of(html);
+        let stylesheet = Stylesheet::parse(css);
+        let styles = crate::css::cascade_evaluated(&dom, css, &geometry());
+        let div = dom
+            .nodes
+            .iter()
+            .position(|n| matches!(&n.kind, NodeKind::Element(e) if e.attr("class") == Some("box")))
+            .expect("div present");
+        assert_eq!(
+            styles[div].writing_mode,
+            crate::css::PageWritingMode::VerticalRl,
+            "the interior declaration is recorded on the box"
+        );
+        let laid = layout(&dom, &stylesheet, geometry());
+        // Page 600x400px -> 450x300pt. Box 200px = 150pt wide; margin-right
+        // 20px = 15pt, so the border box spans [435-150, 435] = x 285..435.
+        let found = boxes(&laid, 0)
+            .into_iter()
+            .find(|(_, _, w, _)| (*w - 150.0).abs() < 1.0);
+        let (ax, _ay, w, _h) = found.expect("div paint box present");
+        assert_eq!(w, 150.0, "200px width");
+        assert!(
+            (ax - 285.0).abs() < 0.01,
+            "interior vertical block right-anchors: x={ax} want 285"
+        );
+    }
+
+    // CORE-182, the mirror case, recorded as a MEASURED NEGATIVE and pinned by
+    // an existing guard rather than by a new test here.
+    //
+    // Making the vertical inline-extent fill follow the box's own mode (so an
+    // orthogonal `horizontal-tb` subtree under a vertical page would keep a
+    // content-based height) was built and measured: it stretched an interior
+    // `vertical-rl` wrapper to 210pt of a 216pt page and pushed its second
+    // child onto a NEW page, taking the page-name-orthogonal-writing-003 shape
+    // from 1 page to 2. Chromium renders that fixture as one page (that is why
+    // CORE-155 asserts it), and the WPT gate could NOT see the flip — both
+    // sides of the pair moved together, so the A/B reported zero flips.
+    //
+    // The guard lives in `tests/page_boundaries.rs::
+    // page_change_suppressed_when_inner_mode_orthogonal_to_page_flow`; it is
+    // what fails if the fill is ever re-keyed without a containing-block
+    // inline-size model. See the NOTE at the fill rule in `layout_box` and
+    // `docs/research/wpt-harness/core182-interior-writing-mode-scoping.md`.
 }
 

@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-16
-updated: 2026-09-14
+updated: 2026-09-15
 sidebar_position: 3
 tags: [css, paged-media, page, layout, engine]
 spec_id: paged-media-css
@@ -86,7 +86,25 @@ market.
   (no rotation); vertical writing modes are out of scope.
 - Margin-box multi-line content (`content: "a\a b"`, `white-space: pre-wrap`)
   and per-side border colours (one colour paints all four sides). CORE-141
-  records these as the remaining margin-box gaps.
+  records these as the remaining margin-box gaps. **Measured 2026-09-15
+  (CORE-182): this — not writing-mode rotation — is what the four
+  `css-page/margin-boxes/dimensions-004/006/013/014` targets fail on. `writing-mode`
+  is not even parsed for a margin box today (`MarginBoxSpec` carries no such
+  field), and the four references SIMULATE vertical text with horizontal
+  `<br>`-separated blocks (e.g. dimensions-013's ref paints `@top-left`'s seven
+  vertical lines as one `<div style="width:17.5em">xxxxxxx</div>`), so a
+  rotation-only change could not match them. What differs is intrinsic sizing
+  in the box's own writing mode (seven lines stack along the block axis →
+  min-content WIDTH 7em, per dimensions-013's own comment). That is a
+  margin-box sizing feature, tracked separately from the document-interior
+  writing-mode work.**
+- Document-interior vertical text layout (rotated glyph runs, vertical line
+  boxes). CORE-182 re-keyed the vertical BLOCK geometry on the mode in effect
+  at the box, but text still advances along physical +x inside a vertical
+  subtree: no glyph run is rotated, and an interior vertical subtree that
+  crosses a page edge is not sliced along its own block axis. CORE-181's
+  root-vertical page progression is built on top of this and owns the eight
+  `body-background-*` / `block-00{1,2}-wm-*` / `page-box-008` targets.
 - Footnotes, cross-references beyond `target-counter(..., page)`, named
   counter styles (roman etc.), `target-text`.
 - CSS `size: landscape/portrait` keywords beyond the named page-size keywords
@@ -577,6 +595,38 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   block-start anchoring follows the block axis: sideways-rl right-anchors like
   vertical-rl, sideways-lr runs left-to-right like vertical-lr). Both were
   proven RED with the mapping reverted.
+- **Vertical block geometry is keyed on the mode IN EFFECT AT THE BOX (CORE-182,
+  2026-09-15)** → the CORE-153 block-start anchoring rule was keyed on the ROOT
+  element's mode, so an INTERIOR `writing-mode` declaration was ignored for
+  geometry. It now reads `Ctx::writing_mode_at(id)` (the nearest
+  ancestor-or-self declaration, else the page flow mode), which is what
+  css-writing-modes-3 §7 inheritance means: a nested `vertical-rl` div inside a
+  HORIZONTAL page flow anchors from the right edge, because its own block axis
+  runs right-to-left.
+  This landing flipped ZERO WPT statuses (159 PASS / 124 FAIL on both sides,
+  A/B diffed PER TEST ID), so the seam is proven by a unit test instead:
+  `layout::core153_vertical_rl_tests::core182_interior_vertical_declaration_right_anchors`,
+  shown RED with the re-key reverted (`x=0 want 285`). Zero flips is EXPECTED,
+  not evidence of a dead seam: the WPT print-reftests compare our test render
+  against our reference render through the SAME engine, so a change that applies
+  uniformly to both sides of a pair is invisible to the gate. The payoff for this
+  capability arrives with CORE-181's root-vertical page PROGRESSION, which is
+  what the eight `body-background-*` / `block-00{1,2}-wm-*` / `page-box-008`
+  targets actually fail on.
+  **The CORE-153 inline-extent fill was deliberately NOT re-keyed the same way.**
+  Widening it to the box's own mode was built and measured, and it regressed the
+  Chromium-verified page count of the `page-name-orthogonal-writing-003` shape:
+  an interior `vertical-rl` wrapper under a horizontal page filled its inline
+  axis (210pt of a 216pt page) and pushed its second child onto a new page, 1 →
+  2 pages (`tests/page_boundaries.rs::page_change_suppressed_when_inner_mode_orthogonal_to_page_flow`).
+  That rule models "the box fills its CONTAINING BLOCK's inline size"; under a
+  vertical page flow the fragmentainer is that containing block for the
+  root/body chain, but an interior vertical box inside a horizontal flow has a
+  content-based, indefinite containing-block inline extent. Generalising it needs
+  a definite containing-block inline size, which the engine only models for
+  DECLARED extents (`specified_extent`, CORE-167) — so the fill keeps its
+  page-flow key and the NOTE in `layout_box` records why. The WPT gate could not
+  catch this class of change at all: both sides of the pair moved together.
 - **UA body margin is the WHATWG 8px in print (CORE-153, 2026-09-14)** → the
   UA sheet's `body { margin: 0 }` (Prince alignment, CORE-92) is REVERSED to
   `margin: 8px` (6pt): Chromium applies the 8px body margin in print, and
