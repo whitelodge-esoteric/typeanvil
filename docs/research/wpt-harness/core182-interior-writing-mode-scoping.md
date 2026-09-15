@@ -101,9 +101,32 @@ document renders something NON-BLANK. Our render is blank, so it fails as
 "mismatch expected but images matched". The fixture's paint comes from
 `content: url(data:image/gif;...)` on a `<font>` and an `<h6>`; this engine
 ignores `content` images on non-replaced elements (`layout.rs`, "Element
-generated content paints no image in this engine"). The blocker is element
-`content: url()` support, and the `writing-mode: vertical-rl` in the fixture is
-incidental (it is part of the Firefox crash repro, not the assertion).
+generated content paints no image in this engine"). The `writing-mode:
+vertical-rl` in the fixture is incidental (it is part of the Firefox crash
+repro, not the assertion). **Filed as CORE-183.**
+
+Its root cause was then measured with a probe matrix over the fixture's three
+suspicious declarations (CLI at the harness geometry, ink counted with
+pypdfium2), and there are TWO INDEPENDENT blanking causes:
+
+| `content: url()` | `max-height: 0.1vmin` | `top` | ink |
+| -- | -- | -- | -- |
+| yes | yes | 500px | 0 (the fixture) |
+| yes | no | 500px | 0 |
+| no | no | 500px | 0 |
+| yes | yes | 0 | 0 |
+| yes | no | 0 | 0 |
+| no | yes | 0 | 49 |
+| no | no | 0 | 49 |
+
+`max-height: 0.1vmin` is NOT a cause. The two real ones are element
+`content: url()` (the element's own children are suppressed and no image is
+painted, so the in-flow `<h6 class="b">` contributes nothing) and a page-anchored
+abspos whose explicit inset lands past page 1 — minimal repro at the same
+geometry: `top: 200px` paints 175 ink, `top: 500px` paints **0**. The fixture's
+`<font class="a">` is that shape, and CORE-153's PINNED-abspos model keeps it
+monolithic against `bottom_limit = f64::MAX`, so it paints at y=375pt on a 216pt
+page and nothing is visible.
 
 **`margin-boxes/dimensions-004/006/013/014` need MULTI-LINE MARGIN-BOX
 CONTENT, not rotation.** `writing-mode` is not parsed for a margin box at all
@@ -117,6 +140,7 @@ writing mode)"). `dimensions-006` declares no `writing-mode` at all: it tests
 min/max content sizing of margin boxes generally. Note also that all four use
 the Ahem font, whose glyph is a solid square — a rotated square is the same
 square — so rotation alone is invisible to these fixtures by construction.
+**Filed as CORE-184.**
 
 **`page-size-012-print`, `page-name-orthogonal-writing-001..004` and
 `page-margin-002/003` all PASS today.** None of them can move up.
@@ -200,7 +224,8 @@ new slicing direction that has to compose with CORE-152 / CORE-167 continuation.
    the fill generalisation; without it the rule cannot tell a page-flow-vertical
    containing block from an interior vertical box, and the
    `page-name-orthogonal-writing-003` page count is the regression.
-4. Treat the two mis-attributed families as their own issues: element
-   `content: url()` images (`firefox-bug-2026295`), and multi-line margin-box
-   content plus writing-mode-aware margin-box intrinsic sizing
-   (`dimensions-004/006/013/014`).
+4. The two mis-attributed families now have their own issues: element
+   `content: url()` images (`firefox-bug-2026295`) is **CORE-183**, and
+   multi-line margin-box content plus writing-mode-aware margin-box intrinsic
+   sizing (`dimensions-004/006/013/014`) is **CORE-184**. Both were filed with a
+   measured root cause, not the original hypothesis.
