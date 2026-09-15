@@ -660,3 +660,155 @@ fn page_anchored_abspos_fragments_across_pages() {
         "class-A resume anchors at the fragmentainer top",
     );
 }
+
+// --- CORE-185: a PINNED abspos whose inset lands past page 1 -------------
+
+#[test]
+fn pinned_abspos_past_page_one_lands_on_offset_page() {
+    // Chromium oracle: `top:500px` at a 216pt content height (5x3in page,
+    // @page margin 0) puts the box on page 2 at local y = 375-216 = 159pt
+    // and grows the document to 2 pages. Our engine used to paint it at
+    // y=375pt on page 1 — outside the page box, invisible, no page added.
+    let html = r#"<html><head><style>
+        @page { margin: 0; }
+        body { margin: 0; }
+        .a { position: absolute; top: 500px; }
+    </style></head><body>
+        <div class="a">hello</div>
+    </body></html>"#;
+    let dom = dom_of(html);
+    let aid = node_id_by_class(&dom, "a");
+    let layout = lay(html, geometry(5.0, 3.0, 0.0));
+    assert_eq!(
+        layout.pages.len(),
+        2,
+        "document must grow to include the box's page, got {} pages",
+        layout.pages.len()
+    );
+    // Page 1 stays paint-free for this box.
+    assert!(
+        page_abspos_fragments(&layout, 0, aid).is_empty(),
+        "pinned box past page 1 paints nothing on page 1"
+    );
+    // Page 2 holds it at the offset's local y: 500px = 375pt, minus the
+    // 216pt page 1 = 159pt.
+    let frags = page_abspos_fragments(&layout, 1, aid);
+    assert!(!frags.is_empty(), "box paints on the page containing its offset");
+    assert_close(
+        frags[0].offset.y,
+        Scalar(159.0),
+        "pinned box starts at the inset's local y on the target page",
+    );
+}
+
+#[test]
+fn pinned_abspos_past_page_one_fragments_tall_box() {
+    // Chromium oracle: `top:500px; height:1000px` at a 216pt page renders 6
+    // pages — the box starts on page 2 at local 159pt and the 750pt-tall
+    // box fragments across pages 2-6. Our engine painted nothing (1 page).
+    let html = r#"<html><head><style>
+        @page { margin: 0; }
+        body { margin: 0; }
+        .a { position: absolute; top: 500px; height: 1000px; }
+    </style></head><body>
+        <div class="a">hello</div>
+    </body></html>"#;
+    let dom = dom_of(html);
+    let aid = node_id_by_class(&dom, "a");
+    let layout = lay(html, geometry(5.0, 3.0, 0.0));
+    assert_eq!(
+        layout.pages.len(),
+        6,
+        "tall pinned box fragments across pages 2-6 (Chromium-verified), got {} pages",
+        layout.pages.len()
+    );
+    let frags = page_abspos_fragments(&layout, 1, aid);
+    assert!(!frags.is_empty(), "tall box starts on page 2");
+    assert_close(
+        frags[0].offset.y,
+        Scalar(159.0),
+        "tall box starts at the inset's local y on page 2",
+    );
+    // Every subsequent page holds a continuation fragment.
+    for p in 2..6 {
+        assert!(
+            !page_abspos_fragments(&layout, p, aid).is_empty(),
+            "page {} must hold a continuation fragment of the tall box",
+            p + 1
+        );
+    }
+}
+
+#[test]
+fn pinned_abspos_inside_page_keeps_monolithic() {
+    // A pinned box that STARTS inside the page keeps the monolithic model
+    // (spec Behavior 9): 1 page, offset unchanged. CORE-185 only defers a
+    // box whose used inset lands at/past the fragmentainer bottom.
+    let html = r#"<html><head><style>
+        @page { margin: 0; }
+        body { margin: 0; }
+        .a { position: absolute; top: 200px; height: 1000px; }
+    </style></head><body>
+        <div class="a">hello</div>
+    </body></html>"#;
+    let dom = dom_of(html);
+    let aid = node_id_by_class(&dom, "a");
+    let layout = lay(html, geometry(5.0, 3.0, 0.0));
+    assert_eq!(layout.pages.len(), 1, "monolithic box adds no page");
+    let frags = page_abspos_fragments(&layout, 0, aid);
+    assert!(!frags.is_empty(), "box paints on page 1");
+    assert_close(
+        frags[0].offset.y,
+        Scalar(150.0),
+        "200px = 150pt, unpaged",
+    );
+}
+
+#[test]
+fn pinned_replaced_image_past_page_one_terminates() {
+    // A replaced image (`content: url()`) lays MONOLITHICALLY and IGNORES
+    // break tokens: `layout_image` returns an empty fragment plus a
+    // `break_before` token whenever the box does not fit. Deferring such a
+    // box past page 1 therefore regenerated that same token forever —
+    // measured at the MAX_PAGES cap of 100_000 pages (and it crashed the
+    // WPT harness worker on `firefox-bug-2026295-print`). The drain's
+    // non-progress guard must place it as a LAST RESORT instead, so
+    // pagination stays bounded AND the image still paints.
+    const PNG_B64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
+    // Never hand-type a base64 constant (CORE-186): a single wrong
+    // character silently corrupts the payload and the failure points at the
+    // engine, not the fixture.
+    assert_eq!(PNG_B64.len(), 92, "PNG constant must not be corrupted");
+    let html = format!(
+        r#"<html><head><style>
+        @page {{ margin: 0; }}
+        body {{ margin: 0; }}
+        .a {{ position: absolute; top: 500px; height: 1000px; content: url(data:image/png;base64,{PNG_B64}); }}
+    </style></head><body>
+        <div class="a"></div>
+    </body></html>"#
+    );
+    let dom = dom_of(&html);
+    let aid = node_id_by_class(&dom, "a");
+    let layout = lay(&html, geometry(5.0, 3.0, 0.0));
+    assert!(
+        layout.pages.len() >= 2,
+        "the box's offset page is kept, got {} page(s)",
+        layout.pages.len()
+    );
+    assert!(
+        layout.pages.len() < 10,
+        "non-progress guard must bound pagination (was 100_000), got {} pages",
+        layout.pages.len()
+    );
+    // The replaced-element path does NOT tag its fragment with `source`, so
+    // assert on CONTENT: the offset's page must hold an Image fragment.
+    fn has_image(frag: &Fragment) -> bool {
+        matches!(frag.content, typeanvil::frag::FragmentContent::Image(_))
+            || frag.children.iter().any(has_image)
+    }
+    assert!(
+        has_image(&layout.pages[1].root),
+        "the image paints on the page containing its offset (node {aid})"
+    );
+}
