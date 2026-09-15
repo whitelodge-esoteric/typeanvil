@@ -613,7 +613,7 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   a BROKEN 0x0 image and painted nothing.
   **GIF is still not decoded** (`images::sniff` covers PNG, JPEG and SVG), and
   the `firefox-bug-2026295-print` fixture's images are GIFs, so that target still
-  FAILS; GIF support is the remaining requirement on CORE-183. Zero WPT status
+  FAILS; GIF support is tracked as **CORE-186** (it blocks CORE-183). Zero WPT status
   flips on landing, so the seam is proven by two RED-first unit tests
   (`layout::core183_element_content_image_tests::element_content_url_paints_image_at_natural_size`,
   `css::core183_decl_split_tests::data_uri_in_content_survives_inline_declaration_splitting`)
