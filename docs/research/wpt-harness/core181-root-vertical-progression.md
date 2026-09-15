@@ -77,6 +77,56 @@ frame origin. Text runs reuse the same trick the emitter already needs: map the
 run's ABSOLUTE baseline, then re-relativise it against the mapped parent origin.
 Do not rotate glyphs — see blocker 2.
 
+## Measured: the frame swap alone does NOT move the targets
+
+A hand session ran the frame swap on its own (2026-09-14, branch point
+`11f862f`): the body lays out in the virtual frame, while the physical rect
+stays what the canvas fill, the chrome rings, margin boxes, footnotes and
+out-of-flow content resolve against. Page counts measured directly per fixture,
+test vs reference:
+
+| Fixture | before (test/ref) | after (test/ref) |
+| -- | -- | -- |
+| `body-background-{vlr,vrl,slr,srl}` | 1 / 2 | 1 / 2 (**unmoved**) |
+| `page-box-008` | 2 / 1 | 5 / 1 (worse) |
+| `block-001-wm-vlr` | 12 / 12 | 6 / 6 |
+| `block-002-wm-vlr` | 10 / 15 | 5 / 8 |
+| `page-margin-002` (canary) | 3 / 3 | 3 / 3 |
+| `page-margin-003` (canary) | 3 / 3 | 3 / 3 |
+| `page-size-012` (canary) | 2 / 2 | 2 / 2 |
+| `transform-022` (canary) | 5 / 5 | 5 / 5 |
+
+Two conclusions.
+
+**The canary pair holds.** `page-margin-002/003` keep their counts, so the frame
+arithmetic (page rect swap, physical chrome, physical footnotes, physical abspos
+drain) is sound.
+
+**The frame swap is not sufficient. Box dimensions have to be transposed too.**
+The virtual frame relabels the PAGE, but every box still carries its physical
+`width` and `height`, and the horizontal machinery reads `width` as the inline
+extent and `height` as the block extent. In a vertical writing mode the mapping
+is the opposite. So `div { width: 600px; height: 100px }` takes an inline extent
+of 600 inside a 600-wide virtual frame and a block extent of 100: it cannot
+cross a page edge, and the count stays at 1. The `block-001/002-wm` counts halve
+instead, because those `block-size: 210vw` boxes now derive their block extent
+from the wrong axis.
+
+A complete implementation needs a **style transpose** for every element in a
+root-vertical document, in addition to the frame swap:
+
+- `width` ↔ `height`, plus the min/max pair and the resolved `vw`/`vh` values;
+- `margin-left` ↔ `margin-top` and `margin-right` ↔ `margin-bottom`, with the
+  same swap for borders and padding. The direction variant (`*-rl` vs `*-lr`)
+  decides whether the block-axis pair is mirrored;
+- the CORE-153 rules (auto inline extent fills the page content box,
+  `vertical-rl` block-start right-anchoring) keyed on the mode in effect at each
+  box rather than on the root's mode.
+
+This is the style-swap transposition that changes layout for EVERY root-vertical
+document, and it is the largest single piece of the work. Budget for it before
+starting the frame swap.
+
 ## Blocker 1 — out-of-flow and chrome content must stay PHYSICAL, and that is not a local change
 
 The virtual frame is a frame for the **body** only. These always belong to the
@@ -169,7 +219,9 @@ two unit tests, both shown RED with the mapping reverted:
    `body-background` fixtures.
 2. The physical-frame path for out-of-flow subtrees (blocker 1), gated alone.
    Nothing to show for it on its own, but the frame work is unsafe without it.
-3. The frame swap itself, with `page-margin-002/003` as the canary pair: if
-   those two stay green, the frame arithmetic is right.
+3. The style transpose and the frame swap together, with `page-margin-002/003`
+   as the canary pair. Measured (see above): the frame swap ALONE leaves the
+   four `body-background` page counts unmoved, because box dimensions are still
+   physical. The two belong in one change.
 4. Then decide with the user how to treat `block-001/002-wm` ×4 (accidental
    passes, CORE-140 precedent) and `page-size-012` (blocker 2).
