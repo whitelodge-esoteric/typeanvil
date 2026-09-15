@@ -419,7 +419,7 @@ pub fn layout_with_images_and_store(
     // layout then only reads the store through the shared info table. Keys
     // are content hashes, so repeated references collapse for free.
     let mut image_infos: BTreeMap<NodeId, ImageInfo> = BTreeMap::new();
-    collect_image_sources(dom, root, images, &mut image_infos, base_url);
+    collect_image_sources(dom, root, &styles, images, &mut image_infos, base_url);
 
     // A `display: none` on the document root ELEMENT (html) suppresses the
     // whole document: one valid empty page, no page-box chrome (CORE-66,
@@ -1720,10 +1720,21 @@ impl<'a> Ctx<'a> {
     /// True when `id` is a replaced image element: `<img>`, or an inline
     /// `<svg>` (CORE-131) that went through the rasterizer bridge.
     fn is_replaced_image(&self, id: NodeId) -> bool {
-        self.dom.nodes[id]
+        if self.dom.nodes[id]
             .kind
             .element()
             .is_some_and(|el| el.tag == "img" || el.tag == "svg")
+        {
+            return true;
+        }
+        // CORE-183: an element whose generated `content` carries a `url()` image
+        // is replaced content as well (css-content-3 §2). Chromium paints the
+        // image and does NOT fall back to the element's own text — verified with
+        // the harness oracle: firefox-bug-2026295-print's Chromium PDF has an
+        // EMPTY text layer on every one of its 8 pages, while page 1 carries the
+        // in-flow `<h6>`'s 16x16 GIF as ink. Such an element's image is interned
+        // in `collect_image_sources`, so `layout_image` finds its info.
+        first_image_piece(&self.styles[id].content).is_some()
     }
 
     /// (an over-tall image on an empty page overflows instead of looping).
@@ -6516,16 +6527,18 @@ fn nth_block_child(
 fn collect_image_sources(
     dom: &Dom,
     root: NodeId,
+    styles: &[ComputedStyle],
     store: &mut crate::images::ImageStore,
     infos: &mut BTreeMap<NodeId, ImageInfo>,
     base_url: Option<&std::path::Path>,
 ) {
-    collect_image_sources_rec(dom, root, store, infos, base_url);
+    collect_image_sources_rec(dom, root, styles, store, infos, base_url);
 }
 
 fn collect_image_sources_rec(
     dom: &Dom,
     id: NodeId,
+    styles: &[ComputedStyle],
     store: &mut crate::images::ImageStore,
     infos: &mut BTreeMap<NodeId, ImageInfo>,
     base_url: Option<&std::path::Path>,
@@ -6552,8 +6565,20 @@ fn collect_image_sources_rec(
             return; // the subtree is consumed — no children to walk
         }
     }
+    // CORE-183: an ELEMENT whose generated `content` carries a `url()` image is
+    // REPLACED content (css-content-3 §2). The declaration replaces the
+    // element's own children, and the image paints at its natural size — so
+    // intern it here, exactly like an `<img>`, and let `is_replaced_image`
+    // route the element through `layout_image`. Without this the element-
+    // content path suppressed the children AND painted no image, so the box
+    // contributed nothing at all (firefox-bug-2026295-print rendered blank).
+    if let Some(src) = first_image_piece(&styles[id].content) {
+        if let Ok(key) = store.intern(&src, base_url, None) {
+            record_image_info(id, key, store, infos);
+        }
+    }
     for &child in &dom.nodes[id].children {
-        collect_image_sources_rec(dom, child, store, infos, base_url);
+        collect_image_sources_rec(dom, child, styles, store, infos, base_url);
     }
 }
 
@@ -7732,3 +7757,75 @@ mod core153_vertical_rl_tests {
     // `docs/research/wpt-harness/core182-interior-writing-mode-scoping.md`.
 }
 
+#[cfg(test)]
+mod core183_element_content_image_tests {
+    use super::*;
+    use crate::css::Stylesheet;
+    use crate::geom::PageGeometry;
+
+    fn geometry() -> PageGeometry {
+        PageGeometry {
+            width: Scalar(360.0),
+            height: Scalar(216.0),
+            margin_top: Scalar::ZERO,
+            margin_right: Scalar::ZERO,
+            margin_bottom: Scalar::ZERO,
+            margin_left: Scalar::ZERO,
+        }
+    }
+
+    /// A 10x10 PNG → 7.5x7.5pt (HTML attribute/CSS px, 96dpi → pt is *0.75).
+    const PNG_10X10: &str = "iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAIAAAACUFjqAAAAEklEQVR4nGP8z4APMOGVHbHSAEEsAROxCnMTAAAAAElFTkSuQmCC";
+
+    /// CORE-183: an element whose generated `content` carries a `url()` image is
+    /// REPLACED content (css-content-3 §2). It paints the image at its natural
+    /// size. Before this the element-content path suppressed the element's own
+    /// children AND painted no image, so the box contributed nothing at all —
+    /// which is why `firefox-bug-2026295-print` rendered blank.
+    ///
+    /// The fixture is the STYLESHEET path (a class rule with a `data:` URI), so
+    /// this also pins the declaration splitter: a naive split on `;` cut the URI
+    /// at `;base64,`, leaving `url(data:image/png` — an undecodable path that
+    /// interned as a BROKEN image with a 0x0 box.
+    #[test]
+    fn element_content_url_paints_image_at_natural_size() {
+        let html = format!(
+            r#"<!DOCTYPE html><html><head><style>
+                @page {{ margin: 0 }}
+                body {{ margin: 0 }}
+                .x {{ content: url(data:image/png;base64,{PNG_10X10}) }}
+            </style></head><body><div class="x"></div></body></html>"#
+        );
+        let dom = Dom::parse(&html).expect("parse");
+        let css = html
+            .split("<style>")
+            .nth(1)
+            .and_then(|s| s.split("</style>").next())
+            .unwrap_or("");
+        let sheet = Stylesheet::parse(css);
+        let laid = layout(&dom, &sheet, geometry());
+
+        let mut images: Vec<(f64, f64, f64, f64)> = Vec::new();
+        let mut stack = vec![(&laid.pages[0].root, 0.0f64, 0.0f64)];
+        while let Some((frag, px, py)) = stack.pop() {
+            let ax = px + frag.offset.x.get();
+            let ay = py + frag.offset.y.get();
+            if matches!(frag.content, FragmentContent::Image(_)) {
+                images.push((ax, ay, frag.size.0.get(), frag.size.1.get()));
+            }
+            for c in &frag.children {
+                stack.push((c, ax, ay));
+            }
+        }
+
+        assert_eq!(images.len(), 1, "exactly one image fragment: {images:?}");
+        let (_x, _y, w, h) = images[0];
+        assert_eq!(w, 7.5, "10px image paints at its natural width");
+        assert_eq!(h, 7.5, "10px image paints at its natural height");
+        assert_eq!(
+            laid.images.entries_len(),
+            1,
+            "the data URI interned as one image (a truncated path still interns, as broken)"
+        );
+    }
+}
