@@ -30,3 +30,5 @@ Signed-off-by: Your Name <your.email@example.com>
 - [ ] Benchmarks + demo suite re-run for engine changes; results committed with the PR
 - [ ] `python3 scripts/validate_docs.py` passes
 - [ ] Tests added or updated for behavior changes
+- [ ] For issue-driven behavior changes: current reproduction, cause confidence, and active-description corrections reviewed per `docs/conventions/issue-evidence.md`
+- [ ] Any follow-up carries landed-commit evidence and a lead scope review; same-capability residuals stay on the canonical ticket
