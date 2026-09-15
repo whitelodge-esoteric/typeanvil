@@ -595,6 +595,30 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   block-start anchoring follows the block axis: sideways-rl right-anchors like
   vertical-rl, sideways-lr runs left-to-right like vertical-lr). Both were
   proven RED with the mapping reverted.
+- **Element `content: url()` paints as replaced content (CORE-183, 2026-09-15)** →
+  an element whose `content` carries a `url()` image is REPLACED content
+  (css-content-3 §2): the declaration replaces the element's own children and
+  the image paints at its natural size (96dpi px → pt, the same rule the `<img>`
+  path uses). Chromium agrees and does NOT fall back to the element's own text —
+  the harness oracle's PDF for `firefox-bug-2026295-print` has an EMPTY text
+  layer on every one of its pages, while page 1 carries the in-flow `<h6>`'s
+  image as ink. Two seams had to be wired: the image is interned in
+  `collect_image_sources` (the pre-pass that handles `<img>`), and
+  `is_replaced_image` routes such an element through `layout_image`.
+  Supporting this also needed a second fix: author-CSS declaration bodies now
+  split on TOP-LEVEL `;` only (`split_top_level_decls`, which already existed for
+  the `src` list) in both the stylesheet pass and `parse_inline_decls`. A naive
+  `split(';')` cut `content: url(data:image/png;base64,...)` at `;base64,`, so
+  the value arrived as `url(data:image/png` — an unbalanced path that interned as
+  a BROKEN 0x0 image and painted nothing.
+  **GIF is still not decoded** (`images::sniff` covers PNG, JPEG and SVG), and
+  the `firefox-bug-2026295-print` fixture's images are GIFs, so that target still
+  FAILS; GIF support is the remaining requirement on CORE-183. Zero WPT status
+  flips on landing, so the seam is proven by two RED-first unit tests
+  (`layout::core183_element_content_image_tests::element_content_url_paints_image_at_natural_size`,
+  `css::core183_decl_split_tests::data_uri_in_content_survives_inline_declaration_splitting`)
+  plus a before/after ink control: the same PNG markup painted 0 ink before and
+  64 after.
 - **Vertical block geometry is keyed on the mode IN EFFECT AT THE BOX (CORE-182,
   2026-09-15)** → the CORE-153 block-start anchoring rule was keyed on the ROOT
   element's mode, so an INTERIOR `writing-mode` declaration was ignored for

@@ -2833,7 +2833,9 @@ mod breaks {
     /// source order. Used by every author-CSS pass so inline declarations win
     /// the cascade exactly like a stylesheet rule with maximal specificity.
     pub(super) fn parse_inline_decls(attr: &str) -> Vec<(String, String)> {
-        attr.split(';')
+        // CORE-183: split on TOP-LEVEL `;` only (same data-URI truncation as the
+        // stylesheet pass).
+        super::split_top_level_decls(attr).into_iter()
             .filter_map(|d| d.split_once(':'))
             .map(|(p, v)| (p.trim().to_ascii_lowercase(), v.trim().to_string()))
             .collect()
@@ -3950,7 +3952,10 @@ mod paged_props {
 
             let body = &css[brace + 1..end];
             let mut decls = Vec::new();
-            for decl in body.split(';') {
+            // CORE-183: split on TOP-LEVEL `;` only — a data URI's `;base64,`
+            // would otherwise cut `content: url(data:image/png;base64,...)` short,
+            // leaving an unbalanced path that interned as a BROKEN image.
+            for decl in super::split_top_level_decls(body) {
                 if let Some((prop, value)) = decl.split_once(':') {
                     if let Some(d) = parse_decl(prop, value) {
                         decls.push(d);
@@ -4481,5 +4486,26 @@ mod viewport_units {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod core183_decl_split_tests {
+    /// CORE-183: a declaration body splits on TOP-LEVEL `;` only. A data URI
+    /// carries `;base64,`, so a naive split handed `content` the value
+    /// `url(data:image/png` — an unbalanced, undecodable path that interned as a
+    /// BROKEN image and painted nothing.
+    #[test]
+    fn data_uri_in_content_survives_inline_declaration_splitting() {
+        let decls = super::breaks::parse_inline_decls(
+            "content: url(data:image/png;base64,AAAA);color: red",
+        );
+        assert_eq!(decls.len(), 2, "{decls:?}");
+        assert_eq!(decls[0].0, "content");
+        assert_eq!(
+            decls[0].1, "url(data:image/png;base64,AAAA)",
+            "the whole data URI survives splitting"
+        );
+        assert_eq!(decls[1].0, "color");
     }
 }
