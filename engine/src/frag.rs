@@ -345,6 +345,27 @@ pub struct FlexToken {
     pub mid_line: bool,
 }
 
+/// A page-margin box waiting to be painted (css-page-3 §3.1).
+///
+/// Margin boxes are their own stacking contexts, so the emitter paints each
+/// one as a UNIT — its background, then its border, then its content — rather
+/// than letting the page-wide passes interleave one box's text under the next
+/// box's background. They also never interleave with document content: the
+/// document canvas, page borders and all document content behave as one
+/// `z-index: 0` stacking context, so a negative-`z-index` margin box paints
+/// behind it and a zero/positive one in front.
+#[derive(Clone, Debug)]
+pub struct MarginBoxFragment {
+    /// Resolved `z-index` (`auto` = 0, the initial value).
+    pub z_index: i32,
+    /// The spec's default paint order among margin boxes — the index of the
+    /// box in css-page-3 §3.1's list (`@top-left-corner` = 0, clockwise).
+    /// `z-index` overrides it; within one `z-index` this order breaks ties.
+    pub order: u8,
+    /// The box's fragment subtree (background/border/content).
+    pub fragment: Fragment,
+}
+
 /// A first-class fragment with no source box: a page.
 #[derive(Clone, Debug)]
 pub struct Fragmentainer {
@@ -352,6 +373,9 @@ pub struct Fragmentainer {
     pub index: usize,
     /// The root fragment for this page (kind [`FragmentKind::Fragmentainer`]).
     pub root: Fragment,
+    /// The page's margin boxes, kept OUT of `root` so the emitter can order
+    /// and paint them per css-page-3 §3.1 (`MarginBoxFragment`).
+    pub margin_boxes: Vec<MarginBoxFragment>,
     /// Page box background color, from the resolved `@page` rule (CORE-66).
     pub background: Option<crate::css::Color>,
     /// `page-orientation` from the resolved `@page` rule (CORE-66). Carried
@@ -396,6 +420,39 @@ pub struct Fragmentainer {
 }
 
 impl Fragmentainer {
+    /// The page's margin boxes in css-page-3 §3.1 painting order: ascending
+    /// `z-index`, then the spec's default tree order within a `z-index`.
+    /// (The emitter paints each box as a unit in this order; it splits the
+    /// list at `z_index < 0` to put the negative half behind the canvas.)
+    pub fn margin_boxes_in_paint_order(&self) -> Vec<&MarginBoxFragment> {
+        let mut boxes: Vec<&MarginBoxFragment> = self.margin_boxes.iter().collect();
+        boxes.sort_by_key(|m| (m.z_index, m.order));
+        boxes
+    }
+
+    /// Every fragment subtree this page paints, in §3.1 layer order: the
+    /// negative-`z-index` margin boxes (they paint behind the document
+    /// canvas), then the document content root, then the remaining margin
+    /// boxes. A caller that needs "everything this page paints" — tests,
+    /// probes — must walk this rather than the content root, because margin
+    /// boxes deliberately live OUTSIDE the content tree.
+    pub fn paint_roots(&self) -> Vec<&Fragment> {
+        let ordered = self.margin_boxes_in_paint_order();
+        let mut roots: Vec<&Fragment> = ordered
+            .iter()
+            .filter(|m| m.z_index < 0)
+            .map(|m| &m.fragment)
+            .collect();
+        roots.push(&self.root);
+        roots.extend(
+            ordered
+                .iter()
+                .filter(|m| m.z_index >= 0)
+                .map(|m| &m.fragment),
+        );
+        roots
+    }
+
     /// Build a fragmentainer of the given page size at the given page index.
     pub fn new(index: usize, size: (Scalar, Scalar)) -> Fragmentainer {
         Fragmentainer {
@@ -411,6 +468,7 @@ impl Fragmentainer {
             },
             background: None,
             page_orientation: None,
+            margin_boxes: Vec::new(),
             // Default: origin at (0, 0); `paginate` overwrites it with
             // the real content-box origin for every page it lays out.
             content_origin: Point::default(),

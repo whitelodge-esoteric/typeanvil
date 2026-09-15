@@ -86,6 +86,33 @@ impl MarginBoxName {
         })
     }
 
+    /// This box's position in the spec's DEFAULT paint order (css-page-3
+    /// §3.1): `@top-left-corner` is 0 and the rest follow CLOCKWISE. The
+    /// order is the tree order of the margin boxes; `z-index` overrides it,
+    /// and within one `z-index` value it breaks ties. It is observable only
+    /// when margin boxes overlap.
+    pub fn paint_order(self) -> u8 {
+        use MarginBoxName::*;
+        match self {
+            TopLeftCorner => 0,
+            TopLeft => 1,
+            TopCenter => 2,
+            TopRight => 3,
+            TopRightCorner => 4,
+            RightTop => 5,
+            RightMiddle => 6,
+            RightBottom => 7,
+            BottomRightCorner => 8,
+            BottomRight => 9,
+            BottomCenter => 10,
+            BottomLeft => 11,
+            BottomLeftCorner => 12,
+            LeftBottom => 13,
+            LeftMiddle => 14,
+            LeftTop => 15,
+        }
+    }
+
     /// Which margin row/column this box sits in.
     pub fn row(self) -> MarginRow {
         use MarginBoxName::*;
@@ -271,6 +298,11 @@ pub struct MarginBoxStyle {
     pub counter_reset: Option<CounterValue>,
     /// Margin-context `counter-increment`.
     pub counter_increment: Option<CounterValue>,
+    /// Margin-box `z-index` (css-page-3 §3.1). `z-index` applies to
+    /// page-margin boxes as if they were positioned, and each box is its own
+    /// stacking context, so this overrides the default paint order among
+    /// boxes. `None` = not declared (`auto`, treated as 0).
+    pub z_index: Option<i32>,
 }
 
 impl MarginBoxStyle {
@@ -310,6 +342,7 @@ impl MarginBoxStyle {
             border_right,
             border_bottom,
             border_left,
+            z_index,
         );
         if other.text_align.is_some() {
             self.text_align = other.text_align;
@@ -555,6 +588,9 @@ pub struct MarginBoxSpec {
     pub counter_reset: CounterValue,
     /// Resolved margin-context `counter-increment`.
     pub counter_increment: CounterValue,
+    /// Resolved margin-box `z-index` (css-page-3 §3.1). `None` = `auto` (0),
+    /// which keeps the spec's default paint order among margin boxes.
+    pub z_index: Option<i32>,
 }
 
 /// A fully-resolved page spec for one fragmentainer: geometry plus the margin
@@ -1071,6 +1107,17 @@ fn parse_margin_box_decls(body: &str) -> (Option<Option<Vec<ContentPiece>>>, Mar
             // against the page context at spec-resolution time.
             "counter-reset" => style.counter_reset = Some(parse_counter_value(value, 0)),
             "counter-increment" => style.counter_increment = Some(parse_counter_value(value, 1)),
+            // `z-index` applies to page-margin boxes (css-page-3 §3.1) and
+            // overrides their default paint order. Only integers are honored;
+            // `auto` (and anything unparsable) stays `None` = 0.
+            "z-index" => {
+                let v = value.trim();
+                if !v.eq_ignore_ascii_case("auto") {
+                    if let Ok(n) = v.parse::<i32>() {
+                        style.z_index = Some(n);
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -2315,6 +2362,7 @@ pub fn resolve_page_spec(
                 border_right: style.border_right,
                 border_bottom: style.border_bottom,
                 border_left: style.border_left,
+                z_index: style.z_index,
                 counter_reset: resolve_box_counter(style.counter_reset.clone(), &page_counter_reset),
                 counter_increment: resolve_box_counter(
                     style.counter_increment.clone(),

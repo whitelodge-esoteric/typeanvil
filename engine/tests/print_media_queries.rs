@@ -560,10 +560,9 @@ fn mq_media_wrapped_page_keeps_margin_boxes() {
         f.children.iter().any(|c| find_folio(c, ax, ay, half_h))
     }
     let folio = page
-        .root
-        .children
-        .iter()
-        .any(|f| find_folio(f, 0.0, 0.0, h / 2.0));
+        .paint_roots()
+        .into_iter()
+        .any(|root| find_folio(root, 0.0, 0.0, h / 2.0));
     assert!(folio, "media-wrapped @page margin box must survive the seam");
 }
 

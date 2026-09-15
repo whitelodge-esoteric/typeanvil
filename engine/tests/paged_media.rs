@@ -59,7 +59,11 @@ fn lay(html: &str, geo: PageGeometry) -> Layout {
 /// All text-run strings on one fragmentainer, in pre-order (document order).
 fn page_texts(page: &Fragmentainer) -> Vec<String> {
     let mut out = Vec::new();
-    collect_text(&page.root, &mut out);
+    // A page paints its content root AND its margin boxes; CORE-179 moved the
+    // latter out of the content tree (they are their own stacking contexts).
+    for root in page.paint_roots() {
+        collect_text(root, &mut out);
+    }
     out
 }
 
@@ -93,7 +97,9 @@ fn text_pos(page: &Fragmentainer, needle: &str) -> Option<(f64, f64)> {
         }
         None
     }
-    walk(&page.root, 0.0, 0.0, needle)
+    page.paint_roots()
+        .into_iter()
+        .find_map(|root| walk(root, 0.0, 0.0, needle))
 }
 
 fn bin() -> &'static str {
@@ -224,7 +230,10 @@ fn margin_box_center_aligns_on_content_midline() {
             }
             None
         }
-        let (x, w, y) = walk(&page.root, 0.0, 0.0)
+        let (x, w, y) = page
+            .paint_roots()
+            .into_iter()
+            .find_map(|root| walk(root, 0.0, 0.0))
             .unwrap_or_else(|| panic!("page {} missing top-center head", page.index));
         assert!(
             y < inches(0.5).get(),

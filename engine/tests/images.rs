@@ -171,7 +171,10 @@ fn image_fragments(layout: &Layout) -> Vec<(usize, f64, f64, f64, f64)> {
     }
     let mut out = Vec::new();
     for page in &layout.pages {
-        walk(&page.root, 0.0, 0.0, page.index, &mut out);
+        // Margin-box images live outside the content root (CORE-179).
+        for root in page.paint_roots() {
+            walk(root, 0.0, 0.0, page.index, &mut out);
+        }
     }
     out
 }
@@ -712,7 +715,7 @@ fn margin_box_background_image_tiles_over_border_box() {
     let box_frag = lay
         .pages
         .iter()
-        .find_map(|p| find_box(&p.root))
+        .find_map(|p| p.paint_roots().into_iter().find_map(find_box))
         .expect("margin box fragment carrying the background image");
     assert!(
         (box_frag.size.0.get() - 612.0).abs() < 0.5,

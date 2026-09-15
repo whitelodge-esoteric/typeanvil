@@ -273,6 +273,23 @@ pub fn render_with_options(
             }
         }
 
+        // css-page-3 §3.1 page-margin boxes, phase 1: boxes with a NEGATIVE
+        // z-index paint behind the document canvas and all document content —
+        // the canvas, page borders and every content fragment behave as one
+        // `z-index: 0` stacking context, so a negative-z margin box "may only
+        // paint in front of the page background or behind the document
+        // canvas". Paint order is z-index ascending, then the spec's default
+        // clockwise tree order.
+        {
+            for mb in page
+                .margin_boxes_in_paint_order()
+                .into_iter()
+                .filter(|m| m.z_index < 0)
+            {
+                paint_margin_box(&mut surface, layout, &mb.fragment, tagged, &mut draws, page_idx)?;
+            }
+        }
+
         // Document canvas background (CORE-144): the html/body background
         // propagates to the canvas and paints over the page CONTENT area —
         // under all content, but ABOVE the `@page` box fill so page margins
@@ -744,6 +761,21 @@ pub fn render_with_options(
             }
         }
 
+
+        // css-page-3 §3.1 page-margin boxes, phase 2: z-index `auto`/0 and
+        // positive boxes paint IN FRONT of all document content. Each box is
+        // painted as one unit, in (z-index, clockwise tree order) — the
+        // default order is @top-left-corner first, then clockwise.
+        {
+            for mb in page
+                .margin_boxes_in_paint_order()
+                .into_iter()
+                .filter(|m| m.z_index >= 0)
+            {
+                paint_margin_box(&mut surface, layout, &mb.fragment, tagged, &mut draws, page_idx)?;
+            }
+        }
+
         // Pop any pushed graphics state (page-orientation rotation) before
         // finishing the page — krilla asserts a balanced push/pop.
         if rotated {
@@ -955,6 +987,262 @@ struct TextItem {
     protrude_left: f32,
     protrude_right: f32,
     owner: Option<NodeId>,
+}
+
+/// Paint ONE page-margin box as a unit (css-page-3 §3.1).
+///
+/// A margin box is its own stacking context, so its background, border and
+/// content paint together, in tree order, before the next box starts. The
+/// page-wide passes (all backgrounds, then all borders, then all text) would
+/// instead let a LATER box's background hide an EARLIER box's text — the
+/// overlap case the `paint-order-00*` fixtures measure.
+///
+/// Coordinates are page-absolute: `collect` is rooted at (0, 0) here, and a
+/// margin box fragment already carries its page-absolute offset.
+fn paint_margin_box(
+    surface: &mut krilla::surface::Surface<'_>,
+    layout: &Layout,
+    fragment: &Fragment,
+    tagged: bool,
+    draws: &mut Vec<crate::tags::DrawRef>,
+    page_idx: usize,
+) -> Result<()> {
+    let mut backgrounds: Vec<(f32, f32, f32, f32, Color, Option<NodeId>)> = Vec::new();
+    let mut bg_images: Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)> = Vec::new();
+    let mut borders: Vec<(
+        f32,
+        f32,
+        f32,
+        f32,
+        f32,
+        f32,
+        f32,
+        f32,
+        Color,
+        Option<NodeId>,
+    )> = Vec::new();
+    let mut images: Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)> = Vec::new();
+    let mut texts: Vec<TextItem> = Vec::new();
+    collect(
+        fragment,
+        0.0,
+        0.0,
+        None,
+        &mut backgrounds,
+        &mut borders,
+        &mut texts,
+        &mut images,
+        &mut bg_images,
+    );
+
+    // css-backgrounds-3 §2.1 within the box: background colour, then
+    // background images, then borders, then images, then text.
+    for (x, y, w, h, color, owner) in &backgrounds {
+        if !x.is_finite() || !y.is_finite() || !w.is_finite() || !h.is_finite() {
+            continue;
+        }
+        if *w <= 0.0 || *h <= 0.0 {
+            continue;
+        }
+        let rect =
+            Rect::from_xywh(*x, *y, *w, *h).ok_or_else(|| anyhow!("invalid background rect"))?;
+        let mut pb = krilla::geom::PathBuilder::new();
+        pb.push_rect(rect);
+        if let Some(path) = pb.finish() {
+            surface.set_fill(Some(solid_fill(*color)));
+            if tagged {
+                let ident = surface.start_tagged(tag_for_owner(*owner));
+                surface.draw_path(&path);
+                surface.end_tagged();
+                record_draw(draws, page_idx, ident, *owner);
+            } else {
+                surface.draw_path(&path);
+            }
+        }
+    }
+
+    for (x, y, w, h, key, owner) in &bg_images {
+        if !x.is_finite() || !y.is_finite() || !w.is_finite() || !h.is_finite() {
+            continue;
+        }
+        if *w <= 0.0 || *h <= 0.0 {
+            continue;
+        }
+        let Some(stored) = layout.images.get(key) else {
+            continue;
+        };
+        let crate::images::ImageEntry::Loaded(img) = stored else {
+            continue;
+        };
+        let tile_w = img.width_px as f32 * 0.75;
+        let tile_h = img.height_px as f32 * 0.75;
+        if tile_w <= 0.0 || tile_h <= 0.0 {
+            continue;
+        }
+        let raw = krilla::Data::from(img.original.clone());
+        let kimg = match img.kind {
+            crate::images::ImageKind::Png => krilla::image::Image::from_png(raw, false),
+            crate::images::ImageKind::Jpeg => krilla::image::Image::from_jpeg(raw, false),
+            crate::images::ImageKind::Svg => krilla::image::Image::from_png(raw, false),
+        };
+        let Ok(kimg) = kimg else {
+            continue;
+        };
+        let Some(rect) = Rect::from_xywh(*x, *y, *w, *h) else {
+            continue;
+        };
+        let mut clip = krilla::geom::PathBuilder::new();
+        clip.push_rect(rect);
+        let Some(clip_path) = clip.finish() else {
+            continue;
+        };
+        surface.push_clip_path(&clip_path, &FillRule::NonZero);
+        let cols = (*w / tile_w).ceil() as i32;
+        let rows = (*h / tile_h).ceil() as i32;
+        for row in 0..rows {
+            let ty = *y + row as f32 * tile_h;
+            for col in 0..cols {
+                let tx = *x + col as f32 * tile_w;
+                let Some(size) = krilla::geom::Size::from_wh(tile_w, tile_h) else {
+                    continue;
+                };
+                surface.push_transform(&krilla::geom::Transform::from_row(1.0, 0.0, 0.0, 1.0, tx, ty));
+                if tagged {
+                    let ident = surface.start_tagged(tag_for_owner(*owner));
+                    surface.draw_image(kimg.clone(), size);
+                    surface.end_tagged();
+                    record_draw(draws, page_idx, ident, *owner);
+                } else {
+                    surface.draw_image(kimg.clone(), size);
+                }
+                surface.pop();
+            }
+        }
+        surface.pop();
+    }
+
+    for (x, y, w, h, t, r, b, l, color, owner) in &borders {
+        let fill = solid_fill(*color);
+        let mut sides: Vec<(f32, f32, f32, f32)> = Vec::new();
+        if *t > 0.0 {
+            sides.push((*x, *y, *w, *t));
+        }
+        if *b > 0.0 {
+            sides.push((*x, *y + h - b, *w, *b));
+        }
+        if *l > 0.0 {
+            sides.push((*x, *y, *l, *h));
+        }
+        if *r > 0.0 {
+            sides.push((*x + w - r, *y, *r, *h));
+        }
+        if !tagged {
+            for (px, py, pw, ph) in &sides {
+                if pw <= &0.0 || ph <= &0.0 {
+                    continue;
+                }
+                if let Some(rect) = Rect::from_xywh(*px, *py, *pw, *ph) {
+                    let mut pb = krilla::geom::PathBuilder::new();
+                    pb.push_rect(rect);
+                    if let Some(path) = pb.finish() {
+                        surface.set_fill(Some(fill.clone()));
+                        surface.draw_path(&path);
+                    }
+                }
+            }
+        } else if sides.is_empty() {
+            continue;
+        } else {
+            let ident = surface.start_tagged(tag_for_owner(*owner));
+            for (px, py, pw, ph) in &sides {
+                if *pw <= 0.0 || *ph <= 0.0 {
+                    continue;
+                }
+                if let Some(rect) = Rect::from_xywh(*px, *py, *pw, *ph) {
+                    let mut pb = krilla::geom::PathBuilder::new();
+                    pb.push_rect(rect);
+                    if let Some(path) = pb.finish() {
+                        surface.set_fill(Some(fill.clone()));
+                        surface.draw_path(&path);
+                    }
+                }
+            }
+            surface.end_tagged();
+            record_draw(draws, page_idx, ident, *owner);
+        }
+    }
+
+    for (x, y, w, h, key, owner) in &images {
+        let Some(stored) = layout.images.get(key) else {
+            continue;
+        };
+        let crate::images::ImageEntry::Loaded(img) = stored else {
+            continue;
+        };
+        if *w <= 0.0 || *h <= 0.0 {
+            continue;
+        }
+        let Some(size) = krilla::geom::Size::from_wh(*w, *h) else {
+            continue;
+        };
+        let raw = krilla::Data::from(img.original.clone());
+        let kimg = match img.kind {
+            crate::images::ImageKind::Png => krilla::image::Image::from_png(raw, false),
+            crate::images::ImageKind::Jpeg => krilla::image::Image::from_jpeg(raw, false),
+            crate::images::ImageKind::Svg => krilla::image::Image::from_png(raw, false),
+        };
+        let Ok(kimg) = kimg else {
+            continue;
+        };
+        surface.push_transform(&krilla::geom::Transform::from_row(1.0, 0.0, 0.0, 1.0, *x, *y));
+        if tagged {
+            let ident = surface.start_tagged(tag_for_owner(*owner));
+            surface.draw_image(kimg, size);
+            surface.end_tagged();
+            record_draw(draws, page_idx, ident, *owner);
+        } else {
+            surface.draw_image(kimg, size);
+        }
+        surface.pop();
+    }
+
+    for t in &texts {
+        let font = font_for(t.font_face)?;
+        surface.set_fill(Some(solid_fill(t.color)));
+        let draw = |surface: &mut krilla::surface::Surface<'_>| {
+            if t.glyphs.is_empty() {
+                let _ = surface.draw_text(
+                    Point::from_xy(t.x, t.y),
+                    font.clone(),
+                    t.font_size,
+                    &t.text,
+                    false,
+                    TextDirection::Auto,
+                );
+            } else {
+                let glyphs: Vec<KrillaGlyph> =
+                    to_krilla_glyphs(&t.glyphs, t.font_size, t.expansion, t.protrude_right);
+                let _ = surface.draw_glyphs(
+                    Point::from_xy(t.x - t.protrude_left, t.y),
+                    &glyphs,
+                    font.clone(),
+                    &t.text,
+                    t.font_size,
+                    false,
+                );
+            }
+        };
+        if tagged && t.owner.is_some() {
+            let ident = surface.start_tagged(tag_for_owner(t.owner));
+            draw(surface);
+            surface.end_tagged();
+            record_draw(draws, page_idx, ident, t.owner);
+        } else {
+            draw(surface);
+        }
+    }
+
+    Ok(())
 }
 
 /// Pre-order walk accumulating absolute offsets from parent-relative fragment
