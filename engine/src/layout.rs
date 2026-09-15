@@ -263,9 +263,22 @@ impl Flow {
 /// `paginate` on the following page (snapshot at page start, drained after
 /// that page's body layout). Jobs always start at the page-content top —
 /// a class-A break resumes the box at the fragmentainer start.
+///
+/// CORE-185: a PINNED abspos (explicit inset, or positioned-ancestor
+/// containing block) whose used inset lands at or past the fragmentainer
+/// bottom is ALSO deferred here, but its job carries the page-ABSOLUTE
+/// placement (`target`). Chromium's fragmented-printing rule places the box
+/// on the page that CONTAINS its offset and grows the document to include
+/// that page; the drain skips pages until the target page arrives, then
+/// lays the box there against the REAL bottom limit (so a tall box
+/// fragments across pages, matching Chromium's 6-page render). Jobs with
+/// `target = None` keep the CORE-169 semantics (page-content top).
 #[derive(Clone, Copy, Debug)]
 struct AbsposJob {
     id: NodeId,
+    /// Page-absolute (x, y) where a pinned box's used inset places its
+    /// top-left. `None` = page-anchored job (start at page-content top).
+    target: Option<(Scalar, Scalar)>,
 }
 
 
@@ -1008,7 +1021,17 @@ fn paginate(
         // body defers waits for the next snapshot. This keeps job→page
         // mapping strict: one deferral, then the box starts on the very next
         // page.
-        let drained_jobs = std::mem::take(&mut flow.abspos_jobs);
+        // CORE-185: PINNED jobs (target: Some) are NOT snapshotted — they
+        // stay queued in flow.abspos_jobs across pages so the body's
+        // drain-owns guard still sees them, and the drain below places each
+        // on the page CONTAINING its target offset (the keepalive grows the
+        // document to include that page, Chromium's fragmented-printing
+        // behaviour).
+        let (drained_jobs, pinned_jobs): (Vec<AbsposJob>, Vec<AbsposJob>) =
+            std::mem::take(&mut flow.abspos_jobs)
+                .into_iter()
+                .partition(|j| j.target.is_none());
+        flow.abspos_jobs = pinned_jobs;
 
         // Resolve the named page in effect for this page: a `page:<name>` box
         // that starts fresh at the top of this page switches the context; a
@@ -1294,7 +1317,7 @@ fn paginate(
             match jres.outgoing {
                 // The box continues: re-enqueue for the NEXT fragmentainer.
                 Some(tok) => {
-                    flow.abspos_jobs.push(AbsposJob { id: job.id });
+                    flow.abspos_jobs.push(AbsposJob { id: job.id, target: job.target });
                     flow.abspos_resume_tokens.insert(job.id, tok);
                 }
                 // Finished: record it so the body's pending token for this
@@ -1304,6 +1327,89 @@ fn paginate(
                 }
             }
         }
+
+        // CORE-185: drain PINNED abspos jobs that accumulated in
+        // flow.abspos_jobs (they are NOT in the page-start snapshot — the
+        // snapshot keeps job→page mapping strict for page-anchored boxes).
+        // A pinned box whose used inset landed at or past the deferral
+        // page's bottom carries the page-ABSOLUTE (x, y) of its offset.
+        // The page CONTAINING y owns the box (Chromium's fragmented-print
+        // rule), so on each page we compute which page index that is from
+        // the uniform harness geometry — `content.height` per page, a
+        // `content.y` top margin — and only lay the box once the page loop
+        // reaches it. Until then the job stays queued and the keepalive
+        // below keeps generating pages (the document GROWS to include the
+        // box's page). On the target page, lay at the offset's local y
+        // against the REAL bottom limit: a box taller than the page
+        // fragments across pages (Chromium's 6-page render for
+        // `top:500px; height:1000px`), re-enqueuing with a resume token
+        // whose next fragment starts at the fragmentainer top.
+        let mut pinned_pending = Vec::new();
+        for job in std::mem::take(&mut flow.abspos_jobs) {
+            let Some((tx, ty)) = job.target else {
+                // Page-anchored jobs pushed by THIS page's body wait for
+                // the next page's snapshot (strict job→page mapping).
+                pinned_pending.push(job);
+                continue;
+            };
+            // Which page contains the offset? Uniform geometry: each page's
+            // content box is `content.height` tall, starting at `content.y`
+            // below the page top, so the offset's page index is
+            // floor((ty - content.y) / content.height).
+            let target_pages = ((ty.get() - content.y.get()) / content.height.get()).floor() as usize;
+            if target_pages > page_index {
+                // Target page not reached yet: keep the job queued; the
+                // keepalive grows the document to include it.
+                pinned_pending.push(job);
+                continue;
+            }
+            // The offset's local y within this page (content.y + remainder).
+            let local_top = ty - (content.y + Scalar(target_pages as f64 * content.height.get()));
+            let (jw, _) = ctx.measure_float(job.id, content.width);
+            let resuming = flow.abspos_resume_tokens.contains_key(&job.id);
+            let tok = match flow.abspos_resume_tokens.remove(&job.id) {
+                // A broken pinned box resumes at the fragmentainer TOP
+                // (class-A), like the page-anchored path — its offset was
+                // consumed by the fragment that carried the token.
+                Some(tok) => tok,
+                None => BreakToken::break_before(),
+            };
+            let top = if resuming { content.y } else { local_top };
+            let bottom = content.y + content.height;
+            let mut jres = ctx.layout_table_like(job.id, tx, jw, top, bottom, true, &tok, &mut flow);
+            // NON-PROGRESS GUARD (CORE-78/CORE-109 shape): some layout paths
+            // are MONOLITHIC and ignore break tokens — `layout_image` returns
+            // an empty fragment plus a `break_before` token whenever the box
+            // does not fit, so re-enqueueing it would regenerate that same
+            // token forever (measured: a `content: url()` box with
+            // `height:1000px` past page 1 produced 100_000 pages before the
+            // MAX_PAGES cap). Retry ONCE as a LAST-RESORT placement (empty
+            // page — exactly the rule `layout_image` itself uses to "never
+            // loop"); if even that refuses to place, drop the job so the page
+            // loop always terminates.
+            if jres.empty && jres.outgoing.is_some() {
+                let fresh_tok = BreakToken::break_before();
+                let retry =
+                    ctx.layout_table_like(job.id, tx, jw, top, bottom, false, &fresh_tok, &mut flow);
+                if retry.empty && retry.outgoing.is_some() {
+                    // Cannot place even as last resort: terminate.
+                    flow.abspos_finished.push(job.id);
+                    continue;
+                }
+                jres = retry;
+            }
+            fragmentainer.root.children.push(jres.fragment);
+            match jres.outgoing {
+                Some(tok) => {
+                    pinned_pending.push(AbsposJob { id: job.id, target: job.target });
+                    flow.abspos_resume_tokens.insert(job.id, tok);
+                }
+                None => {
+                    flow.abspos_finished.push(job.id);
+                }
+            }
+        }
+        flow.abspos_jobs = pinned_pending;
 
         // A trailing page that paints NOTHING is dropped (CORE-176): the
         // page loop is deterministic, so nothing can depend on a blank final
@@ -3379,9 +3485,18 @@ impl<'a> Ctx<'a> {
                         // and a body re-render would duplicate them. The body
                         // skips placement entirely; the keepalive keeps the
                         // page loop alive when nothing else follows.
-                        if page_anchored
-                            && (flow.abspos_jobs.iter().any(|j| j.id == *child)
-                                || flow.abspos_resume_tokens.contains_key(child))
+                        // CORE-153 + CORE-185: a box the abspos DRAIN owns —
+                        // queued job, pending resume token, or already
+                        // finished — must not re-enter the out-of-flow branch
+                        // on a later page. The drain (or its absence) already
+                        // decided this box's fate for this page: a re-render
+                        // would duplicate fragments (page-anchored path) or
+                        // re-defer a pinned past-page box whose offset page
+                        // has already passed (CORE-185). Applies to pinned
+                        // boxes too, not just page-anchored ones.
+                        if flow.abspos_finished.contains(child)
+                            || flow.abspos_jobs.iter().any(|j| j.id == *child)
+                            || flow.abspos_resume_tokens.contains_key(child)
                         {
                             oof_placed = true;
                             i += 1;
@@ -3404,7 +3519,7 @@ impl<'a> Ctx<'a> {
                             // deferred_once flag tells the next page's body
                             // that this child is drain-owned (skip, never
                             // re-render) — the drain consumes the job.
-                            flow.abspos_jobs.push(AbsposJob { id: *child });
+                            flow.abspos_jobs.push(AbsposJob { id: *child, target: None });
                             seen_all = false;
                             outgoing_children.push(ChildToken {
                                 index: i,
@@ -3427,6 +3542,28 @@ impl<'a> Ctx<'a> {
                                 None => cb_origin.y,
                             },
                         };
+                        // CORE-185: a PINNED abspos whose used inset lands at or
+                        // past the fragmentainer bottom must not vanish.
+                        // Chromium's fragmented-printing rule places the box on
+                        // the page that CONTAINS its offset and GROWS the
+                        // document to include that page (top:500px at a 216pt
+                        // page height belongs to page 2). The monolithic
+                        // f64::MAX model would paint it at y=375pt on a 216pt
+                        // page — outside the page box, invisible, no page
+                        // added. Instead, enqueue an AbsposJob carrying the
+                        // page-ABSOLUTE (x, y); the drain skips pages until the
+                        // target page arrives (keepalive grows the document),
+                        // then lays the box there against the REAL bottom
+                        // limit (so a tall box fragments across pages,
+                        // matching Chromium's 6-page render). The body does
+                        // NOT place the box here — out-of-flow, no cursor
+                        // advance. In-flow siblings after it still place on
+                        // this page (no loop break).
+                        if !page_anchored && y.get() >= bottom_limit.get() {
+                            flow.abspos_jobs.push(AbsposJob { id: *child, target: Some((x, y)) });
+                            i += 1;
+                            continue;
+                        }
                         // Monolithic placement (spec Behavior 9): a PINNED box
                         // (insets or positioned ancestor) lays its full content
                         // once — no page-bottom break, no resume token — even
@@ -3474,7 +3611,7 @@ impl<'a> Ctx<'a> {
                         // fresh resume token and kept paging past the drain's
                         // final page.)
                         if page_anchored && res.outgoing.is_some() {
-                            flow.abspos_jobs.push(AbsposJob { id: *child });
+                            flow.abspos_jobs.push(AbsposJob { id: *child, target: None });
                             flow.abspos_resume_tokens.insert(*child, res.outgoing.unwrap());
                         }
                         oof_placed = true;

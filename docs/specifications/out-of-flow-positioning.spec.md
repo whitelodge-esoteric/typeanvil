@@ -5,12 +5,12 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-18
-updated: 2026-09-13
+updated: 2026-09-15
 sidebar_position: 9
 tags: [engine, layout, css-position, css-break, fragmentation]
 spec_id: out-of-flow-positioning
 issue_id: CORE-64
-superseded_by_note: Behaviors 5/9 refined by CORE-169 (2026-09-13)
+superseded_by_note: Behaviors 5/9 refined by CORE-169 (2026-09-13); Behavior 9 exception by CORE-185 (2026-09-15)
 applies_to: engine 0.x
 dependencies: [fragmentation-core, wpt-conformance-harness]
 ---
@@ -125,6 +125,21 @@ The engine shall:
    does not fit the remaining space, it defers whole to the next page
    (one deferral, then force-place — the CORE-109 guard), and its fragments
    attach page-locally, each page's own `@page` context applying.
+   EXCEPTION (CORE-185): a PINNED box whose used inset lands AT OR PAST the
+   fragmentainer bottom must not vanish — the offset resolves against the
+   page AREA, so `top: 500px` at a 216pt page height belongs to page 2 and
+   the document GROWS to include that page (Chromium fragmented printing).
+   It is enqueued as an abspos drain job carrying the page-ABSOLUTE (x, y);
+   the drain places it on the page CONTAINING the offset against the REAL
+   bottom limit (a tall box fragments across pages, css-break-3 class A
+   once started), and the body's in-flow siblings after it still place on
+   the current page (the box is out of flow; no loop break).
+   The drain MUST bound its own pagination: a MONOLITHIC layout path that
+   ignores break tokens (a replaced element — `layout_image` returns an
+   empty fragment + `break_before` whenever the box does not fit) would
+   otherwise regenerate its token forever. Such a box is retried once as a
+   LAST-RESORT placement (the empty-page rule `layout_image` itself uses)
+   and dropped if it still refuses, so the page loop always terminates.
 10. Stay deterministic: containing-block resolution and offsets are pure
     arithmetic in document order.
 

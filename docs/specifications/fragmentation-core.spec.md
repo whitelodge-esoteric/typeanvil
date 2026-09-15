@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: elijah
 created: 2026-08-16
-updated: 2026-09-14
+updated: 2026-09-15
 sidebar_position: 2
 tags: [layout, fragmentation, css-break, engine]
 spec_id: fragmentation-core
@@ -57,6 +57,10 @@ break optimization pass — start greedy + appeal.
   space runs out at a bad point, stopping deterministically at the recorded
   break.
 - Monolithic content taller than a fragmentainer **overflows, never slices**.
+  EXCEPTION (CORE-185): a PINNED abspos whose used inset lands at/past the
+  fragmentainer bottom is deferred to the page CONTAINING its offset
+  (Chromium fragmented printing) and fragments from there; see
+  `out-of-flow-positioning.spec.md` Behavior 9.
 - Pagination measurably O(n): a 1,000-page synthetic document lays out without
   super-linear cost.
 - PDF emission walks the fragment tree (no separate pagination pass).
