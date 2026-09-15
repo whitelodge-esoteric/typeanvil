@@ -180,9 +180,10 @@ which acceptance checks actually ran. A fresh targeted probe is sufficient for
 pickup; it does not replace the full baseline/candidate gate before landing.
 
 For engine work, compare identical test-ID sets with compatible runner settings
-and freshly built baseline/candidate binaries. Add direct page-count, geometry,
-text-orientation, or paint assertions for behavior that pair equality cannot
-establish. Apply [CSS standards alignment](css-standards-alignment.md) and the
+and freshly built baseline/candidate binaries. Use the
+[release gate](../operations/release-gate.md) to compare each document with its
+own earlier output and to assert page count, geometry, text, orientation, and
+paint directly, for behavior that pair equality cannot establish. Apply [CSS standards alignment](css-standards-alignment.md) and the
 user's existing approval rules for any exposed gap or scope change.
 
 ## References

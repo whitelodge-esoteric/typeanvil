@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: elijah
 created: 2026-08-16
-updated: 2026-09-09
+updated: 2026-09-15
 sidebar_position: 1
 tags: [harness, wpt, conformance, testing]
 spec_id: wpt-conformance-harness
@@ -28,6 +28,12 @@ wpt-compatible `wptreport.json`, and can gate CI on "no regressions".
 It is the first deliverable of Typeanvil: the test oracle built *before* the
 engine. Chromium (via Playwright) is the built-in oracle; the engine itself
 plugs in later through a documented CLI contract.
+
+This comparison is self-consistent. A change that moves a test and its reference
+together keeps the pair matching, so the score stays flat while the output
+changes. The [harness release gate](harness-release-gate.spec.md) adds
+explicit baseline and candidate captures, per-document output comparison, and
+direct PDF assertions on top of this score. The score's semantics do not change.
 
 ## Goals / Non-Goals
 
@@ -106,7 +112,8 @@ The harness shall:
 14. **Score**: `python -m harness score` prints the scoreboard from history
     (totals, pass rate, delta vs previous run). `--gate` exits 1 listing the
     first regressions when any test that passed in the previously recorded run
-    now fails.
+    now fails. It selects the latest two recorded runs by recency, so it is a
+    convenience check and not the release gate.
 15. **History**: `python -m harness history` lists recorded runs with pass
     rates, newest first.
 16. **Serve absolutely**: the Chromium engine shall serve the WPT checkout over
@@ -116,6 +123,10 @@ The harness shall:
     margins, `print_background`, and `prefer_css_page_size=false`.
 17. **Diff artifacts**: failed comparisons shall write a per-page triptych
     (test | reference | diff heatmap) under `artifacts/<test-id>/`.
+18. **Release gate**: `python -m harness baseline` and `python -m harness gate`
+    provide the release-gate evidence path. The
+    [harness release gate spec](harness-release-gate.spec.md) defines it. A
+    baseline capture is never a gate result.
 
 ## Interfaces
 
@@ -128,6 +139,8 @@ The harness shall:
 | `score` | `--db` `--gate` | scoreboard; nonzero exit on regressions |
 | `history` | `--db` `--limit` | list recorded runs |
 | `triage` | `<filter>` `--legs` `--limit` `--workers` `--engine-cmd` `--prince-cmd` `--python` `--wpt` `--outdir` | run one filter through our engine, Chromium, and Prince; report the odd one out |
+| `baseline` | `--engine {chromium,cli}` `--cli-cmd` `--label` `--out` `--filter` `--limit` `--workers` `--wpt` `--dpi` | render the selection and record a baseline capture; never a gate result |
+| `gate` | `--baseline` `--candidate` `--captures` `--direct` `--reviews` `--policy` `--out` `--wpt` `--corpus` `--fixtures` `--dpi` | compare two captures plus direct checks; nonzero unless every condition passes |
 
 Defaults: `--engine chromium`, `--workers 2`, `--timeout 30.0` (s),
 `--report wptreport.json`, `--db history.sqlite`, `--artifacts artifacts`.
@@ -189,7 +202,9 @@ Given/When/Then, each mapping to a real test in `tests/`:
    (`test_report.py::test_wptreport_shape`).
 5. **History + gate** — Given two recorded runs, when the second run's results
    regress a previously-passing test, then `gate` reports the regression and
-   fails (`test_report.py` — history recording and regression-gate cases).
+   fails (`test_report.py` — history recording and regression-gate cases). This
+   is the scoreboard gate. The release gate's criteria live in the
+   [harness release gate spec](harness-release-gate.spec.md).
 6. **Self-check** — the spec file itself passes `scripts/validate_docs.py`
    (frontmatter conforms to `docs/conventions/frontmatter-schema.md`).
 
@@ -265,6 +280,9 @@ required — without it every test fails as `worker crash`/`AssertionError`
 - Code: `harness/` (`cli.py`, `runner.py`, `manifest.py`, `compare.py`,
   `engine.py`, `rasterize.py`, `report.py`, `wpt_fetch.py`).
 - Tests: `tests/` (manifest, compare, fuzzy, reftest-pages, report).
+- [Harness release gate](harness-release-gate.spec.md) — the baseline and
+  candidate evidence path.
+- [Run the release gate](../operations/release-gate.md) — the operating steps.
 - Origin issue: CORE-49 (WPT print-reftest conformance harness).
 - WPT docs: [reftests](https://web-platform-tests.org/writing-tests/reftests.html),
   [print-reftests](https://web-platform-tests.org/writing-tests/print-reftests.html).

@@ -1,0 +1,16 @@
+diff --git a/engine/src/main.rs b/engine/src/main.rs
+index d759c49..8ded09f 100644
+--- a/engine/src/main.rs
++++ b/engine/src/main.rs
+@@ -127,7 +127,10 @@ fn render(args: Vec<String>) -> Result<()> {
+ 
+     let geometry = PageGeometry {
+         width: opts.page_width,
+-        height: opts.page_height,
++        // CORE-206 SCRATCH FAULT (not to be committed): shorten every page by
++        // 2pt. Both documents of every pair shrink identically, so the WPT pair
++        // comparison cannot see it, while every rasterized page changes.
++        height: Scalar(opts.page_height.get() - 2.0),
+         margin_top: opts.margin_top,
+         margin_right: opts.margin_right,
+         margin_bottom: opts.margin_bottom,

@@ -1,0 +1,7 @@
+{
+  "schema": "typeanvil.harness.policy/1",
+  "acknowledged_unknown": ["fonts"],
+  "allowed_errors": [],
+  "allowed_skips": [],
+  "allowed_render_failures": []
+}

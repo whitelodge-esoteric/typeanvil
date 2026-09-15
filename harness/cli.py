@@ -131,6 +131,176 @@ def _cmd_history(args: argparse.Namespace) -> int:
             f"{rate:5.1f}%  {r['filter'] or ''}"
         )
     return 0
+def _fmt_identity(identity) -> str:
+    if identity is None:
+        return "  (unknown)"
+    return "\n".join(
+        [
+            f"  engine_kind: {identity.engine_kind}",
+            f"  cli_cmd: {identity.cli_cmd}",
+            f"  source_commit: {identity.source_commit}",
+            f"  binary: path={identity.binary.get('path')} "
+            f"sha256={identity.binary.get('sha256')} "
+            f"version={identity.binary.get('version')}",
+            f"  wpt_revision: {identity.wpt_revision}",
+            f"  page_spec: {identity.page_spec}",
+            f"  dpi: {identity.dpi}",
+            f"  rasterizer: {identity.rasterizer}",
+            f"  fonts: {identity.fonts}",
+        ]
+    )
+
+
+def _cmd_baseline(args: argparse.Namespace) -> int:
+    from .capture import build_capture, write_capture
+    from .engine import PageSpec
+    from .runner import EngineConfig, RunConfig, select_tests
+
+    wpt_root = Path(args.wpt) if args.wpt else default_wpt_dir()
+    if not (wpt_root / "css").is_dir():
+        print(
+            f"error: no WPT checkout at {wpt_root}. Run `python -m harness fetch` first.",
+            file=sys.stderr,
+        )
+        return 2
+    if args.engine == "cli" and not args.cli_cmd:
+        print("error: --engine cli requires --cli-cmd", file=sys.stderr)
+        return 2
+
+    engine_cfg = EngineConfig(
+        kind=args.engine, wpt_root=wpt_root, cli_cmd=args.cli_cmd, timeout_ms=30_000
+    )
+    spec = PageSpec.wpt_default()
+    cfg = RunConfig(
+        wpt_root=wpt_root,
+        engine=engine_cfg,
+        spec=spec,
+        filter_substr=args.filter,
+        limit=args.limit,
+        workers=args.workers,
+    )
+    tests = select_tests(cfg)
+    capture = build_capture(
+        tests=tests,
+        wpt_root=wpt_root,
+        engine_cfg=engine_cfg,
+        spec=spec,
+        label=args.label,
+        dpi=args.dpi,
+        source_commit_override=args.source_commit,
+    )
+    path = write_capture(Path(args.out) / f"{args.label}.json", capture)
+
+    statuses: dict[str, int] = {}
+    for r in capture.results:
+        statuses[r["status"]] = statuses.get(r["status"], 0) + 1
+
+    print(f"capture: {capture.label}")
+    print(f"complete: {capture.complete}")
+    print(f"engine: {capture.identity.engine_kind}  source_commit: {capture.identity.source_commit}")
+    print(f"wpt_revision: {capture.identity.wpt_revision}")
+    print(f"selection: {len(capture.selection)} test(s)  documents: {len(capture.documents)}")
+    print("results: " + (", ".join(f"{k}={v}" for k, v in sorted(statuses.items())) or "none"))
+    print(f"written: {path}")
+    print("BASELINE CAPTURED — not a gate result")
+    return 0 if capture.complete else 1
+
+
+def _cmd_gate(args: argparse.Namespace) -> int:
+    from .engine import PageSpec
+    from .release_gate import _resolve_capture, evaluate
+    from .runner import EngineConfig
+
+    wpt_root = Path(args.wpt) if args.wpt else default_wpt_dir()
+    corpus_root = Path(args.corpus)
+    fixture_root = Path(args.fixtures)
+    out_dir = Path(args.out)
+
+    baseline_ref = args.baseline
+    candidate_ref = args.candidate
+    captures_dir = Path(args.captures)
+    baseline_ref = _resolve_ref_cli(baseline_ref, captures_dir)
+    candidate_ref = _resolve_ref_cli(candidate_ref, captures_dir)
+
+    engine_cfg = None
+    direct_path = Path(args.direct) if args.direct else None
+    if direct_path is not None and direct_path.exists():
+        if args.engine == "cli" and not args.cli_cmd:
+            print("error: --engine cli requires --cli-cmd", file=sys.stderr)
+            return 2
+        engine_cfg = EngineConfig(
+            kind=args.engine, wpt_root=wpt_root, cli_cmd=args.cli_cmd, timeout_ms=30_000
+        )
+
+    verdict = evaluate(
+        baseline=baseline_ref,
+        candidate=candidate_ref,
+        manifest_path=args.direct,
+        reviews_path=args.reviews,
+        policy_path=args.policy,
+        out_dir=out_dir,
+        wpt_root=wpt_root,
+        corpus_root=corpus_root,
+        fixture_root=fixture_root,
+        engine_cfg=engine_cfg,
+        dpi=args.dpi,
+        spec=PageSpec.wpt_default(),
+    )
+
+    base_cap, _ = _resolve_capture(baseline_ref, out_dir)
+    cand_cap, _ = _resolve_capture(candidate_ref, out_dir)
+
+    print("baseline identity:")
+    print(_fmt_identity(base_cap.identity if base_cap else None))
+    print("candidate identity:")
+    print(_fmt_identity(cand_cap.identity if cand_cap else None))
+
+    env = next(
+        (c for c in verdict.conditions if c.name == "incompatible_environment"), None
+    )
+    if env is not None:
+        print(f"environment: INCOMPATIBLE ({env.detail})")
+    else:
+        print("environment: COMPATIBLE")
+
+    print(f"conditions: {len(verdict.conditions)}")
+    for c in verdict.conditions:
+        print(f"  - {c.name}: {c.detail}")
+
+    print(f"changes: {len(verdict.changes)}")
+    for ch in verdict.changes:
+        print(
+            f"  - {ch.doc_id} [{ch.property}]: baseline={ch.baseline} "
+            f"candidate={ch.candidate}"
+        )
+
+    print(f"direct: {len(verdict.direct)}")
+    for r in verdict.direct:
+        mark = "PASS" if r.passed else "FAIL"
+        print(f"  [{mark}] {r.check_id}: {r.detail}")
+
+    if verdict.ok:
+        print("GATE PASSED")
+        return 0
+    if verdict.report_path is not None:
+        print(f"report: {verdict.report_path}")
+    print(f"GATE FAILED: {len(verdict.conditions)} condition(s)")
+    if any(
+        c.name in ("missing_baseline", "missing_candidate", "unsupported_schema")
+        for c in verdict.conditions
+    ):
+        return 2
+    return 1
+
+
+def _resolve_ref_cli(ref, captures_dir: Path):
+    """Resolve a bare label against the captures directory for the gate command."""
+    if isinstance(ref, str):
+        p = Path(ref)
+        if not p.exists() and not p.is_absolute():
+            return str(captures_dir / f"{ref}.json")
+    return ref
+
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -163,6 +333,39 @@ def build_parser() -> argparse.ArgumentParser:
     ph.add_argument("--db", default=str(report.DEFAULT_DB))
     ph.add_argument("--limit", type=int, default=20)
     ph.set_defaults(func=_cmd_history)
+
+    pb = sub.add_parser("baseline", help="render the selected set and record a baseline capture")
+    pb.add_argument("--engine", choices=["chromium", "cli"], default="cli")
+    pb.add_argument("--cli-cmd", default=None, help="command for --engine cli")
+    pb.add_argument("--label", required=True, help="capture label (file name, no extension)")
+    pb.add_argument("--out", default="gate/captures", help="output directory for the capture")
+    pb.add_argument("--filter", default=None, help="substring filter on test id")
+    pb.add_argument("--limit", type=int, default=None, help="max tests to run")
+    pb.add_argument("--workers", type=int, default=1, help="accepted for interface parity; capture is sequential")
+    pb.add_argument("--dpi", type=int, default=96, help="rasterization DPI for fingerprints")
+    pb.add_argument(
+        "--source-commit",
+        default=None,
+        help="commit recorded in the capture identity; required inside the dev "
+        "container, where the worktree's .git pointer resolves to a host path "
+        '(pass "$(git rev-parse HEAD)")',
+    )
+    pb.set_defaults(func=_cmd_baseline)
+
+    pg = sub.add_parser("gate", help="compare two captures plus direct checks")
+    pg.add_argument("--baseline", required=True, help="baseline capture path or label")
+    pg.add_argument("--candidate", required=True, help="candidate capture path or label")
+    pg.add_argument("--captures", default="gate/captures", help="directory of capture files (for label resolution)")
+    pg.add_argument("--direct", default="harness/direct_manifest.json", help="direct-check manifest (omit for none)")
+    pg.add_argument("--reviews", default="gate/reviews", help="review records directory or file")
+    pg.add_argument("--policy", default="gate/policy.json", help="policy JSON (optional)")
+    pg.add_argument("--out", default="gate/out", help="output directory for the gate report")
+    pg.add_argument("--corpus", default=".", help="corpus root (for input_source corpus)")
+    pg.add_argument("--fixtures", default="harness/direct_fixtures", help="fixture root")
+    pg.add_argument("--dpi", type=int, default=96, help="rasterization DPI for direct checks")
+    pg.add_argument("--engine", choices=["chromium", "cli"], default="cli")
+    pg.add_argument("--cli-cmd", default=None, help="command for --engine cli (direct checks)")
+    pg.set_defaults(func=_cmd_gate)
 
     # `triage` owns its own arguments (see harness/triage.py); it is delegated
     # wholesale so the two command surfaces stay in step.
