@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Report corpus control with a link</title>
+<style>
+  /* Reviewed direct-check control (CORE-206).
+     A report-shaped document: a heading, stable body text, a two-row table, and
+     one external link. The link rect is measured from the engine and asserted
+     with a small tolerance; the text checks assert that rows survive pagination.
+     CSS 2.2 16.3 (decorations and the link element); the hyperlink annotation
+     shape and rect rule follow docs/specifications/hyperlinks.spec.md. */
+  @page { margin: 0.5in; @bottom-center { content: counter(page); font-size: 9pt; color: #555; } }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; line-height: 1.3; color: #111; }
+  h1 { font-size: 14pt; margin: 0 0 6pt 0; }
+  table { border-collapse: collapse; width: 100%; margin: 6pt 0; }
+  th, td { border: 0.5pt solid #999; padding: 2pt 4pt; font-size: 9pt; text-align: left; }
+  .num { text-align: right; }
+</style>
+</head>
+<body>
+  <h1>Quarterly Summary</h1>
+  <p>This document carries stable inputs for the direct corpus. Its rows and
+  its link must survive a rendering change unchanged.</p>
+  <table>
+    <thead>
+      <tr><th>Metric</th><th class="num">Value</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Rows preserved</td><td class="num">2</td></tr>
+      <tr><td>Link destinations</td><td class="num">1</td></tr>
+    </tbody>
+  </table>
+  <p>Source: <a href="https://example.com/typeanvil/quarterly">Northwind quarterly data</a></p>
+</body>
+</html>

@@ -1,0 +1,96 @@
+{
+  "schema": "typeanvil.harness.direct/1",
+  "checks": [
+    {
+      "id": "orthogonal-writing-one-page",
+      "input": "css/css-page/page-name-orthogonal-writing-003-print.html",
+      "input_source": "wpt",
+      "expectation": {"page_count": 1},
+      "provenance": "engine/tests/page_boundaries.rs::page_change_suppressed_when_inner_mode_orthogonal_to_page_flow; docs/research/wpt-harness/core182-interior-writing-mode-scoping.md; measured 1 page 2026-09-15 (its reference is also 1 page)"
+    },
+    {
+      "id": "orthogonal-writing-vertical-text",
+      "input": "css/css-page/page-name-orthogonal-writing-003-print.html",
+      "input_source": "wpt",
+      "expectation": {"text_orientation": {"page": 0, "rect_pt": [36.0, 36.0, 324.0, 180.0], "expected": "vertical"}},
+      "provenance": "css-writing-modes-4 section 3 (a vertical-rl wrapper lays its line boxes out along the block axis); docs/research/wpt-harness/core182-interior-writing-mode-scoping.md; measured 2026-09-15 (glyph advance along y 13.3pt against 0.2pt along x)"
+    },
+    {
+      "id": "abspos-margins-page-shape",
+      "input": "abspos-margins.html",
+      "input_source": "fixture",
+      "expectation": {"page_count": 1},
+      "provenance": "harness/direct_fixtures/abspos-margins.html header comment; CSS 2.2 10.1"
+    },
+    {
+      "id": "abspos-margins-page-size",
+      "input": "abspos-margins.html",
+      "input_source": "fixture",
+      "expectation": {"page_size_pt": [360.0, 216.0], "tolerance_pt": 0.5},
+      "provenance": "CLI geometry 5in x 3in at 72pt/in; CSS Page 3 section 3; measured 360x216pt 2026-09-15"
+    },
+    {
+      "id": "abspos-margins-box-painted",
+      "input": "abspos-margins.html",
+      "input_source": "fixture",
+      "expectation": {"paint_region": {"page": 0, "rect_pt": [54.0, 54.0, 126.0, 90.0], "min_dark_fraction": 0.9}},
+      "provenance": "CSS 2.2 10.1, 10.3.7, 10.6.4; the page area is (36pt,36pt)-(324pt,180pt), so the box paints at (54,54)-(126,90); measured dark fraction 1.0000 on 2026-09-15"
+    },
+    {
+      "id": "abspos-margins-corner-blank",
+      "input": "abspos-margins.html",
+      "input_source": "fixture",
+      "expectation": {"paint_region": {"page": 0, "rect_pt": [0.0, 0.0, 50.0, 50.0], "max_dark_fraction": 0.02}},
+      "provenance": "CSS Page 3 section 3: content must not paint in the page margin; measured dark fraction 0.0000 on 2026-09-15 (a renderer that ignored the margins would paint here, at (18,18)-(90,54))"
+    },
+    {
+      "id": "report-corpus-rows-preserved",
+      "input": "demo/corpus/report.html",
+      "input_source": "corpus",
+      "expectation": {"text_present": ["Foundations", "Methods", "Results", "Discussion"]},
+      "provenance": "reviewed corpus: demo/corpus/report.html chapter headings are stable inputs; docs/specifications/string-set-running-headers.spec.md"
+    },
+    {
+      "id": "report-corpus-page-count",
+      "input": "demo/corpus/report.html",
+      "input_source": "corpus",
+      "expectation": {"page_count": [10, 12]},
+      "provenance": "reviewed corpus: measured 11 pages 2026-09-15 with the release-tip binary (sha256 19e2038e0f4480a7...); the range tolerates one page of drift, while the per-document capture comparison catches any change exactly"
+    },
+    {
+      "id": "invoice-corpus-rows-preserved",
+      "input": "demo/corpus/invoice.html",
+      "input_source": "corpus",
+      "expectation": {"text_present": ["Anvil, standard (150 lb)", "Total due", "4,142.00 USD"]},
+      "provenance": "reviewed corpus: demo/corpus/invoice.html rows are stable inputs; docs/specifications/tables-fragmentation.spec.md"
+    },
+    {
+      "id": "invoice-corpus-page-count",
+      "input": "demo/corpus/invoice.html",
+      "input_source": "corpus",
+      "expectation": {"page_count": [4, 6]},
+      "provenance": "reviewed corpus: measured 5 pages 2026-09-15 with the release-tip binary (sha256 19e2038e0f4480a7...); the range tolerates one page of drift, while the per-document capture comparison catches any change exactly"
+    },
+    {
+      "id": "report-links-link-target",
+      "input": "report-links.html",
+      "input_source": "fixture",
+      "expectation": {"link_target": {"page": 0, "uri": "https://example.com/typeanvil/quarterly"}},
+      "provenance": "harness/direct_fixtures/report-links.html; docs/specifications/hyperlinks.spec.md; measured one URI action on page 0 on 2026-09-15"
+    },
+    {
+      "id": "report-links-link-rect",
+      "input": "report-links.html",
+      "input_source": "fixture",
+      "expectation": {"link_target": {"page": 0, "uri": "https://example.com/typeanvil/quarterly", "rect_pt": [73.23, 149.37, 182.13, 162.36], "tolerance_pt": 3.0}},
+      "provenance": "CSS 2.2 16.3 with docs/specifications/hyperlinks.spec.md (the rect covers the link glyphs only); measured (73.23,149.37)-(182.13,162.36) in top-left points on 2026-09-15"
+    },
+    {
+      "id": "report-links-heading-present",
+      "input": "report-links.html",
+      "input_source": "fixture",
+      "expectation": {"text_present": ["Quarterly Summary", "Rows preserved"]},
+      "provenance": "harness/direct_fixtures/report-links.html reviewed contents"
+    }
+  ]
+}

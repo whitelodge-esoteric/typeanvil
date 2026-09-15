@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Absolute-positioned control with nonzero margins</title>
+<style>
+  /* Reviewed direct-check control (CORE-206).
+     Page geometry comes from the CLI flags: 5in x 3in with 0.5in margins on all
+     sides, so the page area is (36pt,36pt)-(324pt,180pt) with a top-left origin.
+     The absolute box sits 0.25in into the page area on both axes and measures
+     1in x 0.5in, so it must paint at (54pt,54pt)-(126pt,90pt).
+     A renderer that ignores the margins paints it at (18pt,18pt)-(90pt,54pt).
+     CSS 2.2 10.1 (containing block), 10.3.7 (abspos width), 10.6.4 (abspos
+     height); CSS Page 3 3 (page box and margins). */
+  html, body { margin: 0; padding: 0; }
+  #box {
+    position: absolute;
+    top: 0.25in;
+    left: 0.25in;
+    width: 1in;
+    height: 0.5in;
+    background: #000;
+  }
+</style>
+</head>
+<body>
+  <div id="box"></div>
+</body>
+</html>

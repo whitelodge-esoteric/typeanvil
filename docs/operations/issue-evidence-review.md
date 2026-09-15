@@ -202,8 +202,10 @@ of correcting a ticket.
   implementation gate until the reproduction can run.
 - **No tests selected:** check the actual manifest ID and filter; an empty run
   does not confirm a fix.
-- **Pair matches but output looks wrong:** add a direct page/geometry/paint
-  check independent of test-versus-reference equality.
+- **Pair matches but output looks wrong:** run the
+  [release gate](release-gate.md). It compares each document with its own
+  earlier output and adds direct page, geometry, text, orientation, paint, and
+  link checks independent of test-versus-reference equality.
 - **Comments contradict the description:** identify the supporting evidence,
   update active instructions, and preserve the correction reason.
 - **Cause unknown:** keep the issue in investigation; use the next isolating

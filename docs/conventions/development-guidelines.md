@@ -65,12 +65,18 @@ All of these run against your branch before merge:
    typography: run the WPT harness A/B against main's binary and ship only a
    zero-regression state ("fixed − regressed" net positive). See
    [the WPT conformance harness spec](../specifications/wpt-conformance-harness.spec.md).
-3. **Benchmarks and demo suite.** For engine changes: rebuild release, run
+3. **Release gate.** Run the baseline and candidate evidence path, which
+   compares each rendered document with its own earlier output and asserts
+   expected PDF properties directly. A zero-flip WPT result alone is not
+   evidence of unchanged output. See
+   [the harness release gate spec](../specifications/harness-release-gate.spec.md)
+   and [the release gate runbook](../operations/release-gate.md).
+4. **Benchmarks and demo suite.** For engine changes: rebuild release, run
    `scripts/benchmark.py` and `scripts/build-demo.sh`, and commit the updated
    `benchmarks/results.json` + `benchmarks/RESULTS.md` pair and regenerated
    `demo/out/scoreboard.json` (use `git add -f` for scoreboard files) with
    the PR. Parity or performance movement belongs in the PR description.
-4. **Docs validation.** `python3 scripts/validate_docs.py`.
+5. **Docs validation.** `python3 scripts/validate_docs.py`.
 
 Never merge with a failing or skipped step without recording why on the PR.
 
