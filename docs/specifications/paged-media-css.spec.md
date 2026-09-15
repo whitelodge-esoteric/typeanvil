@@ -97,7 +97,7 @@ market.
   in the box's own writing mode (seven lines stack along the block axis →
   min-content WIDTH 7em, per dimensions-013's own comment). That is a
   margin-box sizing feature, tracked separately from the document-interior
-  writing-mode work.**
+  writing-mode work. Filed as CORE-184.**
 - Document-interior vertical text layout (rotated glyph runs, vertical line
   boxes). CORE-182 re-keyed the vertical BLOCK geometry on the mode in effect
   at the box, but text still advances along physical +x inside a vertical
