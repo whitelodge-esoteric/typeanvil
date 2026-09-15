@@ -7992,3 +7992,59 @@ mod core178_tests {
         assert_eq!(ys.len(), 1, "the box's `normal` collapses: {ys:?}");
     }
 }
+
+#[cfg(test)]
+mod core186_gif_content_tests {
+    use super::*;
+    use crate::css::Stylesheet;
+    use crate::geom::PageGeometry;
+
+    /// The fixture's own 16x16 GIF → 12x12pt (96dpi px → pt is *0.75).
+    const GIF_16X16: &str = "R0lGODlhEAAQAMQAAORHHOVSKudfOulrSOp3WOyDZu6QdvCchPGolfO0o/XBs/fNwfjZ0frl3/zy7////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH5BAkAABAALAAAAAAQABAAAAVVICSOZGlCQAosJ6mu7fiyZeKqNKToQGDsM8hBADgUXoGAiqhSvp5QAnQKGIgUhwFUYLCVDFCrKUE1lBavAViFIDlTImbKC5Gm2hB0SlBCBMQiB0UjIQA7";
+
+    fn geometry() -> PageGeometry {
+        PageGeometry {
+            width: Scalar(360.0),
+            height: Scalar(216.0),
+            margin_top: Scalar::ZERO,
+            margin_right: Scalar::ZERO,
+            margin_bottom: Scalar::ZERO,
+            margin_left: Scalar::ZERO,
+        }
+    }
+
+    /// CORE-186: `content: url(<gif data URI>)` PAINTS. Before GIF support the
+    /// bytes did not even LOAD — the `image/gif` MIME gate in `decode_data_uri`
+    /// rejected it — so no image fragment existed at all.
+    #[test]
+    fn gif_content_image_paints_at_natural_size() {
+        let html = format!(
+            r#"<!DOCTYPE html><html><head><style>
+                @page {{ margin: 0 }}
+                body {{ margin: 0 }}
+                .x {{ content: url(data:image/gif;base64,{GIF_16X16}) }}
+            </style></head><body><div class="x"></div></body></html>"#
+        );
+        let dom = Dom::parse(&html).expect("parse");
+        let css = html
+            .split("<style>")
+            .nth(1)
+            .and_then(|s| s.split("</style>").next())
+            .unwrap_or("");
+        let sheet = Stylesheet::parse(css);
+        let laid = layout(&dom, &sheet, geometry());
+
+        let mut images: Vec<(f64, f64)> = Vec::new();
+        let mut stack = vec![&laid.pages[0].root];
+        while let Some(frag) = stack.pop() {
+            if matches!(frag.content, FragmentContent::Image(_)) {
+                images.push((frag.size.0.get(), frag.size.1.get()));
+            }
+            for c in &frag.children {
+                stack.push(c);
+            }
+        }
+        assert_eq!(images.len(), 1, "exactly one image fragment: {images:?}");
+        assert_eq!(images[0], (12.0, 12.0), "16px image paints at 12x12pt");
+    }
+}

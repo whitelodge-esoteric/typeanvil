@@ -1861,6 +1861,7 @@ dependencies = [
  "euclid",
  "flate2",
  "fontdb",
+ "gif 0.13.3",
  "harfrust",
  "html5ever",
  "hypher",
