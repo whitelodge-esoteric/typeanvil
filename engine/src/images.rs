@@ -65,8 +65,10 @@ impl ImageStore {
 
     /// Resolve + sniff an image source, interning it once. Returns the key.
     ///
-    /// - `data:` URIs (`image/png;base64`, `image/jpeg;base64`) decode to
-    ///   bytes directly.
+    /// - `data:` URIs (`image/png;base64`, `image/jpeg;base64`,
+    ///   `image/gif;base64`) decode to bytes directly. GIF bytes are NORMALISED
+    ///   to PNG at intern time (first frame, logical screen size) — see
+    ///   `rasterize_gif`.
     /// - Any other source resolves as a file path relative to `base_url`
     ///   (absolute paths pass through).
     ///
@@ -170,7 +172,10 @@ fn decode_data_uri(rest: &str) -> Option<Vec<u8>> {
     };
 
     match mime.as_str() {
-        "image/png" | "image/jpeg" | "image/jpg" => {
+        // CORE-186: `image/gif` must be admitted here too. Without it the
+        // payload never loaded and `intern` fell back to hashing the URL TEXT,
+        // so recognising GIF in `sniff` alone would not have fixed anything.
+        "image/png" | "image/jpeg" | "image/jpg" | "image/gif" => {
             if is_base64 {
                 decode_base64(&decoded)
             } else {
@@ -184,7 +189,7 @@ fn decode_data_uri(rest: &str) -> Option<Vec<u8>> {
 }
 
 fn sniff_ok_then_keep(bytes: Vec<u8>) -> Option<Vec<u8>> {
-    if !bytes.is_empty() && (is_png(&bytes) || is_jpeg(&bytes)) {
+    if !bytes.is_empty() && (is_png(&bytes) || is_jpeg(&bytes) || is_gif(&bytes)) {
         Some(bytes)
     } else {
         None
@@ -257,6 +262,12 @@ fn sniff(b: &[u8]) -> Option<(u32, u32, ImageKind, Vec<u8>)> {
         png_dimensions(b).map(|(w, h)| (w, h, ImageKind::Png, b.to_vec()))
     } else if is_jpeg(b) {
         jpeg_dimensions(b).map(|(w, h)| (w, h, ImageKind::Jpeg, b.to_vec()))
+    } else if is_gif(b) {
+        // CORE-186: a GIF is NORMALISED to PNG at intern time (first frame, at
+        // the logical screen size), so the stored bytes are PNG and the emitted
+        // kind is `Png` — the same normalise-at-intern shape as the SVG bridge
+        // below, and it keeps `pdf.rs` free of a GIF branch.
+        rasterize_gif(b).map(|(w, h, png)| (w, h, ImageKind::Png, png))
     } else if is_svg(b) {
         // `rasterize_svg` returns (intrinsic_w_px, intrinsic_h_px, png_bytes):
         // the raster becomes `original` at emit time; the intrinsic CSS px
@@ -265,6 +276,25 @@ fn sniff(b: &[u8]) -> Option<(u32, u32, ImageKind, Vec<u8>)> {
     } else {
         None
     }
+}
+
+/// GIF signature: `GIF87a` or `GIF89a` (GIF89a is what the LZW/spec-era
+/// encoders emit; both are the same container for our purposes).
+fn is_gif(b: &[u8]) -> bool {
+    b.len() >= 10 && (b.starts_with(b"GIF87a") || b.starts_with(b"GIF89a"))
+}
+
+/// GIF logical screen size: u16 little-endian width/height at bytes 6..10. This
+/// is the CANVAS, which is what a replaced element is sized by — a frame that
+/// covers only part of it is composed at its own offset (see `rasterize_gif`).
+fn gif_dimensions(b: &[u8]) -> Option<(u32, u32)> {
+    if !is_gif(b) {
+        return None;
+    }
+    Some((
+        u16::from_le_bytes([b[6], b[7]]) as u32,
+        u16::from_le_bytes([b[8], b[9]]) as u32,
+    ))
 }
 
 fn is_png(b: &[u8]) -> bool {
@@ -449,6 +479,58 @@ fn rasterize_svg(b: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
     Some((w, h, png))
 }
 
+/// Decode a GIF's FIRST frame to RGBA and re-encode it as PNG, so the rest of
+/// the pipeline (krilla) sees a format it embeds. Returns
+/// `(intrinsic_w_px, intrinsic_h_px, png_bytes)` like [`rasterize_svg`].
+///
+/// * Animated GIFs print their FIRST frame only, matching Chromium's
+///   static-medium behaviour.
+/// * The canvas is the logical screen size and a frame that does not cover it is
+///   composed at its own offset, so a partial frame keeps its placement.
+/// * PNG carries alpha, so a transparent palette index stays transparent.
+///   tiny_skia's pixmap holds PREMULTIPLIED alpha, hence the premultiply.
+fn rasterize_gif(bytes: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
+    let (sw, sh) = gif_dimensions(bytes)?;
+    if sw == 0 || sh == 0 || sw > 16_384 || sh > 16_384 {
+        return None;
+    }
+    let mut opts = gif::DecodeOptions::new();
+    opts.set_color_output(gif::ColorOutput::RGBA);
+    let mut decoder = opts.read_info(std::io::Cursor::new(bytes)).ok()?;
+    let frame = decoder.read_next_frame().ok()??;
+
+    let (fw, fh) = (frame.width as usize, frame.height as usize);
+    let (ox, oy) = (frame.left as usize, frame.top as usize);
+    let (sw, sh) = (sw as usize, sh as usize);
+    let mut canvas = vec![0u8; sw * sh * 4]; // fully transparent
+    for y in 0..fh {
+        let dy = oy + y;
+        if dy >= sh {
+            break;
+        }
+        for x in 0..fw {
+            let dx = ox + x;
+            if dx >= sw {
+                continue;
+            }
+            let s = (y * fw + x) * 4;
+            let Some(src) = frame.buffer.get(s..s + 4) else {
+                continue;
+            };
+            let d = (dy * sw + dx) * 4;
+            let a = src[3] as u16;
+            canvas[d] = ((src[0] as u16 * a) / 255) as u8;
+            canvas[d + 1] = ((src[1] as u16 * a) / 255) as u8;
+            canvas[d + 2] = ((src[2] as u16 * a) / 255) as u8;
+            canvas[d + 3] = src[3];
+        }
+    }
+    let size = resvg::tiny_skia::IntSize::from_wh(sw as u32, sh as u32)?;
+    let pixmap = resvg::tiny_skia::Pixmap::from_vec(canvas, size)?;
+    let png = pixmap.encode_png().ok()?;
+    Some((sw as u32, sh as u32, png))
+}
+
 /// Process-wide font database for SVG text rasterization. System fonts plus
 /// the four bundled Arial faces so `default_font_family` resolves even on a
 /// bare machine. Same model as fonts.rs (a LazyLock fontdb), kept separate
@@ -471,4 +553,59 @@ static SVG_FONTDB: LazyLock<fontdb::Database> = LazyLock::new(|| {
 
 fn svg_fontdb() -> std::sync::Arc<fontdb::Database> {
     std::sync::Arc::new(SVG_FONTDB.clone())
+}
+
+#[cfg(test)]
+mod core186_gif_tests {
+    use super::*;
+
+    /// The fixture's own 16x16 GIF, so the bytes are real.
+    const GIF_16X16: &str = "R0lGODlhEAAQAMQAAORHHOVSKudfOulrSOp3WOyDZu6QdvCchPGolfO0o/XBs/fNwfjZ0frl3/zy7////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH5BAkAABAALAAAAAAQABAAAAVVICSOZGlCQAosJ6mu7fiyZeKqNKToQGDsM8hBADgUXoGAiqhSvp5QAnQKGIgUhwFUYLCVDFCrKUE1lBavAViFIDlTImbKC5Gm2hB0SlBCBMQiB0UjIQA7";
+
+    fn gif_bytes() -> Vec<u8> {
+        decode_base64(GIF_16X16.as_bytes()).expect("base64 decodes")
+    }
+
+    #[test]
+    fn gif_signature_and_header_dimensions() {
+        let b = gif_bytes();
+        assert!(is_gif(&b), "GIF89a signature");
+        assert_eq!(gif_dimensions(&b), Some((16, 16)), "logical screen size");
+        let mut v = b.clone();
+        v[4] = b'7';
+        assert!(is_gif(&v), "GIF87a signature");
+        assert!(
+            !is_gif(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]),
+            "a PNG is not a GIF"
+        );
+    }
+
+    /// CORE-186: a GIF interns as a LOADED image with its natural size, because
+    /// the bytes are normalised to PNG at intern time. Before this it interned
+    /// as `Broken` with 0x0 dimensions and painted nothing.
+    #[test]
+    fn gif_interns_as_loaded_png_with_natural_size() {
+        let mut store = ImageStore::new();
+        let key = store.intern_bytes(gif_bytes(), None).expect("intern");
+        match store.get(&key) {
+            Some(ImageEntry::Loaded(img)) => {
+                assert_eq!((img.width_px, img.height_px), (16, 16), "natural size");
+                assert!(matches!(img.kind, ImageKind::Png), "normalised to PNG");
+                assert!(
+                    img.original.starts_with(&[0x89, b'P', b'N', b'G']),
+                    "the stored bytes are a PNG"
+                );
+            }
+            other => panic!("expected a loaded image, got {other:?}"),
+        }
+    }
+
+    /// The `image/gif` MIME gate: before CORE-186 `decode_data_uri` returned
+    /// `None` for it, so the bytes never loaded and `intern` hashed the URL text.
+    #[test]
+    fn gif_data_uri_loads_its_bytes() {
+        let src = format!("data:image/gif;base64,{GIF_16X16}");
+        let bytes = load_bytes(&src, None).expect("image/gif data URI loads");
+        assert!(is_gif(&bytes), "the payload is the GIF, not the URL text");
+    }
 }

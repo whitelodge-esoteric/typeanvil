@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-21
-updated: 2026-09-13
+updated: 2026-09-15
 sidebar_position: 23
 tags: [engine, pdf, images, layout, determinism]
 spec_id: images
@@ -35,7 +35,9 @@ space directly.
    in the PDF at the correct size.
 2. Sources: file paths resolved against `--base-url`, and `data:` URIs
    (base64, percent-encoded).
-3. Formats: PNG and JPEG first (krilla's native path).
+3. Formats: PNG and JPEG (krilla's native path), inline SVG (rasterised to
+   PNG at intern time, CORE-131), and GIF (first frame, normalised to PNG at
+   intern time, CORE-186).
 4. Sizing follows CSS2.1 replaced-element rules: intrinsic size at 96 dpi,
    `width`/`height` attributes and CSS `width`/`height` scale it, and a
    single specified dimension preserves aspect ratio.
@@ -47,9 +49,10 @@ space directly.
 1. **object-fit / object-position**: deferred unless trivial during
    implementation; the decision (and reason) is recorded in the issue, not
    silently accepted.
-2. **GIF/WebP/other formats**: deferred. A document using them gets the
+2. **WebP/other formats**: deferred. A document using them gets the
    broken-image placeholder (Behavior 7). Recorded decision, follow-up if
-   needed.
+   needed. (GIF was originally on this list; CORE-186 landed support — see
+   Behavior 4.)
 3. **Float interaction**: an image participates in float wrapping like any
    other box; float-specific image tuning is out of scope.
 4. **SVG**: deferred entirely (separate ticket if filed).
@@ -73,8 +76,10 @@ space directly.
    the block model covers them while keeping the change surgical.
 
 3. **Source resolution.**
-   - `src="data:image/png;base64,…"` (or `image/jpeg`) SHALL decode to raw
-     bytes directly.
+   - `src="data:image/png;base64,…"` (or `image/jpeg`, `image/gif`) SHALL
+     decode to raw bytes directly. The MIME gate is load-bearing: rejecting a
+     type here means the bytes never load and the reference is hashed as its
+     URL TEXT instead (CORE-186 found `image/gif` rejected this way).
    - Any other `src` SHALL resolve as a file path relative to the
      `--base-url` CLI argument (same resolution rules as stylesheet paths);
      absolute paths pass through unchanged.
@@ -86,6 +91,15 @@ space directly.
    decoded source bytes (NOT the path — two paths with identical bytes are
    one entry). The cache SHALL be a `BTreeMap` (deterministic iteration;
    never `HashMap`). Decoding happens lazily at first use during layout.
+
+   **GIF (CORE-186)** SHALL be normalised to PNG at intern time: the FIRST frame
+   is decoded to RGBA at the GIF's LOGICAL SCREEN size — a frame covering only
+   part of the canvas is composed at its own offset — and re-encoded as PNG. The
+   cache key therefore stays the SHA-256 of the GIF source bytes while the
+   embedded payload is a PNG, and `ImageKind` stays `Png`. An ANIMATED GIF prints
+   its FIRST frame only, matching Chromium's behaviour for a static medium.
+   Alpha from a transparent palette index is preserved by the PNG. The GIF
+   logical screen size is the intrinsic size (Behavior 5).
 
 5. **Intrinsic size.** The intrinsic size SHALL be the decoded pixel
    dimensions converted at the CSS reference pixel rate: 1 image px =

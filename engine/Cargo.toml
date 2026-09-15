@@ -55,6 +55,12 @@ unicode-linebreak = "0.1"
 # Rust. The engine rasterizes SVG to PNG at a fixed deterministic scale and
 # embeds the raster via krilla (see images.rs).
 resvg = "0.45"
+# GIF decoding (CORE-186): decode the FIRST frame to RGBA and re-encode as PNG
+# at intern time, so the rest of the pipeline (krilla) sees a format it embeds.
+# Same normalise-at-intern shape as the SVG bridge above. Pure Rust; the LZW
+# work is `weezl`. Animated GIFs print their first frame, matching Chromium's
+# static-medium behaviour.
+gif = "0.13"
 # Errors.
 anyhow = "1"
 
