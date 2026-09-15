@@ -4,7 +4,7 @@ type: runbook
 status: approved
 owner: elijah
 created: 2026-09-13
-updated: 2026-09-13
+updated: 2026-09-15
 sidebar_position: 6
 tags: [docker, containers, memory, cargo, harness]
 issue_id: CORE-168
@@ -57,14 +57,49 @@ scripts/dev-container.sh ~/workspace/typeanvil.worktrees/core-168 cargo build
 
 Build artifacts live in a **named Docker volume per worktree** (`dev-target-<name>`),
 mounted at `/work/engine/target`. Deleting a worktree does not delete its
-volume — clean up with:
-
-```bash
-docker volume rm dev-target-<name>
-```
+volume — see [Cleanup when an issue closes](#cleanup-when-an-issue-closes).
 
 The cargo registry/git caches are shared via the `dev-cargo-home` volume, so
 dependencies download once, ever.
+
+## Cleanup when an issue closes
+
+The dev container creates these assets for one issue:
+
+| Asset | Name | Holds | Dispose |
+|---|---|---|---|
+| Build volume | `dev-target-<worktree-name>` | ~14 GB | Delete on close |
+| Container | any run of `typeanvil-dev` | — | Delete if left behind |
+| Image | `typeanvil-dev` | 4.1 GB | Keep (shared) |
+| Cargo caches | `dev-cargo-home`, `dev-cargo-git`, `dev-cargo-registry` | 171 MB | Keep (shared) |
+
+`<worktree-name>` is the worktree's directory name, so the `core-184` worktree
+maps to `dev-target-core-184`.
+
+Close an issue in this order. Remove the worktree last.
+
+```bash
+# 1. its build volume (about 14 GB)
+docker volume rm dev-target-core-<N>
+
+# 2. containers left behind by an interrupted run; --rm handles normal runs
+docker ps -a --filter ancestor=typeanvil-dev
+
+# 3. the worktree and branch
+git worktree remove ~/workspace/typeanvil.worktrees/core-<N>
+git branch -D ebboston/<branch>
+```
+
+Two rules:
+
+- Never remove the shared caches (`dev-cargo-*`) or the `typeanvil-dev` image.
+  They serve every worktree, and the image costs a 10-minute rebuild.
+- Never remove a volume whose worktree is still live. Another session may be
+  building in it. A volume with `LINKS 0` in `docker system df -v` has no
+  container attached.
+
+A deleted volume costs a FULL rebuild on the next run, so clean up after the
+issue closes, never while the gate is still open.
 
 ## System fonts
 

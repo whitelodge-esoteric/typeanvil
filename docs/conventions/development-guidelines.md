@@ -4,7 +4,7 @@ type: convention
 status: approved
 owner: elijah
 created: 2026-08-26
-updated: 2026-08-26
+updated: 2026-09-15
 sidebar_position: 1
 tags: [conventions, workflow, process, testing]
 ---
@@ -82,3 +82,25 @@ Never merge with a failing or skipped step without recording why on the PR.
 - End-to-end issue execution (worktree setup → reproduce → fix → gate →
   land) follows the loop documented in the team's issue-loop process;
   step ordering there is proven practice, not suggestion.
+
+## Cleanup when an issue closes
+
+An issue that used the dev container leaves Docker assets behind. Removing the
+git worktree does not remove them. Each worktree's build volume holds about
+14 GB, so stale volumes fill the Docker VM.
+
+Close an issue with these steps:
+
+1. Remove the issue's build volume:
+   `docker volume rm dev-target-<worktree-name>`.
+2. Remove any container left behind by an interrupted run:
+   `docker ps -a --filter ancestor=typeanvil-dev`, then `docker rm <container>`.
+   A normal run passes `--rm` and removes its own container.
+3. Keep the shared caches. `dev-cargo-home`, `dev-cargo-git`, and
+   `dev-cargo-registry` serve every worktree. Never remove them.
+4. Never remove a volume for a worktree that is still live. Another session may
+   be working in it.
+
+Find unused volumes with `docker system df -v` (the `LINKS 0` rows are unused).
+A deleted volume costs a full rebuild on the next run, so delete it when the
+issue is closed, not before.

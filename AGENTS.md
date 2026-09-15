@@ -63,6 +63,11 @@ yourself after touching `docs/`.
   expensive).
 - Docs site: `cd docsite && npm run build` (Docusaurus; content lives in
   `../docs`, never edit `docsite/docs/`).
+- When an issue closes, delete the Docker assets that belong to it: its build
+  volume (`docker volume rm dev-target-<worktree-name>`), any container left
+  behind, then the worktree. Each build volume holds about 14 GB. Keep the
+  shared cargo caches and the `typeanvil-dev` image. See
+  `docs/operations/dev-container.md`.
 
 ## Writing style — agent responses
 
