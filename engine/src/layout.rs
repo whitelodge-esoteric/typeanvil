@@ -6711,7 +6711,9 @@ fn attach_margin_boxes(
     // 1. Resolve the generated text of each box and measure it. §5.3.2.2
     //    distributes the edge between boxes using their min-content (widest
     //    word) and max-content (whole line) sizes.
-    let mut shaped: Vec<Option<crate::typography::ShapeRun>> =
+    // One entry per margin box: its generated content broken into lines.
+    // A line is `None` when it paints no text (CORE-178).
+    let mut shaped: Vec<Vec<Option<crate::typography::ShapeRun>>> =
         Vec::with_capacity(spec.margin_boxes.len());
     let mut metrics: Vec<crate::margin_box::BoxMetrics> =
         Vec::with_capacity(spec.margin_boxes.len());
@@ -6719,15 +6721,24 @@ fn attach_margin_boxes(
         Vec::with_capacity(spec.margin_boxes.len());
     for mb in &spec.margin_boxes {
         let text = render_margin_content(&mb.content, mb, flow, page_local, total_pages, page_start);
-        let sh = if text.is_empty() {
-            None
-        } else {
-            // Shape the resolved content so non-ASCII (em dash, curly quotes,
-            // ·) renders as a real glyph with a ToUnicode mapping — never raw
-            // UTF-8 bytes (CORE-83). Margin boxes are one line; no
-            // microtypography.
-            Some(crate::typography::shape_word(&text, mb.font_size, mb.font_face))
-        };
+        // Line breaking (CORE-178): a newline in the generated content forces a
+        // line break only under a break-preserving `white-space`; under the
+        // collapsing values a segment break becomes a space (css-text-3
+        // §4.1.1). Space runs inside a line are shaped verbatim, as before.
+        let lines = margin_box_lines(&text, mb.white_space);
+        // Shape each line so non-ASCII (em dash, curly quotes, ·) renders as a
+        // real glyph with a ToUnicode mapping — never raw UTF-8 bytes
+        // (CORE-83). Margin boxes take no microtypography.
+        let runs: Vec<Option<crate::typography::ShapeRun>> = lines
+            .iter()
+            .map(|l| {
+                if l.is_empty() {
+                    None
+                } else {
+                    Some(crate::typography::shape_word(l, mb.font_size, mb.font_face))
+                }
+            })
+            .collect();
         // `content: url(...)` — intern the image exactly like an `<img src>`
         // and use its natural size (96 DPI pixels -> points) as atomic line
         // content (css-page-3 margin boxes replace the element, so the image
@@ -6746,18 +6757,36 @@ fn attach_margin_boxes(
         });
         let img_w = image.as_ref().map(|(_, w, _, _)| *w).unwrap_or(Scalar::ZERO);
         let img_h = image.as_ref().map(|(_, _, h, _)| *h).unwrap_or(Scalar::ZERO);
-        let text_max = sh.as_ref().map(|s| s.width).unwrap_or(Scalar::ZERO);
-        let block = if img_h.get() > mb.line_height.get() {
+        // A block with forced breaks measures min-content as its WIDEST line's
+        // min-content and max-content as its widest line (css-sizing-3 §5.1).
+        let text_min = lines.iter().fold(Scalar::ZERO, |acc, l| {
+            let w = min_content_width(l, mb.font_size, mb.font_face);
+            if w.get() > acc.get() {
+                w
+            } else {
+                acc
+            }
+        });
+        let text_max = runs.iter().flatten().fold(Scalar::ZERO, |acc, s| {
+            if s.width.get() > acc.get() {
+                s.width
+            } else {
+                acc
+            }
+        });
+        // The content's block extent: the lines stack at the box's line-height.
+        let text_block = Scalar(lines.len() as f64 * mb.line_height.get());
+        let block = if img_h.get() > text_block.get() {
             img_h
         } else {
-            mb.line_height
+            text_block
         };
         metrics.push(crate::margin_box::BoxMetrics {
-            min_inline: min_content_width(&text, mb.font_size, mb.font_face) + img_w,
+            min_inline: text_min + img_w,
             max_inline: text_max + img_w,
             block,
         });
-        shaped.push(sh);
+        shaped.push(runs);
         box_images.push(image);
     }
 
@@ -6841,35 +6870,54 @@ fn attach_margin_boxes(
             }
         }
         let lh = mb.line_height;
-        // The line box holds the text AND an optional image. A replaced inline
-        // box proves its own ascent (its height), so the line box grows to it
-        // and the baseline sits at the tallest ascent — otherwise a 50px image
-        // would extend above the box (css2 §10.8).
+        let line_count = shaped[i].len().max(1);
+        // The line boxes hold the lines AND an optional image. A replaced
+        // inline box proves its own ascent (its height), so the line it sits on
+        // grows to it and that line's baseline sits at the tallest ascent —
+        // otherwise a 50px image would extend above the box (css2 §10.8).
         let img_box_h = box_images
             .get(i)
             .and_then(|o| o.as_ref())
             .map(|(_, _, h, _)| *h)
             .unwrap_or(Scalar::ZERO);
-        let eff_h = if img_box_h.get() > lh.get() {
+        let text_block_h = Scalar(line_count as f64 * lh.get());
+        let eff_h = if img_box_h.get() > text_block_h.get() {
             img_box_h
         } else {
-            lh
+            text_block_h
         };
         let line_top = cy + vertical_slot(mb.vertical_align, ch, eff_h);
         let strut_baseline = crate::typography::baseline_offset(mb.font_size, lh, mb.font_face);
-        let baseline = line_top
-            + if img_box_h.get() > strut_baseline.get() {
+        // The image rides on the LAST line (the text it follows); a single-line
+        // box is unaffected.
+        let img_line = line_count - 1;
+        let mut last_x = cx;
+        let mut last_text_w = Scalar::ZERO;
+        let mut last_baseline = line_top + strut_baseline;
+        for li in 0..line_count {
+            let text_w = shaped[i]
+                .get(li)
+                .and_then(|s| s.as_ref())
+                .map(|s| s.width)
+                .unwrap_or(Scalar::ZERO);
+            let x = match mb.text_align {
+                TextAlign::Center => Scalar(cx.get() + (cw.get() - text_w.get()) * 0.5),
+                TextAlign::Right | TextAlign::End => Scalar(cx.get() + cw.get() - text_w.get()),
+                _ => cx,
+            };
+            let base_off = if li == img_line && img_box_h.get() > strut_baseline.get() {
                 img_box_h
             } else {
                 strut_baseline
             };
-        let text_w = shaped[i].as_ref().map(|s| s.width).unwrap_or(Scalar::ZERO);
-        let x = match mb.text_align {
-            TextAlign::Center => Scalar(cx.get() + (cw.get() - text_w.get()) * 0.5),
-            TextAlign::Right | TextAlign::End => Scalar(cx.get() + cw.get() - text_w.get()),
-            _ => cx,
-        };
-        if let Some(run_shaped) = shaped[i].take() {
+            let line_y = Scalar(line_top.get() + (li as f64) * lh.get());
+            let baseline = line_y + base_off;
+            last_x = x;
+            last_text_w = text_w;
+            last_baseline = baseline;
+            let Some(run_shaped) = shaped[i].get_mut(li).and_then(|s| s.take()) else {
+                continue;
+            };
             let run = TextRun {
                 text: run_shaped.text,
                 baseline: Point::new(x, baseline),
@@ -6883,23 +6931,20 @@ fn attach_margin_boxes(
             };
             // Child coordinates are parent-relative: the box fragment carries
             // the page-absolute origin, so the line is relative to it.
-            let mut line = Fragment::line(
-                Point::new(x - box_x, line_top - box_y),
-                (text_w, lh),
-                run,
-            );
+            let mut line =
+                Fragment::line(Point::new(x - box_x, line_y - box_y), (text_w, lh), run);
             line.kind = FragmentKind::Line;
             if let FragmentContent::Text(r) = &mut line.content {
                 r.baseline = Point::new(r.baseline.x - box_x, r.baseline.y - box_y);
             }
             fragment.children.push(line);
         }
-        // An image in the box's content follows the text on the same line and
+        // An image in the box's content follows the text of the last line and
         // sits on that line's baseline (a replaced inline box).
         if let Some(Some((key, img_w, img_h, broken))) = box_images.get(i) {
             if img_w.get() > 0.0 && img_h.get() > 0.0 {
-                let ix = x + text_w;
-                let iy = baseline - *img_h;
+                let ix = last_x + last_text_w;
+                let iy = last_baseline - *img_h;
                 let mut img =
                     Fragment::block(Point::new(ix - box_x, iy - box_y), (*img_w, *img_h));
                 img.content = FragmentContent::Image(crate::frag::ImageRun {
@@ -6911,6 +6956,30 @@ fn attach_margin_boxes(
             }
         }
         fragmentainer.root.children.push(fragment);
+    }
+}
+
+/// Break margin-box generated content into its lines (CORE-178).
+///
+/// A newline in the content forces a line break only under a break-preserving
+/// `white-space` (css-text-3 §4.1.1); under the collapsing values a segment
+/// break becomes a space. Space runs inside a line are left verbatim — margin
+/// boxes take no microtypography. Always returns at least one line, so an
+/// empty box still occupies its line box.
+fn margin_box_lines(text: &str, ws: crate::css::WhiteSpace) -> Vec<String> {
+    if ws.preserves_breaks() {
+        text.split('\n')
+            .map(|l| l.strip_suffix('\r').unwrap_or(l).to_string())
+            .collect()
+    } else {
+        let mut s = String::with_capacity(text.len());
+        for c in text.chars() {
+            match c {
+                '\n' | '\r' | '\t' => s.push(' '),
+                _ => s.push(c),
+            }
+        }
+        vec![s]
     }
 }
 
@@ -7827,5 +7896,99 @@ mod core183_element_content_image_tests {
             1,
             "the data URI interned as one image (a truncated path still interns, as broken)"
         );
+    }
+}
+
+
+#[cfg(test)]
+mod core178_tests {
+    use super::core150_tests::collect_text_baselines;
+    use super::*;
+    use crate::css::Stylesheet;
+    use crate::geom::PageGeometry;
+
+    /// The `@page` rule in each fixture declares size and margins; this is
+    /// only the fallback geometry.
+    fn geometry() -> PageGeometry {
+        PageGeometry {
+            width: Scalar(400.0),
+            height: Scalar(400.0),
+            margin_top: Scalar(100.0),
+            margin_right: Scalar(100.0),
+            margin_bottom: Scalar(100.0),
+            margin_left: Scalar(100.0),
+        }
+    }
+
+    /// Page 0's text baselines, top-to-bottom. Every fixture body is empty, so
+    /// every baseline belongs to a margin box.
+    fn margin_box_baselines(css: &str) -> Vec<f64> {
+        let html = format!("<html><head><style>{css}</style></head><body></body></html>");
+        let dom = Dom::parse(&html).expect("parse");
+        let sheet = Stylesheet::parse(css);
+        let laid = layout(&dom, &sheet, geometry());
+        let mut found = Vec::new();
+        collect_text_baselines(&laid.pages[0].root, 0.0, 0.0, &mut found);
+        let mut ys: Vec<f64> = found.into_iter().map(|(_, y)| y).collect();
+        ys.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        ys
+    }
+
+    /// CORE-178 (spec Behaviour 6, AC 29). A `\a` escape in a margin box's
+    /// generated content with `white-space: pre-wrap` must paint TWO lines one
+    /// line-height apart. Before the fix the paged parser painted the raw two
+    /// characters (`\` then `a`) inside a single line: it reads RAW
+    /// declaration text, so stylo never processed the escape.
+    #[test]
+    fn pre_wrap_content_paints_two_lines() {
+        let ys = margin_box_baselines(
+            r#"@page { size: 400px; margin: 100px;
+                 @top-left-corner { white-space: pre-wrap;
+                   content: "Line 1\aLine 2"; width: 100px; height: 100px;
+                   background: green; } }"#,
+        );
+        assert_eq!(ys.len(), 2, "one line per escaped newline: {ys:?}");
+        let pitch = ys[1] - ys[0];
+        let expected = (Scalar(12.0) * crate::css::NORMAL_LINE_HEIGHT_FACTOR).get();
+        assert!(
+            (pitch - expected).abs() < 1e-6,
+            "line pitch {pitch:.3} must be the box line-height {expected:.3}"
+        );
+    }
+
+    /// CORE-178 (AC 29). Without a break-preserving `white-space` the same
+    /// content collapses to ONE line — the segment break becomes a space
+    /// (css-text-3 §4.1.1).
+    #[test]
+    fn normal_white_space_collapses_the_newline() {
+        let ys = margin_box_baselines(
+            r#"@page { size: 400px; margin: 100px;
+                 @top-left-corner { content: "Line 1\aLine 2";
+                   width: 100px; height: 100px; background: green; } }"#,
+        );
+        assert_eq!(ys.len(), 1, "collapsing white-space takes one line: {ys:?}");
+    }
+
+    /// CORE-178 (AC 30). `white-space` is inherited from the page context
+    /// (css-page-3 §5.2) — the path `dimensions-005/008` use, which set
+    /// `pre-wrap` on `@page`, not on the box.
+    #[test]
+    fn page_context_white_space_inherits() {
+        let ys = margin_box_baselines(
+            r#"@page { size: 400px; margin: 100px; white-space: pre-wrap;
+                 @top-left { content: "a\a b"; } }"#,
+        );
+        assert_eq!(ys.len(), 2, "the page context's value inherits: {ys:?}");
+    }
+
+    /// CORE-178: the box's own declaration beats the page context
+    /// (css-page-3 §6).
+    #[test]
+    fn box_white_space_beats_the_page_context() {
+        let ys = margin_box_baselines(
+            r#"@page { size: 400px; margin: 100px; white-space: pre-wrap;
+                 @top-left { white-space: normal; content: "a\a b"; } }"#,
+        );
+        assert_eq!(ys.len(), 1, "the box's `normal` collapses: {ys:?}");
     }
 }

@@ -262,6 +262,11 @@ pub struct MarginBoxStyle {
     pub font_size: Option<Scalar>,
     pub font_weight: Option<f32>,
     pub font_style: Option<crate::css::FontStyle>,
+    /// Margin-box `white-space` (CORE-178). css-page-3 Appendix A applies the
+    /// inherited text properties inside a margin box, and `white-space`
+    /// decides whether a newline in the generated content forces a line
+    /// break. `None` = not declared (inherit the page context, else `normal`).
+    pub white_space: Option<crate::css::WhiteSpace>,
     /// Margin-context `counter-reset` (css-page-3 §8). `None` = not declared.
     pub counter_reset: Option<CounterValue>,
     /// Margin-context `counter-increment`.
@@ -323,6 +328,9 @@ impl MarginBoxStyle {
         }
         if other.font_style.is_some() {
             self.font_style = other.font_style;
+        }
+        if other.white_space.is_some() {
+            self.white_space = other.white_space;
         }
         if other.counter_reset.is_some() {
             self.counter_reset = other.counter_reset.clone();
@@ -490,6 +498,10 @@ pub struct PageRule {
     pub font_size: Option<Scalar>,
     pub font_weight: Option<f32>,
     pub font_style: Option<crate::css::FontStyle>,
+    /// `white-space` on the page context (CORE-178). It is an inherited text
+    /// property, so it reaches every margin box that declares nothing itself
+    /// (css-page-3 §6; `dimensions-005/008` set `pre-wrap` on `@page`).
+    pub white_space: Option<crate::css::WhiteSpace>,
     /// Source order, so later equal-specificity rules win.
     order: u32,
     /// Cascade-layer rank (css-cascade-5 §6): 0 = unlayered (beats every
@@ -518,6 +530,9 @@ pub struct MarginBoxSpec {
     pub line_height: Scalar,
     pub text_align: crate::css::TextAlign,
     pub vertical_align: VerticalAlign,
+    /// Resolved `white-space` for this box's generated content: the box's own
+    /// declaration, else the page context's, else `normal` (CORE-178).
+    pub white_space: crate::css::WhiteSpace,
     /// The box model this margin box builds inside the page margin area
     /// (css-page-3 §5.3). `None` on a length = `auto` for the sizing
     /// algorithms; `None` on a border side = no border.
@@ -869,6 +884,7 @@ fn parse_one_page_rule(prelude: &str, body: &str, order: u32) -> Option<PageRule
         font_size: None,
         font_weight: None,
         font_style: None,
+        white_space: None,
         order,
     };
 
@@ -1048,6 +1064,9 @@ fn parse_margin_box_decls(body: &str) -> (Option<Option<Vec<ContentPiece>>>, Mar
             "font-weight" => style.font_weight = parse_font_weight(value),
             "font-style" => style.font_style = parse_font_style(value),
             "font" => apply_font_shorthand(&mut style, value),
+            // CORE-178: `white-space` is on the margin-context property list
+            // (css-page-3 Appendix A), so it applies inside a margin box.
+            "white-space" => style.white_space = parse_white_space(value),
             // Margin-context counters (css-page-3 §8). `inherit` is resolved
             // against the page context at spec-resolution time.
             "counter-reset" => style.counter_reset = Some(parse_counter_value(value, 0)),
@@ -1337,6 +1356,7 @@ fn apply_page_decl(rule: &mut PageRule, decl: &str) {
         "font-size" => rule.font_size = parse_page_length(value).and_then(page_length_abs),
         "font-weight" => rule.font_weight = parse_font_weight(value),
         "font-style" => rule.font_style = parse_font_style(value),
+        "white-space" => rule.white_space = parse_white_space(value),
         "font" => {
             let mut s = MarginBoxStyle {
                 font_family: rule.font_family.clone(),
@@ -1598,6 +1618,79 @@ fn parse_target_attr(args: &str) -> Option<String> {
     rest.find(')').map(|end| rest[..end].trim().to_string())
 }
 
+/// Parse a `white-space` keyword into the engine's [`WhiteSpace`]
+/// (css-text-3 §4.1.1). Unknown values are ignored (`None`) so an unsupported
+/// keyword never silently resets the inherited value.
+fn parse_white_space(value: &str) -> Option<crate::css::WhiteSpace> {
+    use crate::css::WhiteSpace;
+    match value.trim().to_ascii_lowercase().as_str() {
+        "normal" => Some(WhiteSpace::Normal),
+        "nowrap" => Some(WhiteSpace::NoWrap),
+        "pre" => Some(WhiteSpace::Pre),
+        "pre-wrap" => Some(WhiteSpace::PreWrap),
+        "pre-line" => Some(WhiteSpace::PreLine),
+        "break-spaces" => Some(WhiteSpace::BreakSpaces),
+        // `white-space-collapse` / `text-wrap-mode` longhands (css-text-4):
+        // the two values this engine distinguishes.
+        "preserve" => Some(WhiteSpace::PreWrap),
+        "preserve-breaks" => Some(WhiteSpace::PreLine),
+        "collapse" => Some(WhiteSpace::Normal),
+        _ => None,
+    }
+}
+
+/// Process CSS escapes in a string token (css-syntax-3 §4.3.7). The paged
+/// parser reads RAW declaration text, so escapes such as `\a` (a newline) are
+/// still verbatim at this point — unlike stylo, which unescapes element
+/// declarations. `\<hex>{1,6}` + optional whitespace is a code point, `\`
+/// before a newline is a line continuation, and `\<any>` is that character.
+pub fn unescape_css_string(raw: &str) -> String {
+    let chars: Vec<char> = raw.chars().collect();
+    let mut out = String::with_capacity(raw.len());
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if c != '\\' {
+            out.push(c);
+            i += 1;
+            continue;
+        }
+        i += 1; // consume the backslash
+        if i >= chars.len() {
+            // A trailing backslash is U+FFFD (css-syntax-3 §4.3.7).
+            out.push('\u{FFFD}');
+            break;
+        }
+        let e = chars[i];
+        if e == '\n' {
+            // Escaped newline: a line continuation, contributes nothing.
+            i += 1;
+            continue;
+        }
+        if e.is_ascii_hexdigit() {
+            let mut hex = String::new();
+            while i < chars.len() && hex.len() < 6 && chars[i].is_ascii_hexdigit() {
+                hex.push(chars[i]);
+                i += 1;
+            }
+            // Exactly one whitespace after a hex escape is consumed (a CRLF
+            // pair counts as one).
+            if i < chars.len() && chars[i].is_whitespace() {
+                if chars[i] == '\r' && i + 1 < chars.len() && chars[i + 1] == '\n' {
+                    i += 1;
+                }
+                i += 1;
+            }
+            let cp = u32::from_str_radix(&hex, 16).unwrap_or(0xFFFD);
+            out.push(char::from_u32(cp).unwrap_or('\u{FFFD}'));
+            continue;
+        }
+        out.push(e);
+        i += 1;
+    }
+    out
+}
+
 /// Parse a `content` property value into an ordered piece list: quoted
 /// literals, `string(name)`, `counter(page)`/`counter(pages)`/`counter(name)`,
 /// `target-counter(attr(href), page)`, and `leader('.')`. Unknown tokens are
@@ -1616,12 +1709,29 @@ pub fn parse_content(value: &str) -> Vec<ContentPiece> {
             let quote = c;
             i += 1;
             let mut lit = String::new();
-            while i < chars.len() && chars[i] != quote {
-                lit.push(chars[i]);
+            while i < chars.len() {
+                let ch = chars[i];
+                // An escape is copied VERBATIM (both characters) so an escaped
+                // quote never ends the string; the value is unescaped once the
+                // string closes (CORE-178).
+                if ch == '\\' {
+                    lit.push(ch);
+                    if i + 1 < chars.len() {
+                        lit.push(chars[i + 1]);
+                        i += 2;
+                    } else {
+                        i += 1;
+                    }
+                    continue;
+                }
+                if ch == quote {
+                    break;
+                }
+                lit.push(ch);
                 i += 1;
             }
             i += 1; // closing quote
-            pieces.push(ContentPiece::Literal(lit));
+            pieces.push(ContentPiece::Literal(unescape_css_string(&lit)));
             continue;
         }
         // Read an identifier followed by an optional `( ... )`.
@@ -1825,6 +1935,9 @@ pub fn resolve_page_spec(
     let mut page_font_size: Option<Scalar> = None;
     let mut page_font_weight: Option<f32> = None;
     let mut page_font_style: Option<crate::css::FontStyle> = None;
+    // `white-space` is inherited, so a page-context declaration reaches every
+    // margin box that does not declare its own (css-page-3 §5.2; CORE-178).
+    let mut page_white_space: Option<crate::css::WhiteSpace> = None;
 
     // Build the ordered list of matching rules, weakest first, so later
     // applications win. Ordering key: (name_specificity, pseudo_specificity,
@@ -2029,6 +2142,9 @@ pub fn resolve_page_spec(
         if r.font_style.is_some() {
             page_font_style = r.font_style;
         }
+        if r.white_space.is_some() {
+            page_white_space = r.white_space;
+        }
     }
 
     // Resolve the page-context counter values. `inherit` in the page context
@@ -2176,6 +2292,7 @@ pub fn resolve_page_spec(
                 font_face: resolved.primary,
                 font_fallbacks: resolved.fallbacks,
                 line_height: font_size * crate::css::NORMAL_LINE_HEIGHT_FACTOR,
+                white_space: style.white_space.or(page_white_space).unwrap_or_default(),
                 text_align: style
                     .text_align
                     .unwrap_or_else(|| name.default_text_align()),
@@ -2774,5 +2891,37 @@ mod tests {
         let b = &spec.margin_boxes[1];
         assert_eq!(b.color, Color::rgb(255, 0, 0), "own color wins");
         assert_eq!(b.text_align, crate::css::TextAlign::Center, "top-center default");
+    }
+
+    /// CORE-178: CSS escapes in a string token (css-syntax-3 §4.3.7). The
+    /// paged parser reads RAW declaration text, so escapes survive to here —
+    /// unlike stylo, which unescapes element declarations.
+    #[test]
+    fn unescapes_css_string_escapes() {
+        // `\a` is a newline; the hex escape stops at a non-hex digit.
+        assert_eq!(unescape_css_string("Line 1\\aLine 2"), "Line 1\nLine 2");
+        // `\a\a` is TWO newlines (each escape stands alone).
+        assert_eq!(unescape_css_string("x\\a\\ax"), "x\n\nx");
+        // A hex escape ends at ≤6 digits and eats ONE following space.
+        assert_eq!(unescape_css_string("\\41 B"), "AB");
+        // ...and it takes the LONGEST hex run: `\ab` is the code point U+00AB,
+        // not a newline followed by `b` (the bug this test first hit).
+        assert_eq!(unescape_css_string("a\\ab"), "a\u{00AB}");
+        // An escaped quote is the quote itself.
+        assert_eq!(unescape_css_string("a\\\"b"), "a\"b");
+        // A backslash before a newline is a line continuation.
+        assert_eq!(unescape_css_string("a\\\nb"), "ab");
+        // A trailing backslash is the replacement character.
+        assert_eq!(unescape_css_string("a\\"), "a\u{FFFD}");
+        // End to end through the content parser, which must also not end the
+        // string at an escaped quote (`\a ` = newline, its trailing space
+        // consumed by the escape).
+        assert_eq!(
+            parse_content("\"a\\a b\", \"q\\\"z\""),
+            vec![
+                ContentPiece::Literal("a\nb".to_string()),
+                ContentPiece::Literal("q\"z".to_string())
+            ]
+        );
     }
 }

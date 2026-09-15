@@ -84,20 +84,24 @@ market.
 - Side margin boxes (`@left-*`, `@right-*` — vertical writing-mode boxes):
   parsed and positioned, but content is treated as a single horizontal line
   (no rotation); vertical writing modes are out of scope.
-- Margin-box multi-line content (`content: "a\a b"`, `white-space: pre-wrap`)
-  and per-side border colours (one colour paints all four sides). CORE-141
-  records these as the remaining margin-box gaps. **Measured 2026-09-15
-  (CORE-182): this — not writing-mode rotation — is what the four
-  `css-page/margin-boxes/dimensions-004/006/013/014` targets fail on. `writing-mode`
-  is not even parsed for a margin box today (`MarginBoxSpec` carries no such
-  field), and the four references SIMULATE vertical text with horizontal
-  `<br>`-separated blocks (e.g. dimensions-013's ref paints `@top-left`'s seven
-  vertical lines as one `<div style="width:17.5em">xxxxxxx</div>`), so a
-  rotation-only change could not match them. What differs is intrinsic sizing
-  in the box's own writing mode (seven lines stack along the block axis →
-  min-content WIDTH 7em, per dimensions-013's own comment). That is a
-  margin-box sizing feature, tracked separately from the document-interior
-  writing-mode work. Filed as CORE-184.**
+- Per-side border colours in a margin box (one colour paints all four
+  sides). CORE-179 records the gap; no fixture in `css-page/margin-boxes`
+  declares a per-side border colour today, so nothing exercises it yet.
+- Margin-box intrinsic sizing in the box's own writing mode (CORE-184).
+  **Measured 2026-09-15 (CORE-182): this — not writing-mode rotation — is what
+  the four `css-page/margin-boxes/dimensions-004/006/013/014` targets fail on.**
+  `writing-mode` is not even parsed for a margin box today (`MarginBoxSpec`
+  carries no such field), and the four references SIMULATE vertical text with
+  horizontal `<br>`-separated blocks (e.g. dimensions-013's ref paints
+  `@top-left`'s seven vertical lines as one
+  `<div style="width:17.5em">xxxxxxx</div>`), so a rotation-only change could
+  not match them. What differs is intrinsic sizing in the box's own writing
+  mode (seven lines stack along the block axis → min-content WIDTH 7em, per
+  dimensions-013's own comment). CORE-178 landed the multi-line content that
+  sizing depends on.
+- Margin-box glyph ROTATION for a real font in a vertical writing mode. The
+  `dimensions-*` fixtures use the Ahem font, whose glyph is a solid square, so
+  rotation is invisible to them by construction and the gate cannot measure it.
 - Document-interior vertical text layout (rotated glyph runs, vertical line
   boxes). CORE-182 re-keyed the vertical BLOCK geometry on the mode in effect
   at the box, but text still advances along physical +x inside a vertical
@@ -165,11 +169,21 @@ The engine shall:
    (css-page-3 margin-box geometry; matches Prince 16.2 — CORE-117).
 6. **Render margin-box content**: `content` values of literal text,
    `string(name)`, `counter(page)`, and `counter(<name>)` are resolved at
-   fragmentainer build time; each margin box is one line, no wrapping,
-   deterministically clipped if it overflows its box.
+   fragmentainer build time, then broken into lines. CSS escapes in the
+   declaration text are processed (css-syntax-3 §4.3.7), so `"\a"` is a
+   newline. A newline forces a line break when the box's `white-space`
+   preserves breaks (`pre`, `pre-wrap`, `pre-line`, `break-spaces`) and
+   otherwise becomes a space (css-text-3 §4.1.1). The box's `white-space` is
+   its own declaration, else the page context's, else `normal`; css-page-3
+   Appendix A lists `white-space` as applicable inside a margin box. Lines
+   stack at the box's `line-height`: the content's block extent is the line
+   count times that pitch, its max-content extent is the widest line, and its
+   min-content extent is the widest line's min-content (css-sizing-3 §5.1).
+   Each line aligns independently by `text-align`; no line soft-wraps, and
+   each is deterministically clipped if it overflows the box.
    A `url(<path>)` piece (CORE-141) shall paint its image as replaced inline
    content of that image's INTRINSIC size (96 DPI pixels converted to points),
-   following any text on the same line. The line box shall grow to the image
+   following the text of the LAST line. The line box shall grow to the image
    (css2 §10.8): a 50px image in a 50px page margin fills the band and the
    text baseline moves to the image's bottom margin edge, rather than the image
    hanging above the box. The path resolves like an `<img src>` and is interned
@@ -496,6 +510,27 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     fragment follows it (paint order: colour < image < border), and the PDF
     embeds the image exactly once
     (`images.rs::margin_box_background_image_tiles_over_border_box`).
+29. **Margin-box multi-line content (CORE-178)** — Given
+    `@page { size: 400px; margin: 100px; @top-left-corner { white-space:
+    pre-wrap; content: "Line 1\aLine 2"; width: 100px; height: 100px;
+    background: green } }`, when laid out, then the box's font size leaves the
+    corner box oversized for one line and it paints TWO text runs whose
+    baselines differ by exactly one `line-height`; the escape is processed
+    rather than painted as the literal characters `\` and `a`
+    (`layout.rs::core178_tests::pre_wrap_content_paints_two_lines`). Given the
+    same content WITHOUT a break-preserving `white-space`, then ONE run is
+    produced and the newline is rendered as a space
+    (`core178_tests::normal_white_space_collapses_the_newline`).
+30. **Page-context `white-space` inheritance (CORE-178)** — Given
+    `@page { white-space: pre-wrap; @top-left { content: "a\a b" } }`, when
+    laid out, then the box inherits the page context's value and paints two
+    runs; the same rule with no `white-space` anywhere paints one
+    (`core178_tests::page_context_white_space_inherits`).
+31. **Margin-box CSS escapes (CORE-178)** — Given a string token containing
+    `\a`, a `\41` hex escape, an escaped quote and a `\` line continuation,
+    when the paged parser reads it, then it unescapes to a newline, `A`, the
+    quote, and nothing respectively (css-syntax-3 §4.3.7)
+    (`paged.rs::unescapes_css_string_escapes`).
 
 ## Edge Cases
 
@@ -512,8 +547,9 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
 - **Heading without an `id`** → bookmark still emitted (outline targets the
   page, not a fragment anchor); TOC link without a matching id → the entry
   resolves to "?" or is left empty (deterministic choice, documented in code).
-- **Margin-box text wider than its box** → clipped deterministically, one
-  line, no wrap.
+- **Margin-box text wider than its box** → clipped deterministically, no
+  soft wrap (lines break only at newlines the resolved `white-space`
+  preserves).
 - **`leader('.')` with no room** → no fill characters; line ends normally.
 - **Deep heading nesting (h1–h6)** → outline depth capped at 6; h6 is the
   deepest node.
