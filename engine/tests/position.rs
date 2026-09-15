@@ -740,10 +740,16 @@ fn pinned_abspos_past_page_one_fragments_tall_box() {
 }
 
 #[test]
-fn pinned_abspos_inside_page_keeps_monolithic() {
-    // A pinned box that STARTS inside the page keeps the monolithic model
-    // (spec Behavior 9): 1 page, offset unchanged. CORE-185 only defers a
-    // box whose used inset lands at/past the fragmentainer bottom.
+fn pinned_abspos_inside_page_fragments_declared_extent() {
+    // CORE-187: a pinned box that STARTS inside the page and does not fit the
+    // space left on it FRAGMENTS from that page (css-break-3 §2.3 class A)
+    // instead of overflowing invisibly. Chromium renders
+    // `top:50px; height:1000px` as SIX pages at the harness geometry with the
+    // ink on page 1 (measured with the harness oracle).
+    //
+    // At this margin-0 geometry the box is 150pt into a 216pt page: page 1
+    // keeps 66pt, and 684pt carries over — 66 + 3*216 + 36 = 750pt, so five
+    // pages. Before CORE-187 the box painted whole once (1 page).
     let html = r#"<html><head><style>
         @page { margin: 0; }
         body { margin: 0; }
@@ -754,13 +760,55 @@ fn pinned_abspos_inside_page_keeps_monolithic() {
     let dom = dom_of(html);
     let aid = node_id_by_class(&dom, "a");
     let layout = lay(html, geometry(5.0, 3.0, 0.0));
-    assert_eq!(layout.pages.len(), 1, "monolithic box adds no page");
+    assert_eq!(
+        layout.pages.len(),
+        5,
+        "a declared-height pinned box fragments from its own page, got {} pages",
+        layout.pages.len()
+    );
     let frags = page_abspos_fragments(&layout, 0, aid);
-    assert!(!frags.is_empty(), "box paints on page 1");
+    assert!(!frags.is_empty(), "the box starts on page 1");
     assert_close(
         frags[0].offset.y,
         Scalar(150.0),
-        "200px = 150pt, unpaged",
+        "the first fragment keeps the inset's local y (200px = 150pt)",
+    );
+    for p in 1..5 {
+        assert!(
+            !page_abspos_fragments(&layout, p, aid).is_empty(),
+            "page {} must hold a continuation fragment",
+            p + 1
+        );
+    }
+}
+
+#[test]
+fn pinned_abspos_in_clipped_ancestor_stays_monolithic() {
+    // CORE-187: a box inside a clipping ancestor cannot paginate the document
+    // — its overflow is CLIPPED, not laid out on a further page. Chromium
+    // renders WPT `css-break/abspos-in-clipped-overflow-print` (a
+    // `height:350vh` abspos child of an `overflow:clip` box) as ONE page, so
+    // this box keeps the monolithic model even though it declares an extent.
+    let html = r#"<html><head><style>
+        @page { margin: 0; }
+        body { margin: 0; }
+        .clip { position: absolute; overflow: clip; width: 10px; height: 10px; }
+        .a { position: absolute; height: 350vh; }
+    </style></head><body>
+        <div class="clip"><div class="a"></div></div>
+    </body></html>"#;
+    let dom = dom_of(html);
+    let aid = node_id_by_class(&dom, "a");
+    let layout = lay(html, geometry(5.0, 3.0, 0.0));
+    assert_eq!(
+        layout.pages.len(),
+        1,
+        "a clipped subtree must not paginate the document, got {} pages",
+        layout.pages.len()
+    );
+    assert!(
+        !page_abspos_fragments(&layout, 0, aid).is_empty(),
+        "the clipped box still paints on page 1"
     );
 }
 

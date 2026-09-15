@@ -47,6 +47,7 @@ use style::values::computed::align::{
     SelfAlignment as StyloSelfAlignment,
 };
 use style::values::computed::box_::Float as StyloFloat;
+use style::values::computed::box_::Overflow as StyloOverflow;
 pub use style::properties::longhands::box_sizing::computed_value::T as StyloBoxSizing;
 use style::values::computed::column::ColumnCount as StyloColumnCount;
 use style::values::computed::flex::FlexBasis as StyloFlexBasis;
@@ -979,6 +980,13 @@ pub struct ComputedStyle {
     /// `height` include padding + border; the inline-block placement uses it
     /// to convert the declared width into a content width (CORE-120).
     pub box_sizing: StyloBoxSizing,
+    /// Does this box clip its overflow (css-overflow-3)? True when either
+    /// axis is non-`visible` — a `visible` axis next to a clipping one
+    /// computes to `auto` (css-overflow-3 §3). A subtree inside a clipping
+    /// ancestor cannot paginate the document: `abspos-in-clipped-overflow-
+    /// print` is ONE page in Chromium because its tall abspos child is
+    /// clipped, not because it fits (CORE-187).
+    pub clips_overflow: bool,
     /// The computed `position` value. `Absolute`/`Fixed` take the element out
     /// of flow; the fragment attaches to the fragmentainer.
     pub position: Position,
@@ -1154,6 +1162,7 @@ impl ComputedStyle {
             width_viewport: None,
             height_viewport: None,
             box_sizing: StyloBoxSizing::ContentBox,
+            clips_overflow: false,
             position: Position::Static,
             inset_top: None,
             inset_right: None,
@@ -1782,6 +1791,15 @@ impl CascadeSession {
         };
         let position = values.get_position();
         let box_sizing = position.clone_box_sizing();
+        // `overflow` (css-overflow-3) is only carried as the "does this box
+        // clip" answer: either axis non-`visible` makes the box a clipping
+        // container, because `visible` next to a clipping axis computes to
+        // `auto` (§3). CORE-187 reads it to keep a clipped abspos subtree
+        // monolithic.
+        let clips_overflow = {
+            let clips = |o: StyloOverflow| !matches!(o, StyloOverflow::Visible);
+            clips(box_.clone_overflow_x()) || clips(box_.clone_overflow_y())
+        };
         let float = match box_.clone_float() {
             StyloFloat::None => Float::None,
             StyloFloat::Left => Float::Left,
@@ -2106,6 +2124,7 @@ impl CascadeSession {
             color,
             background_color,
             box_sizing,
+            clips_overflow,
             // Borders come from stylo's computed values (CORE-126): both the
             // stylesheet `border` shorthand and inline declarations flow
             // through the cascade, styled sides only (`none`/`hidden` → 0).

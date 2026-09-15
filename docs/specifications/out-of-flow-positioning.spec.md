@@ -134,6 +134,21 @@ The engine shall:
    bottom limit (a tall box fragments across pages, css-break-3 class A
    once started), and the body's in-flow siblings after it still place on
    the current page (the box is out of flow; no loop break).
+   EXCEPTION (CORE-187): a PINNED box that STARTS inside the page, declares
+   an extent, and does not fit the space left on that page FRAGMENTS from
+   that page (css-break-3 §2.3 class A) instead of overflowing invisibly —
+   Chromium renders `top:50px; height:1000px` as 6 pages at the harness
+   geometry, ink on page 1. Its continuation rides the same drain (the
+   pinned job carries `defer_one_page`, because that drain runs after the
+   body on the SAME page the first fragment occupies). Scope is a DECLARED
+   extent AND no clipping ancestor: without an extent no block-path reader
+   consumes the continuation token, and an ancestor whose `overflow` is
+   other than `visible` CLIPS the overflow, so it cannot paginate the
+   document — Chromium renders `abspos-in-clipped-overflow-print` as ONE
+   page. A pinned box that FITS the space left keeps the monolithic model,
+   and a drained box that fits ONE fragmentainer overflows in place instead
+   of paginating (fixedpos-004's `bottom:-100vh` reference boxes stay on
+   their own page).
    The drain MUST bound its own pagination: a MONOLITHIC layout path that
    ignores break tokens (a replaced element — `layout_image` returns an
    empty fragment + `break_before` whenever the box does not fit) would
@@ -170,6 +185,12 @@ The engine shall:
   /// `z-index` (stylo `ZIndex`), `None` = `auto` (tree order).
   pub z_index: Option<i32>,
   ```
+
+- `ComputedStyle.clips_overflow` (CORE-187): `true` when either
+  `overflow-x` or `overflow-y` is non-`visible` (`visible` beside a clipping
+  axis computes to `auto`, css-overflow-3 §3). Layout reads it through
+  `Ctx::clips_overflow_ancestor` to keep a clipped abspos subtree from
+  paginating the document.
 
 - In `convert`, read `box_.clone_position()` (box struct) → `Position`;
   `position.clone_top()/right()/bottom()/left()` (position struct — the same
@@ -267,6 +288,14 @@ Each criterion maps to a test in `engine/tests/position.rs` (helpers mirror
    page and its children slice at fragmentainer edges; each page's own
    `:left`/`:right` `@page` context applies per fragment
    (page-margin-007).
+10. **Pinned abspos fragmentation (CORE-187).** Given a pinned
+    `position: absolute; top: 50px; height: 1000px` box on a 3in-high page,
+    the box fragments across six pages with its first fragment on the page
+    its offset belongs to (Chromium-verified; `fixedpos-004-print` matches
+    its reference). Given the same box inside an `overflow: clip` ancestor,
+    the document stays ONE page (Chromium-verified;
+    `abspos-in-clipped-overflow-print`), and a job that fits one
+    fragmentainer keeps its overflow in place rather than paginating.
 
 ## Edge Cases
 
@@ -279,8 +308,12 @@ Each criterion maps to a test in `engine/tests/position.rs` (helpers mirror
 - Containing block spans a page boundary: box lands on the first page
   containing the anchor (behavior 5); deterministic.
 - Abspos box taller than the fragmentainer: pinned boxes (insets or a
-  positioned containing block) overflow monolithically, never sliced;
-  page-anchored boxes (CORE-169) fragment at fragmentainer edges.
+  positioned containing block) WITHOUT a declared extent overflow
+  monolithically and are never sliced; a pinned box WITH a declared extent
+  that exceeds the page it starts on fragments from that page (CORE-187),
+  and page-anchored boxes (CORE-169) fragment at fragmentainer edges. A
+  pinned box inside an `overflow`-clipping ancestor always overflows in
+  place: the clip means its overflow cannot paginate the document (CORE-187).
 - Abspos inside a table cell: containing block resolution follows the same
   ancestor rule (the cell's positioned ancestor, else the page) — basic
   behavior only, deeper table+abspos interactions deferred.
