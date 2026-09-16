@@ -11,7 +11,7 @@ tags: [harness, gate, wpt, oracle, ground-truth, testing]
 
 # Harness, Gate, and WPT Ground Truth
 
-How to read the harness, run the A/B gate, and use browser ground truth. These lessons prevent misreading a report, a flip, or an oracle result as something it is not.
+How to read the harness, run the A/B gate, and use browser ground truth. These lessons prevent misreading a report, a flip, or an oracle result as something it is not. Note: the probe scripts named below (`probe-render.py`, `oracle-mb.py`, `page-counts.py`, `render-inventory.py`, `diff-reports.py`) are skill assets, not repo files — copy them out of the `typeanvil-issue-loop` skill into `<worktree>/probe/` before running them.
 
 ## Lessons
 
