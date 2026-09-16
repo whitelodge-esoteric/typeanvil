@@ -4,7 +4,7 @@ type: spec
 status: approved
 owner: Elijah Boston
 created: 2026-08-24
-updated: 2026-08-24
+updated: 2026-09-15
 slug: /specifications/margin-collapse
 sidebar_position: 42
 tags: [layout, css-box, margins, core-118]
@@ -27,7 +27,7 @@ blockquote/h2 boundary carried a phantom extra gap (measured 6pt on
 academic-paper p4; +7pt at every h2 boundary). This spec defines the sibling
 collapse the corpus exercises.
 
-Reference finding: `demo/TRIAGE.md` §CORE-110 (minimal-probe evidence,
+Reference finding: `demo/corpus/TRIAGE.md` §CORE-110 (minimal-probe evidence,
 2026-08-24).
 
 ## Goals

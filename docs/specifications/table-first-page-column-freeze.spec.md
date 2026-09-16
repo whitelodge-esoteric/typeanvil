@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-20
-updated: 2026-08-24
+updated: 2026-09-15
 sidebar_position: 14
 tags: [layout, tables, css-tables, engine, demo-parity]
 spec_id: table-first-page-column-freeze
@@ -278,7 +278,7 @@ pipeline:
 2. `python3 scripts/validate_docs.py` OK (this spec + amended
    `auto-table-layout` if touched).
 3. Demo regen: table-stress `typeanvil_pages` ≥ 40 in the regenerated
-   `demo/out/scoreboard.json`; two-column probe width unchanged within ±2%
+   `demo/corpus/out/scoreboard.json`; two-column probe width unchanged within ±2%
    (char-box extraction, `demo/scripts/col_words.py`).
 4. Harness: css-break table subset pass count ≥ CORE-81 baseline.
 5. Close the loop in Linear (CORE-89) with What-was-built / Verification /

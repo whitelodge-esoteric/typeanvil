@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Benchmark — per-side border colours (CORE-201)</title>
+<style>
+  @page { margin: 0.5in; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; }
+  .box {
+    width: 2in;
+    height: 0.6in;
+    border: 6pt solid #000000;
+    border-top-color: #ff0000;
+    border-right-color: #00ff00;
+    border-bottom-color: #0000ff;
+    border-left-color: #000000;
+  }
+  p { margin: 0 0 6pt 0; }
+</style>
+</head>
+<body>
+  <p>Benchmark for CORE-201. The box below declares a different colour for each
+  border side: red top, green right, blue bottom, black left.</p>
+
+  <div class="box"></div>
+
+  <p>Ground truth: four differently coloured edges. All four edges black means
+  the per-side longhands are being overwritten by the border-color shorthand,
+  so every side repaints with one colour.</p>
+</body>
+</html>

@@ -17,10 +17,19 @@ docsite/build/
 docsite/.docusaurus/
 docsite/.cache/
 
-# Generated demo output (gallery + scoreboard are artifacts of build-demo.sh;
-# the first baseline run is committed by CORE-72 explicitly).
-demo/out/
-demo/out.baseline/
+# Generated demo output. Each track keeps everything under its own directory
+# (demo/corpus/, demo/showcase/): fixtures, manifests, README gallery, and the
+# generated out/ tree. The committed baseline was force-added (CORE-72); later
+# rebuilds update those tracked files in place.
+#
+# To refresh the committed baseline, force-add the deliverables BY NAME — a
+# bare `git add -f demo/corpus/out` also sweeps in the .work/ and .results/
+# scratch trees:
+#   git add -f demo/corpus/out/images demo/corpus/out/scoreboard.json
+#   git add -f demo/showcase/out/images
+#   git add demo/corpus/README.md demo/showcase/README.md   # the galleries
+demo/corpus/out/
+demo/corpus/out.baseline/
 demo/showcase/out/
 demo/showcase/out.baseline/
 

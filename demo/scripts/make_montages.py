@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Build side-by-side TA | Prince montages for every shared page in the demo.
 
-Reads demo/out/images/<doc>/page-NNN-{ta,pr}.png and writes
-demo/out/montages/<doc>/page-NNN.png (side-by-side, labeled).
+Reads demo/corpus/out/images/<doc>/page-NNN-{ta,pr}.png and writes
+demo/corpus/out/montages/<doc>/page-NNN.png (side-by-side, labeled).
 PIL available in the repo venv (.venv/bin/python).
 """
 import sys

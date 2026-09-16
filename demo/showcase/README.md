@@ -12,10 +12,8 @@ preamble is hand-maintained.
   the text beside it shifts. The invoice fixture works around it with a
   block-level image (`display: block`).
   [CORE-210](https://linear.app/whitelodge/issue/CORE-210).
-- Line-break (`<br>`) support: poster/book fixtures use block-span
-  workarounds. [CORE-149](https://linear.app/whitelodge/issue/CORE-149).
 
-Two issues previously listed here are fixed. Each was re-checked against the
+Three issues previously listed here are fixed. Each was re-checked against the
 renders in this directory, not taken on trust:
 
 - **Academic Sample column/footnote collision** — gone. No overlapping text
@@ -24,6 +22,11 @@ renders in this directory, not taken on trust:
 - **Technical Report config block** — `white-space: pre` is now honored, so
   the config renders as its six separate lines instead of one run-on line.
   [CORE-151](https://linear.app/whitelodge/issue/CORE-151) (commit `b322697`).
+- **Line-break (`<br>`)** — breaks the line now; a three-`<br>` probe renders
+  four lines.
+  [CORE-149](https://linear.app/whitelodge/issue/CORE-149) closed as a
+  duplicate of CORE-159. The poster and book fixtures still carry their
+  block-span workarounds, which render correctly either way.
 
 The bar-chart bars-outside-plot issue (first/last bar crossing the axis,
 2026-09-08) was an asset-generation bug, fixed in
@@ -33,7 +36,7 @@ The bar-chart bars-outside-plot issue (first/last bar crossing the axis,
 
 ## Showcase — print-resolution renders (US Letter @ 300 DPI)
 
-Realistic-size pages rendered by the TypeAnvil engine only (commit `702e427`). The side-by-side comparison gallery lives in [the main demo README](../README.md) and runs at 5in × 3in @ 96 DPI so diffs stay cheap; these pages show the same engine at the geometry documents actually print at. Prince renders only the comparison pipeline — the showcase is a TypeAnvil output gallery, not a diff target.
+Realistic-size pages rendered by the TypeAnvil engine only (commit `bf5444b`). The side-by-side comparison gallery lives in [the comparison README](../corpus/README.md) and runs at 5in × 3in @ 96 DPI so diffs stay cheap; these pages show the same engine at the geometry documents actually print at. Prince renders only the comparison pipeline — the showcase is a TypeAnvil output gallery, not a diff target.
 
 ### Book Sample
 

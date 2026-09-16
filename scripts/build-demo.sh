@@ -5,7 +5,9 @@
 # Contract: docs/specifications/visual-comparison-demo.spec.md
 #   §Behavior 1-11, §Interfaces, §Acceptance Criteria.
 #
-# Output: demo/out/index.html (gallery) + demo/out/scoreboard.json
+# Output: the gallery section of demo/corpus/README.md, plus the artifacts in
+# demo/corpus/out/ (per-page images, scoreboard.json). Every corpus-track file
+# lives under demo/corpus/, mirroring demo/showcase/.
 # Deterministic: re-run on an unchanged tree is byte-identical except the
 # scoreboard's "generated" field.
 set -euo pipefail
@@ -15,7 +17,7 @@ cd "$REPO_ROOT"
 
 PY="${PY:-.venv/bin/python}"
 PRINCE_BIN="${PRINCE_BIN:-prince}"
-OUT="${OUT_DIR:-demo/out}"
+OUT="${OUT_DIR:-demo/corpus/out}"
 WORK="$OUT/.work"
 IMAGES="$OUT/images"
 RESULTS="$OUT/.results"
@@ -34,8 +36,8 @@ usage: build-demo.sh [--dry-run] [--keep-work] [--validate] [--determinism]
 
   --dry-run        print the exact render commands without running them
   --keep-work      keep .work/.results dirs (default: cleaned at exit)
-  --validate       validate demo/out/scoreboard.json after building
-  --determinism    build twice and byte-compare demo/out (except generated)
+  --validate       validate demo/corpus/out/scoreboard.json after building
+  --determinism    build twice and byte-compare demo/corpus/out (except generated)
 EOF
 }
 
@@ -55,7 +57,7 @@ for arg in "$@"; do
 done
 
 if ! command -v "$PRINCE_BIN" >/dev/null 2>&1; then
-  echo "error: Prince binary not found ('$PRINCE_BIN'). Install per demo/README.md (brew install --cask prince; ./install.sh /opt/homebrew)." >&2
+  echo "error: Prince binary not found ('$PRINCE_BIN'). Install per demo/corpus/README.md (brew install --cask prince; ./install.sh /opt/homebrew)." >&2
   exit 2
 fi
 
@@ -86,7 +88,7 @@ echo "corpus: ${#entries[@]} doc(s)"
 
 # Determinism mode: first pass to a side dir, compare against the second.
 if [ "$DO_DETERMINISM" = "1" ]; then
-  BASELINE="demo/out.baseline"
+  BASELINE="demo/corpus/out.baseline"
   rm -rf "$BASELINE"
   echo "== determinism pass 1 (baseline) =="
 fi
@@ -185,74 +187,50 @@ for i, im in enumerate(imgs, 1):
 "
 done
 
-# Assemble scoreboard + gallery.
+# Assemble the scoreboard and write the gallery into the corpus README.
+# demo_compare.py owns the splice so both tracks behave identically: the
+# hand-maintained preamble above the marker is never rewritten, and the
+# generated body below it is replaced wholesale on every build.
 "$PY" scripts/demo_compare.py assemble \
   --results "$RESULTS" \
   --manifest "$MANIFEST" \
   --benchmark-manifest "$BENCH_MANIFEST" \
-  --markdown-out "$OUT/index.md" \
   --out-dir "$OUT" \
+  --readme demo/corpus/README.md \
+  --image-prefix out/images \
   --typeanvil-version "$TA_VERSION" \
   --prince-version "$PR_VERSION"
 
-# Promote the markdown gallery into demo/README.md (CORE-147): the committed
-# preamble above GENERATED_BEGIN is hand-maintained; the generated body
-# replaces everything from the marker down. Image paths in the generated
-# body are relative to demo/out/, so the promoted copy rewrites them to
-# out/images/... so they resolve from demo/.
-"$PY" - "$OUT/index.md" demo/README.md <<'PYEOF'
-import sys
-from pathlib import Path
-
-md_out, readme = Path(sys.argv[1]), Path(sys.argv[2])
-generated = md_out.read_text(encoding="utf-8")
-marker = "<!-- BEGIN GENERATED GALLERY"
-idx = generated.find(marker)
-if idx < 0:
-    sys.exit(f"error: generated marker not found in {md_out}")
-body = generated[idx:]
-# Rewrite image paths: the generated file lives at demo/out/index.md with
-# image refs relative to demo/out/; the promoted copy lives at demo/, so
-# prefix them with out/.
-import re
-body = re.sub(r'(src=")(images/)', r"\1out/\2", body)
-body = re.sub(r"(\]\()(images/)", r"\1out/\2", body)
-
-if readme.exists():
-    existing = readme.read_text(encoding="utf-8")
-else:
-    existing = ""
-cut = existing.find(marker)
-if cut >= 0:
-    preamble = existing[:cut].rstrip() + "\n\n"
-else:
-    preamble = existing.rstrip() + "\n\n" if existing else ""
-readme.write_text(preamble + body, encoding="utf-8")
-print(f"promoted gallery into {readme}")
-PYEOF
-
 echo
-echo "gallery: $OUT/index.html"
-echo "markdown gallery: $OUT/index.md (+ promoted into demo/README.md)"
-echo "scoreboard: $OUT/scoreboard.json"
 
-# Determinism mode: build into demo/out.baseline, then build into demo/out,
-# then byte-compare the two trees (except scoreboard's "generated" field).
+# Determinism mode: build into demo/corpus/out.baseline, then build into
+# demo/corpus/out, then byte-compare the two trees (except scoreboard's
+# "generated" field).
 if [ "$DO_DETERMINISM" = "1" ]; then
   if [ -n "${BUILD_PASS:-}" ]; then
     echo "error: --determinism cannot be combined with BUILD_PASS" >&2
     exit 2
   fi
-  BASELINE="demo/out.baseline"
+  BASELINE="demo/corpus/out.baseline"
   rm -rf "$BASELINE"
   echo "== determinism pass 1 (baseline) =="
   OUT_DIR="$BASELINE" BUILD_PASS=1 "$0" --keep-work
+  # The generated gallery lives in demo/corpus/README.md, not inside out/, so
+  # snapshot it here and byte-compare it after pass 2 as well.
+  README_SNAP="$(mktemp -t typeanvil-readme)"
+  cp demo/corpus/README.md "$README_SNAP"
   echo "== determinism pass 2 (current) =="
   "$0" --keep-work
   "$PY" scripts/demo_compare.py check-determinism "$BASELINE" "$OUT" 2>&1 || {
     echo "determinism FAILED (see above)" >&2
     exit 1
   }
+  if ! cmp -s "$README_SNAP" demo/corpus/README.md; then
+    echo "determinism FAILED (demo/corpus/README.md differs between passes)" >&2
+    rm -f "$README_SNAP"
+    exit 1
+  fi
+  rm -f "$README_SNAP"
   rm -rf "$BASELINE" "$OUT.tmp"
   exit 0
 fi

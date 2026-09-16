@@ -4,7 +4,7 @@ type: research
 status: approved
 owner: elijah
 created: 2026-09-09
-updated: 2026-09-09
+updated: 2026-09-15
 sidebar_position: 1
 tags: [prince, compatibility, migration, measurements]
 ---
@@ -43,7 +43,7 @@ Each entry carries one label.
 ## Corpus comparison (7 documents)
 
 Renderings from `scripts/build-demo.sh`, geometry 5in x 3in at 96 DPI, Prince
-16.2 (`demo/out/scoreboard.json`).
+16.2 (`demo/corpus/out/scoreboard.json`).
 
 | Document | Typeanvil pages | Prince pages | Page count | Mean pixel diff |
 |---|---|---|---|---|
@@ -207,5 +207,5 @@ python -m harness --wpt .wpt run --engine cli --cli-cmd "scripts/render-prince.s
 - `prince-compatibility-mode.md` — why there is no user-facing switch.
 - `docs/research/css-page/named-page-boundary-model.md` — the boundary study
   that produced the three-way method.
-- `demo/out/scoreboard.json` and `demo/corpus/manifest.json` — corpus evidence.
+- `demo/corpus/out/scoreboard.json` and `demo/corpus/manifest.json` — corpus evidence.
 - Prince 16 release notes — https://www.princexml.com/releases/16/

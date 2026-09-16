@@ -19,7 +19,7 @@ set -euo pipefail
 PRINCE_BIN="${PRINCE_BIN:-prince}"
 
 if ! command -v "$PRINCE_BIN" >/dev/null 2>&1; then
-  echo "error: Prince binary not found ('$PRINCE_BIN'). Install per demo/README.md (brew install --cask prince, then run its install.sh)." >&2
+  echo "error: Prince binary not found ('$PRINCE_BIN'). Install per demo/corpus/README.md (brew install --cask prince, then run its install.sh)." >&2
   exit 2
 fi
 

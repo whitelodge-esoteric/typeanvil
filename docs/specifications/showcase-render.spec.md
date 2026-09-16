@@ -50,10 +50,10 @@ is not a diff target).
      page, a totals block, and remittance / payment-terms sections. This is
      the invoice half of the wedge ("reports and invoices") and it was
      previously absent from both demo pipelines.
-- Output committed like the comparison gallery: per-page PNGs plus a
-  markdown gallery promoted into `demo/showcase/README.md`, viewable
-  directly on GitHub (separate file from the comparison gallery's
-  `demo/README.md`).
+- Output committed like the comparison gallery: per-page PNGs plus the
+  gallery written into `demo/showcase/README.md`, viewable directly on
+  GitHub. Each track's README is its own gallery, and neither build touches
+  the other's.
 
 ## Non-Goals
 
@@ -66,25 +66,27 @@ is not a diff target).
 
 ## Behavior
 
-1. `scripts/build-demo.sh --showcase` SHALL render every fixture listed in
+1. `scripts/build-showcase.sh` SHALL render every fixture listed in
    `demo/showcase/manifest.json` through the TypeAnvil binary at US Letter
    (`8.5in × 11in`) with `0.75in` margins, from `demo/showcase/` as the
    process CWD (relative `url()`/`src` resolution matches the comparison
    pipeline's corpus-dir pattern; `--base-url` threading is CORE-140).
 2. The renderer SHALL rasterize each render's pages to PNG at 300 DPI into
    `demo/showcase/out/images/<fixture>/page-NNN-ta.png`.
-3. The build SHALL assemble `demo/showcase/out/index.md`, a markdown
-   showcase document (fixture name, page images, manifest notes), and SHALL
-   promote its body into `demo/showcase/README.md` below the
-   `BEGIN GENERATED SHOWCASE` marker, rewriting image paths to
-   `out/images/...` so they resolve from `demo/showcase/`. The comparison
-   gallery's `demo/README.md` is never touched by the showcase build.
+3. The build SHALL write the showcase gallery into
+   `demo/showcase/README.md` below the `BEGIN GENERATED SHOWCASE` marker:
+   fixture name, per-page images referenced as `out/images/...` so they
+   resolve from `demo/showcase/`, and the manifest notes. The
+   hand-maintained preamble above the marker is never rewritten. The build
+   SHALL NOT emit an intermediate `index.md` — the README is the single
+   gallery artifact for this track. The comparison track's README is never
+   touched by the showcase build, and the reverse holds too.
 4. The build SHALL fail if any showcase render exits non-zero or produces
    zero pages (showcase output is prospect-facing; silent empties are worse
    than a red build).
 5. Re-running the build on an unchanged tree SHALL produce byte-identical
-   PNGs and index.md (no timestamps in the showcase output; determinism is
-   the product promise).
+   PNGs and README gallery section (no timestamps anywhere in the showcase
+   output; determinism is the product promise).
 6. The showcase build SHALL NOT change the comparison pipeline's
    MECHANICS: the same commands run, with the same exit codes, and the
    comparison build stays deterministic on an unchanged corpus. "Unaffected"
@@ -101,22 +103,22 @@ is not a diff target).
   comparison manifest (name, file, wedge_features, known_limitations,
   expected_deltas) minus the diff-specific fields.
 - Gallery writer: `scripts/demo_compare.py assemble-showcase --manifest
-  demo/showcase/manifest.json --images-dir demo/showcase/out/images --out
-  demo/showcase/out/index.md` (new subcommand; reuses the markdown-writer
-  style of the comparison gallery).
-- Gallery promotion: the generated body is promoted into
-  `demo/showcase/README.md` below a `BEGIN GENERATED SHOWCASE` marker —
-  its own file, NOT `demo/README.md`, so showcase and comparison outputs
-  stay separable (GitHub renders a README per directory). The comparison
-  gallery owns `demo/README.md` exclusively; each build rewrites only its
-  own file.
+  demo/showcase/manifest.json --images-dir demo/showcase/out/images --readme
+  demo/showcase/README.md --marker "<!-- BEGIN GENERATED SHOWCASE -->"
+  --image-prefix out/images`. The splice itself lives in `splice_readme`,
+  shared with the comparison track, so both tracks replace only their own
+  README's generated section and neither emits an `index.md`.
+- Gallery ownership: each track owns its directory and its README. GitHub
+  renders one README per directory, so the showcase gallery and the
+  comparison gallery stay separable, and each build rewrites only its own
+  file.
 - Engine contract: unchanged (`typeanvil render <in.html> --page-width 8.5in
   --page-height 11in --margin-* 0.75in -o out.pdf`).
 
 ## Acceptance Criteria
 
 - **AC1 (render)** — Given the built engine binary, When
-  `build-demo.sh --showcase` runs, Then all five fixtures render, each
+  `scripts/build-showcase.sh` runs, Then all five fixtures render, each
   producing a sane page count (≥ 3 pages for report/paper/book/invoice,
   ≥ 1 for rich-media), and the build exits 0. For the invoice, its
   line-item table SHALL span a page boundary with the header row repeated
@@ -129,9 +131,9 @@ is not a diff target).
   now states the measured value.)
 - **AC3 (gallery)** — Given a completed build, Then
   `demo/showcase/README.md` contains the generated showcase section with
-  `<img>` tags whose `src` paths resolve from `demo/showcase/` on GitHub,
-  and `demo/README.md` (comparison gallery) is untouched by the showcase
-  build.
+  `<img>` tags whose `src` paths resolve from `demo/showcase/` on GitHub, no
+  `index.md` exists under `demo/showcase/out/`, and the comparison track's
+  `demo/corpus/README.md` is untouched by the showcase build.
 - **AC4 (determinism)** — Given two consecutive builds, Then the showcase
   output trees are byte-identical.
 - **AC5 (no comparison impact from the showcase)** — Given a showcase-only

@@ -156,14 +156,17 @@ def render_gallery_md(
     *,
     scoreboard: dict,
     manifest: dict[str, dict],
-    output_path: Path,
     benchmark_manifest: dict[str, dict] | None = None,
-) -> None:
-    """The GitHub-viewable gallery: markdown + relative per-page PNGs (CORE-147).
+    image_prefix: str = "out/images",
+) -> str:
+    """The GitHub-viewable comparison gallery (CORE-147).
 
-    Emitted alongside the HTML gallery. GitHub renders `<img>` tags inside
-    markdown tables and proxies relative image paths through camo, so this
-    file works in the file browser and in repo links without base64 blobs.
+    Returns the generated body as markdown; the caller splices it into the
+    track's README.md below that file's marker. GitHub renders `<img>` tags
+    inside markdown tables and proxies relative image paths through camo, so
+    this works in the file browser and in repo links without base64 blobs.
+    `image_prefix` is the path from the README's directory to the images
+    directory: the README sits beside `out/`, so this is `out/images`.
     Deterministic: no timestamps (the scoreboard JSON carries the only one).
     """
     docs = scoreboard.get("docs", [])
@@ -171,13 +174,10 @@ def render_gallery_md(
     pr_version = str(scoreboard.get("prince_version") or "n/a")
     lines: list[str] = []
 
-    # --- Generated-content marker (build-demo.sh rewrites below this line).
-    lines.append(GENERATED_BEGIN)
-    lines.append("")
     lines.append("## Comparison gallery — TypeAnvil vs Prince")
     lines.append("")
     lines.append(
-        f"Static, offline gallery. TypeAnvil renders on the left; Prince on "
+        f"Side-by-side page gallery. TypeAnvil renders on the left; Prince on "
         f"the right. Engines: TypeAnvil `{ta_version}` · {pr_version}. "
         f"Geometry: 5in × 3in pages, 0.5in margins, 96 DPI raster."
     )
@@ -215,7 +215,7 @@ def render_gallery_md(
         render_error = doc.get("render_error")
         overall = float(doc.get("overall_diff_percent", 0.0))
         bucket = "error" if render_error else bucket_for_diff(overall)
-        doc_images = f"images/{slugify(file)}"
+        doc_images = f"{image_prefix}/{slugify(file)}"
         ta_pages = int(doc.get("typeanvil_pages", 0))
         pr_pages = int(doc.get("prince_pages", 0))
         mismatch = bool(doc.get("page_count_mismatch"))
@@ -286,377 +286,87 @@ def render_gallery_md(
             lines.append(f"| {ta_cell} | {diff_cell} | {pr_cell} |")
         lines.append("")
 
-    # --- Benchmark section.
+    # --- Benchmark section: open gaps first, then fixtures kept as regression
+    # evidence after their issue landed (status flips to `resolved`).
     bench = benchmark_manifest or {}
     if bench:
-        lines.append("## Benchmark — open engine issues")
+        open_items = [
+            (f, m)
+            for f, m in sorted(bench.items())
+            if str(m.get("status", "pending")) != "resolved"
+        ]
+        closed_items = [
+            (f, m)
+            for f, m in sorted(bench.items())
+            if str(m.get("status", "pending")) == "resolved"
+        ]
+        lines.append("## Benchmark — engine gaps")
         lines.append("")
         lines.append(
-            "One fixture per open issue, rendered with the current engine. "
-            "These show known gaps on purpose; each flips to `resolved` as its "
-            "issue lands. Separate from the public comparison corpus above."
+            "One fixture per engine gap, rendered with the current engine at the "
+            "comparison geometry. **Open** fixtures show a gap the engine still "
+            "has; **closed** fixtures are kept as regression evidence after their "
+            "issue landed. Separate from the public comparison corpus above."
         )
         lines.append("")
-        for file, meta in sorted(bench.items()):
-            name = str(meta.get("name", file))
-            issue = str(meta.get("issue_id", ""))
-            status = str(meta.get("status", "pending"))
-            expectation = str(meta.get("expectation", ""))
-            notes = meta.get("notes", []) or []
-            base = Path(file).with_suffix("").name
-            ta_img = f"images/bench-{base}/page-001-ta.png"
-            lines.append(f"### {_escape(name)} — `{file}`")
+        for heading, group in (
+            ("### Open gaps", open_items),
+            ("### Closed — regression fixtures", closed_items),
+        ):
+            if not group:
+                continue
+            lines.append(heading)
             lines.append("")
-            lines.append(
-                f"Status: **{status}** · tracked in "
-                f"[{_escape(issue)}](https://linear.app/whitelodge/issue/{_escape(issue)})"
-            )
-            lines.append("")
-            lines.append(f"**Expectation:** {expectation}")
-            lines.append("")
-            for n in notes:
-                lines.append(f"- {n}")
-            if notes:
+            for file, meta in group:
+                name = str(meta.get("name", file))
+                issue = str(meta.get("issue_id", ""))
+                status = str(meta.get("status", "pending"))
+                expectation = str(meta.get("expectation", ""))
+                notes = meta.get("notes", []) or []
+                base = Path(file).with_suffix("").name
+                ta_img = f"{image_prefix}/bench-{base}/page-001-ta.png"
+                lines.append(f"#### {_escape(name)} — `{file}`")
                 lines.append("")
-            lines.append(f"{_md_img(ta_img, f'TypeAnvil current state — {name}', width=320)}")
-            lines.append("")
+                lines.append(
+                    f"Status: **{status}** · tracked in "
+                    f"[{_escape(issue)}](https://linear.app/whitelodge/issue/{_escape(issue)})"
+                )
+                lines.append("")
+                lines.append(f"**Expectation:** {expectation}")
+                lines.append("")
+                for n in notes:
+                    lines.append(f"- {n}")
+                if notes:
+                    lines.append("")
+                lines.append(
+                    f"{_md_img(ta_img, f'TypeAnvil current state — {name}', width=320)}"
+                )
+                lines.append("")
 
-    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return "\n".join(lines).rstrip() + "\n"
 
 
 GENERATED_BEGIN = "<!-- BEGIN GENERATED GALLERY — build-demo.sh rewrites from here; do not edit below -->"
 
 
-def render_gallery(
-    *,
-    scoreboard: dict,
-    manifest: dict[str, dict],
-    output_path: Path,
-    benchmark_manifest: dict[str, dict] | None = None,
-) -> None:
-    docs = scoreboard.get("docs", [])
-    out_dir = output_path.parent
-    image_rel_root = Path("images")
-    benchmark_section = render_benchmark_section(
-        benchmark_manifest=benchmark_manifest or {},
-        images_dir=out_dir / "images",
-    )
+def splice_readme(readme_path: Path, marker: str, body: str) -> None:
+    """Write `body` into the README below `marker`, keeping the preamble.
 
-    rows = []
-    sections = []
-    for doc in docs:
-        name = str(doc.get("name", ""))
-        file = str(doc.get("file", ""))
-        render_error = doc.get("render_error")
-        overall = float(doc.get("overall_diff_percent", 0.0))
-        bucket = "error" if render_error else bucket_for_diff(overall)
-
-        rows.append(
-            "<tr>"
-            f"<td><a href=\"#doc-{slugify(file)}\">{_escape(name)}</a></td>"
-            f"<td class=\"num\">{overall:.2f}%</td>"
-            f"<td class=\"bucket bucket-{bucket}\">{bucket}</td>"
-            "</tr>"
-        )
-
-        meta = manifest.get(file, {})
-        wedge_features = meta.get("wedge_features", []) if isinstance(meta, dict) else []
-        known_limitations = meta.get("known_limitations", []) if isinstance(meta, dict) else []
-        expected_deltas = meta.get("expected_deltas", []) if isinstance(meta, dict) else []
-
-        feature_badges = []
-        for feat in wedge_features:
-            label = FEATURE_LABELS.get(str(feat), str(feat))
-            feature_badges.append(f"<span class=\"badge\">{_escape(label)}</span>")
-
-        limitations_html = (
-            "<ul>" + "".join(f"<li>{_escape(str(item))}</li>" for item in known_limitations) + "</ul>"
-            if known_limitations
-            else "<p class=\"muted\">None.</p>"
-        )
-        deltas_html = (
-            "<ul>" + "".join(f"<li>{_escape(str(item))}</li>" for item in expected_deltas) + "</ul>"
-            if expected_deltas
-            else "<p class=\"muted\">None.</p>"
-        )
-
-        pages_map = {p["page"]: p["diff_percent"] for p in doc.get("pages", []) if "page" in p}
-        ta_pages = int(doc.get("typeanvil_pages", 0))
-        pr_pages = int(doc.get("prince_pages", 0))
-        mismatch = bool(doc.get("page_count_mismatch"))
-        max_pages = max(ta_pages, pr_pages)
-
-        page_rows = []
-        if render_error:
-            page_rows.append(
-                f"<div class=\"render-error\"><strong>Render error:</strong> {_escape(str(render_error))}</div>"
-            )
-        else:
-            for page_index in range(1, max_pages + 1):
-                ta_exists = page_index <= ta_pages
-                pr_exists = page_index <= pr_pages
-                diff = pages_map.get(page_index)
-                diff_label = f"{diff:.2f}%" if diff is not None else "—"
-
-                ta_cell = _page_cell(
-                    exists=ta_exists,
-                    label="TypeAnvil",
-                    page_index=page_index,
-                    img_path=(out_dir / image_rel_root / slugify(file) / f"page-{page_index:03d}-ta.png")
-                    if ta_exists
-                    else None,
-                )
-                pr_cell = _page_cell(
-                    exists=pr_exists,
-                    label="Prince",
-                    page_index=page_index,
-                    img_path=(out_dir / image_rel_root / slugify(file) / f"page-{page_index:03d}-pr.png")
-                    if pr_exists
-                    else None,
-                )
-
-                page_rows.append(
-                    "<div class=\"page-row\">"
-                    f"{ta_cell}"
-                    f"<div class=\"page-diff\"><div class=\"diff-pill\">{diff_label}</div></div>"
-                    f"{pr_cell}"
-                    "</div>"
-                )
-
-        pages_meta = f"TypeAnvil {ta_pages} page{'s' if ta_pages != 1 else ''} · Prince {pr_pages} page{'s' if pr_pages != 1 else ''}"
-        if mismatch:
-            pages_meta += " · Page count mismatch"
-        sections.append(
-            "<section class=\"doc\" id=\"doc-{}\">".format(slugify(file))
-            + "<header>"
-            + f"<h2>{_escape(name)}</h2>"
-            + f"<div class=\"meta\"><code>{_escape(file)}</code> · {pages_meta}</div>"
-            + ("<div class=\"badges\">" + "".join(feature_badges) + "</div>" if feature_badges else "")
-            + "</header>"
-            + "<div class=\"notes\">"
-            + "<div><h3>Known limitations</h3>" + limitations_html + "</div>"
-            + "<div><h3>Expected deltas vs Prince</h3>" + deltas_html + "</div>"
-            + "</div>"
-            + "<div class=\"pages\">"
-            + "".join(page_rows)
-            + "</div>"
-            + "</section>"
-        )
-
-    table = (
-        "<table class=\"scoreboard\">"
-        "<thead><tr><th>Document</th><th class=\"num\">Overall diff</th><th>Bucket</th></tr></thead>"
-        "<tbody>"
-        + "".join(rows)
-        + "</tbody></table>"
-    )
-
-    html_out = f"""<!DOCTYPE html>
-<html lang=\"en\">
-<head>
-<meta charset=\"utf-8\" />
-<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
-<title>TypeAnvil vs Prince — Visual Comparison</title>
-<style>
-:root {{
-  --bg: #f7f7f9;
-  --card: #ffffff;
-  --text: #1f2328;
-  --muted: #5c6370;
-  --border: #e2e4e8;
-  --accent: #2f6feb;
-  --shadow: 0 6px 24px rgba(16, 24, 40, 0.12);
-}}
-* {{ box-sizing: border-box; }}
-body {{
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  color: var(--text);
-  background: var(--bg);
-  line-height: 1.5;
-}}
-header.page {{
-  padding: 32px 24px 12px;
-  max-width: 1200px;
-  margin: 0 auto;
-}}
-header.page h1 {{ margin: 0 0 6px; font-size: 28px; }}
-header.page p {{ margin: 0; color: var(--muted); }}
-main {{ max-width: 1200px; margin: 0 auto; padding: 0 24px 64px; }}
-.scoreboard {{
-  width: 100%;
-  border-collapse: collapse;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow: var(--shadow);
-}}
-.scoreboard th, .scoreboard td {{ padding: 12px 14px; text-align: left; }}
-.scoreboard thead {{ background: #f1f3f5; }}
-.scoreboard tbody tr + tr td {{ border-top: 1px solid var(--border); }}
-.scoreboard td.num, .scoreboard th.num {{ text-align: right; font-variant-numeric: tabular-nums; }}
-.bucket {{ font-weight: 600; text-transform: capitalize; }}
-.bucket-identical {{ color: #1a7f37; }}
-.bucket-cosmetic {{ color: #9a6700; }}
-.bucket-missing-feature {{ color: #c21b2f; }}
-.bucket-error {{ color: #b42318; }}
-
-.doc {{ margin-top: 32px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 24px; box-shadow: var(--shadow); }}
-.doc header h2 {{ margin: 0 0 4px; font-size: 22px; }}
-.doc header .meta {{ color: var(--muted); margin-bottom: 10px; }}
-.badges {{ display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }}
-.badge {{ padding: 4px 10px; background: #eef2ff; color: #3730a3; border-radius: 999px; font-size: 12px; font-weight: 600; }}
-.notes {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 18px 0 12px; }}
-.notes h3 {{ margin: 0 0 6px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }}
-.notes ul {{ margin: 0; padding-left: 18px; }}
-.notes li {{ margin-bottom: 4px; }}
-.muted {{ color: var(--muted); margin: 0; }}
-.pages {{ display: flex; flex-direction: column; gap: 18px; }}
-.page-row {{ display: grid; grid-template-columns: 1fr 120px 1fr; gap: 16px; align-items: start; }}
-.page-cell {{ background: #fafbfc; border: 1px solid var(--border); border-radius: 10px; padding: 10px; }}
-.page-label {{ font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 8px; }}
-.zoom-check {{ display: none; }}
-.zoom-label {{ display: block; max-width: 100%; overflow: auto; }}
-.zoom-label img {{ max-width: 100%; border-radius: 6px; box-shadow: 0 10px 20px rgba(0,0,0,0.15); cursor: zoom-in; transition: max-width 0.2s ease; }}
-.zoom-check:checked + .zoom-label img {{ max-width: 300%; cursor: zoom-out; }}
-.placeholder {{ display: grid; place-items: center; min-height: 160px; border: 1px dashed var(--border); border-radius: 8px; color: var(--muted); text-align: center; padding: 10px; }}
-.page-diff {{ display: flex; justify-content: center; align-items: center; }}
-.diff-pill {{ padding: 8px 12px; background: #111827; color: #fff; border-radius: 999px; font-variant-numeric: tabular-nums; font-size: 14px; }}
-.render-error {{ padding: 12px 14px; border-radius: 10px; background: #fff1f2; border: 1px solid #fecdd3; color: #b42318; font-size: 14px; }}
-.bench-heading {{ margin-top: 56px; font-size: 24px; }}
-.bench-intro {{ color: var(--muted); margin: 6px 0 18px; max-width: 760px; }}
-.badge-pending {{ background: #fff3e0; color: #8a5a00; }}
-.badge-resolved {{ background: #e6f4ea; color: #1a7f37; }}
-.bench-pill {{ padding: 8px 12px; background: #8a5a00; color: #fff; border-radius: 999px; font-size: 14px; }}
-
-@media (max-width: 900px) {{
-  .page-row {{ grid-template-columns: 1fr; }}
-  .page-diff {{ order: -1; }}
-}}
-</style>
-</head>
-<body>
-  <header class=\"page\">
-    <h1>TypeAnvil vs Prince — Visual Comparison</h1>
-    <p>Static, offline gallery. TypeAnvil renders on the left; Prince on the right.</p>
-  </header>
-  <main>
-    {table}
-    {"".join(sections)}
-    {benchmark_section}
-  </main>
-</body>
-</html>
-"""
-
-    output_path.write_text(html_out, encoding="utf-8")
-
-
-def render_benchmark_section(
-    *,
-    benchmark_manifest: dict[str, dict],
-    images_dir: Path,
-) -> str:
-    """The benchmark/roadmap section of the gallery (CORE-146).
-
-    One card per open-issue fixture: status badge, the tracked issue, the
-    expectation, and the TypeAnvil render (current state). These fixtures
-    are NOT part of the public comparison corpus — they show known gaps on
-    purpose and flip to `resolved` as their issues land.
+    The hand-maintained preamble above the marker is never rewritten; the
+    generated body below it is replaced wholesale on every build. On the first
+    run (no marker present) any existing preamble is kept and the marker plus
+    body are appended.
     """
-    if not benchmark_manifest:
-        return ""
-    import base64 as _b64
-
-    cards: list[str] = []
-    for file, meta in benchmark_manifest.items():
-        name = str(meta.get("name", file))
-        issue = str(meta.get("issue_id", ""))
-        status = str(meta.get("status", "pending"))
-        expectation = str(meta.get("expectation", ""))
-        notes = meta.get("notes", []) or []
-        base = Path(file).with_suffix("").name
-        ta_img = images_dir / f"bench-{base}" / "page-001-ta.png"
-        if ta_img.exists():
-            zoom_id = f"bench-{slugify(file)}"
-            data = ta_img.read_bytes()
-            src = f"data:image/png;base64,{_b64.b64encode(data).decode('ascii')}"
-            img_html = (
-                f'<input class="zoom-check" type="checkbox" id="{zoom_id}" />'
-                f'<label class="zoom-label" for="{zoom_id}">'
-                f'<img src="{src}" alt="TypeAnvil render of {_escape(name)}" /></label>'
-            )
-        else:
-            img_html = '<div class="placeholder">No render.</div>'
-        notes_html = (
-            "<ul>" + "".join(f"<li>{_escape(str(n))}</li>" for n in notes) + "</ul>"
-            if notes
-            else ""
-        )
-        cards.append(
-            f'<section class="doc bench" id="bench-{slugify(file)}">'
-            "<header>"
-            f"<h2>{_escape(name)}</h2>"
-            f'<div class="meta"><code>{_escape(file)}</code> · '
-            f'<a href="https://linear.app/whitelodge/issue/{_escape(issue)}">{_escape(issue)}</a></div>'
-            f'<div class="badges"><span class="badge badge-{_escape(status)}">{_escape(status)}</span></div>'
-            "</header>"
-            f'<div class="notes"><div><h3>Expectation</h3><p>{_escape(expectation)}</p>{notes_html}</div></div>'
-            f'<div class="pages"><div class="page-row"><div class="page-cell">'
-            f'<div class="page-label">TypeAnvil — current state</div>{img_html}</div>'
-            '<div class="page-diff"><div class="bench-pill">benchmark</div></div>'
-            '<div class="page-cell"><div class="page-label">Expected (engine parity)</div>'
-            '<div class="placeholder">See expectation</div></div>'
-            "</div></div>"
-            "</section>"
-        )
-    if not cards:
-        return ""
-    return (
-        '<h2 class="bench-heading">Benchmark — open engine issues</h2>'
-        '<p class="bench-intro">One fixture per open issue, rendered with the '
-        "current engine. These show known gaps on purpose; each flips to "
-        "resolved as its issue lands. They are separate from the public "
-        "comparison corpus above.</p>"
-        + "".join(cards)
-    )
-
-
-def _page_cell(*, exists: bool, label: str, page_index: int, img_path: Path | None) -> str:
-    if not exists or img_path is None:
-        return (
-            "<div class=\"page-cell\">"
-            f"<div class=\"page-label\">{_escape(label)} — Page {page_index}</div>"
-            f"<div class=\"placeholder\">No page {page_index} in {_escape(label)}.</div>"
-            "</div>"
-        )
-    zoom_id = slugify(f"{label}-{page_index}-{img_path.parent.name}")
-    # Inline the image as a data URI so the gallery renders from ANY base URL
-    # (file://, WebUI /api/media preview, editor preview panes, static hosts).
-    # The spec (visual-comparison-demo §Behavior 8) allows "images inlined or
-    # relative"; inlining removes the whole class of broken-relative-path bugs.
-    src = _inline_image_src(img_path)
-    return (
-        "<div class=\"page-cell\">"
-        f"<div class=\"page-label\">{_escape(label)} — Page {page_index}</div>"
-        f"<input class=\"zoom-check\" type=\"checkbox\" id=\"{zoom_id}\" />"
-        f"<label class=\"zoom-label\" for=\"{zoom_id}\">"
-        f"<img src=\"{src}\" alt=\"{_escape(label)} page {page_index}\" />"
-        "</label>"
-        "</div>"
-    )
-
-
-def _inline_image_src(img_path: Path) -> str:
-    """Return a base64 data URI for the PNG, or a relative fallback if unreadable."""
-    import base64 as _b64
-    try:
-        data = img_path.read_bytes()
-    except OSError:
-        return _escape(str(img_path.as_posix()))
-    encoded = _b64.b64encode(data).decode("ascii")
-    return f"data:image/png;base64,{encoded}"
+    readme_path.parent.mkdir(parents=True, exist_ok=True)
+    body = body.rstrip() + "\n"
+    readme = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
+    start = readme.find(marker)
+    if start == -1:
+        preamble = readme.rstrip() + "\n\n" if readme.strip() else ""
+        readme = preamble + marker + "\n\n" + body
+    else:
+        readme = readme[:start] + marker + "\n\n" + body
+    readme_path.write_text(readme, encoding="utf-8")
 
 
 def write_scoreboard(
@@ -746,7 +456,7 @@ def compare_output_dirs(baseline: Path, current: Path) -> list[str]:
     # the scoreboard (normalized), and the page images. Internal dirs (.work,
     # .results) hold intermediate PDFs/stderr that legitimately differ
     # (e.g. Prince embeds timestamps) — the spec's byte-identity applies to
-    # demo/out deliverables only (§Behavior 9).
+    # demo/corpus/out deliverables only (§Behavior 9).
     def collect(root: Path) -> set[Path]:
         return {
             p.relative_to(root)
@@ -804,14 +514,15 @@ def list_manifest_entries(path: Path) -> Iterable[tuple[str, str]]:
 def render_showcase_md(
     manifest_path: Path,
     images_dir: Path,
-    output_path: Path,
     typeanvil_version: str,
+    image_prefix: str = "out/images",
 ) -> str:
-    """Markdown showcase gallery (CORE-148).
+    """Markdown showcase gallery body (CORE-148).
 
-    Emits a deterministic markdown document: one section per manifest
-    fixture, per-page <img> tags referencing the rasterized PNGs at
-    `out/images/<base>/page-NNN-ta.png` relative to demo/showcase/out/.
+    Returns a deterministic markdown body: one section per manifest fixture,
+    per-page <img> tags referencing the rasterized PNGs at
+    `<image_prefix>/<base>/page-NNN-ta.png`, relative to the showcase README.
+    The caller splices it into demo/showcase/README.md below its marker.
     No timestamps — showcase output is byte-identical across rebuilds.
     """
     lines: list[str] = []
@@ -820,11 +531,11 @@ def render_showcase_md(
     lines.append(
         "Realistic-size pages rendered by the TypeAnvil engine only "
         f"(commit `{typeanvil_version}`). The side-by-side comparison "
-        "gallery lives in [the main demo README](../README.md) and runs at "
-        "5in × 3in @ 96 DPI so diffs stay cheap; these pages show the same "
-        "engine at the geometry documents actually print at. Prince renders "
-        "only the comparison pipeline — the showcase is a TypeAnvil output "
-        "gallery, not a diff target."
+        "gallery lives in [the comparison README](../corpus/README.md) and "
+        "runs at 5in × 3in @ 96 DPI so diffs stay cheap; these pages show the "
+        "same engine at the geometry documents actually print at. Prince "
+        "renders only the comparison pipeline — the showcase is a TypeAnvil "
+        "output gallery, not a diff target."
     )
     lines.append("")
     for file, name in list_manifest_entries(manifest_path):
@@ -844,8 +555,8 @@ def render_showcase_md(
             lines.append("")
             continue
         for png in pages:
-            # Relative to demo/showcase/out/ (where index.md lives).
-            rel = f"images/{base}/{png.name}"
+            # Relative to demo/showcase/ (where README.md lives).
+            rel = f"{image_prefix}/{base}/{png.name}"
             lines.append(f'<img src="{rel}" alt="{name} — {png.stem}" width="420">')
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
@@ -889,10 +600,20 @@ def main() -> int:
     assemble_p.add_argument("--typeanvil-version", required=True)
     assemble_p.add_argument("--prince-version", default="")
     assemble_p.add_argument(
-        "--markdown-out",
-        default=None,
-        help="Also emit the GitHub-viewable markdown gallery to this path "
-        "(CORE-147); image paths are emitted relative to --out-dir.",
+        "--readme",
+        required=True,
+        help="Track README.md that receives the gallery, below --marker.",
+    )
+    assemble_p.add_argument(
+        "--marker",
+        default=GENERATED_BEGIN,
+        help="Marker comment in the README; everything below it is regenerated "
+        "(defaults to the comparison-gallery marker).",
+    )
+    assemble_p.add_argument(
+        "--image-prefix",
+        default="out/images",
+        help="Path from the README's directory to the images directory.",
     )
 
     validate_p = sub.add_parser("validate-scoreboard", help="Validate scoreboard schema")
@@ -906,8 +627,10 @@ def main() -> int:
     )
     showcase_p.add_argument("--manifest", required=True)
     showcase_p.add_argument("--images-dir", required=True)
-    showcase_p.add_argument("--out", required=True)
+    showcase_p.add_argument("--readme", required=True)
+    showcase_p.add_argument("--marker", required=True)
     showcase_p.add_argument("--typeanvil-version", required=True)
+    showcase_p.add_argument("--image-prefix", default="out/images")
 
     det_p = sub.add_parser("check-determinism", help="Compare two output dirs")
     det_p.add_argument("baseline")
@@ -959,22 +682,15 @@ def main() -> int:
             prince_version=prince_version,
             output_path=out_dir / "scoreboard.json",
         )
-        render_gallery(
+        body = render_gallery_md(
             scoreboard=scoreboard,
             manifest=manifest,
-            output_path=out_dir / "index.html",
             benchmark_manifest=bench_manifest,
+            image_prefix=args.image_prefix,
         )
-        if args.markdown_out:
-            # The markdown gallery references images relative to --out-dir
-            # (images/...), and build-demo.sh places the file so those paths
-            # resolve (demo/out/index.md, promoted to demo/README.md).
-            render_gallery_md(
-                scoreboard=scoreboard,
-                manifest=manifest,
-                output_path=Path(args.markdown_out),
-                benchmark_manifest=bench_manifest,
-            )
+        splice_readme(Path(args.readme), args.marker, body)
+        print(f"gallery: {args.readme}")
+        print(f"scoreboard: {out_dir / 'scoreboard.json'}")
         return 0
 
     if args.cmd == "validate-scoreboard":
@@ -993,16 +709,14 @@ def main() -> int:
         return 0
 
     if args.cmd == "assemble-showcase":
-        md = render_showcase_md(
+        body = render_showcase_md(
             manifest_path=Path(args.manifest),
             images_dir=Path(args.images_dir),
-            output_path=Path(args.out),
             typeanvil_version=args.typeanvil_version,
+            image_prefix=args.image_prefix,
         )
-        out_path = Path(args.out)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(md, encoding="utf-8")
-        print(f"showcase gallery: {out_path}")
+        splice_readme(Path(args.readme), args.marker, body)
+        print(f"showcase gallery: {args.readme}")
         return 0
 
     if args.cmd == "check-determinism":
