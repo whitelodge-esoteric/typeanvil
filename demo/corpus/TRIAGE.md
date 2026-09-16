@@ -562,3 +562,80 @@ Required before any conclusion: a dedicated triage with char-box geometry per do
 comparing each side at the OLD baseline commit against the new one (the CORE-185 lesson —
 measure both sides at baseline AND candidate; a movement can be an exposed gap rather than
 a regression). Until then the drift stays recorded here as an open item.
+
+
+---
+
+# CORE-211 — Attribution of the corpus diff drift (2026-09-07 → 2026-09-15)
+
+## Method
+
+The open finding above is closed with evidence, per the CORE-185 lesson (measure
+BOTH sides at baseline AND candidate) and the CORE-211 methodology guidance
+(2026-09-16): render both engines at the OLD baseline commit `cb98dc5`
+(TA side built from that commit; Prince 16.2 constant) and at the NEW refresh
+tip, run CORE-215's structure-first layer (text lines per page, line counts,
+structure verdict) plus page counts, and classify each doc's movement into
+(a) spec-correct divergence / (b) genuine regression / (c) tracked parity work.
+Observations recorded at the new commit: release tip after CORE-215 landing.
+
+## Evidence — per doc
+
+| Doc | 2026-09-07 | 2026-09-15 | Δ | TA pages old→new | PR pages | Structure (old vs new) | Bucket |
+|---|---|---|---|---|---|---|---|
+| float-showcase | 20.88 | 23.15 | +2.27 | 8→8 | 8 | OLD: text-mismatch only; NEW: +p8 line-mismatch (last-page artifact) | (c) |
+| invoice | 19.17 | 17.12 | −2.05 | 5→5 | 5 | OLD: n/a; NEW: **structure_match TRUE, zero mismatches** | (a) converging |
+| letterhead | 7.86 | 12.26 | +4.40 | 8→8 | 8 | OLD: **match TRUE**; NEW: p2 +2 lines (12 vs 10) | (c) |
+| paper | 14.36 | 23.52 | +9.16 | **11→12** | 11 | OLD: no line-mismatch, 11 pages; NEW: +page-count mismatch, p3/p10/p11 line shifts | (c) → +1 page |
+| prose | 10.52 | 20.40 | +9.88 | 11→11 | 11 | OLD: heading-position only; NEW: p8 +2 lines + uniform hyphenation text-mismatch | (c) |
+| report | 7.51 | 14.29 | +6.78 | 11→11 | 11 | line mismatches 0 both sides; hyphenation-only text mismatch | (c) |
+| table-stress | 20.94 | 22.21 | +1.27 | **43→47** | 45 | row-pitch gap (40/43 pages) PRE-EXISTING; +4 pages new | (c) |
+
+## Root cause of the movement: line-wrap reflow, not a layout regression
+
+Every doc's per-page line counts shift ±1–2 pages except for the two page-count
+changes, which are **accumulations of the same cause**:
+
+- `paper` 11→12: TA's page 11 now ends two lines earlier ("hold this page up
+  against" spills to a new p12) — the same final sentence fit on p11 at
+  `cb98dc5`. Line counts drift +1/−1 before that, accumulating ~6 lines by the
+  end (p10 +4, p11 +2).
+- `table-stress` 43→47: mean per-page line delta is −0.05 (≈ unchanged), and
+  the four new pages (44–47) are pure row continuation (TRP-1592..1600). Cell
+  text now wraps to one more line per row on average, so rows are taller and
+  1 fewer row fits per page. **No table engine code changed** in the window
+  (zero table.rs commits `cb98dc5..702e427`); the driver is cell-text wrapping.
+
+The window's typography-path rework (`CORE-151` white-space:pre preserved
+whitespace tokenization in the K-P breaker, `CORE-158`/`CORE-159` forced-break
+demerits/<br> as forced break, `CORE-174` collapsible-space-before-atomic)
+changed how text runs become glue/boxes, shifting line-breaking density
+document-wide. These are CSS-spec-correct changes (css-text-4; `<br>` as a
+forced break). The divergence direction — TA takes fewer hyphen breaks than
+Prince per line, so lines wrap slightly earlier — is the documented
+hyphenation/justification difference (`CORE-53`/`CORE-94` line breaking scope;
+manifest `expected_deltas` for paper/prose: "Hyphenation points may differ",
+"Justification glue distribution may differ").
+
+## Verdict
+
+- **No bucket (b) genuine regressions.** No doc's movement is explained by an
+  engine bug; the two page-count changes (paper +1, table-stress +4) are
+  wrap-density accumulations of the tracked line-breaking model.
+- `invoice` moved TOWARD Prince; its structure now matches exactly (the
+  border/paint fixes in the window are spec-correct and converged it).
+- Everything else is bucket (c): tracked as CORE-53/CORE-94 line breaking /
+  hyphenation glue work, and consistent with the CORE-140 ruling that
+  spec-correct divergence from Prince is intended, not a defect.
+
+## Exit criteria status
+
+- ✅ Every doc's delta attributed to (a)/(c) with the evidence above.
+- ✅ No (b) item to file as an engine issue.
+- ✅ `paper`'s 12-vs-11 explained: the final two lines spill to a 12th page
+  because the line-breaking model wraps earlier than at `cb98dc5`; not an
+  engine bug — a tracked line-breaking density change (c), with the same
+  sentence fitting on the old 11th page.
+- Note for the guard (`--guard`, CORE-215): none of these docs should carry an
+  `expected_change` note today; the drift is already in the committed
+  scoreboard, and future movement beyond it is what the guard exists to catch.
