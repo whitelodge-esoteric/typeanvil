@@ -32,12 +32,10 @@ CORPUS_DIR="demo/corpus"
 
 usage() {
   cat <<'EOF'
-usage: build-demo.sh [--dry-run] [--keep-work] [--validate] [--determinism]
-
-  --dry-run        print the exact render commands without running them
+usage: build-demo.sh [--dry-run] [--keep-work] [--validate] [--determinism] [--guard]
   --keep-work      keep .work/.results dirs (default: cleaned at exit)
   --validate       validate demo/corpus/out/scoreboard.json after building
-  --determinism    build twice and byte-compare demo/corpus/out (except generated)
+  --guard          check scoreboard movement against committed version
 EOF
 }
 
@@ -45,12 +43,14 @@ DRY_RUN=0
 KEEP_WORK=0
 DO_VALIDATE=0
 DO_DETERMINISM=0
+DO_GUARD=0
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
     --keep-work) KEEP_WORK=1 ;;
     --validate) DO_VALIDATE=1 ;;
     --determinism) DO_DETERMINISM=1 ;;
+    --guard) DO_GUARD=1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "error: unknown option $arg" >&2; usage; exit 2 ;;
   esac
@@ -68,6 +68,20 @@ fi
 
 rm -rf "$RESULTS" "$WORK"
 mkdir -p "$WORK" "$RESULTS" "$IMAGES"
+
+# Guard mode: snapshot the committed scoreboard BEFORE the build overwrites
+# it, so the post-assemble check compares fresh vs committed (CORE-215).
+GUARD_SNAPSHOT=""
+if [ "$DO_GUARD" = "1" ]; then
+  GUARD_SNAPSHOT="$WORK/scoreboard.committed.json"
+  if [ -f "$OUT/scoreboard.json" ]; then
+    cp "$OUT/scoreboard.json" "$GUARD_SNAPSHOT"
+    echo "guard: committed scoreboard snapshotted ($OUT/scoreboard.json)"
+  else
+    echo "warning: no committed scoreboard at $OUT/scoreboard.json — guard has nothing to compare against" >&2
+    GUARD_SNAPSHOT=""
+  fi
+fi
 
 TA_VERSION="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 PR_VERSION="$("$PRINCE_BIN" --version 2>&1 | head -1 || true)"
@@ -237,6 +251,24 @@ fi
 
 if [ "$DO_VALIDATE" = "1" ]; then
   "$PY" scripts/demo_compare.py validate-scoreboard "$OUT/scoreboard.json"
+fi
+
+# Guard mode: compare the freshly assembled scoreboard against the committed
+# snapshot (taken before the build). Per-doc movement > 3.0 pp or a page-count
+# change fails unless the manifest entry carries `expected_change`.
+if [ "$DO_GUARD" = "1" ]; then
+  if [ -n "$GUARD_SNAPSHOT" ] && [ -f "$GUARD_SNAPSHOT" ]; then
+    echo "guard: comparing fresh scoreboard against committed... "
+    "$PY" scripts/demo_compare.py check-guard \
+      --committed "$GUARD_SNAPSHOT" \
+      --current "$OUT/scoreboard.json" \
+      --manifest "$MANIFEST" || {
+        echo "guard FAILED (see above)" >&2
+        exit 1
+      }
+  else
+    echo "guard: skipped — no committed scoreboard snapshot (first run?)" >&2
+  fi
 fi
 
 if [ "$KEEP_WORK" = "0" ]; then

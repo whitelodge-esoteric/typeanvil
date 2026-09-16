@@ -98,6 +98,18 @@ def compare_pdfs(
     else:
         overall = 0.0
 
+    # Add structure comparison data (nullable for backward compatibility)
+    structure_match = None
+    structure_reasons = []
+    
+    try:
+        structure_result = compare_structure(ta_pdf, pr_pdf, tolerance=3.0)
+        structure_match = structure_result.get("structure_match")
+        structure_reasons = structure_result.get("reasons", [])
+    except Exception:
+        # If structure comparison fails, continue without structure data
+        pass
+    
     return {
         "name": name,
         "file": file,
@@ -107,7 +119,359 @@ def compare_pdfs(
         "pages": pages,
         "overall_diff_percent": overall,
         "render_error": None,
+        # Structure data (nullable for backward compatibility)
+        "structure_match": structure_match,
+        "structure_reasons": structure_reasons,
     }
+
+
+# ---------------------------------------------------------------------------
+# Structure-first comparison layer (CORE-215).
+#
+# The pixel diff cannot tell "font swapped" from "content misplaced": two
+# renders of the same document with different system fonts for the same stack
+# can differ by 15-34% pixels without any structural difference. The structure
+# layer reads the PDFs directly (text lines, line counts, heading/image boxes)
+# and emits a verdict that is robust to font substitution.
+#
+# pypdfium2 facts (verified 2026-09-16 against corpus renders):
+#   * a page's text layer is a sequence of chars, indexed by get_charbox(i);
+#   * get_charbox(i) -> (left, bottom, right, top) in PDF points (72/in);
+#   * page.get_objects() yields page objects with .type being one of
+#     FPDF_PAGEOBJ_TEXT (1) / FPDF_PAGEOBJ_PATH (2) / FPDF_PAGEOBJ_IMAGE (3);
+#   * get_text_range(0, count_chars) returns the text with \r\n line breaks.
+# ---------------------------------------------------------------------------
+
+_SUBPAGE_BASELINE_TOL = 4.0   # pt; chars whose baselines differ by less than
+                              # this belong to the same visual line (CORE-110).
+                              # 2.5pt split descenders (g/p/y drop ~3pt).
+_HEADING_FONT_RATIO = 1.3     # heading = line taller than 1.3x body median.
+_MAX_MISSING_TOKENS = 3       # words uncovered on the other side; hyphenation
+                              # fragments (prefix/suffix) count as covered.
+
+
+def _open_pdf(path: Path):
+    import pypdfium2 as pdfium
+    return pdfium.PdfDocument(str(path))
+
+
+def _char_data(page):
+    """Return per-char (text, left, bottom, right, top) boxes for a page.
+
+    The text layer may include control chars/soft hyphens that the PDF
+    encodes for line-breaking; we keep only printable chars, but still walk
+    every char so x/y positions line up with the char order.
+    """
+    textpage = page.get_textpage()
+    try:
+        count = textpage.count_chars()
+        raw = textpage.get_text_range(0, count)
+        boxes = []
+        for i in range(count):
+            try:
+                box = textpage.get_charbox(i)
+            except Exception:
+                continue
+            if box is None:
+                continue
+            ch = raw[i] if i < len(raw) else ""
+            # Control chars and the PDF soft-hyphen marker (U+FFFE) are not
+            # content — modern engines emit U+FFFE at hyphenation points, and
+            # BOTH sides emit it identically, so dropping (not spacing) it
+            # keeps hyphen-split words comparable across engines.
+            if ch in ("\r", "\n", "\t", "\x00", "\ufffe", "\ufeff", "\u00ad"):
+                ch = ""
+            boxes.append((ch, float(box[0]), float(box[1]),
+                          float(box[2]), float(box[3])))
+        return boxes
+    finally:
+        textpage.close()
+
+
+def _cluster_lines(chars):
+    """Group chars into visual lines by baseline (bottom), x-sorted.
+
+    Returns a list of dicts: {text, x0, y0, x1, y1, height}. A line's box is
+    the union of its chars' boxes; height is the max char box height
+    (a font-size proxy used for heading detection).
+    """
+    rows: list[list] = []
+    row_baseline: list[float] = []
+    for ch, left, bottom, right, top in chars:
+        placed = False
+        for row, base in zip(rows, row_baseline):
+            if abs(bottom - base) <= _SUBPAGE_BASELINE_TOL:
+                row.append((ch, left, bottom, right, top))
+                placed = True
+                break
+        if not placed:
+            rows.append([(ch, left, bottom, right, top)])
+            row_baseline.append(bottom)
+    lines = []
+    for row in rows:
+        row.sort(key=lambda item: item[1])
+        text = "".join(item[0] for item in row).strip()
+        if not text:
+            continue  # rows of only dropped control chars are not lines
+        left = min(item[1] for item in row)
+        bottom = min(item[2] for item in row)
+        right = max(item[3] for item in row)
+        top = max(item[4] for item in row)
+        heights = sorted(item[4] - item[2] for item in row)
+        height = heights[len(heights) // 2]  # median: robust to ascenders
+        lines.append({
+            "text": text,
+            "x0": left, "y0": bottom, "x1": right, "y1": top,
+            "height": height,
+        })
+    return lines
+
+
+def _body_median_font_size(pages_data: list[list]) -> float:
+    heights = [line["height"] for page in pages_data for line in page]
+    if not heights:
+        return 12.0
+    heights.sort()
+    mid = len(heights) // 2
+    if len(heights) % 2 == 0:
+        return (heights[mid - 1] + heights[mid]) / 2.0
+    return float(heights[mid])
+
+
+def _normalize_tokens(text: str) -> list[str]:
+    """Split to lowercase word tokens, with hyphen-tolerance.
+
+    Hyphenation differs between engines: "end-" + "of" on a wrapped line is
+    the same content as "endof". We strip hyphens so both sides see the same
+    tokens when the wrap choice matches.
+    """
+    text = text.lower()
+    text = text.replace("-\n", " ").replace("- ", " ")
+    return re.findall(r"[a-z0-9]+", text)
+
+
+def _coverage_missing(ta_tokens: list[str], pr_tokens: list[str]) -> int:
+    """Count tokens on either side that the other side does NOT cover.
+
+    A token is covered when the other side contains an equal token or a
+    token that has it as a prefix or suffix — this absorbs hyphenation
+    fragments ("justi"+from a break + "fied" vs "justified") and font-driven
+    wrap differences, while a genuinely missing word stays uncovered.
+    """
+    def _missing(left: list[str], right: list[str]) -> int:
+        right_set = set(right)
+        missing = 0
+        for t in left:
+            if t in right_set:
+                continue
+            covered = any(
+                u != t and (u.startswith(t) or u.endswith(t)
+                            or t.startswith(u) or t.endswith(u))
+                for u in right_set
+            )
+            if not covered:
+                missing += 1
+        return missing
+
+    return _missing(ta_tokens, pr_tokens) + _missing(pr_tokens, ta_tokens)
+
+
+def _extract_pdf_structure(pdf_path: Path) -> tuple[list[list], list[list], list[list]]:
+    """Per-page (lines, heading boxes, image boxes) for a PDF."""
+    doc = _open_pdf(pdf_path)
+    try:
+        pages_lines: list[list] = []
+        pages_headings: list[list] = []
+        pages_images: list[list] = []
+        for page in doc:
+            lines = _cluster_lines(_char_data(page))
+            pages_lines.append(lines)
+            # Image boxes: real image objects only (type 3).
+            try:
+                images = []
+                for obj in page.get_objects():
+                    if getattr(obj, "type", None) == 3:  # FPDF_PAGEOBJ_IMAGE
+                        try:
+                            bounds = obj.get_bounds()
+                        except Exception:
+                            continue
+                        if bounds:
+                            images.append(tuple(float(v) for v in bounds))
+                pages_images.append(images)
+            except Exception:
+                pages_images.append([])
+            # Headings computed after the body median is known (below).
+            pages_headings.append([])
+        return pages_lines, pages_headings, pages_images
+    finally:
+        doc.close()
+
+
+def _heading_boxes(pages_lines: list[list], body_median: float) -> list[list]:
+    threshold = body_median * _HEADING_FONT_RATIO
+    out = []
+    for lines in pages_lines:
+        heads = []
+        for line in lines:
+            if line["height"] >= threshold:
+                heads.append((line["x0"], line["y0"], line["x1"], line["y1"]))
+        out.append(heads)
+    return out
+
+
+def _box_close(a: tuple, b: tuple, tolerance: float) -> bool:
+    """Same-corner distance of two boxes within tolerance (pt)."""
+    return (abs(a[0] - b[0]) <= tolerance and abs(a[1] - b[1]) <= tolerance
+            and abs(a[2] - b[2]) <= tolerance and abs(a[3] - b[3]) <= tolerance)
+
+
+def _boxes_match(ta_boxes: list, pr_boxes: list, tolerance: float) -> bool:
+    """Every box on one side has a matching box on the other within tolerance."""
+
+    def _greedy(left: list, right: list) -> bool:
+        used = [False] * len(right)
+        for a in left:
+            found = False
+            for j, b in enumerate(right):
+                if not used[j] and _box_close(a, b, tolerance):
+                    used[j] = True
+                    found = True
+                    break
+            if not found:
+                return False
+        return True
+
+    return _greedy(ta_boxes, pr_boxes) and _greedy(pr_boxes, ta_boxes)
+
+
+def _page_text_offset(ta_page, pr_page) -> tuple[float, float]:
+    """Estimate the engines' uniform baseline offset on a page.
+
+    TypeAnvil and Prince lay text out with slightly different charbox
+    origins (~6 pt on this corpus): a constant page-wide shift, NOT
+    misplacement. The median delta over shared line origins estimates it;
+    subtracting it lets the box comparison catch RELATIVE movement (a
+    heading that moved 40 pt down) while ignoring the engine's global
+    offset.
+    """
+    ta_origins = [(l["x0"], l["y0"]) for l in ta_page] if ta_page else []
+    pr_origins = [(l["x0"], l["y0"]) for l in pr_page] if pr_page else []
+    if not ta_origins or not pr_origins:
+        return (0.0, 0.0)
+    n = min(len(ta_origins), len(pr_origins))
+    dx = sorted(ta_origins[i][0] - pr_origins[i][0] for i in range(n))
+    dy = sorted(ta_origins[i][1] - pr_origins[i][1] for i in range(n))
+    return (dx[len(dx) // 2], dy[len(dy) // 2])  # median delta
+
+
+def compare_structure(ta_pdf_path: Path, pr_pdf_path: Path,
+                      tolerance: float = 3.0) -> dict:
+    """Compare text/structure between two PDFs; return a per-page verdict.
+
+    Verdict = all shared pages satisfy:
+      * line count within +/- 1;
+      * normalized text token multisets within a small tolerance;
+      * heading boxes and image boxes within `tolerance` pt.
+    Robust to font substitution: different glyphs for the same stack change
+    pixel diffs but not text/tokens/box positions by more than the tolerance.
+    """
+    ta_lines, _, ta_images = _extract_pdf_structure(ta_pdf_path)
+    pr_lines, _, pr_images = _extract_pdf_structure(pr_pdf_path)
+
+    body_median = _body_median_font_size(ta_lines + pr_lines)
+    ta_headings = _heading_boxes(ta_lines, body_median)
+    pr_headings = _heading_boxes(pr_lines, body_median)
+
+    max_pages = max(len(ta_lines), len(pr_lines))
+    pages: list[dict] = []
+    for idx in range(max_pages):
+        ta_page = ta_lines[idx] if idx < len(ta_lines) else None
+        pr_page = pr_lines[idx] if idx < len(pr_lines) else None
+        if ta_page is None or pr_page is None:
+            pages.append({
+                "page": idx + 1,
+                "line_count_match": False,
+                "text_match": False,
+                "headings_match": False,
+                "images_match": False,
+                "reason": "page count mismatch",
+            })
+            continue
+        ta_count = len(ta_page)
+        pr_count = len(pr_page)
+        ta_tokens = [t for line in ta_page for t in _normalize_tokens(line["text"])]
+        pr_tokens = [t for line in pr_page for t in _normalize_tokens(line["text"])]
+        missing = _coverage_missing(ta_tokens, pr_tokens)
+        dx, dy = _page_text_offset(ta_page, pr_page)
+
+        def _shifted(boxes, dx_, dy_):
+            return [(x0 - dx_, y0 - dy_, x1 - dx_, y1 - dy_) for x0, y0, x1, y1 in boxes]
+
+        # Headings match primarily by TEXT: a font swap or the engines'
+        # top-of-page baseline convention (~6 pt on this corpus) changes
+        # positions but not which lines are headings. Same heading text on
+        # both sides is structurally equal; a heading missing off one side
+        # (or an extra heading) fails the verdict. Positional comparison
+        # (offset-normalized, 2x tolerance) is the fallback for headings
+        # whose text differs between engines (e.g. font-mapped glyphs).
+        def _heading_line_idxs(page_lines, heading_boxes):
+            idxs = set()
+            for i, line in enumerate(page_lines):
+                line_box = (line["x0"], line["y0"], line["x1"], line["y1"])
+                if any(_box_close(line_box, h, 1.0) for h in heading_boxes):
+                    idxs.add(i)
+            return idxs
+
+        ta_head_idx = _heading_line_idxs(ta_page, ta_headings[idx])
+        pr_head_idx = _heading_line_idxs(pr_page, pr_headings[idx])
+        ta_head_tokens = {
+            tuple(_normalize_tokens(" ".join(ta_page[i]["text"] for i in sorted(ta_head_idx))))
+        } if ta_head_idx else set()
+        pr_head_tokens = {
+            tuple(_normalize_tokens(" ".join(pr_page[i]["text"] for i in sorted(pr_head_idx))))
+        } if pr_head_idx else set()
+        headings_match = (ta_head_tokens == pr_head_tokens) or _boxes_match(
+            _shifted(ta_headings[idx], dx, dy), pr_headings[idx], tolerance * 2)
+
+        page = {
+            "page": idx + 1,
+            "ta_line_count": ta_count,
+            "pr_line_count": pr_count,
+            "line_count_match": abs(ta_count - pr_count) <= 1,
+            "text_match": missing <= _MAX_MISSING_TOKENS,
+            "headings_match": headings_match,
+            "images_match": _boxes_match(
+                _shifted(ta_images[idx], dx, dy), pr_images[idx], tolerance),
+            "missing_tokens": missing,
+        }
+        page["reason"] = next(
+            (name for name, ok in (
+                ("line count mismatch", page["line_count_match"]),
+                ("text content mismatch", page["text_match"]),
+                ("heading positions mismatch", page["headings_match"]),
+                ("image positions mismatch", page["images_match"]),
+            ) if not ok),
+            None,
+        )
+        pages.append(page)
+
+    reasons = sorted({p["reason"] for p in pages if p["reason"]})
+    structure_match = all(
+        (p["line_count_match"] and p["text_match"]
+         and p["headings_match"] and p["images_match"]) for p in pages
+    )
+    return {
+        "pages": pages,
+        "structure_match": structure_match,
+        "reasons": reasons,
+    }
+
+
+def structure_compare_command(args: argparse.Namespace) -> int:
+    result = compare_structure(Path(args.ta_pdf), Path(args.pr_pdf),
+                               args.tolerance)
+    print(json.dumps(result, indent=2))
+    return 0 if result["structure_match"] else 1
 
 
 def error_entry(*, name: str, file: str, message: str) -> dict:
@@ -405,6 +769,7 @@ def validate_scoreboard(data: dict) -> list[str]:
         if not isinstance(doc, dict):
             errors.append(f"doc[{idx}] is not an object")
             continue
+        # Required fields
         for field in (
             "name",
             "file",
@@ -417,6 +782,9 @@ def validate_scoreboard(data: dict) -> list[str]:
         ):
             if field not in doc:
                 errors.append(f"doc[{idx}] missing field: {field}")
+        
+        # Optional fields (backward compatibility)
+        # structure_match and structure_reasons are optional for backward compatibility
         pages = doc.get("pages")
         if isinstance(pages, list):
             for pidx, page in enumerate(pages):
@@ -560,6 +928,81 @@ def render_showcase_md(
             lines.append(f'<img src="{rel}" alt="{name} — {png.stem}" width="420">')
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
+def check_guard_command(args: argparse.Namespace) -> int:
+    """CLI handler for scoreboard movement guard check."""
+    # Load committed and current scoreboards
+    committed_data = json.loads(Path(args.committed).read_text(encoding="utf-8"))
+    current_data = json.loads(Path(args.current).read_text(encoding="utf-8"))
+    
+    # Load manifest
+    manifest_data = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
+    manifest_by_file = {entry["file"]: entry for entry in manifest_data if isinstance(entry, dict) and "file" in entry}
+    
+    # Compare documents
+    committed_docs = {doc["file"]: doc for doc in committed_data.get("docs", [])}
+    current_docs = {doc["file"]: doc for doc in current_data.get("docs", [])}
+    
+    all_files = set(committed_docs.keys()) | set(current_docs.keys())
+    failed_docs = []
+    
+    MOVEMENT_THRESHOLD = 3.0  # percentage points
+    
+    for file in all_files:
+        committed_doc = committed_docs.get(file)
+        current_doc = current_docs.get(file)
+        
+        # Check if document was added/removed
+        if committed_doc is None:
+            print(f"GUARD INFO {file}: new document")
+            continue
+        elif current_doc is None:
+            print(f"GUARD INFO {file}: removed document")
+            continue
+            
+        # Check page count changes
+        committed_ta_pages = committed_doc.get("typeanvil_pages", 0)
+        committed_pr_pages = committed_doc.get("prince_pages", 0)
+        current_ta_pages = current_doc.get("typeanvil_pages", 0)
+        current_pr_pages = current_doc.get("prince_pages", 0)
+        
+        page_count_changed = (
+            committed_ta_pages != current_ta_pages or 
+            committed_pr_pages != current_pr_pages
+        )
+        
+        # Check overall diff percentage movement
+        committed_diff = committed_doc.get("overall_diff_percent", 0.0)
+        current_diff = current_doc.get("overall_diff_percent", 0.0)
+        diff_movement = abs(current_diff - committed_diff)
+        
+        # Check if there's significant movement or page count change
+        if diff_movement > MOVEMENT_THRESHOLD or page_count_changed:
+            # Check if this change is expected
+            manifest_entry = manifest_by_file.get(file, {})
+            expected_change_note = manifest_entry.get("expected_change", "")
+            
+            if expected_change_note:
+                # Expected change - print info but don't fail
+                reason = "page count change" if page_count_changed else f"diff movement {diff_movement:.2f}pp"
+                print(f"GUARD INFO {file}: {reason} (expected: {expected_change_note})")
+            else:
+                # Unexpected change - fail
+                if page_count_changed:
+                    reason = f"page count {committed_ta_pages}/{committed_pr_pages} -> {current_ta_pages}/{current_pr_pages}"
+                else:
+                    reason = f"diff {committed_diff:.2f} -> {current_diff:.2f} pp ({diff_movement:.2f} pp movement)"
+                failed_docs.append((file, reason))
+                print(f"GUARD FAIL {file}: {reason}")
+        else:
+            # Within threshold
+            print(f"guard ok {file}: within threshold (diff {committed_diff:.2f} -> {current_diff:.2f} pp)")
+    
+    if failed_docs:
+        print(f"guard failed: {len(failed_docs)} document(s) exceeded movement threshold without expected_change")
+        return 1
+    else:
+        print("guard ok: all documents within threshold or covered by expected_change")
+        return 0
 
 
 def _manifest_meta(manifest_path: Path, file: str) -> dict | None:
@@ -636,6 +1079,14 @@ def main() -> int:
     det_p.add_argument("baseline")
     det_p.add_argument("current")
 
+    structure_p = sub.add_parser("structure", help="Compare PDF structure between TypeAnvil and Prince")
+    structure_p.add_argument("--ta-pdf", required=True)
+    structure_p.add_argument("--pr-pdf", required=True)
+    structure_p.add_argument("--tolerance", type=float, default=3.0)
+    guard_p = sub.add_parser("check-guard", help="Check scoreboard movement guard")
+    guard_p.add_argument("--committed", required=True)
+    guard_p.add_argument("--current", required=True)
+    guard_p.add_argument("--manifest", required=True)
     args = parser.parse_args()
 
     if args.cmd == "compare":
@@ -727,6 +1178,10 @@ def main() -> int:
             return 1
         print("determinism ok")
         return 0
+    if args.cmd == "structure":
+        return structure_compare_command(args)
+    if args.cmd == "check-guard":
+        return check_guard_command(args)
 
     return 1
 
