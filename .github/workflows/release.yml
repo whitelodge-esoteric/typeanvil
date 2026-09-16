@@ -249,6 +249,10 @@ jobs:
           for target in "${!PKG[@]}"; do
             tar -xzf "dist/typeanvil-$VERSION-$target.tar.gz"
             dir="npm/${PKG[$target]}"
+            # The platform packages track only package.json: the binary is
+            # gitignored, so bin/ does not exist in a fresh checkout.
+            # Create it before install, or the publish job fails here.
+            mkdir -p "$dir/bin"
             install -m 0755 "typeanvil-$VERSION-$target/typeanvil" "$dir/bin/typeanvil"
           done
           # Stamp version = tag in every package.json (Behavior 3), plus the
