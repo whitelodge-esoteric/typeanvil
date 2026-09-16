@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-09-08
-updated: 2026-09-15
+updated: 2026-09-16
 sidebar_position: 6
 tags: [demo, showcase, print-resolution, gallery]
 spec_id: showcase-render
@@ -173,6 +173,10 @@ is not a diff target).
   report 1.69). Still roughly 5× under the cap, so no page caps, no JPEG
   conversion, and no palette reduction were needed.
 - **Engine facts this spec relies on** (verified during implementation):
+- CORE-216: `docs/operations/visual-qa.md` runs the four geometry
+  checks over showcase renders; the inspection page (CORE-217) feeds both
+  TypeAnvil and Prince sides into the same checks.
+
   fixture-internal `@page { margin }` wins over CLI `--margin-*` (the
   poster renders full-bleed under shared CLI flags); `content: ... leader()
   target-counter()` pieces on TOC anchors require `display: block`;

@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-17
-updated: 2026-09-15
+updated: 2026-09-16
 sidebar_position: 5
 tags: [demo, comparison, prince, gallery, pipeline]
 spec_id: visual-comparison-demo
@@ -298,3 +298,7 @@ Each maps to a real check in `scripts/build-demo.sh` or a committed artifact:
 5. CORE-72: baseline gallery + scoreboard committed; every doc bucketed
    (identical/cosmetic/missing-feature/engine-bug); genuine engine bugs filed
    as follow-up CORE-* issues with gallery pages as evidence.
+6. CORE-216: `docs/operations/visual-qa.md` runs the four geometry
+   checks (overlap, overflow, text round-trip, declared-fill) over the
+   rendered corpus pages; both engines are checked per fixture.
+
