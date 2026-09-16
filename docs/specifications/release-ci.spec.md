@@ -4,7 +4,7 @@ type: spec
 status: in-review
 owner: Elijah Boston
 created: 2026-09-03
-updated: 2026-09-03
+updated: 2026-09-16
 slug: /specifications/release-ci
 sidebar_position: 45
 tags: [release, ci, distribution, core-135, calver]
@@ -32,7 +32,10 @@ pipeline, so this ticket gates both.
 
 ## Non-Goals
 
-- No npm publish or Homebrew tap update in this workflow (CORE-136/137).
+- No Homebrew tap update in this workflow (CORE-137). The sibling npm publish
+  job was added later by CORE-136 (SPEC-CORE-136-npm-distribution); it stays a
+  separate job and publishes only when the `NPM_TOKEN` secret is present, so
+  the binary release never depends on it.
 - No macOS signing or notarization (CORE-138 decides that).
 - No `latest` moving tag management beyond what GitHub Releases provides.
 
