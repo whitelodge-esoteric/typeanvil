@@ -462,304 +462,16 @@ pub fn render_with_options(
             }
         }
 
-        // Two passes over the fragment tree so backgrounds sit under text.
-        // Each collected item carries its OWNER: the nearest ancestor
-        // fragment with a source DOM node (CORE-111). Unsourced items are
-        // artifacts (margin boxes) or page chrome.
-        let mut backgrounds: Vec<(f32, f32, f32, f32, Color, Option<NodeId>)> = Vec::new();
-        let mut borders: Vec<(
-            f32,
-            f32,
-            f32,
-            f32,
-            f32,
-            f32,
-            f32,
-            f32,
-            Color,
-            Option<NodeId>,
-        )> = Vec::new();
-        let mut texts: Vec<TextItem> = Vec::new();
-        // (x, y, w, h, store key, owner) — the rect is the fragment's own size.
-        let mut images: Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)> = Vec::new();
-        // Tiled background images, drawn after solid backgrounds and before
-        // borders (css-backgrounds-3 §2.1 painting order). Same shape as
-        // `images`; the rect is the border box the tiles cover.
-        let mut bg_images: Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)> = Vec::new();
-        collect(
-            &page.root,
-            0.0,
-            0.0,
-            None,
-            &mut backgrounds,
-            &mut borders,
-            &mut texts,
-            &mut images,
-            &mut bg_images,
-        );
-
-        for (x, y, w, h, color, owner) in &backgrounds {
-            // A degenerate (zero/negative) rect is skipped, not fatal
-            // (CORE-139: grid auto-tracks can size to 0 for empty cells; a
-            // background on such a cell must not abort the whole render).
-            // NaN fails every comparison, so test it explicitly — a NaN
-            // coordinate (abspos + break-before combo, page-margin-004) must
-            // skip like a degenerate rect, never abort the render.
-            if !w.is_finite() || !h.is_finite() || !x.is_finite() || !y.is_finite() {
-                continue;
-            }
-            if *w <= 0.0 || *h <= 0.0 {
-                continue;
-            }
-            let rect =
-                Rect::from_xywh(*x, *y, *w, *h).ok_or_else(|| anyhow!("invalid background rect"))?;
-            let mut pb = krilla::geom::PathBuilder::new();
-            pb.push_rect(rect);
-            if let Some(path) = pb.finish() {
-                surface.set_fill(Some(solid_fill(*color)));
-                if tagged {
-                    let ident = surface.start_tagged(tag_for_owner(*owner));
-                    surface.draw_path(&path);
-                    surface.end_tagged();
-                    record_draw(&mut draws, page_idx, ident, *owner);
-                } else {
-                    surface.draw_path(&path);
-                }
-            }
-        }
-
-        // Tiled background images: after solid backgrounds, before borders
-        // (css-backgrounds-3 §2.1 order). Each tile is drawn at the image's
-        // natural size from the box's top-left (default background-position
-        // 0% 0%), clipped to the border box so an edge tile never bleeds into
-        // a neighbouring box. Broken images carry no payload and paint
-        // nothing.
-        for (x, y, w, h, key, owner) in &bg_images {
-            if !x.is_finite() || !y.is_finite() || !w.is_finite() || !h.is_finite() {
-                continue;
-            }
-            if *w <= 0.0 || *h <= 0.0 {
-                continue;
-            }
-            let Some(stored) = layout.images.get(key) else {
-                continue;
-            };
-            let crate::images::ImageEntry::Loaded(img) = stored else {
-                continue;
-            };
-            let tile_w = img.width_px as f32 * 0.75;
-            let tile_h = img.height_px as f32 * 0.75;
-            if tile_w <= 0.0 || tile_h <= 0.0 {
-                continue;
-            }
-            let raw = krilla::Data::from(img.original.clone());
-            let kimg = match img.kind {
-                crate::images::ImageKind::Png => krilla::image::Image::from_png(raw, false),
-                crate::images::ImageKind::Jpeg => krilla::image::Image::from_jpeg(raw, false),
-                // CORE-131: SVG is rasterized to PNG at intern time; the
-                // `original` bytes already carry the raster.
-                crate::images::ImageKind::Svg => krilla::image::Image::from_png(raw, false),
-            };
-            let Ok(kimg) = kimg else {
-                continue;
-            };
-            // Clip once to the border box: a partial edge tile shows the
-            // tile's own top-left portion at natural scale — exactly what
-            // clipped repeat produces.
-            let Some(rect) = Rect::from_xywh(*x, *y, *w, *h) else {
-                continue;
-            };
-            let mut clip = krilla::geom::PathBuilder::new();
-            clip.push_rect(rect);
-            let Some(clip_path) = clip.finish() else {
-                continue;
-            };
-            surface.push_clip_path(&clip_path, &FillRule::NonZero);
-            let cols = (*w / tile_w).ceil() as i32;
-            let rows = (*h / tile_h).ceil() as i32;
-            for row in 0..rows {
-                let ty = *y + row as f32 * tile_h;
-                for col in 0..cols {
-                    let tx = *x + col as f32 * tile_w;
-                    let Some(size) = krilla::geom::Size::from_wh(tile_w, tile_h) else {
-                        continue;
-                    };
-                    surface.push_transform(&krilla::geom::Transform::from_row(
-                        1.0, 0.0, 0.0, 1.0, tx, ty,
-                    ));
-                    if tagged {
-                        let ident = surface.start_tagged(tag_for_owner(*owner));
-                        surface.draw_image(kimg.clone(), size);
-                        surface.end_tagged();
-                        record_draw(&mut draws, page_idx, ident, *owner);
-                    } else {
-                        surface.draw_image(kimg.clone(), size);
-                    }
-                    surface.pop();
-                }
-            }
-            surface.pop();
-        }
-
-        // Borders after backgrounds, before text: stroke each side whose
-        // width > 0 as a thin filled rect (deterministic, no stroke state).
-        for (x, y, w, h, t, r, b, l, color, owner) in &borders {
-            let fill = solid_fill(*color);
-            let mut sides: Vec<(f32, f32, f32, f32)> = Vec::new();
-            if *t > 0.0 {
-                sides.push((*x, *y, *w, *t));
-            }
-            if *b > 0.0 {
-                sides.push((*x, *y + h - b, *w, *b));
-            }
-            if *l > 0.0 {
-                sides.push((*x, *y, *l, *h));
-            }
-            if *r > 0.0 {
-                sides.push((*x + w - r, *y, *r, *h));
-            }
-            if !tagged {
-                for (px, py, pw, ph) in &sides {
-                    if pw <= &0.0 || ph <= &0.0 {
-                        continue;
-                    }
-                    if let Some(rect) = Rect::from_xywh(*px, *py, *pw, *ph) {
-                        let mut pb = krilla::geom::PathBuilder::new();
-                        pb.push_rect(rect);
-                        if let Some(path) = pb.finish() {
-                            surface.set_fill(Some(fill.clone()));
-                            surface.draw_path(&path);
-                        }
-                    }
-                }
-            } else if sides.is_empty() {
-                continue;
-            } else {
-                // One marked-content sequence wraps ALL border sides of the
-                // box — they are one logical graphic.
-                let ident = surface.start_tagged(tag_for_owner(*owner));
-                for (px, py, pw, ph) in &sides {
-                    if *pw <= 0.0 || *ph <= 0.0 {
-                        continue;
-                    }
-                    if let Some(rect) = Rect::from_xywh(*px, *py, *pw, *ph) {
-                        let mut pb = krilla::geom::PathBuilder::new();
-                        pb.push_rect(rect);
-                        if let Some(path) = pb.finish() {
-                            surface.set_fill(Some(fill.clone()));
-                            surface.draw_path(&path);
-                        }
-                    }
-                }
-                surface.end_tagged();
-                record_draw(&mut draws, page_idx, ident, *owner);
-            }
-        }
-
-        // Images after backgrounds/borders, before text (CORE-106). The
-        // fragment rect IS the used box: CSS sizing was applied at layout
-        // time, so draw at exactly that size. Broken images carry no Image
-        // payload bytes and are skipped here; their alt text rides the
-        // normal text pass as a child line of the placeholder fragment.
-        // Each krilla `Image` is built once per unique content key per page;
-        // krilla dedupes embedded objects by its own content hash.
-        for (x, y, w, h, key, owner) in &images {
-            let Some(stored) = layout.images.get(key) else {
-                continue;
-            };
-            let crate::images::ImageEntry::Loaded(img) = stored else {
-                continue;
-            };
-            if *w <= 0.0 || *h <= 0.0 {
-                continue;
-            }
-            let Some(size) = krilla::geom::Size::from_wh(*w, *h) else {
-                continue;
-            };
-            let raw = krilla::Data::from(img.original.clone());
-            let kimg = match img.kind {
-                // CORE-131: SVG is rasterized to PNG at intern time (see
-                // images.rs); `original` already carries the PNG raster.
-                crate::images::ImageKind::Png => krilla::image::Image::from_png(raw, false),
-                crate::images::ImageKind::Jpeg => krilla::image::Image::from_jpeg(raw, false),
-                crate::images::ImageKind::Svg => krilla::image::Image::from_png(raw, false),
-            };
-            let Ok(kimg) = kimg else {
-                continue;
-            };
-            surface.push_transform(&krilla::geom::Transform::from_row(
-                1.0, 0.0, 0.0, 1.0, *x, *y,
-            ));
-            if tagged {
-                let ident = surface.start_tagged(tag_for_owner(*owner));
-                surface.draw_image(kimg, size);
-                surface.end_tagged();
-                record_draw(&mut draws, page_idx, ident, *owner);
-            } else {
-                surface.draw_image(kimg, size);
-            }
-            surface.pop();
-        }
-
-        for t in &texts {
-            let font = font_for(t.font_face)?;
-            surface.set_fill(Some(solid_fill(t.color)));
-            if tagged && t.owner.is_some() {
-                let ident = surface.start_tagged(tag_for_owner(t.owner));
-                if t.glyphs.is_empty() {
-                    // Fallback text path (empty run — nothing shaped). All
-                    // normal runs — body text, generated content, margin
-                    // boxes — carry shaped glyphs (CORE-85, CORE-83).
-                    surface.draw_text(
-                        Point::from_xy(t.x, t.y),
-                        font.clone(),
-                        t.font_size,
-                        &t.text,
-                        false,
-                        TextDirection::Auto,
-                    );
-                } else {
-                    // Main text: shaped glyphs, with the typography layer's
-                    // protrusion (hang into the margin) and per-line expansion
-                    // (scale every advance by 1+expansion) applied at draw
-                    // time.
-                    let glyphs: Vec<KrillaGlyph> =
-                        to_krilla_glyphs(&t.glyphs, t.font_size, t.expansion, t.protrude_right);
-                    surface.draw_glyphs(
-                        Point::from_xy(t.x - t.protrude_left, t.y),
-                        &glyphs,
-                        font.clone(),
-                        &t.text,
-                        t.font_size,
-                        false,
-                    );
-                }
-                surface.end_tagged();
-                record_draw(&mut draws, page_idx, ident, t.owner);
-            } else {
-                if t.glyphs.is_empty() {
-                    surface.draw_text(
-                        Point::from_xy(t.x, t.y),
-                        font.clone(),
-                        t.font_size,
-                        &t.text,
-                        false,
-                        TextDirection::Auto,
-                    );
-                } else {
-                    let glyphs: Vec<KrillaGlyph> =
-                        to_krilla_glyphs(&t.glyphs, t.font_size, t.expansion, t.protrude_right);
-                    surface.draw_glyphs(
-                        Point::from_xy(t.x - t.protrude_left, t.y),
-                        &glyphs,
-                        font.clone(),
-                        &t.text,
-                        t.font_size,
-                        false,
-                    );
-                }
-            }
-        }
+        // Build the document's paint groups (CORE-202): each in-flow
+        // flex/grid item with a computed z-index opens its own stacking-
+        // context group, painted as one unit in (z-index, tree order). A
+        // document with no such items degrades to today's flat five-pass
+        // paint exactly. Each collected item carries its OWNER: the nearest
+        // ancestor fragment with a source DOM node (CORE-111); unsourced
+        // items are artifacts or page chrome.
+        let mut root_group = PaintGroup::new(None);
+        collect(&page.root, 0.0, 0.0, None, &mut root_group);
+        paint_group(&mut surface, layout, &root_group, tagged, &mut draws, page_idx)?;
 
 
         // css-page-3 §3.1 page-margin boxes, phase 2: z-index `auto`/0 and
@@ -989,6 +701,117 @@ struct TextItem {
     owner: Option<NodeId>,
 }
 
+/// Flat pre-order collection for page-margin boxes (CORE-179 path, unchanged).
+/// Margin boxes are their own stacking contexts painted as one unit, so they
+/// use the five flat lists directly rather than the document-content paint
+/// groups. `owner` threads the nearest sourced ancestor (CORE-111).
+fn collect_flat(
+    frag: &Fragment,
+    parent_x: f32,
+    parent_y: f32,
+    owner: Option<NodeId>,
+    backgrounds: &mut Vec<(f32, f32, f32, f32, Color, Option<NodeId>)>,
+    borders: &mut Vec<(
+        f32,
+        f32,
+        f32,
+        f32,
+        f32,
+        f32,
+        f32,
+        f32,
+        Color,
+        Option<NodeId>,
+    )>,
+    texts: &mut Vec<TextItem>,
+    images: &mut Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)>,
+    bg_images: &mut Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)>,
+) {
+    let abs_x = parent_x + frag.offset.x.to_f32();
+    let abs_y = parent_y + frag.offset.y.to_f32();
+    // The owner for THIS fragment's own paint and its children's default:
+    // its source when it has one, else the inherited owner.
+    let my_owner = frag.source.or(owner);
+
+    match &frag.content {
+        FragmentContent::Background(color) => {
+            backgrounds.push((
+                abs_x,
+                abs_y,
+                frag.size.0.to_f32(),
+                frag.size.1.to_f32(),
+                *color,
+                my_owner,
+            ));
+        }
+        FragmentContent::Border(b) => {
+            borders.push((
+                abs_x,
+                abs_y,
+                frag.size.0.to_f32(),
+                frag.size.1.to_f32(),
+                b.top.to_f32(),
+                b.right.to_f32(),
+                b.bottom.to_f32(),
+                b.left.to_f32(),
+                b.color,
+                my_owner,
+            ));
+        }
+        FragmentContent::Text(run) => {
+            // The run's baseline is parent-relative; rebase off the same parent.
+            texts.push(TextItem {
+                x: parent_x + run.baseline.x.to_f32(),
+                y: parent_y + run.baseline.y.to_f32(),
+                font_size: run.font_size.to_f32(),
+                color: run.color,
+                font_face: run.font_face,
+                text: run.text.clone(),
+                glyphs: run.glyphs.clone(),
+                expansion: run.expansion as f32,
+                protrude_left: run.protrude_left.to_f32(),
+                protrude_right: run.protrude_right.to_f32(),
+                owner: my_owner,
+            });
+        }
+        FragmentContent::Image(run) => {
+            images.push((
+                abs_x,
+                abs_y,
+                frag.size.0.to_f32(),
+                frag.size.1.to_f32(),
+                run.key,
+                my_owner,
+            ));
+        }
+        FragmentContent::BackgroundImage(run) => {
+            bg_images.push((
+                abs_x,
+                abs_y,
+                frag.size.0.to_f32(),
+                frag.size.1.to_f32(),
+                run.key,
+                my_owner,
+            ));
+        }
+        FragmentContent::None => {}
+    }
+
+    for child in &frag.children {
+        collect_flat(
+            child,
+            abs_x,
+            abs_y,
+            my_owner,
+            backgrounds,
+            borders,
+            texts,
+            images,
+            bg_images,
+        );
+    }
+}
+
 /// Paint ONE page-margin box as a unit (css-page-3 §3.1).
 ///
 /// A margin box is its own stacking context, so its background, border and
@@ -1023,7 +846,7 @@ fn paint_margin_box(
     )> = Vec::new();
     let mut images: Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)> = Vec::new();
     let mut texts: Vec<TextItem> = Vec::new();
-    collect(
+    collect_flat(
         fragment,
         0.0,
         0.0,
@@ -1245,51 +1068,86 @@ fn paint_margin_box(
     Ok(())
 }
 
-/// Pre-order walk accumulating absolute offsets from parent-relative fragment
-/// geometry. Backgrounds (block fills) are collected before text so paint order
-/// is backgrounds-under-text within each page. `owner` threads the nearest
-/// ancestor with a source DOM node down the tree (CORE-111 attribution).
-fn collect(
+/// (x, y, w, h, color, owner) — one solid background fill.
+type BackgroundItem = (f32, f32, f32, f32, Color, Option<NodeId>);
+/// (x, y, w, h, t, r, b, l, color, owner) — one border box.
+type BorderItem = (
+    f32,
+    f32,
+    f32,
+    f32,
+    f32,
+    f32,
+    f32,
+    f32,
+    Color,
+    Option<NodeId>,
+);
+/// (x, y, w, h, store key, owner) — one replaced image or background image.
+type ImageItem = (f32, f32, f32, f32, [u8; 32], Option<NodeId>);
+
+/// One in-flow stacking-context paint group (CORE-202).
+///
+/// A group's own flat lists carry the CONTEXT's ordinary content in tree
+/// order; its `subgroups` are keyed child contexts (flex/grid items with
+/// `z-index`), each painted as a unit in (z_index, tree order).
+struct PaintGroup {
+    /// `Some(z)` for a keyed child context; `None` for the root (ordinary
+    /// in-flow fragments never get a subgroup at all).
+    z_index: Option<i32>,
+    backgrounds: Vec<BackgroundItem>,
+    bg_images: Vec<ImageItem>,
+    borders: Vec<BorderItem>,
+    images: Vec<ImageItem>,
+    texts: Vec<TextItem>,
+    /// Keyed child contexts in tree (construction) order; the emitter sorts
+    /// them by (z_index, tree order) when painting.
+    subgroups: Vec<PaintGroup>,
+}
+
+impl PaintGroup {
+    fn new(z_index: Option<i32>) -> PaintGroup {
+        PaintGroup {
+            z_index,
+            backgrounds: Vec::new(),
+            bg_images: Vec::new(),
+            borders: Vec::new(),
+            images: Vec::new(),
+            texts: Vec::new(),
+            subgroups: Vec::new(),
+        }
+    }
+}
+
+/// True when `frag` carries any renderable payload of its own.
+fn has_paint(frag: &Fragment) -> bool {
+    !matches!(&frag.content, FragmentContent::None)
+}
+
+/// Push ONE fragment's own payload into a group (CORE-202). Identical to the
+/// old flat-list `collect` body: coordinates and owner propagation unchanged.
+fn push_content(
     frag: &Fragment,
     parent_x: f32,
     parent_y: f32,
+    abs_x: f32,
+    abs_y: f32,
     owner: Option<NodeId>,
-    backgrounds: &mut Vec<(f32, f32, f32, f32, Color, Option<NodeId>)>,
-    borders: &mut Vec<(
-        f32,
-        f32,
-        f32,
-        f32,
-        f32,
-        f32,
-        f32,
-        f32,
-        Color,
-        Option<NodeId>,
-    )>,
-    texts: &mut Vec<TextItem>,
-    images: &mut Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)>,
-    bg_images: &mut Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)>,
+    group: &mut PaintGroup,
 ) {
-    let abs_x = parent_x + frag.offset.x.to_f32();
-    let abs_y = parent_y + frag.offset.y.to_f32();
-    // The owner for THIS fragment's own paint and its children's default:
-    // its source when it has one, else the inherited owner.
-    let my_owner = frag.source.or(owner);
-
     match &frag.content {
         FragmentContent::Background(color) => {
-            backgrounds.push((
+            group.backgrounds.push((
                 abs_x,
                 abs_y,
                 frag.size.0.to_f32(),
                 frag.size.1.to_f32(),
                 *color,
-                my_owner,
+                owner,
             ));
         }
         FragmentContent::Border(b) => {
-            borders.push((
+            group.borders.push((
                 abs_x,
                 abs_y,
                 frag.size.0.to_f32(),
@@ -1299,12 +1157,12 @@ fn collect(
                 b.bottom.to_f32(),
                 b.left.to_f32(),
                 b.color,
-                my_owner,
+                owner,
             ));
         }
         FragmentContent::Text(run) => {
             // The run's baseline is parent-relative; rebase off the same parent.
-            texts.push(TextItem {
+            group.texts.push(TextItem {
                 x: parent_x + run.baseline.x.to_f32(),
                 y: parent_y + run.baseline.y.to_f32(),
                 font_size: run.font_size.to_f32(),
@@ -1315,45 +1173,368 @@ fn collect(
                 expansion: run.expansion as f32,
                 protrude_left: run.protrude_left.to_f32(),
                 protrude_right: run.protrude_right.to_f32(),
-                owner: my_owner,
+                owner,
             });
         }
         FragmentContent::Image(run) => {
-            images.push((
+            group.images.push((
                 abs_x,
                 abs_y,
                 frag.size.0.to_f32(),
                 frag.size.1.to_f32(),
                 run.key,
-                my_owner,
+                owner,
             ));
         }
         FragmentContent::BackgroundImage(run) => {
-            bg_images.push((
+            group.bg_images.push((
                 abs_x,
                 abs_y,
                 frag.size.0.to_f32(),
                 frag.size.1.to_f32(),
                 run.key,
-                my_owner,
+                owner,
             ));
         }
         FragmentContent::None => {}
     }
+}
 
-    for child in &frag.children {
-        collect(
-            child,
-            abs_x,
-            abs_y,
-            my_owner,
-            backgrounds,
-            borders,
-            texts,
-            images,
-            bg_images,
-        );
+/// Pre-order walk accumulating absolute offsets from parent-relative fragment
+/// geometry, into a paint-group tree (CORE-202). Each keyed fragment (an
+/// in-flow flex/grid item with a computed `z-index`) opens its OWN child
+/// group: its own payload and whole subtree paint as one unit, ordered
+/// against sibling units by (z_index, tree order). `owner` threads the
+/// nearest ancestor with a source DOM node down the tree (CORE-111).
+fn collect(
+    frag: &Fragment,
+    parent_x: f32,
+    parent_y: f32,
+    owner: Option<NodeId>,
+    group: &mut PaintGroup,
+) {
+    let abs_x = parent_x + frag.offset.x.to_f32();
+    let abs_y = parent_y + frag.offset.y.to_f32();
+    // The owner for THIS fragment's own paint and its children's default:
+    // its source when it has one, else the inherited owner.
+    let my_owner = frag.source.or(owner);
+
+    if let Some(z) = frag.z_index {
+        // A keyed fragment is its own stacking-context root. An empty keyed
+        // box contributes nothing and skips the subgroup.
+        if has_paint(frag) || !frag.children.is_empty() {
+            let mut subgroup = PaintGroup::new(Some(z));
+            push_content(frag, parent_x, parent_y, abs_x, abs_y, my_owner, &mut subgroup);
+            for child in &frag.children {
+                collect(child, abs_x, abs_y, my_owner, &mut subgroup);
+            }
+            // Pushed in tree order; the emitter sorts by z and keeps this
+            // order for ties.
+            group.subgroups.push(subgroup);
+        }
+        return;
     }
+
+    push_content(frag, parent_x, parent_y, abs_x, abs_y, my_owner, group);
+    for child in &frag.children {
+        collect(child, abs_x, abs_y, my_owner, group);
+    }
+}
+
+/// Paint one [`PaintGroup`] as a unit: its own flat content in the page-wide
+/// phase order (backgrounds, background images, borders, images, text), then
+/// its keyed child contexts in CSS2.1 Appendix E order — negative ascending,
+/// zero in tree order, positive ascending.
+fn paint_group(
+    surface: &mut krilla::surface::Surface<'_>,
+    layout: &Layout,
+    group: &PaintGroup,
+    tagged: bool,
+    draws: &mut Vec<crate::tags::DrawRef>,
+    page_idx: usize,
+) -> Result<()> {
+    for (x, y, w, h, color, owner) in &group.backgrounds {
+        // A degenerate (zero/negative) rect is skipped, not fatal
+        // (CORE-139: grid auto-tracks can size to 0 for empty cells; a
+        // background on such a cell must not abort the whole render).
+        // NaN fails every comparison, so test it explicitly — a NaN
+        // coordinate (abspos + break-before combo, page-margin-004) must
+        // skip like a degenerate rect, never abort the render.
+        if !w.is_finite() || !h.is_finite() || !x.is_finite() || !y.is_finite() {
+            continue;
+        }
+        if *w <= 0.0 || *h <= 0.0 {
+            continue;
+        }
+        let rect =
+            Rect::from_xywh(*x, *y, *w, *h).ok_or_else(|| anyhow!("invalid background rect"))?;
+        let mut pb = krilla::geom::PathBuilder::new();
+        pb.push_rect(rect);
+        if let Some(path) = pb.finish() {
+            surface.set_fill(Some(solid_fill(*color)));
+            if tagged {
+                let ident = surface.start_tagged(tag_for_owner(*owner));
+                surface.draw_path(&path);
+                surface.end_tagged();
+                record_draw(draws, page_idx, ident, *owner);
+            } else {
+                surface.draw_path(&path);
+            }
+        }
+    }
+
+    // Tiled background images: after solid backgrounds, before borders
+    // (css-backgrounds-3 §2.1 order). Each tile is drawn at the image's
+    // natural size from the box's top-left (default background-position
+    // 0% 0%), clipped to the border box so an edge tile never bleeds into
+    // a neighbouring box. Broken images carry no payload and paint nothing.
+    for (x, y, w, h, key, owner) in &group.bg_images {
+        if !x.is_finite() || !y.is_finite() || !w.is_finite() || !h.is_finite() {
+            continue;
+        }
+        if *w <= 0.0 || *h <= 0.0 {
+            continue;
+        }
+        let Some(stored) = layout.images.get(key) else {
+            continue;
+        };
+        let crate::images::ImageEntry::Loaded(img) = stored else {
+            continue;
+        };
+        let tile_w = img.width_px as f32 * 0.75;
+        let tile_h = img.height_px as f32 * 0.75;
+        if tile_w <= 0.0 || tile_h <= 0.0 {
+            continue;
+        }
+        let raw = krilla::Data::from(img.original.clone());
+        let kimg = match img.kind {
+            crate::images::ImageKind::Png => krilla::image::Image::from_png(raw, false),
+            crate::images::ImageKind::Jpeg => krilla::image::Image::from_jpeg(raw, false),
+            // CORE-131: SVG is rasterized to PNG at intern time; the
+            // `original` bytes already carry the raster.
+            crate::images::ImageKind::Svg => krilla::image::Image::from_png(raw, false),
+        };
+        let Ok(kimg) = kimg else {
+            continue;
+        };
+        // Clip once to the border box: a partial edge tile shows the
+        // tile's own top-left portion at natural scale — exactly what
+        // clipped repeat produces.
+        let Some(rect) = Rect::from_xywh(*x, *y, *w, *h) else {
+            continue;
+        };
+        let mut clip = krilla::geom::PathBuilder::new();
+        clip.push_rect(rect);
+        let Some(clip_path) = clip.finish() else {
+            continue;
+        };
+        surface.push_clip_path(&clip_path, &FillRule::NonZero);
+        let cols = (*w / tile_w).ceil() as i32;
+        let rows = (*h / tile_h).ceil() as i32;
+        for row in 0..rows {
+            let ty = *y + row as f32 * tile_h;
+            for col in 0..cols {
+                let tx = *x + col as f32 * tile_w;
+                let Some(size) = krilla::geom::Size::from_wh(tile_w, tile_h) else {
+                    continue;
+                };
+                surface.push_transform(&krilla::geom::Transform::from_row(
+                    1.0, 0.0, 0.0, 1.0, tx, ty,
+                ));
+                if tagged {
+                    let ident = surface.start_tagged(tag_for_owner(*owner));
+                    surface.draw_image(kimg.clone(), size);
+                    surface.end_tagged();
+                    record_draw(draws, page_idx, ident, *owner);
+                } else {
+                    surface.draw_image(kimg.clone(), size);
+                }
+                surface.pop();
+            }
+        }
+        surface.pop();
+    }
+
+    // Borders after backgrounds, before text: stroke each side whose
+    // width > 0 as a thin filled rect (deterministic, no stroke state).
+    for (x, y, w, h, t, r, b, l, color, owner) in &group.borders {
+        let fill = solid_fill(*color);
+        let mut sides: Vec<(f32, f32, f32, f32)> = Vec::new();
+        if *t > 0.0 {
+            sides.push((*x, *y, *w, *t));
+        }
+        if *b > 0.0 {
+            sides.push((*x, *y + h - b, *w, *b));
+        }
+        if *l > 0.0 {
+            sides.push((*x, *y, *l, *h));
+        }
+        if *r > 0.0 {
+            sides.push((*x + w - r, *y, *r, *h));
+        }
+        if !tagged {
+            for (px, py, pw, ph) in &sides {
+                if pw <= &0.0 || ph <= &0.0 {
+                    continue;
+                }
+                if let Some(rect) = Rect::from_xywh(*px, *py, *pw, *ph) {
+                    let mut pb = krilla::geom::PathBuilder::new();
+                    pb.push_rect(rect);
+                    if let Some(path) = pb.finish() {
+                        surface.set_fill(Some(fill.clone()));
+                        surface.draw_path(&path);
+                    }
+                }
+            }
+        } else if sides.is_empty() {
+            continue;
+        } else {
+            // One marked-content sequence wraps ALL border sides of the
+            // box — they are one logical graphic.
+            let ident = surface.start_tagged(tag_for_owner(*owner));
+            for (px, py, pw, ph) in &sides {
+                if *pw <= 0.0 || *ph <= 0.0 {
+                    continue;
+                }
+                if let Some(rect) = Rect::from_xywh(*px, *py, *pw, *ph) {
+                    let mut pb = krilla::geom::PathBuilder::new();
+                    pb.push_rect(rect);
+                    if let Some(path) = pb.finish() {
+                        surface.set_fill(Some(fill.clone()));
+                        surface.draw_path(&path);
+                    }
+                }
+            }
+            surface.end_tagged();
+            record_draw(draws, page_idx, ident, *owner);
+        }
+    }
+
+    // Images after backgrounds/borders, before text (CORE-106). The
+    // fragment rect IS the used box: CSS sizing was applied at layout time,
+    // so draw at exactly that size. Broken images carry no Image payload
+    // bytes and are skipped here; their alt text rides the normal text pass
+    // as a child line of the placeholder fragment. Each krilla `Image` is
+    // built once per unique content key per page; krilla dedupes embedded
+    // objects by its own content hash.
+    for (x, y, w, h, key, owner) in &group.images {
+        let Some(stored) = layout.images.get(key) else {
+            continue;
+        };
+        let crate::images::ImageEntry::Loaded(img) = stored else {
+            continue;
+        };
+        if *w <= 0.0 || *h <= 0.0 {
+            continue;
+        }
+        let Some(size) = krilla::geom::Size::from_wh(*w, *h) else {
+            continue;
+        };
+        let raw = krilla::Data::from(img.original.clone());
+        let kimg = match img.kind {
+            // CORE-131: SVG is rasterized to PNG at intern time (see
+            // images.rs); `original` already carries the PNG raster.
+            crate::images::ImageKind::Png => krilla::image::Image::from_png(raw, false),
+            crate::images::ImageKind::Jpeg => krilla::image::Image::from_jpeg(raw, false),
+            crate::images::ImageKind::Svg => krilla::image::Image::from_png(raw, false),
+        };
+        let Ok(kimg) = kimg else {
+            continue;
+        };
+        surface.push_transform(&krilla::geom::Transform::from_row(
+            1.0, 0.0, 0.0, 1.0, *x, *y,
+        ));
+        if tagged {
+            let ident = surface.start_tagged(tag_for_owner(*owner));
+            surface.draw_image(kimg, size);
+            surface.end_tagged();
+            record_draw(draws, page_idx, ident, *owner);
+        } else {
+            surface.draw_image(kimg, size);
+        }
+        surface.pop();
+    }
+
+    for t in &group.texts {
+        let font = font_for(t.font_face)?;
+        surface.set_fill(Some(solid_fill(t.color)));
+        if tagged && t.owner.is_some() {
+            let ident = surface.start_tagged(tag_for_owner(t.owner));
+            if t.glyphs.is_empty() {
+                // Fallback text path (empty run — nothing shaped). All
+                // normal runs — body text, generated content, margin
+                // boxes — carry shaped glyphs (CORE-85, CORE-83).
+                surface.draw_text(
+                    Point::from_xy(t.x, t.y),
+                    font.clone(),
+                    t.font_size,
+                    &t.text,
+                    false,
+                    TextDirection::Auto,
+                );
+            } else {
+                // Main text: shaped glyphs, with the typography layer's
+                // protrusion (hang into the margin) and per-line expansion
+                // (scale every advance by 1+expansion) applied at draw time.
+                let glyphs: Vec<KrillaGlyph> =
+                    to_krilla_glyphs(&t.glyphs, t.font_size, t.expansion, t.protrude_right);
+                surface.draw_glyphs(
+                    Point::from_xy(t.x - t.protrude_left, t.y),
+                    &glyphs,
+                    font.clone(),
+                    &t.text,
+                    t.font_size,
+                    false,
+                );
+            }
+            surface.end_tagged();
+            record_draw(draws, page_idx, ident, t.owner);
+        } else {
+            if t.glyphs.is_empty() {
+                surface.draw_text(
+                    Point::from_xy(t.x, t.y),
+                    font.clone(),
+                    t.font_size,
+                    &t.text,
+                    false,
+                    TextDirection::Auto,
+                );
+            } else {
+                let glyphs: Vec<KrillaGlyph> =
+                    to_krilla_glyphs(&t.glyphs, t.font_size, t.expansion, t.protrude_right);
+                surface.draw_glyphs(
+                    Point::from_xy(t.x - t.protrude_left, t.y),
+                    &glyphs,
+                    font.clone(),
+                    &t.text,
+                    t.font_size,
+                    false,
+                );
+            }
+        }
+    }
+
+    // Keyed child contexts (CORE-202): negative ascending, then zero in tree
+    // order, then positive ascending. The stable sort keeps tree order for
+    // equal z (tree order is already the construction order in `subgroups`).
+    let mut neg: Vec<usize> = Vec::new();
+    let mut zero: Vec<usize> = Vec::new();
+    let mut pos: Vec<usize> = Vec::new();
+    for (i, sg) in group.subgroups.iter().enumerate() {
+        match sg.z_index {
+            Some(z) if z < 0 => neg.push(i),
+            Some(0) => zero.push(i),
+            Some(_) => pos.push(i),
+            None => zero.push(i),
+        }
+    }
+    neg.sort_by_key(|&i| group.subgroups[i].z_index.unwrap_or(0));
+    pos.sort_by_key(|&i| group.subgroups[i].z_index.unwrap_or(0));
+    for &i in neg.iter().chain(zero.iter()).chain(pos.iter()) {
+        paint_group(surface, layout, &group.subgroups[i], tagged, draws, page_idx)?;
+    }
+
+    Ok(())
 }
 
 /// Add one link annotation for `pl`. In tagged mode the annotation is bound

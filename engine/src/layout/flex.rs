@@ -275,6 +275,12 @@ impl<'a> Ctx<'a> {
         // Grow/shrink resolution (nowrap only; wrap packs raw bases): free
         // space is distributed ∝ flex-grow; overflow is absorbed ∝
         // flex-shrink × base, floored at zero (min-content floors deferred).
+        // The free space counts flex BASE sizes only (css-flexbox-1 §9.7):
+        // the block path applies each item's margins internally (an
+        // auto-width box fills container-minus-margins and offsets by
+        // margin-left), so including margins here would shrink the grown
+        // box twice (CORE-202: page-margin-auto-and-non-zero's ref needs
+        // the single-application form).
         let total_main: f64 = items.iter().map(|i| i.main_size.get()).sum();
         let gaps_total = gap.get() * (items.len().saturating_sub(1) as f64);
         let free = inner_width.get() - total_main - gaps_total;
@@ -307,13 +313,22 @@ impl<'a> Ctx<'a> {
 
         // Pack items into lines. Greedy wrap: an item that does not fit the
         // remaining main size starts a new line; a lone item always fits
-        // (overflow is placed, never dropped).
+        // (overflow is placed, never dropped). The line cursor advances by
+        // each item's OUTER size (main size + main-axis margins): a
+        // negative margin overlaps the previous item, which the refs'
+        // edges rely on (CORE-202). Placement hands the block path the
+        // OUTER start; the block path applies the item's own margins
+        // internally.
+        let outer_main = |it: &FlexItem| {
+            let st = &self.styles[it.id];
+            it.main_size.get() + st.margin_left.get() + st.margin_right.get()
+        };
         let mut lines: Vec<FlexLine> = Vec::new();
         if !items.is_empty() {
             let mut cur = FlexLine::new();
             let mut cursor = 0.0f64;
             for (i, item) in items.iter().enumerate() {
-                let size = item.main_size.get();
+                let size = outer_main(item);
                 if wrap && !cur.items.is_empty() && cursor + gap.get() + size > inner_width.get() {
                     lines.push(cur);
                     cur = FlexLine::new();
@@ -595,7 +610,9 @@ impl<'a> Ctx<'a> {
                 let item_top = line_top + cross_offset;
 
                 // Main-axis x: line offsets are measured from the line start;
-                // row-reverse mirrors the line about the container's right edge.
+                // row-reverse mirrors the line about the container's right
+                // edge. Each offset is the item's OUTER start (the block
+                // path applies the item's own margins internally).
                 let item_x = if reverse {
                     inner_left + inner_width - lines[li].offsets[k] - item.main_size
                 } else {
@@ -612,7 +629,7 @@ impl<'a> Ctx<'a> {
                     }
                 }
 
-                let res = self.layout_box(
+                let mut res = self.layout_box(
                     item.id,
                     item_x,
                     item.main_size,
@@ -622,6 +639,9 @@ impl<'a> Ctx<'a> {
                     &child_tok,
                     flow,
                 );
+                if let Some(z) = self.styles[item.id].z_index {
+                    res.fragment.z_index = Some(z);
+                }
                 if !res.empty {
                     children.push(res.fragment);
                     placed = true;
@@ -841,7 +861,7 @@ impl<'a> Ctx<'a> {
                 inner_width
             };
 
-            let res = self.layout_box(
+            let mut res = self.layout_box(
                 item.id,
                 inner_left,
                 item_width,
@@ -851,6 +871,9 @@ impl<'a> Ctx<'a> {
                 &child_tok,
                 flow,
             );
+            if let Some(z) = cstyle.z_index {
+                res.fragment.z_index = Some(z);
+            }
 
             // Propagation (css-flexbox-1 #pagination): a forced break
             // demanded by the item's own content BEFORE the item placed

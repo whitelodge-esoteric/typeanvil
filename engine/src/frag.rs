@@ -215,6 +215,13 @@ pub struct Fragment {
     /// (`target-counter`, PDF bookmarks) use this to map an element to the page
     /// its box landed on.
     pub source: Option<NodeId>,
+    /// In-flow stacking-context key (CORE-202): set by flex/grid item
+    /// placement when the item's computed `z-index` is not `auto`. The
+    /// emitter groups paint by it: each keyed fragment's whole subtree
+    /// paints as one unit, and sibling units at the same level sort by
+    /// (z_index, tree order) per CSS2.1 Appendix E / css-flexbox-1 §6.6 /
+    /// css-grid-1. `None` = ordinary in-flow content (no own context).
+    pub z_index: Option<i32>,
 }
 
 impl Fragment {
@@ -228,6 +235,7 @@ impl Fragment {
             content: FragmentContent::None,
             break_token: None,
             source: None,
+            z_index: None,
         }
     }
 
@@ -241,6 +249,7 @@ impl Fragment {
             children: Vec::new(),
             break_token: None,
             source: None,
+            z_index: None,
         }
     }
 }
@@ -465,6 +474,7 @@ impl Fragmentainer {
                 content: FragmentContent::None,
                 break_token: None,
                 source: None,
+                z_index: None,
             },
             background: None,
             page_orientation: None,

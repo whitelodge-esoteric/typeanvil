@@ -165,7 +165,12 @@ impl Ctx<'_> {
         let row_gap = style.row_gap;
 
         // Max-content share per column for auto tracks: the widest item in
-        // the column, shrink-to-fit (bounded by inner_width).
+        // the column, shrink-to-fit (bounded by inner_width). An item's
+        // max-content contribution is its CONTENT size — an empty box
+        // contributes 0, never the full available width (css-grid-1 §12.5;
+        // the generic `shrink_to_fit` returns max_width for empty content,
+        // a float-path behavior that would inflate every auto track to the
+        // container width and push later fixed tracks off-page).
         let mut auto_col_content: Vec<Scalar> = vec![Scalar::ZERO; cols.len()];
         for (ci, c) in cols.iter().enumerate() {
             if !matches!(c, TrackBreadth::Auto) {
@@ -176,7 +181,7 @@ impl Ctx<'_> {
                 if it.col == ci {
                     let item_w = self
                         .resolved_width(&self.styles[it.id], inner_width)
-                        .unwrap_or_else(|| self.shrink_to_fit(it.id, inner_width));
+                        .unwrap_or_else(|| self.content_width(it.id, inner_width));
                     if item_w.get() > w.get() {
                         w = item_w;
                     }
@@ -423,10 +428,34 @@ impl Ctx<'_> {
                 continue;
             }
             for it in placed_items.iter().filter(|it| it.row == ri) {
-                let child_tok = self.child_incoming(token, it.block_index);
+                let mut child_tok = self.child_incoming(token, it.block_index);
                 let cell_x = inner_left + col_offsets[it.col];
                 let cell_w = col_sizes[it.col];
-                let res = self.layout_box(
+                // css-grid-1 §9.3 + css-align-3 §5.4: an item whose
+                // align-self resolves to `stretch` (the default) and whose
+                // BLOCK size is auto grows to fill the row track, minus its
+                // vertical margins (CORE-202 — the paint-order refs' corner
+                // boxes are EMPTY divs that must fill their 100px rows).
+                // Mirrors flex's cross-override hand-off: auto vertical
+                // margins and a declared height keep their own size.
+                let ist = &self.styles[it.id];
+                let stretch_ok = !(ist.margin_top_auto || ist.margin_bottom_auto)
+                    && self.resolved_height(ist).is_none()
+                    && match ist.align_self {
+                        crate::css::AlignSelf::Auto => {
+                            matches!(style.align_items, crate::css::AlignItems::Stretch)
+                        }
+                        crate::css::AlignSelf::Stretch => true,
+                        _ => false,
+                    };
+                if stretch_ok && child_tok.is_break_before() {
+                    // The block path paints max(content height, override),
+                    // so handing the row track height unconditionally can
+                    // only stretch, never shrink (overflow content never
+                    // clips — same rule as flex's cross override).
+                    child_tok.cross_override = Some(row_h - ist.margin_top - ist.margin_bottom);
+                }
+                let mut res = self.layout_box(
                     it.id,
                     cell_x,
                     cell_w,
@@ -436,6 +465,9 @@ impl Ctx<'_> {
                     &child_tok,
                     flow,
                 );
+                if let Some(z) = ist.z_index {
+                    res.fragment.z_index = Some(z);
+                }
                 // Items are monolithic within their row (spec, this issue):
                 // a continuation token inside a cell is absorbed — the item
                 // content is clipped to the cell for the v1 model.
