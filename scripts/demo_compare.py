@@ -1005,6 +1005,87 @@ def check_guard_command(args: argparse.Namespace) -> int:
         return 0
 
 
+INSPECT_HEADLINE = "TypeAnvil | Prince (reference)"
+INSPECT_NOT_SCORED = (
+    "This page is NOT scored; a visual difference from Prince is a hint, "
+    "not a defect."
+)
+
+
+def render_showcase_inspect_md(
+    manifest_path: Path,
+    images_dir: Path,
+    image_prefix: str = "images",
+) -> str:
+    """Markdown inspection body: per-page TypeAnvil | Prince side-by-side.
+
+    Unstressed reference overlay (CORE-217). The showcase gallery stays
+    TypeAnvil-only; this page only places the matching Prince render beside
+    each TypeAnvil page for human inspection. There are no scores, no
+    buckets, and no failure semantics: a page-count difference is recorded,
+    never "fixed". Deterministic for the spec's byte-identity promise —
+    manifest order, sorted page names, no timestamps.
+    """
+    lines: list[str] = []
+    lines.append(f"## {INSPECT_HEADLINE} — per-page inspection (US Letter @ 300 DPI)")
+    lines.append("")
+    lines.append(f"**{INSPECT_NOT_SCORED}**")
+    lines.append("")
+    lines.append(
+        "Prince is rendered by `scripts/render-prince.sh` at the same "
+        "geometry the showcase uses (US Letter, 0.75in margins) and "
+        "rasterized at the same 300 DPI, so both sides are directly "
+        "comparable by eye. Page counts can differ between the engines; that "
+        "is recorded here, not scored."
+    )
+    lines.append("")
+    for file, name in list_manifest_entries(manifest_path):
+        base = Path(file).stem
+        page_dir = images_dir / base
+        ta_pages = sorted(page_dir.glob("page-*-ta.png")) if page_dir.is_dir() else []
+        pr_pages = sorted(page_dir.glob("page-*-pr.png")) if page_dir.is_dir() else []
+        lines.append(f"### {name}")
+        lines.append("")
+        lines.append(
+            f"TypeAnvil {len(ta_pages)} page(s) / Prince {len(pr_pages)} page(s)"
+        )
+        lines.append("")
+        if not ta_pages and not pr_pages:
+            lines.append("*No pages rendered.*")
+            lines.append("")
+            continue
+        if not pr_pages:
+            lines.append(
+                "*The Prince reference is unavailable for this fixture; the "
+                "build log records the render error. TypeAnvil pages are "
+                "shown alone.*"
+            )
+            lines.append("")
+        if not ta_pages:
+            lines.append(
+                "*No TypeAnvil pages are present for this fixture; the Prince "
+                "reference is shown alone.*"
+            )
+            lines.append("")
+        lines.append("| TypeAnvil | Prince (reference) |")
+        lines.append("| --- | --- |")
+        for idx in range(max(len(ta_pages), len(pr_pages))):
+            cells: list[str] = []
+            for pages in (ta_pages, pr_pages):
+                if idx >= len(pages):
+                    cells.append("*(no page)*")
+                    continue
+                png = pages[idx]
+                rel = f"{image_prefix}/{base}/{png.name}"
+                alt = f"{name} — {png.stem}"
+                cells.append(
+                    f'<img src="{_escape(rel)}" alt="{_escape(alt)}" width="420">'
+                )
+            lines.append(f"| {cells[0]} | {cells[1]} |")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def _manifest_meta(manifest_path: Path, file: str) -> dict | None:
     try:
         data = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -1074,6 +1155,19 @@ def main() -> int:
     showcase_p.add_argument("--marker", required=True)
     showcase_p.add_argument("--typeanvil-version", required=True)
     showcase_p.add_argument("--image-prefix", default="out/images")
+
+    inspect_p = sub.add_parser(
+        "assemble-showcase-inspect",
+        help="Assemble the showcase TypeAnvil | Prince inspection page (CORE-217)",
+    )
+    inspect_p.add_argument("--manifest", required=True)
+    inspect_p.add_argument("--images-dir", required=True)
+    inspect_p.add_argument("--out", required=True)
+    inspect_p.add_argument(
+        "--image-prefix",
+        default="images",
+        help="Path from the inspection page's directory to the images directory.",
+    )
 
     det_p = sub.add_parser("check-determinism", help="Compare two output dirs")
     det_p.add_argument("baseline")
@@ -1168,6 +1262,18 @@ def main() -> int:
         )
         splice_readme(Path(args.readme), args.marker, body)
         print(f"showcase gallery: {args.readme}")
+        return 0
+
+    if args.cmd == "assemble-showcase-inspect":
+        body = render_showcase_inspect_md(
+            manifest_path=Path(args.manifest),
+            images_dir=Path(args.images_dir),
+            image_prefix=args.image_prefix,
+        )
+        out = Path(args.out)
+        _ensure_dir(out.parent)
+        out.write_text(body, encoding="utf-8")
+        print(f"showcase inspect page: {out}")
         return 0
 
     if args.cmd == "check-determinism":

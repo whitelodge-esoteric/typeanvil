@@ -57,7 +57,10 @@ is not a diff target).
 
 ## Non-Goals
 
-- No Prince rendering, diffing, or scoring for showcase fixtures.
+- No Prince diffing or SCORING for showcase fixtures. Prince is a mirror,
+  not a judge (CORE-211 discussion, 2026-09-15): a visual difference from
+  Prince is a hint, not a defect. Defects are defined by the visual-QA
+  checks (CORE-216), never by divergence from Prince.
 - No changes to the comparison pipeline's geometry, manifest, or scoreboard.
 - SVG content in fixtures waits for CORE-131 to reach main (raster images
   only). When SVG lands on main, a showcase fixture MAY add an SVG figure.
@@ -94,6 +97,22 @@ is not a diff target).
    change specified by `visual-comparison-demo.spec.md` Behavior 1, and it
    legitimately moves the scoreboard. A showcase-only change SHALL NOT move
    the comparison scoreboard.
+7. **Unstressed Prince reference overlay (CORE-217).** The build SHALL
+   additionally render every showcase fixture through
+   `scripts/render-prince.sh` at the identical page geometry (US Letter,
+   0.75in margins) and rasterize at the same 300 DPI into
+   `demo/showcase/out/images/<fixture>/page-NNN-pr.png`, then emit
+   `demo/showcase/out/inspect.md` — a per-page TypeAnvil | Prince
+   side-by-side that is explicitly NOT scored and NOT part of the gallery.
+   The overlay is a REFERENCE for making OUR defects visible; a visual
+   difference from Prince is a hint, never a defect. A Prince render failure
+   for one fixture SHALL NOT abort the build: it is recorded, its stale
+   `-pr.png` pages are removed, and the inspection page notes the
+   unavailability. The inspection page SHALL be byte-identical across
+   rebuilds and SHALL be covered by the `--determinism` byte-compare. Every
+   TypeAnvil AND Prince showcase page SHALL run through the visual-QA checks
+   in `docs/operations/visual-qa.md` (CORE-216); a defect on either side is
+   a finding, not a parity chase.
 
 ## Interfaces
 
