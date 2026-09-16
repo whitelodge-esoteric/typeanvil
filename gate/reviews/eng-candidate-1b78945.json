@@ -1,0 +1,498 @@
+{
+ "schema": "typeanvil.harness.reviews/1",
+ "candidate": {
+  "label": "eng-candidate-1b78945",
+  "source_commit": "1b78945",
+  "binary_sha256": "8de2af277d658df4e1b824603da0594952da239a9de9b9892a3dcf4f73083ea2"
+ },
+ "baseline": {
+  "label": "eng-baseline-dc8b8bc",
+  "source_commit": "dc8b8bc",
+  "binary_sha256": "3d41ba781765c4191a7ff83f54465b5d713cd446a1f6abe039fab781682f748b"
+ },
+ "dispositions": [
+  {
+   "doc_id": "css/css-page/margin-boxes/alignment-001-print-ref.html",
+   "change_id": "b176902fe8e88f347abb33655968d1f210e7fbf6426ef12c93770318b283a20b",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 335 -> 290 dark px; owning test alignment-001-print-ref.html: None -> None, alignment-001-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/alignment-001-print.html",
+   "change_id": "dcfeb0c35fd0c842b0c5c5a3755a1fbc164d14bc90035516d67e138ff91fb0f5",
+   "kind": "variation",
+   "reason": "Rendering changed without a status move or an ink gain (1 -> 1 pages; ink 307 -> 281 dark px; FAIL -> FAIL). Recorded as a justified rendering variation of the same landed margin-box work. Family-level review: this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/auto-margins-001-print-ref.html",
+   "change_id": "e32dd16bc1c4a6326e6bff7ec2ef579f49b144f38a78c154051d4e666a105549",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 935 -> 1450 dark px; owning test auto-margins-001-print-ref.html: None -> None, auto-margins-001-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/auto-margins-001-print.html",
+   "change_id": "fbcd9437c5241150001251ca693cd5e6bd043623501cee91cbbfb316bf37974c",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 958 -> 1861 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/auto-margins-002-print-ref.html",
+   "change_id": "9de56d40976d2175faa0bb90e34327641a58aedc53b7694ac5d6a7785a3678ea",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 534 -> 5518 dark px; owning test auto-margins-002-print-ref.html: None -> None, auto-margins-002-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/auto-margins-002-print.html",
+   "change_id": "c3e95d24fffdb793dd8cfdf342d43ec69d365a038235cf16bdab6d5bea296ef8",
+   "kind": "variation",
+   "reason": "Rendering changed without a status move or an ink gain (1 -> 1 pages; ink 20125 -> 16078 dark px; FAIL -> FAIL). Recorded as a justified rendering variation of the same landed margin-box work. Family-level review: this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/auto-margins-003-print-ref.html",
+   "change_id": "f18ff976b1ac9901972b7a9e95b39c7d21a1c162b4f0ee519d8c85c924d5e4f6",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 596 -> 1145 dark px; owning test auto-margins-003-print-ref.html: None -> None, auto-margins-003-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/auto-margins-003-print.html",
+   "change_id": "5c47b381de495c40cbbc6cfc5901eb81cbba77f6337343f60f4a2d0c30a01e0b",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 589 -> 1214 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/background-001-print-ref.html",
+   "change_id": "bee30f5c698af0cb434f22d9cb18dbb81158aefc9672f8925c5d54196ce5d40e",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 235 -> 2662 dark px; owning test background-001-print-ref.html: None -> None, background-001-print.html: FAIL -> PASS). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/background-001-print.html",
+   "change_id": "2b958de26614cb3442dd2d15c31ba02785bf37a610826d031f26e7758613bfb1",
+   "kind": "correction",
+   "reason": "Test now matches its reference (WPT status FAIL -> PASS); 1 -> 1 pages; ink 225 -> 2662 dark px. The landed margin-box work makes both sides render the declared boxes. Approved on the status flip plus measured output movement; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-001-print-ref.html",
+   "change_id": "daf372c851129e67b4e1887c55da6fdc39ec4d8f1e0399f6fa9774efc2a223f9",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 0 -> 1482 dark px; owning test content-001-print-ref.html: None -> None, content-001-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-001-print.html",
+   "change_id": "40686ad390c0c4436af5c851495fe2cdc7160478f0727a234d7116e1460ee2b3",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 59 -> 1506 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-002-print.html",
+   "change_id": "c345a42f97c2118dea700c0202a44bb581188da81a3e2da71ed57e14935f36b3",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 259 -> 391 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-003-print-ref.html",
+   "change_id": "89925410c5f5a7c62826e7a92343576856a1d4b34bb629f88fd761e8ed122222",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 67 -> 588 dark px; owning test content-003-print-ref.html: None -> None, content-003-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-003-print.html",
+   "change_id": "1c4d9686edf828002fe47209633b51042a4dcc0a5ea891331b6032a1e1ac4712",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 38 -> 588 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-004-print-ref.html",
+   "change_id": "7ac1d7fecbf2576b9e837819d5c8fcf4917e68efd9a345c657ae781140b67e83",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 3 pages; ink 734 -> 459 dark px; owning test content-004-print-ref.html: None -> None, content-004-print.html: FAIL -> PASS). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-004-print.html",
+   "change_id": "53f645d4cd036d719b7dcc5ebc3a111b63f5ddc9d0912568f6c10d46c690abf8",
+   "kind": "correction",
+   "reason": "Test now matches its reference (WPT status FAIL -> PASS); 3 -> 3 pages; ink 430 -> 459 dark px. The landed margin-box work makes both sides render the declared boxes. Approved on the status flip plus measured output movement; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-005-print-ref.html",
+   "change_id": "c6b36b5e44d404bad33ec56bb03fd5050261671e596ebd2563683c4e87de1f99",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 3 pages; ink 704 -> 426 dark px; owning test content-005-print-ref.html: None -> None, content-005-print.html: FAIL -> PASS). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-005-print.html",
+   "change_id": "79024b65bfa9544601e14d4378f2381aa9ccdd194a0f4da6c59eadf1e81b903d",
+   "kind": "correction",
+   "reason": "Test now matches its reference (WPT status FAIL -> PASS); 3 -> 3 pages; ink 426 -> 426 dark px. The landed margin-box work makes both sides render the declared boxes. Approved on the status flip plus measured output movement; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-006-print.html",
+   "change_id": "47a5af32f93756f21c08dff650efb4b334e23db739b41e589db848d60bdf5607",
+   "kind": "variation",
+   "reason": "Rendering changed without a status move or an ink gain (3 -> 3 pages; ink 426 -> 422 dark px; FAIL -> FAIL). Recorded as a justified rendering variation of the same landed margin-box work. Family-level review: this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-007-print.html",
+   "change_id": "120e58cc454cf453aa6352d2d49f5388d199e7f3baf061f6a81b1fc86c87299d",
+   "kind": "correction",
+   "reason": "Test now matches its reference (WPT status FAIL -> PASS); 1 -> 3 pages; ink 559 -> 426 dark px. The landed margin-box work makes both sides render the declared boxes. Approved on the status flip plus measured output movement; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-008-print-ref.html",
+   "change_id": "39e46d15358f38167688cc20ae10e9a21099f26a924b85f581671332e97dec47",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 4 pages; ink 284 -> 95 dark px; owning test content-008-print-ref.html: None -> None, content-008-print.html: FAIL -> PASS). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-008-print.html",
+   "change_id": "8979bc15890cd7a339f1caf85b96871ebaa733f8c4f035b8981b979bb3e09260",
+   "kind": "correction",
+   "reason": "Test now matches its reference (WPT status FAIL -> PASS); 2 -> 4 pages; ink 190 -> 95 dark px. The landed margin-box work makes both sides render the declared boxes. Approved on the status flip plus measured output movement; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-009-print-ref.html",
+   "change_id": "54759208b3117abf5314081a73c0d9011c008db87a595cd7e6f3fb3d445a55c8",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 4 pages; ink 283 -> 95 dark px; owning test content-009-print-ref.html: None -> None, content-009-print.html: FAIL -> PASS). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-009-print.html",
+   "change_id": "8e87b851a63f2acdf23bed86d867bf85e6e8d451038a7381b4b5b50498efe735",
+   "kind": "correction",
+   "reason": "Test now matches its reference (WPT status FAIL -> PASS); 2 -> 4 pages; ink 190 -> 95 dark px. The landed margin-box work makes both sides render the declared boxes. Approved on the status flip plus measured output movement; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-010-print-ref.html",
+   "change_id": "7f8f01795d9e0564a5b711037afd2a92d0000a45d3c6578c7424bd295389c3a5",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 4 pages; ink 216 -> 24 dark px; owning test content-010-print-ref.html: None -> None, content-010-print.html: FAIL -> PASS). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-010-print.html",
+   "change_id": "25138536fc119262cc4367370ca787cd2cc31ddd64e2bf9c43445f5038baa67f",
+   "kind": "correction",
+   "reason": "Test now matches its reference (WPT status FAIL -> PASS); 2 -> 4 pages; ink 145 -> 24 dark px. The landed margin-box work makes both sides render the declared boxes. Approved on the status flip plus measured output movement; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-011-print-ref.html",
+   "change_id": "85531254bc7bfa12ccc59b724ac010d5d9dce24fa932c3f2dcd7dffb547c6550",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 4 pages; ink 234 -> 31 dark px; owning test content-011-print-ref.html: None -> None, content-011-print.html: FAIL -> PASS). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-011-print.html",
+   "change_id": "b0a148f9951e476d95e25e37a7700cc8aa9c9b0f5004da5c195573965a99d03e",
+   "kind": "correction",
+   "reason": "Test now matches its reference (WPT status FAIL -> PASS); 2 -> 4 pages; ink 141 -> 31 dark px. The landed margin-box work makes both sides render the declared boxes. Approved on the status flip plus measured output movement; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-012-print-ref.html",
+   "change_id": "2dc04316ba9f3720befe631d8006c37132477976a5e74e7831367676f77cd837",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (2 -> 4 pages; ink 221 -> 42 dark px; owning test content-012-print-ref.html: None -> None, content-012-print.html: FAIL -> PASS). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-012-print.html",
+   "change_id": "20fb92db5867e9b8bef667b07b285785ea538dc4a25d9857543363164d0e9ad9",
+   "kind": "correction",
+   "reason": "Test now matches its reference (WPT status FAIL -> PASS); 2 -> 4 pages; ink 141 -> 42 dark px. The landed margin-box work makes both sides render the declared boxes. Approved on the status flip plus measured output movement; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-013-print-ref.html",
+   "change_id": "d74c388388adcf379cc362765e07f35c2a9d5f8e2eeff736ceb2938e05ef9441",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 4 pages; ink 456 -> 254 dark px; owning test content-013-print-ref.html: None -> None, content-013-print.html: FAIL -> PASS). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-013-print.html",
+   "change_id": "14a7af44640309912c8b4b81e7e66d4863495c783bc7bb43f1c62eb7803e559c",
+   "kind": "correction",
+   "reason": "Test now matches its reference (WPT status FAIL -> PASS); 2 -> 4 pages; ink 374 -> 254 dark px. The landed margin-box work makes both sides render the declared boxes. Approved on the status flip plus measured output movement; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-001-print-ref.html",
+   "change_id": "430d026a92ce4355ffcc543c75fd3589811d1865220f53c80ced2a8e6882b745",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 66 -> 590 dark px; owning test dimensions-001-print-ref.html: None -> None, dimensions-001-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-001-print.html",
+   "change_id": "9854bef18e97bc40a0969d37120d1ad3e3ba0f255784124fd073d5978f691f19",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 37 -> 740 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-002-print-ref.html",
+   "change_id": "052527f846cf65109651811adbbbb75e856d0930d18761df8e37f02d53400455",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 134 -> 1219 dark px; owning test dimensions-002-print-ref.html: None -> None, dimensions-002-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-002-print.html",
+   "change_id": "c80644b44f6e9d6a04e4355184bdc31664e335d2b51dbab460b11880ed1b01fa",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 80 -> 1161 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-003-print-ref.html",
+   "change_id": "a2f8b27561cf5db6fcf8810b32355c51580c259317c9bb8b882eaa52e1887804",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 7 -> 173 dark px; owning test dimensions-003-print-ref.html: None -> None, dimensions-003-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-003-print.html",
+   "change_id": "1219bf4dfdc1ce63211464254a45e65c8d333846aaf21e9a4e059ae85ccae007",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 4 -> 227 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-004-print-ref.html",
+   "change_id": "c902467f5ce2b3beca3a4e6896a3b1c8f514279c42e4b2811aaaeeed5b616ed5",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 103 -> 1692 dark px; owning test dimensions-004-print-ref.html: None -> None, dimensions-004-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-004-print.html",
+   "change_id": "a77c7e803c949493e20a2f40cc7dec4a52c1bb06f9128eb065cce26ed0f6d53c",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 96 -> 2137 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-005-print-ref.html",
+   "change_id": "2242bd26e403d225a1b74e288a5fbf46f6f715e2fa2616674c99680533ffbb2a",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 48 -> 687 dark px; owning test dimensions-005-print-ref.html: None -> None, dimensions-005-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-005-print.html",
+   "change_id": "86c2a509f1dbb70b48f05d9e13ab572a42f3635c38d89ff6f0d40444900ba345",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 49 -> 716 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-006-print-ref.html",
+   "change_id": "524b767f4daf2d4bbd97c131b5e122e0244a0ddef1821edc51adaf3ae36ea835",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 346 -> 1348 dark px; owning test dimensions-006-print-ref.html: None -> None, dimensions-006-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-006-print.html",
+   "change_id": "1548cc6fbf3db40087d0f44ea6be12d1124eaf7019def3571b03bf780a78a9e7",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 0 -> 4048 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-007-print-ref.html",
+   "change_id": "dc9e9550492985f69e22df1555b230497d2f927bb78ce3a834255ed6379bc076",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 313 -> 3894 dark px; owning test dimensions-007-print-ref.html: None -> None, dimensions-007-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-007-print.html",
+   "change_id": "f1b8b3df3dadde253cc05785a5db87414cfcc6167121a6975d8e182d37c99688",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 0 -> 3777 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-008-print-ref.html",
+   "change_id": "758f6af27a3f776b31d518397fc3d4ac48d5eb26f837807015d65f626bad7aee",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 246 -> 1755 dark px; owning test dimensions-008-print-ref.html: None -> None, dimensions-008-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-008-print.html",
+   "change_id": "cf930c6ce5d07935bfe014384b708586d5435f92a7743419602668b520b36c6d",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 0 -> 2089 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-009-print-ref.html",
+   "change_id": "94071c3cd1777edbb83d921285267fdd25015068e3eb8b37f41dc1266e03702a",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 144 -> 1251 dark px; owning test dimensions-009-print-ref.html: None -> None, dimensions-009-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-009-print.html",
+   "change_id": "68611745ab79d4bfdd7802673e4ac941ed1b4aa1963c48a69226dcb01e117b40",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 81 -> 1386 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-010-print-ref.html",
+   "change_id": "134a8968b1f5ca97ae34a7e0f4e6dea86d8e178c7dcd61f521a05b7e9aaa7a66",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 0 -> 532 dark px; owning test dimensions-010-print-ref.html: None -> None, dimensions-010-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-010-print.html",
+   "change_id": "b86d0ae05b4d29722a2f75cb21fe7ab7f28bf602a691a1c808a28e3fa266d31b",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 8 -> 3003 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-011-print-ref.html",
+   "change_id": "d634e0e4a9b7c4564f337f10681bb9cd558a606837587d865aff464922558f2a",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 38 -> 570 dark px; owning test dimensions-011-print-ref.html: None -> None, dimensions-011-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-011-print.html",
+   "change_id": "18bdd32016ff65e098f028c544dbf19ef040b3dbddbcba0e6ebdddf7d87d39fa",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 25 -> 1328 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-012-print-ref.html",
+   "change_id": "4ef1c7bff0b53e633a400707c4652a730d60d3013b2faf8c5dfdbb70e4a7a810",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 38 -> 8745 dark px; owning test dimensions-012-print-ref.html: None -> None, dimensions-012-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-012-print.html",
+   "change_id": "d263bea1f8d30458f42df09d9def03e1643c28ec1d049f3bb2a72c919b05fe1e",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 52 -> 3935 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-013-print-ref.html",
+   "change_id": "18bee25e13e2f860e608b1973f7ad9b847987533b27127aedf3cdafb6243f11d",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 254 -> 6875 dark px; owning test dimensions-013-print-ref.html: None -> None, dimensions-013-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-013-print.html",
+   "change_id": "1be3eb6882c37647c5f267078defea9bbbfc215465fb8cc676a8af296995ae05",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 280 -> 7051 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-014-print.html",
+   "change_id": "1a40ad9a77f536c2f2b905a26bb2cd401b4c85aca7e43b5bcf61206b99c7d1a5",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 289 -> 7053 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/inapplicable-properties-print-ref.html",
+   "change_id": "5538b8734b8abd04fa31f42978e138ac8200a7c8282987a562a0d017c67ba3af",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 470 -> 2005 dark px; owning test inapplicable-properties-print-ref.html: None -> None, inapplicable-properties-print.html: FAIL -> PASS). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/inapplicable-properties-print.html",
+   "change_id": "14fe2f8fcce967312ab72e141f740c60d59fc6224f4b1da7e68a5c9874bdd470",
+   "kind": "correction",
+   "reason": "Test now matches its reference (WPT status FAIL -> PASS); 1 -> 1 pages; ink 456 -> 2005 dark px. The landed margin-box work makes both sides render the declared boxes. Approved on the status flip plus measured output movement; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/overconstrained-001-print-ref.html",
+   "change_id": "1cd8c36390015e5065f2a4a0b0aa915572ff4f324307ffcb8629df913e267bae",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 719 -> 1275 dark px; owning test overconstrained-001-print-ref.html: None -> None, overconstrained-001-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/overconstrained-001-print.html",
+   "change_id": "845c4b7c572bc7c8178a525e94a92dd8799486446306bae665cb118719b34771",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 731 -> 1649 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/paint-order-001-print-ref.html",
+   "change_id": "57786c8c713f20d5d6dca5b3bf6225792f16ce984688193f3e714ed58e410306",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 762 -> 2929 dark px; owning test paint-order-001-print-ref.html: None -> None, paint-order-001-print.html: FAIL -> FAIL). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/paint-order-001-print.html",
+   "change_id": "bdf6930ccd67ebb8e2719a8b526b18d3608756c57b5f5334c11406def118e033",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 827 -> 7370 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/paint-order-002-print.html",
+   "change_id": "464b7ca87fe5b23cd2f6afbd88a0ad7dda97245895899416f192063a72de85bb",
+   "kind": "correction",
+   "reason": "Output gained painting the fixture declares (1 -> 1 pages; ink 827 -> 7370 dark px) while the pair still fails (FAIL -> FAIL, a separate residual). Approved on the measured ink direction under the landed margin-box work; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/paint-order-003-print-ref.html",
+   "change_id": "60b1a98d5f26e644de5f3cf06b989d120fbe7a9cdc49c6c96f9bb448924f9bb2",
+   "kind": "variation",
+   "reason": "Reference-side simulation renders differently under the landed layout/paint work (1 -> 1 pages; ink 889 -> 6360 dark px; owning test paint-order-003-print-ref.html: None -> None, paint-order-003-print.html: FAIL -> PASS). Reference movement is not engine-output correctness on its own. Recorded as a variation with family-level provenance; this document was NOT diffed visually.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/paint-order-003-print.html",
+   "change_id": "5147d486bbdd36e7ef3c6ea289befa1930f7c911f24db0875710c56a90d76063",
+   "kind": "correction",
+   "reason": "Test now matches its reference (WPT status FAIL -> PASS); 1 -> 1 pages; ink 1251 -> 6360 dark px. The landed margin-box work makes both sides render the declared boxes. Approved on the status flip plus measured output movement; family-level review, not a per-document visual diff.",
+   "provenance": "docs/specifications/paged-media-css.spec.md (paged media CSS, page-margin boxes); WPT css/css-page/margin-boxes/; landed CORE-141 margin-box styling, background/border paint and page-area work"
+  }
+ ]
+}

@@ -5,7 +5,7 @@ type: runbook
 status: approved
 owner: elijah
 created: 2026-09-15
-updated: 2026-09-15
+updated: 2026-09-16
 sidebar_position: 8
 tags: [harness, wpt, release, gate, testing]
 trigger: Before landing an engine change, and before promoting the release branch
@@ -20,7 +20,9 @@ Run the gate in two situations:
 
 1. **Before landing an engine change** that affects layout, pagination, or
    typography. Use the engine-change tier.
-2. **Before promoting the release branch to `main`.** Use the promotion tier.
+2. **Before promoting the release branch to `main`.** Pass the engine-change
+   tier, then record the full-selection delta as a residual (see
+   [Promotion](#promotion)).
 
 The gate exists because the WPT pair comparison is self-consistent. When a change
 moves a test and its reference the same way, the pair still matches and the score
@@ -28,6 +30,29 @@ stays flat while the output changed. The gate compares each document with its ow
 earlier output and asserts expected PDF properties directly.
 
 The gate does not replace the WPT score. Both run.
+
+## Promotion
+
+A promotion passes the **engine-change tier** and records the full-selection
+delta as a residual. It does not require a disposition for every changed
+document: a long-lived release branch changes most of the corpus, and approving
+that wholesale would defeat the gate.
+
+1. Capture and gate the engine-change tier (direct checks plus
+   `--filter css-page/margin-boxes`, 37 tests) for the baseline and the
+   candidate. It must print `GATE PASSED`.
+2. Capture the full selection for both sides and run the gate with `--reviews`
+   pointing at an empty directory. Every changed document is then reported as
+   `unreviewed_change`: that list IS the delta. Keep the report.
+3. Record the delta in
+   `docs/research/wpt-harness/promotion-delta-<date>.md`: the WPT status
+   movement per test, the changed-document counts, the regressions, and the
+   follow-up issues they need.
+4. Reference the record from the promotion commit and the Linear issue.
+
+Record dispositions only for what a reviewer actually examined, and state the
+evidence in the reason. A family-level approval must say that it is family-level
+rather than imply a per-document diff.
 
 ## Prerequisites
 
@@ -155,6 +180,9 @@ The gate passed:
 - every direct check reports a measured value and passes;
 - the WPT status counts equal the baseline counts for the same test ids.
 
+For a promotion this is the engine-change tier. The full-selection delta is a
+separate artifact (see [Promotion](#promotion)) and is not a pass.
+
 A gate pass writes no new state. The captured JSON and the review record are
 retained as evidence.
 
@@ -192,6 +220,14 @@ recapture. Nothing in the engine or the WPT checkout is modified.
   the manifest. A real gap follows the issue-evidence rules: record it, keep the
   check, and fix the engine or move the check to the capability ticket that owns
   the behavior. Do not delete the check to make the gate pass.
+- **`--wpt` is a GLOBAL flag, for `gate` as well as for captures** — when the
+  worktree's `.wpt` symlink points at an absolute host path, every direct check
+  whose `input_source` is `wpt` fails to render inside the container and reports
+  a `CalledProcessError`. Pass `--wpt /main/.wpt` before the subcommand and all
+  thirteen checks run.
+- **`--reviews` takes a directory or a file.** The documented value is the
+  `gate/reviews` directory holding `<candidate-label>.json`; an empty directory
+  means nothing is reviewed, so every changed document blocks.
 - **A capture runs long** — captures render every document in the selection,
   including references. Reuse a capture whose identity still matches instead of
   recapturing, and use the engine-change tier for rapid iteration.

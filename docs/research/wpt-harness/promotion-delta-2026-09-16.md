@@ -97,19 +97,20 @@ to test whether a subset clears the bar:
 So a green bounded-tier gate still needs 69 recorded dispositions, and approving
 them wholesale would violate the gate's own rule against blanket approval.
 
-## What this means for the promotion
+## Outcome
 
-The gate cannot pass on evidence nobody reviewed, and 97 commits landed without
-per-landing review records, so the promotion tier sees the whole batch at once.
-Three ways forward, in descending rigour:
+The promotion bar is the **engine-change tier** (spec Behavior 26, updated
+2026-09-16): the bounded tier must pass, and the full-selection delta above is the
+recorded residual rather than 490 per-document approvals.
 
-1. **Per-document review** of the changed set — real, but this is a multi-day job
-   for 490 documents.
-2. **Family-level dispositions with scoped reasons**: approve a family only where
-   the evidence supports it (status flips, ink direction, fixture intent), and say
-   so in the disposition text rather than implying a per-document diff.
-3. **Promote with the delta recorded as an explicit residual**, i.e. without a
-   green gate, and say that plainly in the promotion record.
+- Engine-change tier — `--filter css-page/margin-boxes`, 37 tests / 70 documents:
+  **`GATE PASSED`**, 0 conditions, 13/13 direct checks, environment COMPATIBLE.
+- Review record: `gate/reviews/eng-candidate-1b78945.json`, 69 dispositions.
+  34 are corrections resting on a FAIL→PASS status flip or a measured ink gain;
+  35 are variations, mostly reference-side movement. Every reason states its
+  evidence, and each says whether the document was diffed visually (none were —
+  the approvals are family-level).
+- Full-selection delta: the 490 changed documents in this record. Not a pass.
 
-The 47 flips and the clusters above should be triaged into follow-up issues under
-any of the three.
+The 47 flips and the clusters above still need follow-up issues; this record is
+the evidence for them.

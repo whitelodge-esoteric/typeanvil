@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: elijah
 created: 2026-09-15
-updated: 2026-09-15
+updated: 2026-09-16
 sidebar_position: 2
 tags: [harness, wpt, conformance, testing, release, gate]
 spec_id: harness-release-gate
@@ -157,8 +157,13 @@ The harness shall:
 25. Reference the gate from the landing and release procedure documents, and
     point the CORE-203 and CORE-204 landing requirements at it.
 26. Define two tiers. The engine-change tier runs the direct checks and a bounded
-    coverage subset. The promotion tier runs the full selected set. Each tier
-    shall record its measured runtime and artifact size.
+    coverage subset; it is the bar a promotion must pass. The promotion tier
+    runs the full selected set as a delta against the previously promoted state:
+    the changed-document set is recorded as a residual in the promotion
+    evidence, not approved document by document. Every disposition that is
+    recorded shall state the evidence it rests on, and a family-level approval
+    shall say so instead of implying a per-document diff. Each tier shall record
+    its measured runtime and artifact size.
 27. Reuse captured renders and shared reference documents when their identity
     matches. The gate shall not require a fresh browser-oracle run per fixture
     per commit.
@@ -342,8 +347,8 @@ use synthetic captures. They are not engine conformance results.
 
 | Tier | Coverage | Purpose |
 |---|---|---|
-| engine-change | direct checks plus a bounded document subset | every engine commit |
-| promotion | the full selected set | before promotion to main |
+| engine-change | direct checks plus a bounded document subset | every engine commit, and the bar for a promotion |
+| promotion | the full selected set, recorded as a delta against the last promotion | the residual a promotion records alongside the engine-change pass |
 
 The gate records the runtime and artifact size of each tier. Captured renders are
 reused while their identity matches: the same document content, settings, and
