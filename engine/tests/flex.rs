@@ -482,3 +482,102 @@ fn forced_break_inside_row_container_keeps_following_sibling_position() {
         "following sibling position must not depend on display:flex inside the container: flex {y_f} vs block {y_b}"
     );
 }
+// ---------------------------------------------------------------------------
+// CORE-207 — column flex grow/shrink and negative margin fixes
+// ---------------------------------------------------------------------------
+
+/// Test that flex:1 items in a column container with declared height grow to fill remaining space
+#[test]
+fn column_flex1_grows_to_fill_remaining_height() {
+    let html = r#"
+    <style>
+      @page { size: 5in 3in; margin: 0.5in; }
+      body { margin: 0; font-size: 12pt; }
+      .flex { display: flex; flex-direction: column; height: 120pt; border: 1pt solid black; }
+      .item-fixed { height: 20pt; flex: none; background: red; }
+      .item-flex { flex: 1; background: blue; }
+    </style>
+    <div class="flex">
+      <div class="item-fixed">Fixed</div>
+      <div class="item-flex">Flex 1</div>
+      <div class="item-flex">Flex 2</div>
+    </div>
+    "#;
+    let out = lay(html);
+    let dom = dom_of(html);
+    let fixed = node_id_by_class(&dom, "item-fixed");
+    let flex1 = node_id_by_class(&dom, "item-flex");
+    
+    // Get positions and heights
+    let (_fx, _fy, _fw, fh) = box_of(&out, 0, fixed);
+    let (_f1x, _f1y, _f1w, f1h) = box_of(&out, 0, flex1);
+    
+    // Fixed item should have height of 20pt
+    assert!((fh - 20.0).abs() < EPS, "Fixed item should have height of 20pt");
+    
+    // Flex items should have height > 20pt each (they should grow)
+    assert!(f1h > 20.0, "Flex items should be taller than 20pt");
+}
+
+/// Test that negative margins cause items to overlap in column flex containers
+#[test]
+fn column_negative_margin_overlaps_previous_item() {
+    let html = r#"
+    <style>
+      @page { size: 5in 3in; margin: 0.5in; }
+      body { margin: 0; font-size: 12pt; }
+      .flex { display: flex; flex-direction: column; border: 4pt solid black; }
+      .item-first { height: 30pt; background: red; }
+      .item-second { height: 30pt; margin-top: -10pt; background: blue; }
+    </style>
+    <div class="flex">
+      <div class="item-first">First</div>
+      <div class="item-second">Second</div>
+    </div>
+    "#;
+    let out = lay(html);
+    let dom = dom_of(html);
+    let first = node_id_by_class(&dom, "item-first");
+    let second = node_id_by_class(&dom, "item-second");
+    
+    let (_fx, fy, _fw, fh) = box_of(&out, 0, first);
+    let (_sx, sy, _sw, _sh) = box_of(&out, 0, second);
+    
+    // Second item should overlap first item by approximately 10pt
+    let overlap = (fy + fh) - sy;
+    assert!((overlap - 10.0).abs() < EPS, "Second item should overlap first by ~10pt");
+}
+
+/// Test that auto-height flex items with negative margins render with positive height
+/// when the container has a DEFINITE main size (css-flexbox-1 §9.8: grow only
+/// distributes free space against a definite container main size — without it,
+/// an empty flex:1 item legitimately measures 0 and is dropped).
+#[test]
+fn column_flex1_auto_height_item_renders_nonzero() {
+    let html = r#"
+    <style>
+      @page { size: 5in 3in; margin: 0.5in; }
+      body { margin: 0; font-size: 12pt; }
+      .flex { display: flex; flex-direction: column; height: 120pt; border: 1pt solid black; }
+      .item-first { height: 30pt; flex: 1; margin: -10pt 0; background: red; }
+      .item-second { height: 30pt; flex: none; background: blue; }
+      .item-third { flex: 1; background: green; } /* auto height, empty */
+    </style>
+    <div class="flex">
+      <div class="item-first">First</div>
+      <div class="item-second">Second</div>
+      <div class="item-third"></div>
+    </div>
+    "#;
+    let out = lay(html);
+    let dom = dom_of(html);
+    let first = node_id_by_class(&dom, "item-first");
+    let third = node_id_by_class(&dom, "item-third");
+
+    let (_fx, _fy, _fw, fh) = box_of(&out, 0, first);
+    let (_tx, _ty, _tw, th) = box_of(&out, 0, third);
+
+    // Both items should have positive height
+    assert!(fh > 0.0, "First item should have positive height");
+    assert!(th > 0.0, "Third item should have positive height (not dropped)");
+}
