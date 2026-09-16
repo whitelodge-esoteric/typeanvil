@@ -5888,6 +5888,41 @@ impl<'a> Ctx<'a> {
         }
     }
 
+    /// Max-content width of an item's CONTENT, for auto-track sizing
+    /// (css-grid-1 §12.5). Unlike [`Ctx::shrink_to_fit`], an empty box
+    /// contributes ZERO — a grid item's max-content contribution is its
+    /// content size, never the containing-block width (CORE-202: the
+    /// float-path `max_width` fallback inflated `100px auto 100px` tracks
+    /// to the full page and pushed the third column off-page).
+    fn content_width(&self, id: NodeId, max_width: Scalar) -> Scalar {
+        let style = &self.styles[id];
+        let mut width = Scalar::ZERO;
+        for item in self.collect_items(id) {
+            match item {
+                Item::Text(text, _, _) => {
+                    let lines = self.break_paragraph(&text, max_width, style);
+                    for line in &lines {
+                        let w = line.drawn_width();
+                        if w.get() > width.get() {
+                            width = w;
+                        }
+                    }
+                }
+                Item::Atomic(child) | Item::Block(child) => {
+                    let w = self.content_width(child, max_width);
+                    if w.get() > width.get() {
+                        width = w;
+                    }
+                }
+            }
+        }
+        if width.get() > max_width.get() {
+            max_width
+        } else {
+            width
+        }
+    }
+
     /// The line origin + available width at `y` for a text segment, given the
     /// active floats. Left floats indent the line start; right floats shorten
     /// the line end. Multiple floats on the same side: the widest wins (the
