@@ -4629,7 +4629,14 @@ impl<'a> Ctx<'a> {
         // Out-of-scope classes keep the content extent (fragmented here —
         // the extent already spans pages — block-child overflow, auto).
         let flow_height = match remaining_spec {
-            Some(remaining) if fresh && !has_block_child => {
+            // CORE-207: a flex cross_override (the container's resolved main
+            // size for this item) IS the authoritative used block size — it
+            // already grew box_height above, and it replaces the declared
+            // extent (a `flex: 1` item's base is its flex-basis, not its
+            // `height`). Without this, a grown item's `used` still advances
+            // the parent cursor by the declared height and siblings collide
+            // (paint box 108.75 vs cursor 7.5 in the CORE-207 probe).
+            Some(remaining) if fresh && !has_block_child && token.cross_override.is_none() => {
                 if remaining.get() < box_height.get() {
                     remaining
                 } else {

@@ -36,6 +36,11 @@ use crate::dom::NodeId;
 use crate::frag::{BreakToken, ChildToken, FlexToken, Fragment, FragmentContent};
 use crate::geom::{Point, Scalar};
 
+/// Tolerance for comparing a flex-resolved main size against a natural
+/// content measure (points). A difference within this bound means the item
+/// should keep its natural size (no cross_override handed down).
+const EPS: f64 = 1e-6;
+
 /// One flex item, in document order.
 struct FlexItem {
     /// The DOM node.
@@ -214,7 +219,43 @@ impl<'a> Ctx<'a> {
             }
         }
     }
-
+    /// Resolve the hypothetical main size of a column flex item.
+    ///
+    /// Mirror `row_item_main_size` but for the block axis:
+    /// - `FlexBasis::Size { length, percent }` -> length, else percent of the
+    ///   container's definite main size, else 0 (flex:1 -> basis 0%).
+    /// - `FlexBasis::Content` -> the item's content height at the item's width
+    ///   (measure_block is the block-path content measure).
+    /// - `FlexBasis::Auto` -> the item's declared height (`specified_extent`)
+    ///   if present, else the content measure as above.
+    fn column_item_main_size(
+        &self,
+        item_id: NodeId,
+        definite_main: Option<Scalar>,
+        item_width: Scalar,
+    ) -> Scalar {
+        let s = &self.styles[item_id];
+        match s.flex_basis {
+            FlexBasis::Size { length, percent } => {
+                if let Some(l) = length {
+                    l
+                } else if let Some(p) = percent {
+                    definite_main.unwrap_or(Scalar::ZERO) * p
+                } else {
+                    // A zero basis (`flex: 1` → `flex-basis: 0%`).
+                    Scalar::ZERO
+                }
+            }
+            FlexBasis::Content => self.measure_block(item_id, item_width),
+            FlexBasis::Auto => {
+                if let Some(h) = self.resolved_height(s) {
+                    h
+                } else {
+                    self.measure_block(item_id, item_width)
+                }
+            }
+        }
+    }
     /// Row container layout: resolve main sizes, pack lines, place them
     /// down the page with fragmentation.
     #[allow(clippy::too_many_arguments)]
@@ -755,7 +796,7 @@ impl<'a> Ctx<'a> {
         &self,
         id: NodeId,
         style: &ComputedStyle,
-        items: Vec<FlexItem>,
+        mut items: Vec<FlexItem>,
         inner_left: Scalar,
         inner_width: Scalar,
         avail_width: Scalar,
@@ -771,7 +812,78 @@ impl<'a> Ctx<'a> {
         let reverse = matches!(style.flex_direction, FlexDirection::ColumnReverse);
         let gap = style.row_gap;
 
-        // Placement order: document order, or reversed for column-reverse.
+        // --- Phase A (pure): resolve main sizes + build lines. ------------
+        // The container's definite main size (its HEIGHT) when one exists:
+        // a grid-stretched flex container carries it as `cross_override`
+        // (the refs' .horizontal-edge cells), else a declared `height`.
+        // css-flexbox-1 §9.8: without a definite main size there is no free
+        // space, so grow/shrink does nothing and items keep their bases.
+        let definite_main = if let Some(cross) = token.cross_override {
+            Some(cross)
+        } else {
+            self.specified_extent(id, style)
+        };
+
+        // Resolve each item's hypothetical MAIN size (its HEIGHT in a column)
+        // at the item's own width (cross size).
+        for item in &mut items {
+            let item_width = self
+                .resolved_width(&self.styles[item.id], inner_width)
+                .unwrap_or(inner_width);
+            item.main_size = self.column_item_main_size(item.id, definite_main, item_width);
+        }
+
+        if let Some(definite) = definite_main {
+            // css-flexbox-1 §9.7: free space = the container's inner main size
+            // minus the sum of the items' OUTER hypothetical main sizes. The
+            // block path applies margins SEPARATELY for the block axis (a
+            // column item's resolved height is a border-box target handed via
+            // cross_override; `used` then adds margin_top/bottom), so margins
+            // belong in the free-space math here — unlike the ROW path, where
+            // an auto-width box fills container-minus-margins internally and
+            // counting them would double-apply (CORE-202 lesson). Negative
+            // block-axis margins thus INCREASE the free space, which is what
+            // makes a `flex: 1` item next to a negative-margin sibling grow to
+            // fill the leftover (paint-order-001/002 refs; measured vs
+            // Chromium: yellow .third grows to ~100pt with margins counted vs
+            // ~45pt with bases only).
+            let outer_main = |it: &FlexItem| {
+                let st = &self.styles[it.id];
+                it.main_size.get() + st.margin_top.get() + st.margin_bottom.get()
+            };
+            let total_main: f64 = items.iter().map(outer_main).sum();
+            let gaps_total = gap.get() * (items.len().saturating_sub(1) as f64);
+            let free = definite.get() - total_main - gaps_total;
+            
+            if free > 0.0 {
+                // Distribute proportional to flex-grow (css-flexbox-1 §9.7.1)
+                let grow_sum: f64 = items.iter().map(|i| self.styles[i.id].flex_grow).sum();
+                if grow_sum > 0.0 {
+                    for item in &mut items {
+                        let g = self.styles[item.id].flex_grow;
+                        if g > 0.0 {
+                            item.main_size = item.main_size + Scalar(free * g / grow_sum);
+                        }
+                    }
+                }
+            } else if free < 0.0 {
+                // Absorb proportional to flex-shrink * base, floored at zero (css-flexbox-1 §9.7.2)
+                let shrink_sum: f64 = items
+                    .iter()
+                    .map(|i| self.styles[i.id].flex_shrink * i.main_size.get())
+                    .sum();
+                if shrink_sum > 0.0 {
+                    for item in &mut items {
+                        let s = self.styles[item.id].flex_shrink;
+                        if s > 0.0 {
+                            let cut = Scalar(-free * (s * item.main_size.get()) / shrink_sum);
+                            let floor = item.main_size.get().min(0.0);
+                            item.main_size = Scalar((item.main_size - cut).get().max(floor));
+                        }
+                    }
+                }
+            }
+        }
         let mut order: Vec<usize> = (0..items.len()).collect();
         if reverse {
             order.reverse();
@@ -861,6 +973,20 @@ impl<'a> Ctx<'a> {
                 inner_width
             };
 
+            // Hand each item its resolved height via cross_override when needed
+            let mut child_tok_clone = child_tok.clone();
+            if definite_main.is_some() {
+                // Only set cross_override when the resolved height differs from natural content height
+                // and is greater than 0
+                let resolved_height = item.main_size;
+                let natural_height = self.measure_block(item.id, item_width);
+                if resolved_height.get() > 0.0
+                    && (resolved_height.get() - natural_height.get()).abs() > EPS
+                {
+                    child_tok_clone.cross_override = Some(resolved_height);
+                }
+            }
+            
             let mut res = self.layout_box(
                 item.id,
                 inner_left,
@@ -868,7 +994,7 @@ impl<'a> Ctx<'a> {
                 y,
                 bottom_limit,
                 placed,
-                &child_tok,
+                &child_tok_clone,
                 flow,
             );
             if let Some(z) = cstyle.z_index {
@@ -957,7 +1083,15 @@ impl<'a> Ctx<'a> {
 
         let padding_bottom = if broke { Scalar::ZERO } else { style.padding_bottom };
         y = y + padding_bottom;
-        let box_height = y - box_top;
+        // Container height must stay non-negative (CORE-207 fix)
+        let mut box_height = y - box_top;
+        box_height = Scalar(box_height.get().max(0.0));
+        // If a definite main size exists and is larger, use it
+        if let Some(definite) = definite_main {
+            if definite.get() > box_height.get() {
+                box_height = definite;
+            }
+        }
         let origin = Point::new(inner_left - style.padding_left - style.margin_left, box_top);
         for child in &mut children {
             child.offset = Point::new(child.offset.x - origin.x, child.offset.y - origin.y);

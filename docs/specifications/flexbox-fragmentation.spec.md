@@ -5,7 +5,7 @@ type: spec
 status: in-review
 owner: elijah
 created: 2026-08-18
-updated: 2026-09-12
+updated: 2026-09-15
 sidebar_position: 10
 tags: [engine, layout, css-flexbox, css-break, fragmentation]
 spec_id: flexbox-fragmentation
@@ -82,12 +82,13 @@ Acceptance Criteria for the honest breakdown).
 - Nested flex inside floats (CORE-62), multicol (CORE-63), or abspos
   (CORE-64) — interaction specs land after the individual features. Nested
   flex inside a flex item works (the item lays out through `layout_box`).
-- **Declared `height` on flex items.** Flex cross/main sizing is
-  CONTENT-based, deliberately mirroring the block path (CORE-66 auto-height
-  self-consistency). The block path ignores `height`; if flex honored it,
-  every height-authored WPT reference would diverge (the harness compares
-  test-vs-ref through the same engine). Honoring `height` engine-wide is a
-  block-layout ticket, not a flex one.
+- **Declared `height` on flex items.** The column path resolves an item's
+  hypothetical main size from `flex-basis` first and falls back to the
+  declared height (`specified_extent`); `flex: 1` (basis 0%) grows from zero
+  against the container's definite main size. The cross-axis stretch and the
+  row path mirror the block path's content-based measure (CORE-66
+  auto-height self-consistency) — see Behavior 9 for the column grow/shrink
+  rule.
 - `wrap-reverse` line ordering (folds to `wrap`).
 - `min-width: auto` intrinsic minimums beyond the basic content-based rule.
 
@@ -137,6 +138,25 @@ The engine shall:
    the item's child break token (`cross_override`); the block paint path
    grows the paint box to it like a declared height (never shrinking, so
    overflow text does not clip). Pagination stays content-based.
+11. **Column main-axis grow/shrink (css-flexbox-1 §9.7, CORE-207)**: a
+   column flex container resolves each item's hypothetical main size
+   (height) from `flex-basis` — a length, a percentage of the container's
+   DEFINITE main size, or 0% for `flex: 1` — falling back to the declared
+   height, then to the content measure. When the container has a definite
+   main size (a declared `height` or a grid cell's `cross_override`),
+   free space = definite size − Σ(outer main sizes) − gaps is distributed ∝
+   `flex-grow`; overflow is absorbed ∝ `flex-shrink × base`, floored at
+   zero. The resolved main size is handed to the block path as the item's
+   `cross_override` (the authoritative used block size — it REPLACES the
+   declared-height flow extent, so a grown `flex: 1` item advances the
+   parent cursor by its grown height, not its `height` declaration). The
+   free-space math counts OUTER main sizes (margins included): the block
+   path applies a column item's margins separately via `used`, so counting
+   bases only would under-grow items next to negative-margin siblings.
+   Negative block-axis margins increase the free space and overlap items
+   (the margin-boxes refs' edges rely on this). Without a definite main
+   size, grow/shrink does nothing and items keep their bases (css-flexbox-1
+   §9.8).
 
 ## Interfaces
 
