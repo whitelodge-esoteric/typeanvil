@@ -1,5 +1,5 @@
 ---
-title: Engine Layout: Flex, Grid, Margin Boxes, Writing Modes
+title: "Engine Layout: Flex, Grid, Margin Boxes, Writing Modes"
 type: lesson
 status: approved
 owner: elijah
