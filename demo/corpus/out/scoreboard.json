@@ -1,6 +1,6 @@
 {
-  "generated": "2026-09-16T04:22:49Z",
-  "typeanvil_version": "bf5444b",
+  "generated": "2026-09-16T16:53:20Z",
+  "typeanvil_version": "aeb5230",
   "prince_version": "Prince 16.2",
   "docs": [
     {
@@ -44,7 +44,12 @@
         }
       ],
       "overall_diff_percent": 23.14914279513889,
-      "render_error": null
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "text content mismatch"
+      ]
     },
     {
       "name": "Invoice — Statement of Account",
@@ -75,7 +80,11 @@
         }
       ],
       "overall_diff_percent": 27.688368055555554,
-      "render_error": null
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "text content mismatch"
+      ]
     },
     {
       "name": "Invoice",
@@ -106,7 +115,9 @@
         }
       ],
       "overall_diff_percent": 17.115162037037038,
-      "render_error": null
+      "render_error": null,
+      "structure_match": true,
+      "structure_reasons": []
     },
     {
       "name": "Letterhead",
@@ -149,7 +160,12 @@
         }
       ],
       "overall_diff_percent": 12.258210358796296,
-      "render_error": null
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "text content mismatch"
+      ]
     },
     {
       "name": "Academic Paper",
@@ -204,7 +220,13 @@
         }
       ],
       "overall_diff_percent": 23.52075441919192,
-      "render_error": null
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "page count mismatch",
+        "text content mismatch"
+      ]
     },
     {
       "name": "Prose Showcase",
@@ -259,7 +281,12 @@
         }
       ],
       "overall_diff_percent": 20.40358007154882,
-      "render_error": null
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "text content mismatch"
+      ]
     },
     {
       "name": "Quarterly Report",
@@ -314,7 +341,11 @@
         }
       ],
       "overall_diff_percent": 14.294113005050503,
-      "render_error": null
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "heading positions mismatch"
+      ]
     },
     {
       "name": "Inventory Ledger — Table Fragmentation Stress",
@@ -505,7 +536,13 @@
         }
       ],
       "overall_diff_percent": 22.2114358281893,
-      "render_error": null
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "page count mismatch",
+        "text content mismatch"
+      ]
     }
   ]
 }

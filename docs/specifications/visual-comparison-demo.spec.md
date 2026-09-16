@@ -83,7 +83,10 @@ The demo SHALL implement the following, stated as "shall" rules:
    `fragmentation-core | paged-media-css | typography-layer |
    tables-fragmentation`), `known_limitations` (array of strings, may be
    empty), and `expected_deltas` (array of strings describing anticipated
-   visual differences vs Prince, may be empty).
+   visual differences vs Prince, may be empty). An entry MAY additionally
+   carry a non-empty `expected_change` string note explaining a deliberate
+   movement of that doc's scoreboard (used by `--guard`); its absence means
+   movement is unexpected.
 3. **Engine CLI contract.** Both engines SHALL be invoked with the identical
    flag set, matching the `typeanvil render` contract (CORE-60 harness spec):
    `<engine> <input.html> --page-width W --page-height H --margin-top MT
@@ -106,7 +109,10 @@ The demo SHALL implement the following, stated as "shall" rules:
    "prince_version": <prince --version output or null>, "docs": [ { "name",
    "file", "typeanvil_pages", "prince_pages", "page_count_mismatch": bool,
    "pages": [ { "page": <1-based>, "diff_percent": <float> } ],
-   "overall_diff_percent": <float> } ] }`.
+   "overall_diff_percent": <float>, "structure_match": <bool | null>,
+   "structure_reasons": [<string>] } ] }`. `structure_match` and
+   `structure_reasons` are OPTIONAL (nullable) — scoreboards written before
+   CORE-215 remain valid and still validate.
 7. **Bucket semantics.** The triage child (CORE-72) SHALL classify each doc's
    overall diff into exactly one bucket: `identical` (< 1% diff, no visible
    difference), `cosmetic` (1–20%, spacing/positioning/font-substitution
