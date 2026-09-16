@@ -7,7 +7,12 @@ repos:
       - id: validate-docs-frontmatter
         name: validate docs frontmatter
         description: Enforces docs/conventions/frontmatter-schema.md on every docs/**/*.md
-        entry: python3 scripts/validate_docs.py
-        language: system
+        # language: python (not system) so pre-commit provisions PyYAML in an
+        # isolated env. The validator REFUSES to run without PyYAML — a check
+        # that skips YAML parsing reports a false pass — so the dependency must
+        # not depend on whichever python happens to be on PATH.
+        entry: python scripts/validate_docs.py
+        language: python
+        additional_dependencies: ["pyyaml"]
         files: ^docs/
         pass_filenames: false

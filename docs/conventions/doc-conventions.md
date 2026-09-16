@@ -4,7 +4,7 @@ type: convention
 status: approved
 owner: elijah
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-09-16
 sidebar_position: 1
 tags: [docs, meta]
 ---
@@ -200,3 +200,9 @@ naming/slug rules. It runs in pre-commit (`pre-commit run --all-files`) and in
 CI (`.github/workflows/docs-validation.yml`), so a doc that breaks a convention
 cannot be committed or pushed. `AGENTS.md` at the repo root points agents at
 these conventions before they touch anything.
+
+The validator requires PyYAML and refuses to run without it (exit 2). It must
+not fall back to a partial check, because a skipped YAML parse reports a false
+pass on frontmatter that CI rejects. The pre-commit hook provisions PyYAML
+itself (`language: python` with `additional_dependencies`), so the check does
+not depend on whichever python happens to be on PATH.

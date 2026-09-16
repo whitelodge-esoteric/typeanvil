@@ -4,7 +4,7 @@ type: convention
 status: approved
 owner: elijah
 created: 2026-08-26
-updated: 2026-09-15
+updated: 2026-09-16
 sidebar_position: 1
 tags: [conventions, workflow, process, testing]
 ---
@@ -40,9 +40,10 @@ restore and add a regression test that fails without the fix.
   in the same commit.
 - Behavior changes update the spec; architectural changes update
   `docs/architecture/`; operational learnings become runbooks or lessons.
-- Run `python3 scripts/validate_docs.py` after touching anything under
-  `docs/`. It runs in pre-commit and CI, so a non-conforming doc cannot be
-  committed — but catch it locally first.
+- Run `scripts/validate_docs.py` after touching anything under `docs/`. It
+  needs PyYAML and refuses to run without it, rather than skip YAML parsing and
+  report a false pass. It runs in pre-commit and CI, so a non-conforming doc
+  cannot be committed — but catch it locally first.
 
 ## Model attribution
 
@@ -76,7 +77,9 @@ All of these run against your branch before merge:
    `benchmarks/results.json` + `benchmarks/RESULTS.md` pair and regenerated
    `demo/corpus/out/scoreboard.json` (use `git add -f` for scoreboard files) with
    the PR. Parity or performance movement belongs in the PR description.
-5. **Docs validation.** `python3 scripts/validate_docs.py`.
+5. **Docs validation.** `pre-commit run --all-files` (the hook provisions
+   PyYAML; a bare `python3 scripts/validate_docs.py` fails loudly on a machine
+   without it, and does NOT skip the YAML check).
 
 Never merge with a failing or skipped step without recording why on the PR.
 

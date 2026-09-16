@@ -3,6 +3,9 @@
 
 Checks every .md under docs/ has frontmatter with required fields and valid
 enums; spec_id uniqueness; _category_.yml files parse. Exits non-zero on failure.
+
+Requires PyYAML. Without it frontmatter YAML cannot be parsed, and a check that
+skips YAML would report a false pass, so the script refuses to run (exit 2).
 """
 from __future__ import annotations
 
@@ -29,28 +32,15 @@ def parse_frontmatter(text: str) -> tuple[dict | None, str | None]:
     if not m:
         return None, "missing or malformed frontmatter (must start with '---' and close with '---')"
     fm_text = m.group(1)
-    if yaml is not None:
-        try:
-            data = yaml.safe_load(fm_text)
-        except Exception as e:  # noqa: BLE001
-            return None, f"yaml parse error: {e}"
-        return (data if isinstance(data, dict) else None), None
-    # minimal manual parse fallback (no PyYAML)
-    data: dict = {}
-    for line in fm_text.splitlines():
-        if not line.strip() or line.startswith("#"):
-            continue
-        k, _, v = line.partition(":")
-        if not v.strip():
-            continue
-        k, v = k.strip(), v.strip()
-        if v.startswith("[") and v.endswith("]"):
-            data[k] = [t.strip() for t in v[1:-1].split(",") if t.strip()]
-        elif re.match(r"^-?\d+$", v):
-            data[k] = int(v)
-        else:
-            data[k] = v.strip("\"'")
-    return data, None
+    if yaml is None:
+        # main() refuses to run without PyYAML; kept so this function is also
+        # safe when called on its own.
+        return None, "PyYAML is required to parse frontmatter"
+    try:
+        data = yaml.safe_load(fm_text)
+    except Exception as e:  # noqa: BLE001
+        return None, f"yaml parse error: {e}"
+    return (data if isinstance(data, dict) else None), None
 
 
 def check_file(path: Path) -> list[str]:
@@ -119,6 +109,19 @@ def check_spec_conventions(path: Path, data: dict) -> list[str]:
 
 
 def main() -> int:
+    if yaml is None:
+        # A silent skip is worse than a failure: without PyYAML the frontmatter
+        # is never parsed, so frontmatter that CI rejects looks valid locally.
+        # Verified 2026-09-16 — an unquoted colon in a title passed on the host
+        # and failed three consecutive CI runs.
+        print(
+            "FAIL: PyYAML is not installed, so frontmatter YAML cannot be parsed.\n"
+            "  A check that skips YAML parsing would report a false pass.\n"
+            "  Install it and re-run: python3 -m pip install pyyaml",
+            file=sys.stderr,
+        )
+        return 2
+
     errors: list[str] = []
     spec_ids: dict[str, Path] = {}
     md_files = sorted(DOCS.rglob("*.md"))
