@@ -199,10 +199,27 @@ jobs:
   # npm distribution (CORE-136): publish the wrapper + platform packages with
   # the binaries from this same tag. Versions are stamped from the tag —
   # no hand-edited versions anywhere (npm spec, Behavior 3).
+  #
+  # The npm registry is public and a publish is irreversible, so NPM_TOKEN is
+  # OPTIONAL: when it is absent the publish steps skip with a notice and the
+  # job stays green (npm spec, Behavior 7). A tag therefore always produces
+  # GitHub Release binaries, whether or not npm publishing is configured yet.
   npm-publish:
     needs: [derive-version, build]
     runs-on: ubuntu-22.04
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
+      - name: Check npm credentials
+        id: creds
+        run: |
+          if [ -n "${NPM_TOKEN:-}" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::NPM_TOKEN is not set — skipping npm publish (binaries-only release)."
+          fi
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -254,6 +271,7 @@ jobs:
       # Platform packages first; the wrapper LAST — its optionalDependencies
       # must resolve against the registry at install time.
       - name: Publish platform packages
+        if: steps.creds.outputs.publish == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
@@ -264,6 +282,7 @@ jobs:
           done
 
       - name: Publish wrapper package
+        if: steps.creds.outputs.publish == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public npm/typeanvil

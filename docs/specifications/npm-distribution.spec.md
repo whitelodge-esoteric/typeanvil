@@ -4,7 +4,7 @@ type: spec
 status: draft
 owner: Elijah Boston
 created: 2026-09-04
-updated: 2026-09-04
+updated: 2026-09-16
 slug: /specifications/npm-distribution
 sidebar_position: 46
 tags: [npm, distribution, node, bun, core-136, release]
@@ -120,6 +120,10 @@ package name.
    `homepage` pointing at the GitHub repo.
 6. Platform packages shall declare `os`, `cpu` (and musl `libc`) so npm skips
    non-matching platforms at install time rather than at first run.
+7. The release workflow shall skip the npm publish steps and report a notice
+   when the `NPM_TOKEN` secret is absent, and shall publish only when the
+   secret is present. A tag without the secret still produces GitHub Release
+   binaries and a green workflow run.
 
 ## Publishing flow (release workflow)
 
@@ -134,7 +138,10 @@ after `release`:
    optionalDependencies must resolve at publish time).
 5. The wrapper package's version is stamped identically to the tag.
 
-`NODE_AUTH_TOKEN` comes from a repository secret (`NPM_TOKEN`).
+`NODE_AUTH_TOKEN` comes from a repository secret (`NPM_TOKEN`). The secret is
+optional: when it is absent the job publishes nothing and reports a notice, so
+the release stays green and the npm packages stay unpublished until the token
+is added. Nothing else in the workflow depends on it.
 
 ## Private-repo note
 
