@@ -1,42 +1,83 @@
 [
   {
-    "name": "Monolithic overflow",
-    "file": "bench/monolithic-overflow.html",
-    "issue_id": "CORE-143",
+    "name": "Image inside a table cell",
+    "file": "bench/table-cell-image.html",
+    "issue_id": "CORE-210",
     "status": "pending",
-    "feature": "monolithic-overflow",
-    "expectation": "oversized absolutely-positioned block paints once on page 1, never re-painted on continuation pages",
+    "feature": "images",
+    "expectation": "the image in the table cell paints, exactly as the same image does in the plain block below it",
     "safe_to_render": true,
-    "notes": []
+    "notes": [
+      "verified 2026-09-15 on the release build: page 1 (cell copy) paints 0 pixels while page 2 (block control) paints the full tile",
+      "the control tile in the same document proves the asset resolves and decodes, so the missing tile isolates the table-cell layout path",
+      "rendered through TypeAnvil only, which is what this layer uses; the fixture's asset path is CWD-relative because TypeAnvil resolves src against the process CWD"
+    ]
+  },
+  {
+    "name": "Per-side border colours",
+    "file": "bench/per-side-border-colors.html",
+    "issue_id": "CORE-201",
+    "status": "pending",
+    "feature": "border-geometry",
+    "expectation": "four differently coloured border sides: red top, green right, blue bottom, black left",
+    "safe_to_render": true,
+    "notes": [
+      "verified 2026-09-15 on the release build: TypeAnvil paints one black ring (5091 px of black, 0 px of any declared side colour); Prince paints all four (red 1592, green 512, blue 1386, black 1377)",
+      "the per-side longhands are overwritten by the border-color shorthand, so every side repaints with one colour"
+    ]
   },
   {
     "name": "Margin-box per-box declarations",
     "file": "bench/margin-box-decls.html",
     "issue_id": "CORE-141",
-    "status": "pending",
+    "status": "resolved",
     "feature": "margin-box-styling",
     "expectation": "top-center margin box renders with its own font (monospace 12pt), color, bottom border, and vertical-align",
     "safe_to_render": true,
-    "notes": ["pre-CORE-141 the box renders 10pt Arial, name-derived alignment, no border"]
+    "notes": [
+      "resolved on release/2026.9 (CORE-141 landed)",
+      "re-verified 2026-09-15 in this render: the header band contains the declared colour #1d3557 (192 px) and the declared bottom rule #457b9d (175 px), which the pre-fix engine dropped",
+      "pre-fix behaviour was a fixed 10pt Arial box with name-derived alignment, no color, no border"
+    ]
+  },
+  {
+    "name": "Monolithic overflow",
+    "file": "bench/monolithic-overflow.html",
+    "issue_id": "CORE-143",
+    "status": "resolved",
+    "feature": "monolithic-overflow",
+    "expectation": "oversized absolutely-positioned block paints once on page 1, never re-painted on continuation pages",
+    "safe_to_render": true,
+    "notes": [
+      "resolved on release/2026.9 (CORE-143 landed): the marker text appears once and the document renders a single page at this geometry",
+      "weak fixture as written: one page means the continuation-page half of the expectation is not exercised. Strengthening it means making the positioned box genuinely taller than one page's content box"
+    ]
   },
   {
     "name": "Page-context viewport units",
     "file": "bench/page-context-vh.html",
     "issue_id": "CORE-140",
-    "status": "pending",
+    "status": "resolved",
     "feature": "page-context-vh-vw",
     "expectation": "100vw x 10vh band resolves against the 5in x 3in page box (band height 21.6pt), not the stylo 1024x768 viewport",
     "safe_to_render": true,
-    "notes": ["pre-CORE-140 the band height computes ~57.6pt from the fixed viewport"]
+    "notes": [
+      "resolved on release/2026.9 (CORE-140 landed)",
+      "re-verified 2026-09-15 in this render: the band measures ~30 px at 96 DPI, i.e. ~0.31in against the expected 0.3in (10vh of the 3in page box). The pre-fix figure was ~77 px, resolved from the fixed 1024x768 viewport"
+    ]
   },
   {
     "name": "Page floats",
     "file": "bench/page-floats.html",
     "issue_id": "CORE-130",
-    "status": "pending",
+    "status": "resolved",
     "feature": "page-floats",
     "expectation": "float: top box pins to the top of its page's content box, full width, body text below",
     "safe_to_render": true,
-    "notes": ["pre-CORE-130 float: top falls back to an inline left float"]
+    "notes": [
+      "resolved on release/2026.9 (CORE-130 landed: float: top/bottom/next-page/snap edge bands)",
+      "re-verified 2026-09-15 in this render: the box occupies the top band at full content width (cols 56-423) and every following text line starts at the left content edge and spans full width, so no text wraps beside a side float",
+      "pre-fix behaviour was a fallback to an inline left float, which would leave the following lines wrapping beside the box"
+    ]
   }
 ]

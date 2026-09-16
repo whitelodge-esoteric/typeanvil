@@ -1,3 +1,17 @@
+# Triage archive (frozen 2026-09-15)
+
+This file records the demo-triage passes from 2026-08 to 2026-09 (CORE-79,
+CORE-93, CORE-100, CORE-110, CORE-146, CORE-209). It is an archive, not a live
+log.
+
+Triage findings are now tracked as Linear issues. A refresh records the
+per-document delta in the generated scoreboard in `README.md`, keeps
+per-fixture expectations in `manifest.json`, and files an issue for anything
+unexplained. Read this file for method and attribution evidence; do not append
+to it.
+
+---
+
 # CORE-79 — Second Demo Triage: Re-baseline post CORE-62/63/64/74/78
 
 Run: `bash scripts/build-demo.sh` at commit `eeafd44` (current main).

@@ -74,7 +74,7 @@ All of these run against your branch before merge:
 4. **Benchmarks and demo suite.** For engine changes: rebuild release, run
    `scripts/benchmark.py` and `scripts/build-demo.sh`, and commit the updated
    `benchmarks/results.json` + `benchmarks/RESULTS.md` pair and regenerated
-   `demo/out/scoreboard.json` (use `git add -f` for scoreboard files) with
+   `demo/corpus/out/scoreboard.json` (use `git add -f` for scoreboard files) with
    the PR. Parity or performance movement belongs in the PR description.
 5. **Docs validation.** `python3 scripts/validate_docs.py`.
 

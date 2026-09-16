@@ -60,7 +60,7 @@ PrinceXML remains the most complete HTML-to-PDF engine available and is an
 excellent product. Typeanvil's goal is conformance on real-world paged-media
 CSS with better speed, memory use, determinism, and price. Our test corpus
 currently matches PrinceXML page-for-page across all seven fixtures; see
-[the comparison demo](demo/README.md) for side-by-side renders.
+[the comparison demo](demo/corpus/README.md) for side-by-side renders.
 
 Compared with WeasyPrint, Typeanvil offers stronger default typography
 (Knuth-Plass versus greedy line breaking), deterministic output, and lower

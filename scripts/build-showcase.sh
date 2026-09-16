@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # build-showcase.sh — render the showcase fixtures through TypeAnvil at
 # realistic print geometry (US Letter @ 300 DPI) and assemble the markdown
-# gallery promoted into demo/README.md (CORE-148).
+# gallery written into demo/showcase/README.md (CORE-148).
 #
 # Contract: docs/specifications/showcase-render.spec.md §Behavior 1-6.
 #
@@ -132,35 +132,16 @@ fi
 # showcase and comparison outputs stay separable. Skipped when any
 # render/raster failed: never promote a partial gallery.
 if [ "$FAILED" = "0" ]; then
+# demo_compare.py owns the README splice so both tracks behave identically:
+# the hand-maintained preamble above the marker is never rewritten, and the
+# generated body below it is replaced wholesale. No intermediate index.md.
 "$PY" scripts/demo_compare.py assemble-showcase \
   --manifest "$MANIFEST" \
   --images-dir "$IMAGES" \
-  --out "$OUT/index.md" \
+  --readme "$SHOWCASE_README" \
+  --marker "$MARKER" \
+  --image-prefix out/images \
   --typeanvil-version "$TA_VERSION"
-
-"$PY" - "$OUT/index.md" "$SHOWCASE_README" "$MARKER" <<'EOF'
-import sys
-index_md, readme_path, marker = sys.argv[1], sys.argv[2], sys.argv[3]
-body = open(index_md).read().rstrip() + "\n"
-import pathlib
-readme_path = pathlib.Path(readme_path)
-readme = readme_path.read_text() if readme_path.exists() else ""
-# index.md lives in demo/showcase/out/; the promoted copy lives in
-# demo/showcase/, so images/... paths need an out/ prefix.
-body = body.replace('src="images/', 'src="out/images/')
-start = readme.find(marker)
-if start == -1:
-    # First run: hand-maintained preamble, then the generated section.
-    preamble = readme.rstrip() + "\n\n" if readme.strip() else ""
-    readme = preamble + marker + "\n\n" + body
-else:
-    readme = readme[:start] + marker + "\n\n" + body
-readme_path.write_text(readme)
-print("promoted into", readme_path)
-EOF
-
-echo
-echo "showcase gallery: $OUT/index.md (+ promoted into $SHOWCASE_README)"
 fi
 
 # Determinism mode: byte-compare two consecutive builds (spec §Behavior 5).
@@ -168,12 +149,22 @@ if [ "$DO_DETERMINISM" = "1" ]; then
   BASELINE="demo/showcase/out.baseline"
   rm -rf "$BASELINE"
   cp -R "$OUT" "$BASELINE"
+  # The generated gallery lives in demo/showcase/README.md, not inside out/,
+  # so snapshot it here and byte-compare it after the rebuild as well.
+  README_SNAP="$(mktemp -t typeanvil-showcase-readme)"
+  cp "$SHOWCASE_README" "$README_SNAP"
   rm -rf "$OUT"
   "$0" --keep-work
   "$PY" scripts/demo_compare.py check-determinism "$BASELINE" "$OUT" 2>&1 || {
     echo "showcase determinism FAILED (see above)" >&2
     exit 1
   }
+  if ! cmp -s "$README_SNAP" "$SHOWCASE_README"; then
+    echo "showcase determinism FAILED ($SHOWCASE_README differs between passes)" >&2
+    rm -f "$README_SNAP"
+    exit 1
+  fi
+  rm -f "$README_SNAP"
   rm -rf "$BASELINE"
 fi
 

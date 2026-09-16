@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Benchmark — image inside a table cell (CORE-210)</title>
+<style>
+  @page { margin: 0.5in; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; }
+  table { border-collapse: collapse; width: 100%; }
+  td { border: 0.5pt solid #999; padding: 4pt; vertical-align: top; }
+  .mark { width: 0.8in; }
+  .mark img { width: 0.6in; }
+  p { margin: 0 0 6pt 0; }
+</style>
+</head>
+<body>
+  <p>Benchmark for CORE-210. The table cell below holds an image, and the same
+  image also appears further down as a plain block. Before the fix, the
+  table-cell copy paints nothing and the cell collapses to zero width.</p>
+
+  <table>
+    <tr>
+      <td class="mark"><img src="assets/mark.png" alt="mark inside a table cell"></td>
+      <td>CELL-IMAGE-MARKER: this cell holds an image on its left.</td>
+    </tr>
+  </table>
+
+  <p>Ground truth: TWO navy tiles are visible — one inside the table cell, one
+  below in a plain block. A single tile means the table-cell image is missing.
+  The block copy is the control: it proves the asset itself resolves and
+  decodes, so a missing tile isolates the table-cell layout path.</p>
+
+  <!-- Path is relative to the process CWD (demo/corpus), which is where the
+       benchmark layer renders from; TypeAnvil resolves src against the CWD. -->
+  <div><img src="assets/mark.png" alt="mark in a plain block" style="width:0.6in"></div>
+</body>
+</html>

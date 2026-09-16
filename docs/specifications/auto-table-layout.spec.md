@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-20
-updated: 2026-08-24
+updated: 2026-09-15
 sidebar_position: 13
 tags: [layout, tables, css-tables, engine, demo-parity]
 spec_id: auto-table-layout
@@ -294,7 +294,7 @@ pipeline:
    engines; compare column boundaries and wrapped/unwrapped cell geometry via
    char-box extraction (`demo/scripts/col_words.py <pdf>`) — the
    technique that produced the ground truth above.
-4. `demo/out/scoreboard.json` regenerated; table-stress `typeanvil_pages`
+4. `demo/corpus/out/scoreboard.json` regenerated; table-stress `typeanvil_pages`
    moves 20 → 21 (see Overview; CORE-89 closes the residual gap) and the
    overall diff drops below 33.5%.
 5. Close the loop in Linear (CORE-81) with What-was-built / Verification /

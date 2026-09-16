@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: elijah
 created: 2026-08-20
-updated: 2026-08-24
+updated: 2026-09-15
 sidebar_position: 15
 tags: [engine, typography, hyphenation, line-breaking, parity]
 spec_id: hyphenation-line-break-parity
@@ -237,7 +237,7 @@ No changes to `ComputedStyle`'s public surface beyond the existing
    (`PY=/Users/elijah/workspace/typeanvil/.venv/bin/python`), then: prose
    11=11 pages (MET); float-showcase 8=8 (NOT met — 10, blocked by CORE-101);
    paper per-page diff < 15% (NOT met — ~22%). The scoreboard regenerated
-   with `git add -f demo/out/`.
+   with `git add -f demo/corpus/out/`.
 6. **WPT gate** — Given the harness run (full print-reftest suite), then 0
    regressions vs the pre-change baseline (fixed − regressed ≥ 0; ship only
    0-regression states). The widows default and ragged tie-break change

@@ -4,7 +4,7 @@ type: research
 status: approved
 owner: elijah
 created: 2026-09-09
-updated: 2026-09-09
+updated: 2026-09-15
 sidebar_position: 2
 tags: [prince, compatibility, architecture, product]
 ---
@@ -23,7 +23,7 @@ measurements and the concrete cost are below.
 
 Measured, not assumed.
 
-**Against Prince (the demo corpus, `demo/out/scoreboard.json`):** 6 of 7
+**Against Prince (the demo corpus, `demo/corpus/out/scoreboard.json`):** 6 of 7
 fixtures already match on page count. The residual is a per-page pixel diff of
 8–21% (letterhead 7.77%, quarterly report 7.87%, prose 10.52%, academic paper
 13.19%, invoice 19.17%, float showcase 20.88%). The one page-count mismatch is
@@ -119,5 +119,5 @@ such trigger.
   comparison target.
 - `docs/research/css-page/named-page-boundary-model.md` — the three-way study
   that produced the divergence data above.
-- `demo/out/scoreboard.json` — per-fixture Typeanvil vs Prince measurements.
+- `demo/corpus/out/scoreboard.json` — per-fixture Typeanvil vs Prince measurements.
 - Prince 16 release notes — https://www.princexml.com/releases/16/
