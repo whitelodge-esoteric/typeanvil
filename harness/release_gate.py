@@ -158,12 +158,26 @@ def load_policy(path: Path | None) -> dict:
 
 
 def load_reviews(path: Path | None) -> list[Disposition]:
-    """Load review dispositions; a missing or ``None`` path yields an empty list."""
+    """Load review dispositions.
+
+    ``path`` is a review record file or a directory of them — the documented
+    layout is ``gate/reviews/<candidate-label>.json``, so a directory is the
+    normal case. A missing path or an empty directory yields an empty list, and
+    unreviewed changes then stay unreviewed.
+    """
     if path is None:
         return []
     p = Path(path)
     if not p.exists():
         return []
+    files = sorted(p.glob("*.json")) if p.is_dir() else [p]
+    out: list[Disposition] = []
+    for f in files:
+        out.extend(_load_review_file(f))
+    return out
+
+
+def _load_review_file(p: Path) -> list[Disposition]:
     data = json.loads(p.read_text())
     if not isinstance(data, dict):
         raise ValueError(f"review file {p} is not a JSON object")

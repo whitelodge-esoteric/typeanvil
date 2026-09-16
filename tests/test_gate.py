@@ -298,6 +298,59 @@ def test_disposition_required_and_bound(tmp_path):
     assert "stale_review" in names(stale)
 
 
+def test_reviews_directory_is_the_normal_case(tmp_path):
+    """`gate/reviews` is a DIRECTORY of records; loading one must not crash.
+
+    Regression: ``load_reviews`` treated every existing path as a file, so the
+    documented ``--reviews gate/reviews`` call died with ``IsADirectoryError``
+    before any condition was evaluated.
+    """
+    from harness.release_gate import load_reviews
+
+    base = capture("base", [doc("a.html", ["a1"])])
+    cand = capture("cand", [doc("a.html", ["a2"])])
+    manifest = write_manifest(tmp_path)
+    policy = write_policy(tmp_path)
+
+    reviews_dir = tmp_path / "reviews"
+    reviews_dir.mkdir()
+
+    # An empty directory is not an error: nothing is reviewed yet, so the
+    # change stays unreviewed rather than passing.
+    assert load_reviews(reviews_dir) == []
+    unreviewed = run_gate(
+        base, cand, tmp_path, manifest=manifest, policy=policy, reviews=reviews_dir
+    )
+    assert unreviewed.ok is False
+    assert "unreviewed_change" in names(unreviewed)
+
+    # A record placed in the directory (the documented layout) binds.
+    cid = change_id("a.html", base.documents[0], cand.documents[0])
+    (reviews_dir / "cand.json").write_text(
+        json.dumps(
+            {
+                "schema": REVIEW_SCHEMA,
+                "candidate": {"label": "cand"},
+                "baseline": {"label": "base"},
+                "dispositions": [
+                    {
+                        "doc_id": "a.html",
+                        "change_id": cid,
+                        "kind": "correction",
+                        "reason": "the new page count is the correct one",
+                        "provenance": "docs/specifications/paged-media-css.spec.md",
+                    }
+                ],
+            }
+        )
+    )
+    assert len(load_reviews(reviews_dir)) == 1
+    accepted = run_gate(
+        base, cand, tmp_path, manifest=manifest, policy=policy, reviews=reviews_dir
+    )
+    assert accepted.ok is True, [c.name for c in accepted.conditions]
+
+
 def test_regression_disposition_blocks(tmp_path):
     base = capture("base", [doc("a.html", ["a1"])])
     cand = capture("cand", [doc("a.html", ["a2"])])
