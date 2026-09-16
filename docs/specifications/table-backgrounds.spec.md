@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: elijah
 created: 2026-08-20
-updated: 2026-08-20
+updated: 2026-09-15
 sidebar_position: 16
 tags: [layout, tables, css-tables, backgrounds, engine]
 spec_id: table-backgrounds
@@ -127,7 +127,7 @@ borders before text).
 
 ## References
 
-- CORE-100 (Linear) + `demo/TRIAGE.md` §CORE-100 — pixel-scan evidence and
+- CORE-100 (Linear) + `demo/corpus/TRIAGE.md` §CORE-100 — pixel-scan evidence and
   minimal repros.
 - CORE-96 — the cell bg+border half landed in that branch (commit e420843,
   merged 2933d80).
