@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Invoice INV-2026-0417 — Halden Instrument Works AG</title>
+<style>
+  @page {
+    size: 8.5in 11in;
+    margin: 0.75in;
+    @top-right { content: "Invoice INV-2026-0417"; font-size: 8.5pt; color: #777; }
+    @bottom-left { content: "Halden Instrument Works AG · Zürich"; font-size: 8pt; color: #666; }
+    @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 8pt; color: #666; }
+  }
+  @page :first { @top-right { content: none; } }
+  body { font-family: Arial, Helvetica, "Liberation Sans", sans-serif; font-size: 9.5pt; line-height: 1.38; color: #1c1f24; }
+  p { margin: 0; }
+
+  table { border-collapse: collapse; width: 100%; }
+
+  /* Letterhead mark: block-level image (images inside table cells do not
+     paint — see the known-issues note in demo/showcase/README.md). */
+  .mark { display: block; width: 0.78in; margin: 0 0 10pt 0; }
+
+  /* Letterhead text band: seller block, document block. */
+  .head { margin: 0 0 18pt 0; }
+  .head td { border: none; padding: 0; vertical-align: top; }
+  .cname { font-size: 13pt; color: #17547a; margin-bottom: 4pt; }
+  .dtitle { font-size: 17pt; color: #17547a; letter-spacing: 2pt; margin-bottom: 5pt; }
+  .doc { text-align: right; }
+  .small { font-size: 8.5pt; color: #555; }
+
+  /* Billed-to / delivered-to pair. */
+  .addr { margin: 0 0 16pt 0; }
+  .addr td { border: none; padding: 0 18pt 0 0; vertical-align: top; }
+  .label { font-size: 8pt; letter-spacing: 1pt; color: #8a6d3b; margin-bottom: 3pt; }
+  .strong { font-size: 10pt; margin-bottom: 3pt; }
+
+  h2.sect { font-size: 11pt; color: #17547a; margin: 0 0 6pt 0; page-break-after: avoid; }
+
+  /* Line items: thead repeats on every page the table spans. */
+  .items { font-size: 8.5pt; }
+  .items thead th { background-color: #17547a; color: #fff; text-align: left; padding: 4pt 6pt; font-size: 8pt; }
+  .items td { border-bottom: 0.5pt solid #ccd3da; padding: 3.5pt 6pt; vertical-align: top; }
+  .items .item { color: #777; width: 0.42in; }
+  .items .num, .items thead th.num { text-align: right; }
+  .items tbody tr:nth-child(even) td { background-color: #f4f6f8; }
+
+  /* Totals: label/value block pushed to the right half by a spacer cell. */
+  .totals { font-size: 9.5pt; margin-top: 10pt; break-inside: avoid; }
+  .totals td { border: none; padding: 2.5pt 6pt; }
+  .totals .spacer { width: 58%; }
+  .totals .tl { text-align: right; color: #444; }
+  .totals .num { text-align: right; width: 1.35in; }
+  .totals tr.grand td { background-color: #17547a; color: #fff; font-weight: bold; }
+  .totals tr.net td { border-top: 0.5pt solid #ccd3da; }
+
+  .block { margin-top: 16pt; break-inside: avoid; }
+  .block h2 { font-size: 11pt; color: #17547a; margin: 0 0 6pt 0; page-break-after: avoid; }
+  .remit td { border: none; padding: 2pt 0; font-size: 9pt; vertical-align: top; }
+  .remit .rl { width: 1.35in; color: #555; }
+  .terms p { margin-bottom: 5pt; }
+  .callout { background-color: #eef4f8; border-left: 3pt solid #e87722; padding: 8pt 12pt; margin-top: 14pt; }
+</style>
+</head>
+<body>
+
+<img class="mark" src="assets/invoice-mark.png" alt="Halden Instrument Works mark">
+
+<table class="head">
+  <tr>
+    <td class="co">
+      <p class="cname">Halden Instrument Works AG</p>
+      <p class="small">Werkstrasse 4, 8005 Zürich, Switzerland</p>
+      <p class="small">UID CHE-123.456.789 · VAT CHE-123.456.789 MWST</p>
+      <p class="small">+41 44 555 01 20 · accounts@halden-instruments.ch</p>
+    </td>
+    <td class="doc">
+      <p class="dtitle">INVOICE</p>
+      <p class="small">Number INV-2026-0417</p>
+      <p class="small">Issued 2026-09-15</p>
+      <p class="small">Due 2026-10-15 · net 30</p>
+      <p class="small">Purchase order PO-88214</p>
+      <p class="small">Project Meridian resurvey</p>
+    </td>
+  </tr>
+</table>
+
+<table class="addr">
+  <tr>
+    <td class="half">
+      <p class="label">INVOICED TO</p>
+      <p class="strong">Meridian Survey Supply Ltd</p>
+      <p class="small">22 Harbour Way</p>
+      <p class="small">Bristol BS1 6QA, United Kingdom</p>
+      <p class="small">VAT GB 224 8871 03 · ap@meridiansurvey.co.uk</p>
+    </td>
+    <td class="half">
+      <p class="label">DELIVERED TO</p>
+      <p class="strong">Meridian Survey Supply Ltd — Receiving</p>
+      <p class="small">Unit 7, Kestrel Park, Avonmouth</p>
+      <p class="small">Bristol BS11 9DB, United Kingdom</p>
+      <p class="small">Goods inwards, bay 3 · delivery note DN-4471</p>
+    </td>
+  </tr>
+</table>
+
+<h2 class="sect">Line items</h2>
+<table class="items">
+  <thead>
+    <tr>
+      <th class="item">Item</th>
+      <th>Description</th>
+      <th class="num">Qty</th>
+      <th class="num">Unit price</th>
+      <th class="num">Amount (CHF)</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr><td class="item">001</td><td>Theodolite T-4, 20× magnification, graduated circle</td><td class="num">2</td><td class="num">4,280.00</td><td class="num">8,560.00</td></tr>
+      <tr><td class="item">002</td><td>Precision level, tilting, 32×</td><td class="num">1</td><td class="num">1,215.00</td><td class="num">1,215.00</td></tr>
+      <tr><td class="item">003</td><td>Barometer, Fortin pattern, mercury-free</td><td class="num">3</td><td class="num">690.00</td><td class="num">2,070.00</td></tr>
+      <tr><td class="item">004</td><td>Chronometer, 8-day, gimballed</td><td class="num">1</td><td class="num">3,450.00</td><td class="num">3,450.00</td></tr>
+      <tr><td class="item">005</td><td>Ranging poles, 5 m, banded (pair)</td><td class="num">12</td><td class="num">84.00</td><td class="num">1,008.00</td></tr>
+      <tr><td class="item">006</td><td>Lead line, 30 m, calibrated</td><td class="num">4</td><td class="num">132.00</td><td class="num">528.00</td></tr>
+      <tr><td class="item">007</td><td>Tripod, heavy survey, alloy head</td><td class="num">3</td><td class="num">385.00</td><td class="num">1,155.00</td></tr>
+      <tr><td class="item">008</td><td>Prism, single, 90-degree</td><td class="num">6</td><td class="num">148.00</td><td class="num">888.00</td></tr>
+      <tr><td class="item">009</td><td>Staff, telescopic, 5 m</td><td class="num">2</td><td class="num">268.00</td><td class="num">536.00</td></tr>
+      <tr><td class="item">010</td><td>Compass, Säntis pattern, damped</td><td class="num">5</td><td class="num">96.00</td><td class="num">480.00</td></tr>
+      <tr><td class="item">011</td><td>Plane table, 60 × 80 cm</td><td class="num">2</td><td class="num">540.00</td><td class="num">1,080.00</td></tr>
+      <tr><td class="item">012</td><td>Alidade, telescopic</td><td class="num">2</td><td class="num">720.00</td><td class="num">1,440.00</td></tr>
+      <tr><td class="item">013</td><td>Anemometer, cup type, calibrated</td><td class="num">3</td><td class="num">305.00</td><td class="num">915.00</td></tr>
+      <tr><td class="item">014</td><td>Hygrometer, whirling</td><td class="num">4</td><td class="num">118.00</td><td class="num">472.00</td></tr>
+      <tr><td class="item">015</td><td>Survey umbrella, white, 2 m</td><td class="num">6</td><td class="num">74.00</td><td class="num">444.00</td></tr>
+      <tr><td class="item">016</td><td>Field book, waterproof, 200 pages</td><td class="num">24</td><td class="num">18.50</td><td class="num">444.00</td></tr>
+      <tr><td class="item">017</td><td>Instrument oil, 100 ml</td><td class="num">10</td><td class="num">12.00</td><td class="num">120.00</td></tr>
+      <tr><td class="item">018</td><td>Spare reticle set</td><td class="num">8</td><td class="num">46.00</td><td class="num">368.00</td></tr>
+      <tr><td class="item">019</td><td>Tripod shoes, brass, set of three</td><td class="num">10</td><td class="num">22.00</td><td class="num">220.00</td></tr>
+      <tr><td class="item">020</td><td>Case, fitted, for theodolite T-4</td><td class="num">2</td><td class="num">410.00</td><td class="num">820.00</td></tr>
+      <tr><td class="item">021</td><td>Diagonal eyepiece</td><td class="num">3</td><td class="num">265.00</td><td class="num">795.00</td></tr>
+      <tr><td class="item">022</td><td>Solar filter, objective</td><td class="num">4</td><td class="num">88.00</td><td class="num">352.00</td></tr>
+      <tr><td class="item">023</td><td>Levelling staff foot plate</td><td class="num">12</td><td class="num">34.00</td><td class="num">408.00</td></tr>
+      <tr><td class="item">024</td><td>Measuring tape, 50 m steel</td><td class="num">5</td><td class="num">156.00</td><td class="num">780.00</td></tr>
+      <tr><td class="item">025</td><td>Optical plummet, spare</td><td class="num">2</td><td class="num">190.00</td><td class="num">380.00</td></tr>
+      <tr><td class="item">026</td><td>Battery charger, field kit</td><td class="num">3</td><td class="num">142.00</td><td class="num">426.00</td></tr>
+      <tr><td class="item">027</td><td>Transit case, reinforced</td><td class="num">1</td><td class="num">385.00</td><td class="num">385.00</td></tr>
+      <tr><td class="item">028</td><td>Calibration service, per instrument</td><td class="num">9</td><td class="num">95.00</td><td class="num">855.00</td></tr>
+      <tr><td class="item">029</td><td>Prism pole, 2.5 m, graduated</td><td class="num">4</td><td class="num">176.00</td><td class="num">704.00</td></tr>
+      <tr><td class="item">030</td><td>Tribrach, optical, with adapter</td><td class="num">3</td><td class="num">465.00</td><td class="num">1,395.00</td></tr>
+      <tr><td class="item">031</td><td>Levelling base, three-screw</td><td class="num">2</td><td class="num">288.00</td><td class="num">576.00</td></tr>
+      <tr><td class="item">032</td><td>Target plate, 30 × 30 cm</td><td class="num">8</td><td class="num">62.00</td><td class="num">496.00</td></tr>
+      <tr><td class="item">033</td><td>Plumb bob, brass, 450 g</td><td class="num">12</td><td class="num">24.00</td><td class="num">288.00</td></tr>
+      <tr><td class="item">034</td><td>Measuring tape repair kit</td><td class="num">6</td><td class="num">38.00</td><td class="num">228.00</td></tr>
+      <tr><td class="item">035</td><td>Compass needle, spare set</td><td class="num">8</td><td class="num">21.00</td><td class="num">168.00</td></tr>
+      <tr><td class="item">036</td><td>Instrument cover, waterproof</td><td class="num">10</td><td class="num">34.00</td><td class="num">340.00</td></tr>
+      <tr><td class="item">037</td><td>Lens cloth, lint-free, pack of 20</td><td class="num">15</td><td class="num">9.50</td><td class="num">142.50</td></tr>
+      <tr><td class="item">038</td><td>Silica gel sachets, 50 g, pack of 50</td><td class="num">6</td><td class="num">27.00</td><td class="num">162.00</td></tr>
+      <tr><td class="item">039</td><td>Desiccant case, rechargeable</td><td class="num">4</td><td class="num">88.00</td><td class="num">352.00</td></tr>
+      <tr><td class="item">040</td><td>Tripod bag, padded</td><td class="num">6</td><td class="num">58.00</td><td class="num">348.00</td></tr>
+      <tr><td class="item">041</td><td>Staff clamp, spare</td><td class="num">10</td><td class="num">19.00</td><td class="num">190.00</td></tr>
+      <tr><td class="item">042</td><td>Meteorological screen, louvred</td><td class="num">2</td><td class="num">415.00</td><td class="num">830.00</td></tr>
+      <tr><td class="item">043</td><td>Thermometer, wet and dry pair</td><td class="num">6</td><td class="num">76.00</td><td class="num">456.00</td></tr>
+      <tr><td class="item">044</td><td>Rain gauge, tipping bucket</td><td class="num">3</td><td class="num">545.00</td><td class="num">1,635.00</td></tr>
+      <tr><td class="item">045</td><td>Wind vane, balanced</td><td class="num">3</td><td class="num">232.00</td><td class="num">696.00</td></tr>
+      <tr><td class="item">046</td><td>Recorder chart paper, box of 100</td><td class="num">8</td><td class="num">64.00</td><td class="num">512.00</td></tr>
+      <tr><td class="item">047</td><td>Recorder ink, 30 ml</td><td class="num">12</td><td class="num">14.00</td><td class="num">168.00</td></tr>
+      <tr><td class="item">048</td><td>Barograph, weekly drum</td><td class="num">1</td><td class="num">2,140.00</td><td class="num">2,140.00</td></tr>
+      <tr><td class="item">049</td><td>Barometer case, mahogany</td><td class="num">2</td><td class="num">320.00</td><td class="num">640.00</td></tr>
+      <tr><td class="item">050</td><td>Calibration certificate, traceable</td><td class="num">12</td><td class="num">58.00</td><td class="num">696.00</td></tr>
+      <tr><td class="item">051</td><td>Workshop labour, optical realignment (hour)</td><td class="num">18</td><td class="num">145.00</td><td class="num">2,610.00</td></tr>
+      <tr><td class="item">052</td><td>Packing and crating, export</td><td class="num">1</td><td class="num">680.00</td><td class="num">680.00</td></tr>
+      <tr><td class="item">053</td><td>Freight, Zürich to Bristol</td><td class="num">1</td><td class="num">1,240.00</td><td class="num">1,240.00</td></tr>
+      <tr><td class="item">054</td><td>Transit insurance, 0.4% of goods value</td><td class="num">1</td><td class="num">122.00</td><td class="num">122.00</td></tr>
+      <tr><td class="item">055</td><td>Export documentation fee</td><td class="num">1</td><td class="num">95.00</td><td class="num">95.00</td></tr>
+      <tr><td class="item">056</td><td>Installation visit, two technicians, 2 days</td><td class="num">1</td><td class="num">3,600.00</td><td class="num">3,600.00</td></tr>
+  </tbody>
+</table>
+
+<table class="totals">
+  <tr><td class="spacer"></td><td class="tl">Subtotal, 56 items</td><td class="num">52,103.50</td></tr>
+  <tr><td class="spacer"></td><td class="tl">Volume discount, 5%</td><td class="num">−2,605.18</td></tr>
+  <tr class="net"><td class="spacer"></td><td class="tl">Net</td><td class="num">49,498.32</td></tr>
+  <tr><td class="spacer"></td><td class="tl">VAT, 8.1%</td><td class="num">4,009.36</td></tr>
+  <tr class="grand"><td class="spacer"></td><td class="tl">Total due (CHF)</td><td class="num">53,507.68</td></tr>
+</table>
+
+<div class="block">
+  <h2>Remittance advice</h2>
+  <table class="remit">
+    <tr><td class="rl">Beneficiary</td><td>Halden Instrument Works AG, 8005 Zürich</td></tr>
+    <tr><td class="rl">Bank</td><td>Zürcher Kantonalbank, Bahnhofstrasse 9, 8001 Zürich</td></tr>
+    <tr><td class="rl">SWIFT / BIC</td><td>ZKBKCHZZ80A</td></tr>
+    <tr><td class="rl">IBAN</td><td>CH93 0076 2011 6238 5295 7</td></tr>
+    <tr><td class="rl">Payment reference</td><td>INV-2026-0417 / PO-88214</td></tr>
+    <tr><td class="rl">Accepted currencies</td><td>CHF, EUR, GBP — converted at the Zürich fixing rate on the payment date</td></tr>
+  </table>
+</div>
+
+<div class="block">
+  <h2>Payment terms</h2>
+  <div class="terms">
+    <p>Payment is due 30 days after the invoice date, without deduction and
+    free of bank charges. The payment reference above must accompany the
+    transfer; payments received without it are applied to the oldest open
+    item on the account.</p>
+    <p>Interest on overdue amounts accrues at 5% per year from the due date
+    until the date of receipt. Title to goods passes on payment in full.
+    Goods remain the property of Halden Instrument Works AG until then.</p>
+    <p>Instruments are warranted for 24 months against defects in materials
+    and workmanship. Calibration certificates for items 001 to 014 were
+    issued on 2026-09-11 and travel with the shipment. Consumables,
+    including item 017, are excluded from the warranty.</p>
+  </div>
+</div>
+
+<div class="callout">
+  <strong>Questions about this invoice?</strong> Quote the invoice number
+  INV-2026-0417 and the purchase order PO-88214 when you contact
+  accounts@halden-instruments.ch. Our accounts team answers within one
+  business day.
+</div>
+
+</body>
+</html>

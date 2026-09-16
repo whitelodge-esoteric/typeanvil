@@ -30,5 +30,12 @@
     "wedge_features": ["images", "paged-media-css"],
     "known_limitations": [],
     "expected_deltas": []
+  },
+  {
+    "name": "Invoice & Remittance Advice",
+    "file": "invoice.html",
+    "wedge_features": ["paged-media-css", "tables-fragmentation", "fragmentation-core", "images"],
+    "known_limitations": [],
+    "expected_deltas": []
   }
 ]

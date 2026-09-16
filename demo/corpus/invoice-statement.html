@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Invoice &amp; Statement of Account — Halden Instrument Works AG</title>
+<style>
+  /* Geometry is controlled by CLI flags (--page-width/--page-height/
+     --margin-*) per the demo spec — NO @page size here so both engines
+     render identical page boxes. Margins/margin boxes are fine. */
+  @page {
+    margin: 0.5in;
+    @top-center { content: "Halden Instrument Works AG — INV-2026-0417"; font-family: Arial, Helvetica, sans-serif; font-size: 8pt; }
+    @bottom-right { content: "Page " counter(page); font-family: Arial, Helvetica, sans-serif; font-size: 8pt; }
+  }
+  body { font-family: Arial, Helvetica, "Liberation Sans", sans-serif; font-size: 8pt; line-height: 1.25; color: #222; }
+  h1 { font-size: 13pt; color: #1d3557; margin: 0 0 2pt 0; }
+  h2 { font-size: 9.5pt; color: #1d3557; margin: 9pt 0 3pt 0; page-break-after: avoid; }
+  .meta { font-size: 7.5pt; color: #555; margin: 0 0 4pt 0; }
+  table { border-collapse: collapse; width: 100%; margin-top: 3pt; }
+  th, td { border: 0.5pt solid #999; padding: 1.5pt 3pt; font-size: 7.5pt; text-align: left; vertical-align: top; }
+  thead th { background-color: #a8dadc; color: #1d3557; }
+  .num { text-align: right; }
+  .item { color: #888; }
+  .mono { font-family: monospace; }
+  .totals { width: 100%; margin-top: 4pt; }
+  .totals td { border: none; padding: 1pt 3pt; }
+  .totals .spacer { width: 52%; }
+  .totals .tl { text-align: right; color: #444; }
+  .totals .grand td { background-color: #457b9d; color: #fff; font-weight: bold; }
+  .note { font-size: 7pt; color: #666; margin-top: 7pt; }
+</style>
+</head>
+<body>
+
+<h1>Invoice &amp; Statement of Account</h1>
+<p class="meta">Halden Instrument Works AG, Werkstrasse 4, 8005 Zürich · Invoice INV-2026-0417 · Account MER-4471 · Issued 2026-09-15 · Due 2026-10-15, net 30 · Purchase order PO-88214</p>
+
+<h2>A. Line items</h2>
+<table class="items">
+  <thead>
+    <tr><th class="item">Item</th><th>Description</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Amount</th></tr>
+  </thead>
+  <tbody>
+      <tr><td class="item">001</td><td>Theodolite T-4, 20× magnification, graduated circle</td><td class="num">1</td><td class="num">4,280.00</td><td class="num">4,280.00</td></tr>
+      <tr><td class="item">002</td><td>Precision level, tilting, 32×</td><td class="num">1</td><td class="num">1,215.00</td><td class="num">1,215.00</td></tr>
+      <tr><td class="item">003</td><td>Barometer, Fortin pattern, mercury-free</td><td class="num">2</td><td class="num">690.00</td><td class="num">1,380.00</td></tr>
+      <tr><td class="item">004</td><td>Chronometer, 8-day, gimballed</td><td class="num">1</td><td class="num">3,450.00</td><td class="num">3,450.00</td></tr>
+      <tr><td class="item">005</td><td>Ranging poles, 5 m, banded (pair)</td><td class="num">6</td><td class="num">84.00</td><td class="num">504.00</td></tr>
+      <tr><td class="item">006</td><td>Lead line, 30 m, calibrated</td><td class="num">2</td><td class="num">132.00</td><td class="num">264.00</td></tr>
+      <tr><td class="item">007</td><td>Tripod, heavy survey, alloy head</td><td class="num">2</td><td class="num">385.00</td><td class="num">770.00</td></tr>
+      <tr><td class="item">008</td><td>Prism, single, 90-degree</td><td class="num">4</td><td class="num">148.00</td><td class="num">592.00</td></tr>
+      <tr><td class="item">009</td><td>Staff, telescopic, 5 m</td><td class="num">1</td><td class="num">268.00</td><td class="num">268.00</td></tr>
+      <tr><td class="item">010</td><td>Compass, Säntis pattern, damped</td><td class="num">3</td><td class="num">96.00</td><td class="num">288.00</td></tr>
+      <tr><td class="item">011</td><td>Plane table, 60 × 80 cm</td><td class="num">1</td><td class="num">540.00</td><td class="num">540.00</td></tr>
+      <tr><td class="item">012</td><td>Alidade, telescopic</td><td class="num">1</td><td class="num">720.00</td><td class="num">720.00</td></tr>
+      <tr><td class="item">013</td><td>Anemometer, cup type, calibrated</td><td class="num">2</td><td class="num">305.00</td><td class="num">610.00</td></tr>
+      <tr><td class="item">014</td><td>Hygrometer, whirling</td><td class="num">2</td><td class="num">118.00</td><td class="num">236.00</td></tr>
+      <tr><td class="item">015</td><td>Field book, waterproof, 200 pages</td><td class="num">12</td><td class="num">18.50</td><td class="num">222.00</td></tr>
+      <tr><td class="item">016</td><td>Instrument oil, 100 ml</td><td class="num">6</td><td class="num">12.00</td><td class="num">72.00</td></tr>
+      <tr><td class="item">017</td><td>Spare reticle set</td><td class="num">4</td><td class="num">46.00</td><td class="num">184.00</td></tr>
+      <tr><td class="item">018</td><td>Tripod shoes, brass, set of three</td><td class="num">6</td><td class="num">22.00</td><td class="num">132.00</td></tr>
+      <tr><td class="item">019</td><td>Calibration service, per instrument</td><td class="num">5</td><td class="num">95.00</td><td class="num">475.00</td></tr>
+      <tr><td class="item">020</td><td>Workshop labour, optical realignment (hour)</td><td class="num">8</td><td class="num">145.00</td><td class="num">1,160.00</td></tr>
+      <tr><td class="item">021</td><td>Packing and crating, export</td><td class="num">1</td><td class="num">680.00</td><td class="num">680.00</td></tr>
+      <tr><td class="item">022</td><td>Freight, Zürich to Bristol</td><td class="num">1</td><td class="num">1,240.00</td><td class="num">1,240.00</td></tr>
+  </tbody>
+</table>
+
+<table class="totals">
+  <tr><td class="spacer"></td><td class="tl">Subtotal, 22 items</td><td class="num">19,282.00</td></tr>
+  <tr><td class="spacer"></td><td class="tl">Volume discount, 5%</td><td class="num">−964.10</td></tr>
+  <tr><td class="spacer"></td><td class="tl">Net</td><td class="num">18,317.90</td></tr>
+  <tr><td class="spacer"></td><td class="tl">VAT, 8.1%</td><td class="num">1,483.75</td></tr>
+  <tr class="grand"><td class="spacer"></td><td class="tl">Total due (CHF)</td><td class="num">19,801.65</td></tr>
+</table>
+
+<h2>B. Statement of account</h2>
+<table class="ledger">
+  <thead>
+    <tr><th>Date</th><th>Reference</th><th class="num">Charge</th><th class="num">Payment</th><th class="num">Balance</th></tr>
+  </thead>
+  <tbody>
+      <tr><td class="mono">2026-06-30</td><td>INV-2026-0288</td><td class="num">12,480.00</td><td class="num">—</td><td class="num">12,480.00</td></tr>
+      <tr><td class="mono">2026-07-14</td><td>Payment, bank transfer</td><td class="num">—</td><td class="num">12,480.00</td><td class="num">0.00</td></tr>
+      <tr><td class="mono">2026-07-31</td><td>INV-2026-0331</td><td class="num">8,940.00</td><td class="num">—</td><td class="num">8,940.00</td></tr>
+      <tr><td class="mono">2026-08-19</td><td>Payment, bank transfer</td><td class="num">—</td><td class="num">6,000.00</td><td class="num">2,940.00</td></tr>
+      <tr><td class="mono">2026-08-31</td><td>INV-2026-0388</td><td class="num">3,125.50</td><td class="num">—</td><td class="num">6,065.50</td></tr>
+      <tr><td class="mono">2026-09-08</td><td>Credit note CN-2026-0041</td><td class="num">-420.00</td><td class="num">—</td><td class="num">5,645.50</td></tr>
+      <tr><td class="mono">2026-09-15</td><td>This invoice INV-2026-0417</td><td class="num">19,801.65</td><td class="num">—</td><td class="num">25,447.15</td></tr>
+  </tbody>
+</table>
+
+<table class="totals">
+  <tr class="grand"><td class="spacer"></td><td class="tl">Balance outstanding (CHF)</td><td class="num">25,447.15</td></tr>
+</table>
+
+<p class="note">Line items above are real table rows: section A fragments across
+page breaks with its header row repeated on every page. Section B is a running
+balance ledger. Payment terms are net 30 from the invoice date; interest on
+overdue amounts accrues at 5% per year. Remit to Zürcher Kantonalbank, IBAN
+CH93 0076 2011 6238 5295 7, quoting INV-2026-0417. Calibration certificates for
+items 001 to 004 travel with the shipment; consumables are excluded from the
+24-month warranty. Instruments are warranted against defects in materials and
+workmanship; the Säntis pattern compass carries an additional adjustment
+allowance. Thank you for your business.</p>
+
+</body>
+</html>

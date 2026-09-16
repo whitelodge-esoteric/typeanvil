@@ -93,5 +93,21 @@
       "Prince does not implement Knuth-Plass protrusion to the same spec",
       "line-height pinned to 1.6 (CORE-75) to exercise CORE-74 convergence; page-count slope still diverges at 1.6 (tracked as CORE-90)"
     ]
+  },
+  {
+    "name": "Invoice — Statement of Account",
+    "file": "invoice-statement.html",
+    "wedge_features": ["tables-fragmentation", "paged-media-css", "fragmentation-core"],
+    "known_limitations": [
+      "border-collapse: separate + border-spacing unsupported (collapse only)",
+      "rowspan unsupported (not used)",
+      "two fragmenting tables in one document (sections A and B); each repeats its own header row per page"
+    ],
+    "expected_deltas": [
+      "Prince may resolve a different system font for the sans-serif stack",
+      "Running-header font pinned to Arial 8pt in both engines; residual header diffs are layout-metric or structural",
+      "Section B's running balance is static text, not a computed counter, so both engines print identical digits",
+      "Currency symbols and accented glyphs (Zürich, Säntis) exercise the ToUnicode path; a glyph-substitution difference would show as per-page pixel noise"
+    ]
   }
 ]

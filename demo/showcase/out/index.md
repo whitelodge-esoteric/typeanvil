@@ -1,6 +1,6 @@
 ## Showcase — print-resolution renders (US Letter @ 300 DPI)
 
-Realistic-size pages rendered by the TypeAnvil engine only (commit `13dee63`). The side-by-side comparison gallery lives in [the main demo README](../README.md) and runs at 5in × 3in @ 96 DPI so diffs stay cheap; these pages show the same engine at the geometry documents actually print at. Prince renders only the comparison pipeline — the showcase is a TypeAnvil output gallery, not a diff target.
+Realistic-size pages rendered by the TypeAnvil engine only (commit `702e427`). The side-by-side comparison gallery lives in [the main demo README](../README.md) and runs at 5in × 3in @ 96 DPI so diffs stay cheap; these pages show the same engine at the geometry documents actually print at. Prince renders only the comparison pipeline — the showcase is a TypeAnvil output gallery, not a diff target.
 
 ### Book Sample
 
@@ -13,6 +13,14 @@ Realistic-size pages rendered by the TypeAnvil engine only (commit `13dee63`). T
 <img src="images/book/page-005-ta.png" alt="Book Sample — page-005-ta" width="420">
 <img src="images/book/page-006-ta.png" alt="Book Sample — page-006-ta" width="420">
 
+### Invoice & Remittance Advice
+
+*Exercises:* paged-media-css, tables-fragmentation, fragmentation-core, images
+
+<img src="images/invoice/page-001-ta.png" alt="Invoice & Remittance Advice — page-001-ta" width="420">
+<img src="images/invoice/page-002-ta.png" alt="Invoice & Remittance Advice — page-002-ta" width="420">
+<img src="images/invoice/page-003-ta.png" alt="Invoice & Remittance Advice — page-003-ta" width="420">
+
 ### Academic Sample
 
 *Exercises:* typography-layer, fragmentation-core, footnotes, cross-references
@@ -21,6 +29,7 @@ Realistic-size pages rendered by the TypeAnvil engine only (commit `13dee63`). T
 <img src="images/journal/page-002-ta.png" alt="Academic Sample — page-002-ta" width="420">
 <img src="images/journal/page-003-ta.png" alt="Academic Sample — page-003-ta" width="420">
 <img src="images/journal/page-004-ta.png" alt="Academic Sample — page-004-ta" width="420">
+<img src="images/journal/page-005-ta.png" alt="Academic Sample — page-005-ta" width="420">
 
 ### Rich Media Print
 
