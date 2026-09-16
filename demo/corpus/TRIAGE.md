@@ -1,16 +1,48 @@
-# Triage archive (frozen 2026-09-15)
+# Triage archive — historical record (frozen 2026-09-15)
 
-This file records the demo-triage passes from 2026-08 to 2026-09 (CORE-79,
-CORE-93, CORE-100, CORE-110, CORE-146, CORE-209). It is an archive, not a live
-log.
+This file records the demo-triage passes from 2026-08 to 2026-09. It is an
+archive, and **every engine bug it reports has since been fixed**. Read it for
+method and attribution evidence, not for current status.
 
-Triage findings are now tracked as Linear issues. A refresh records the
-per-document delta in the generated scoreboard in `README.md`, keeps
-per-fixture expectations in `manifest.json`, and files an issue for anything
-unexplained. Read this file for method and attribution evidence; do not append
-to it.
+## Where current state lives instead
+
+- `demo/corpus/README.md` — the generated gallery: a scoreboard (engine commit,
+  per-doc diff %, bucket) and the benchmark section, grouped `Open gaps` /
+  `Closed — regression fixtures`.
+- `demo/corpus/manifest.json` — per-fixture expectations, known limitations,
+  and the reason each doc's number is what it is.
+- Linear — the tracker. New triage findings become issues; nothing is appended
+  to this file any more.
+
+## The passes
+
+| Pass | Date | Filed | State |
+|---|---|---|---|
+| CORE-79 — second triage, re-baseline post CORE-62/63/64/74/78 | 2026-08-19 | CORE-80 … CORE-86 | All landed |
+| CORE-93 — float-showcase page-count divergence (TA 11 vs PR 8) | 2026-08-20 | CORE-95 (plus CORE-94 / CORE-53 scope) | Landed |
+| CORE-100 — table backgrounds dropped when a border is present | 2026-08-20 | CORE-100 | Landed |
+| CORE-110 — float-showcase + academic-paper residuals | 2026-08-20 | CORE-117, CORE-118 | Both landed |
+| CORE-146 — corpus feature refresh + benchmark layer | 2026-09-07 | benchmark fixtures CORE-130/140/141/143 | All landed |
+| CORE-209 — invoice-statement fixture, corpus diff drift | 2026-09-15 | CORE-209 (done), CORE-210, CORE-211 | Two still open |
+
+Checked 2026-09-15: every issue id above except CORE-210 and CORE-211 carries a
+landing commit on `release/2026.9`.
+
+## Sections that specs cite — keep these anchors
+
+- `§CORE-110` — minimal-probe evidence for margin collapsing, cited by
+  `docs/specifications/margin-collapse.spec.md`.
+- `§Driver 2` (inside the CORE-93 section) — the Prince-vs-TypeAnvil hyphenation
+  packing probe, cited by `docs/specifications/hyphenation-line-break-parity.spec.md`.
+- `§CORE-100` — the background pixel-scan technique and its root cause, cited by
+  `docs/specifications/table-backgrounds.spec.md`.
+- This file as a whole is the attribution-convention reference for
+  `docs/specifications/wpt-conformance-harness.spec.md`.
 
 ---
+
+> **Historical.** Every finding in this section has landed — see the status
+> index at the top of this file.
 
 # CORE-79 — Second Demo Triage: Re-baseline post CORE-62/63/64/74/78
 
@@ -136,6 +168,9 @@ vision alone — check embedded-font lists and char-box geometry (scripts under
 
 ---
 
+> **Historical.** Every finding in this section has landed — see the status
+> index at the top of this file.
+
 # CORE-93 — Third Demo Triage: Float fixture page-count divergence (TA 11 vs PR 8)
 
 Run: `bash scripts/build-demo.sh --keep-work` at commit `983b2aa` (current
@@ -256,6 +291,9 @@ the full 36→324 content box. Re-check with char-box geometry, not vision.
 
 ---
 
+> **Historical.** Every finding in this section has landed — see the status
+> index at the top of this file.
+
 # CORE-100 — Fourth triage follow-up: table backgrounds dropped (2026-08-20)
 
 Run at `5afe57d` (same build as the CORE-96–99 scoreboard, 2026-08-20).
@@ -312,6 +350,9 @@ background/border/color-convergence question (see the skill's
 techniques).
 
 ---
+
+> **Historical.** Every finding in this section has landed — see the status
+> index at the top of this file.
 
 # CORE-110 — Fifth triage: float-showcase (22.31%) + academic-paper (22.22%) residuals
 
@@ -375,6 +416,9 @@ several points. Then re-triage whatever remains of the two headline docs with
 char-box evidence only.
 
 
+
+> **Historical.** Every finding in this section has landed — see the status
+> index at the top of this file.
 
 # CORE-146 — Sixth refresh: corpus features landed post-CORE-79 + benchmark layer (2026-09-07)
 
@@ -444,6 +488,9 @@ pages each). The gallery shows them in a separate "Benchmark" section with
 the current TA render, the tracked issue, and the expectation. Fixtures
 flip `pending` → `resolved` when their issue lands.
 
+
+> **Current.** The fixture work in this section landed; the diff drift it
+> records is still open as CORE-211.
 
 # CORE-209 — Seventh refresh: invoice-statement fixture; corpus diff drift recorded (2026-09-15)
 

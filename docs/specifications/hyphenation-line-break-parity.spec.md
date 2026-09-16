@@ -264,7 +264,7 @@ No changes to `ComputedStyle`'s public surface beyond the existing
 
 ## References
 
-- Triage evidence: `demo/TRIAGE.md` §Driver 2 (packing probe PR 9 vs TA 2,
+- Triage evidence: `demo/corpus/TRIAGE.md` §Driver 2 (packing probe PR 9 vs TA 2,
   PR 49 vs TA 56 body lines).
 - CORE-94 (justified line breaking — breakpoint glue, measure fill):
   `docs/specifications/typography-layer.spec.md` §Behavior 9/11.
