@@ -429,3 +429,75 @@ verified safe-to-render through BOTH engines (TA and Prince terminate, 1-2
 pages each). The gallery shows them in a separate "Benchmark" section with
 the current TA render, the tracked issue, and the expectation. Fixtures
 flip `pending` → `resolved` when their issue lands.
+
+
+# CORE-209 — Seventh refresh: invoice-statement fixture; corpus diff drift recorded (2026-09-15)
+
+Run: `PY=$HOME/workspace/typeanvil/.venv/bin/python bash scripts/build-demo.sh` in the
+release worktree (`release/2026.9`, tip `702e427`). Prince 16.2 non-commercial.
+Geometry: 5in×3in, 0.5in margins, 96 DPI raster. Corpus: 8 docs (one added).
+
+**Build note (CORE-168):** host cargo builds are banned, so the engine binary lives
+in the Docker volume `dev-target-release`. Prince exists only on the host. The TypeAnvil
+side was therefore rendered by the container-built binary through a container-backed
+shim at `engine/target/debug/typeanvil` (path-mapped to `/work`), and the host ran the
+Prince side, rasterization, and diff. Both pipelines otherwise ran unmodified.
+
+## What changed
+
+- **New fixture** `invoice-statement.html` — business document: line items table
+  (22 rows) then a running-balance statement of account, each table repeating its own
+  header row per page, plus a `@top-center` running header and accented glyphs
+  (`Zürich`, `Säntis`) that exercise the ToUnicode path.
+- **First comparison build since 2026-09-07** (CORE-146). Roughly 40 engine commits
+  landed in between, so every pre-existing doc's diff moved. See the drift finding below.
+
+## Scoreboard at `702e427` (8 docs)
+
+| Doc | TA | PR | Diff% | vs CORE-146 |
+|---|---|---|---|---|
+| float-showcase | 8 | 8 | 23.15 | +2.27 |
+| **invoice-statement (new)** | **5** | **5** | **27.69** | — |
+| invoice | 5 | 5 | 17.12 | −2.05 |
+| letterhead | 8 | 8 | 12.26 | +4.40 |
+| paper | 12 | 11 | 23.52 | +9.16 (page count now mismatches) |
+| prose | 11 | 11 | 20.40 | +9.88 |
+| report | 11 | 11 | 14.29 | +6.78 |
+| table-stress | 47 | 45 | 22.21 | +1.27 (43→47 vs PR 45) |
+
+## New fixture triage: `invoice-statement.html` — bucket **cosmetic**
+
+Evidence, all from the rasterized pair plus PDF inspection (not vision):
+
+- Page counts match (5 = 5); no fragmentation divergence despite two fragmenting tables.
+- Per-page diffs 24.8 / 25.9 / 24.6 / 29.7 / 33.5 — uniform, no single structural page.
+- Embedded faces: TypeAnvil `ArialMT` + `Arial-BoldMT`; Prince the same plus
+  `CourierNewPSMT`. The fixture's `.mono` date column therefore resolves to a monospace
+  face in Prince and to the sans face in TypeAnvil (no monospace face available) — the
+  dominant substitution driver for this doc.
+- Table header fill `#a8dadc` paints on both sides (TA 4,840 px vs PR 4,700 px on p1), so
+  CORE-100's fix holds.
+- Text lines per page: TA `[41, 42, 41, 42, 44]` vs PR `[40, 38, 41, 41, 50]` — within
+  ±2 on pages 1–4; Prince fits 6 more lines on the final page (the terms paragraph wraps
+  differently). Content present and placed on both sides.
+
+No engine bug was filed from this fixture. Two previously-filed engine bugs are confirmed
+**fixed** by this build: CORE-80 (`font-weight`/`font-style` ignored — `Arial-BoldMT` is
+now embedded) and CORE-100 (table cell background dropped when a border is present).
+
+## Open finding: corpus diff drift is unattributed — do NOT read it as a regression
+
+Six of seven pre-existing docs moved **away** from Prince versus the 2026-09-07 baseline
+(+2.3 to +9.9 pp), and `paper` now mismatches page count (12 vs 11) where it previously
+matched at 11 vs 11. `table-stress` also worsened slightly (43 → 47 pages against Prince's
+unchanged 45).
+
+This refresh does not attribute that drift, and nobody should infer a regression from the
+numbers alone. The ~40 landings since `cb98dc5` include changes that deliberately diverge
+from Prince because the CSS specification wins over accidental parity (standing ruling,
+CORE-140), so part of the drift may be intended. Others may be real regressions.
+
+Required before any conclusion: a dedicated triage with char-box geometry per doc,
+comparing each side at the OLD baseline commit against the new one (the CORE-185 lesson —
+measure both sides at baseline AND candidate; a movement can be an exposed gap rather than
+a regression). Until then the drift stays recorded here as an open item.

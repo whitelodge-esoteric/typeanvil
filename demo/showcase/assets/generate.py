@@ -140,9 +140,30 @@ def journal_chart():
     img.save(OUT / "journal-passrate.png")
 
 
+def invoice_mark():
+    """Letterhead mark for the invoice fixture: navy tile, descending bars.
+
+    Pure geometry — no randomness, no timestamps, no font dependency, so a
+    rebuild is byte-identical. Drawn on white (not RGBA) because the invoice
+    page is white and the fixture avoids relying on alpha compositing.
+    """
+    S = 1000
+    img = Image.new("RGB", (S, S), "white")
+    d = ImageDraw.Draw(img)
+    d.rectangle([40, 40, S - 40, S - 40], fill=TA_BLUE)
+    # Descending bar stack (report/chart mark); shortest bar carries the accent.
+    widths = [600, 470, 340, 210]
+    colors = [(255, 255, 255), (255, 255, 255), (255, 255, 255), TA_ACCENT]
+    for i, (w, color) in enumerate(zip(widths, colors)):
+        y0 = 285 + i * 130
+        d.rectangle([200, y0, 200 + w, y0 + 92], fill=color)
+    img.save(OUT / "invoice-mark.png")
+
+
 if __name__ == "__main__":
     bar_chart()
     line_chart()
     poster_gradient()
     journal_chart()
+    invoice_mark()
     print("assets written to", OUT)

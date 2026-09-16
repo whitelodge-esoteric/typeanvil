@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-09-08
-updated: 2026-09-08
+updated: 2026-09-15
 sidebar_position: 6
 tags: [demo, showcase, print-resolution, gallery]
 spec_id: showcase-render
@@ -32,7 +32,7 @@ is not a diff target).
 
 ## Goals
 
-- Four showcase fixtures that demonstrate the wedge at real print geometry:
+- Five showcase fixtures that demonstrate the wedge at real print geometry:
   1. **Technical report** — narrative report with raster `<img>` chart
      figures at print resolution, headings, tables, running header/footer
      via `@page` margin boxes.
@@ -44,6 +44,12 @@ is not a diff target).
      body pages with running heads via `string-set`, `counter(pages)`.
   4. **Rich media print** — full-color poster-style page: large raster
      imagery, bold display typography, expressive layout.
+  5. **Invoice and remittance advice** — business document at print
+     geometry: a letterhead mark, a 56-row line-item table that fragments
+     across a page boundary with its header row repeated on the continuation
+     page, a totals block, and remittance / payment-terms sections. This is
+     the invoice half of the wedge ("reports and invoices") and it was
+     previously absent from both demo pipelines.
 - Output committed like the comparison gallery: per-page PNGs plus a
   markdown gallery promoted into `demo/showcase/README.md`, viewable
   directly on GitHub (separate file from the comparison gallery's
@@ -79,8 +85,13 @@ is not a diff target).
 5. Re-running the build on an unchanged tree SHALL produce byte-identical
    PNGs and index.md (no timestamps in the showcase output; determinism is
    the product promise).
-6. The comparison pipeline (`scripts/build-demo.sh` without `--showcase`)
-   SHALL be unaffected: same commands, same outputs, same exit codes.
+6. The showcase build SHALL NOT change the comparison pipeline's
+   MECHANICS: the same commands run, with the same exit codes, and the
+   comparison build stays deterministic on an unchanged corpus. "Unaffected"
+   does NOT freeze the corpus — adding a comparison fixture is a deliberate
+   change specified by `visual-comparison-demo.spec.md` Behavior 1, and it
+   legitimately moves the scoreboard. A showcase-only change SHALL NOT move
+   the comparison scoreboard.
 
 ## Interfaces
 
@@ -105,12 +116,17 @@ is not a diff target).
 ## Acceptance Criteria
 
 - **AC1 (render)** — Given the built engine binary, When
-  `build-demo.sh --showcase` runs, Then all four fixtures render, each
-  producing a sane page count (≥ 3 pages for report/paper/book, ≥ 1 for
-  rich-media), and the build exits 0.
+  `build-demo.sh --showcase` runs, Then all five fixtures render, each
+  producing a sane page count (≥ 3 pages for report/paper/book/invoice,
+  ≥ 1 for rich-media), and the build exits 0. For the invoice, its
+  line-item table SHALL span a page boundary with the header row repeated
+  on the continuation page, and every page SHALL carry a running footer
+  built from `counter(page)` and `counter(pages)`.
 - **AC2 (raster)** — Given a rendered PDF, When rasterized, Then each page
-  PNG exists under `demo/showcase/out/images/` and measures 2550 × 3300 px
-  (Letter @ 300 DPI).
+  PNG exists under `demo/showcase/out/images/` and measures 2550 × 3301 px.
+  (Letter @ 300 DPI is 2550 × 3300; the rasterizer rounds the height up by
+  one pixel. The committed baseline has always been 3301, so this criterion
+  now states the measured value.)
 - **AC3 (gallery)** — Given a completed build, Then
   `demo/showcase/README.md` contains the generated showcase section with
   `<img>` tags whose `src` paths resolve from `demo/showcase/` on GitHub,
@@ -118,8 +134,11 @@ is not a diff target).
   build.
 - **AC4 (determinism)** — Given two consecutive builds, Then the showcase
   output trees are byte-identical.
-- **AC5 (no comparison impact)** — Given the showcase additions, When the
-  comparison build runs, Then its outputs match a pre-change build.
+- **AC5 (no comparison impact from the showcase)** — Given a showcase-only
+  change, When the comparison build runs, Then its outputs match a
+  pre-change build. A comparison-corpus addition is out of this criterion's
+  scope; it is verified by `visual-comparison-demo.spec.md`'s own acceptance
+  criteria, and it does move the scoreboard by design.
 
 ## Edge Cases
 
@@ -147,6 +166,10 @@ is not a diff target).
   ≈ 6.2 MB committed (book 1.8, journal 1.9, poster 0.35, report 1.6) —
   far under the 40 MB cap; no JPEG conversion or page caps needed. PNG
   optimization (e.g. pngquant) is a future lever if the page count grows.
+- **Size after the invoice fixture (2026-09-15):** 18 pages @ 300 DPI,
+  ≈ 8.1 MB committed (book 1.92, invoice 1.85, journal 2.31, poster 0.35,
+  report 1.69). Still roughly 5× under the cap, so no page caps, no JPEG
+  conversion, and no palette reduction were needed.
 - **Engine facts this spec relies on** (verified during implementation):
   fixture-internal `@page { margin }` wins over CLI `--margin-*` (the
   poster renders full-bleed under shared CLI flags); `content: ... leader()

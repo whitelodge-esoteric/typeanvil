@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-17
-updated: 2026-09-07
+updated: 2026-09-15
 sidebar_position: 5
 tags: [demo, comparison, prince, gallery, pipeline]
 spec_id: visual-comparison-demo
@@ -195,6 +195,10 @@ The demo SHALL implement the following, stated as "shall" rules:
 - `letterhead.html` — named pages, `@page` margin boxes
 - `table-stress.html` — long tables fragmenting across pages
 - `prose.html` — Knuth-Plass justification showcase (the differentiator)
+- `invoice-statement.html` — business document: two fragmenting tables in one
+  file (line items, then a running-balance statement of account), each
+  repeating its header row per page, plus a margin-box running header and
+  accented glyphs that keep the ToUnicode path exercised (CORE-209)
 
 ## Acceptance Criteria
 
@@ -239,6 +243,14 @@ Each maps to a real check in `scripts/build-demo.sh` or a committed artifact:
 - **Non-determinism** — if a re-run differs beyond `generated`, the pipeline
   fails loudly (byte-compare in the script) so a flaky fixture is caught, not
   silently committed.
+- **Baseline freshness** — the committed scoreboard records the engine commit
+  it was built from (`typeanvil_version`). Rebuilding after engine changes
+  legitimately moves every doc's diff, because the corpus measures the engine
+  against Prince rather than measuring the corpus against itself. A refresh
+  SHALL record the new commit, SHALL state each doc's delta against the
+  previous baseline, and SHALL NOT present a moved number as an improvement
+  or a regression until the movement is attributed (char-box evidence per
+  doc, both sides measured at baseline AND candidate).
 - **UA defaults are Prince-parity, not HTML4-screen (CORE-92 + CORE-95)** —
   the engine's UA stylesheet matches Prince's print defaults: `body { margin:
   0 }` (CORE-92, probe 2026-08-20: Prince's first baseline = content top +
