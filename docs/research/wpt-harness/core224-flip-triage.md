@@ -201,28 +201,42 @@ sides; `TEST-OVER-PAGINATES` test side paginates past the reference;
 
 ## Follow-ups
 
-No flip is a real regression, so no new engine-defect issue is required for
-any of the 47. The exposed gaps are recorded against their existing owners:
+No flip is a real regression, so no new *defect* issue was needed for the
+class of "we broke something". The exposed gaps do need owners, and five
+issues now carry them:
 
-- **CORE-203** — `block-00{1,2}-wm-*` ×4, `body-background-*` ×3 (already in
-  its acceptance criteria).
-- **flexbox-fragmentation spec** — the 10 single-line flips + `flex-080`.
-- **CORE-152 class / fragmentation-core** — the 9 `monolithic-overflow` flips
-  + `overflowing-block`.
-- **table-fragmentation spec** — the 8 `table-fragmentation-*` flips.
-- **multicol spec** — `break-inside-avoid-multicol-001`,
-  `auto-fill-auto-size-002`, `column-balancing-paged-001`.
-- **fixedpos/abspos family** — `fixedpos-010/011`.
-- **transform/page-orientation** — `transform-023/024`.
-- **CORE-177 invalid-test bucket** — `table-fragmentation-003*`,
-  `float-with-large-margin-bottom-cross-page-001`, `safe-printable-inset-003`
-  (tentative), and the `body-background-*` Chrome-bug rows.
+| Issue | Scope | Flips |
+| -- | -- | -- |
+| [CORE-232](https://linear.app/whitelodge/issue/CORE-232) | `overflowing-block-print` over-paginates (test 3 vs ref 1), declared-height over-fragmentation | 1 |
+| [CORE-234](https://linear.app/whitelodge/issue/CORE-234) | flexbox fragmentation residual — the `single-line-*` / `multi-line-row` pairs | 10 |
+| [CORE-235](https://linear.app/whitelodge/issue/CORE-235) | table fragmentation residual — `table-fragmentation-001a-d` | 4 |
+| [CORE-236](https://linear.app/whitelodge/issue/CORE-236) | multi-column fragmentation residual — three paged multi-col pairs | 3 |
+| [CORE-237](https://linear.app/whitelodge/issue/CORE-237) | declared-height fragmentation residual — `monolithic-overflow-*` (9) plus transform-023/024, break-nested-float-in-table-001, media-queries-002 (4) | 13 |
 
-The one candidate worth a dedicated look is **`overflowing-block`** (test
-1→3 vs ref 1→1, Chrome passes): a declared-height box over-fragmenting is a
-plausible CORE-152-class defect, not just an exposed gap. It is recorded here
-against the CORE-152 class rather than filed separately, pending a targeted
-probe.
+Already-owned, no new issue:
+
+- **CORE-203** — `block-00{1,2}-wm-*` ×4 and `body-background-{slr,vlr,vrl}` ×3.
+  Its acceptance criteria enumerate these seven tests by name.
+- **CORE-204** — `fixedpos-010/011`; `fixedpos-010` is a named canary there.
+
+Not engine work, no issue — the CORE-177 invalid-test / browser-clarity bucket:
+
+- `table-fragmentation-003a/b/c/d` — Chrome bug/ambiguity (row-background
+  continuation); Firefox passes.
+- `float-with-large-margin-bottom-cross-page-001` — Chrome bug (float margin
+  fragmentation); Firefox passes.
+- `single-line-column-flex-fragmentation-069b` — Chrome bug (spurious third
+  page).
+- `safe-printable-inset-003` — explicitly tentative csswg proposal
+  (`page-margin-safety`, csswg-drafts PR #13190).
+
+Coverage: 1 + 10 + 4 + 3 + 13 + 7 + 2 + 7 = **47**. Every flip carries a
+disposition and an owner.
+
+`overflowing-block` was the one flip whose test side looked like a genuine
+defect rather than a pure reference-side correction (test 1→3 against a 1-page
+reference, with Chrome passing). It became CORE-232, with the confirming
+bisect as its first step.
 
 ## Evidence
 
