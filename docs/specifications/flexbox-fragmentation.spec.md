@@ -5,7 +5,7 @@ type: spec
 status: in-review
 owner: elijah
 created: 2026-08-18
-updated: 2026-09-15
+updated: 2026-09-18
 sidebar_position: 10
 tags: [engine, layout, css-flexbox, css-break, fragmentation]
 spec_id: flexbox-fragmentation
@@ -157,6 +157,16 @@ The engine shall:
    (the margin-boxes refs' edges rely on this). Without a definite main
    size, grow/shrink does nothing and items keep their bases (css-flexbox-1
    §9.8).
+12. **Flex container border and box geometry (CORE-234)**: a flex container
+   with a `border` paints it and lays its items inside the border box,
+   exactly like the block path (CORE-126). The container fragment carries a
+   `FragmentContent::Border`; `content_top` includes `border_top` (when
+   fresh), `inner_left`/`inner_width` include `border_left`/`border_right`,
+   and the fragment origin is the border-box left edge. Previously the flex
+   path dropped the border entirely and placed items at the content edge,
+   so a bordered flex container diverged from its block-simulated reference
+   (the `single-line-column-flex-fragmentation-066/068a-d/069a/c/d` pair
+   flips from the v2026.9.1 batch).
 
 ## Interfaces
 

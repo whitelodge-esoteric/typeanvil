@@ -99,13 +99,17 @@ impl<'a> Ctx<'a> {
 
         let margin_top = if fresh { style.margin_top } else { Scalar::ZERO };
         let box_top = top + margin_top;
-        let inner_left = origin_x + style.margin_left + style.padding_left;
+        let inner_left = origin_x + style.margin_left + style.border_left + style.padding_left;
         let inner_width = avail_width
             - style.margin_left
             - style.margin_right
+            - style.border_left
+            - style.border_right
             - style.padding_left
             - style.padding_right;
-        let content_top = box_top + style.padding_top;
+        let content_top = box_top
+            + (if fresh { style.border_top } else { Scalar::ZERO })
+            + style.padding_top;
 
         // A positioned flex container is the containing block for its abspos
         // descendants; save/restore so siblings resolve against the OUTER
@@ -744,7 +748,7 @@ impl<'a> Ctx<'a> {
         let padding_bottom = if broke { Scalar::ZERO } else { style.padding_bottom };
         y = y + padding_bottom;
         let box_height = y - box_top;
-        let origin = Point::new(inner_left - style.padding_left - style.margin_left, box_top);
+        let origin = Point::new(inner_left - style.border_left - style.padding_left, box_top);
         for child in &mut children {
             child.offset = Point::new(child.offset.x - origin.x, child.offset.y - origin.y);
             if let FragmentContent::Text(run) = &mut child.content {
@@ -755,6 +759,38 @@ impl<'a> Ctx<'a> {
         if let Some(bg) = style.background_color {
             if box_height.get() > 0.0 {
                 fragment.content = FragmentContent::Background(bg);
+            }
+        }
+        // Regular-block border painting (CORE-126): attach the border so
+        // `border` on a flex container paints, matching the block path. The
+        // border draws INSIDE the fragment rect (css-backgrounds-3).
+        if style.border_top.get() > 0.0
+            || style.border_right.get() > 0.0
+            || style.border_bottom.get() > 0.0
+            || style.border_left.get() > 0.0
+        {
+            let color = style.border_color.unwrap_or(crate::css::Color::BLACK);
+            let border_box = BorderBox {
+                top: style.border_top,
+                right: style.border_right,
+                bottom: style.border_bottom,
+                left: style.border_left,
+                color,
+            };
+            match fragment.content {
+                FragmentContent::Background(_) => {
+                    // CORE-100 model: keep the background, push the border as
+                    // a zero-offset child so it strokes ON TOP of the fill.
+                    let mut bf = Fragment::block(
+                        Point::new(Scalar::ZERO, Scalar::ZERO),
+                        (fragment.size.0, fragment.size.1),
+                    );
+                    bf.content = FragmentContent::Border(border_box);
+                    fragment.children.insert(0, bf);
+                }
+                _ => {
+                    fragment.content = FragmentContent::Border(border_box);
+                }
             }
         }
         fragment.children = children;
@@ -1092,7 +1128,7 @@ impl<'a> Ctx<'a> {
                 box_height = definite;
             }
         }
-        let origin = Point::new(inner_left - style.padding_left - style.margin_left, box_top);
+        let origin = Point::new(inner_left - style.border_left - style.padding_left, box_top);
         for child in &mut children {
             child.offset = Point::new(child.offset.x - origin.x, child.offset.y - origin.y);
             if let FragmentContent::Text(run) = &mut child.content {
@@ -1103,6 +1139,38 @@ impl<'a> Ctx<'a> {
         if let Some(bg) = style.background_color {
             if box_height.get() > 0.0 {
                 fragment.content = FragmentContent::Background(bg);
+            }
+        }
+        // Regular-block border painting (CORE-126): attach the border so
+        // `border` on a flex container paints, matching the block path. The
+        // border draws INSIDE the fragment rect (css-backgrounds-3).
+        if style.border_top.get() > 0.0
+            || style.border_right.get() > 0.0
+            || style.border_bottom.get() > 0.0
+            || style.border_left.get() > 0.0
+        {
+            let color = style.border_color.unwrap_or(crate::css::Color::BLACK);
+            let border_box = BorderBox {
+                top: style.border_top,
+                right: style.border_right,
+                bottom: style.border_bottom,
+                left: style.border_left,
+                color,
+            };
+            match fragment.content {
+                FragmentContent::Background(_) => {
+                    // CORE-100 model: keep the background, push the border as
+                    // a zero-offset child so it strokes ON TOP of the fill.
+                    let mut bf = Fragment::block(
+                        Point::new(Scalar::ZERO, Scalar::ZERO),
+                        (fragment.size.0, fragment.size.1),
+                    );
+                    bf.content = FragmentContent::Border(border_box);
+                    fragment.children.insert(0, bf);
+                }
+                _ => {
+                    fragment.content = FragmentContent::Border(border_box);
+                }
             }
         }
         fragment.children = children;

@@ -6,7 +6,7 @@ use std::process::Command;
 
 use typeanvil::css::Stylesheet;
 use typeanvil::dom::{Dom, NodeId, NodeKind};
-use typeanvil::frag::{Fragment, FragmentKind};
+use typeanvil::frag::{Fragment, FragmentContent, FragmentKind};
 use typeanvil::geom::{PageGeometry, Scalar};
 use typeanvil::layout::{layout, Layout};
 
@@ -581,3 +581,47 @@ fn column_flex1_auto_height_item_renders_nonzero() {
     assert!(fh > 0.0, "First item should have positive height");
     assert!(th > 0.0, "Third item should have positive height (not dropped)");
 }
+
+// ---------------------------------------------------------------------------
+// CORE-234 — a flex container with a border paints the border and offsets its
+// items inside the border box, matching the block path (the flex path
+// previously dropped the border and placed items at the content edge).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn flex_container_border_paints_and_offsets_items() {
+    let html = r#"
+    <style>
+      @page { size: 5in 3in; margin: 0.5in; }
+      body { margin: 0; }
+      .flex { display: flex; flex-direction: column; border: 0.25in solid black; }
+    </style>
+    <div class="flex">
+      <div class="a">1</div>
+      <div class="b">2</div>
+    </div>
+    "#;
+    let out = lay(html);
+    let dom = dom_of(html);
+    let flex = node_id_by_class(&dom, "flex");
+    let a = node_id_by_class(&dom, "a");
+    // The container fragment carries a Border (not just a background).
+    let mut v = Vec::new();
+    find_source(&out.pages[0].root, flex, &mut v);
+    assert!(!v.is_empty(), "flex container must have a fragment on page 1");
+    assert!(
+        matches!(v[0].content, FragmentContent::Border(_)),
+        "flex container with a border must paint a Border, got {:?}",
+        v[0].content
+    );
+    // The first item sits inside the border box: its x is the container's
+    // left edge + border_left + padding_left.
+    let (fx, _fy, _fw, _fh) = box_of(&out, 0, flex);
+    let (ax, _ay, _aw, _ah) = box_of(&out, 0, a);
+    let border = inches(0.25).get();
+    assert!(
+        (ax - (fx + border)).abs() < EPS,
+        "item must be offset inside the border box: item x {ax} vs container x {fx} + border {border}"
+    );
+}
+
