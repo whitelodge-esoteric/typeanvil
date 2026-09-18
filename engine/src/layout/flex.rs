@@ -587,8 +587,15 @@ impl<'a> Ctx<'a> {
                 }
                 // The line is monolithic across the cross axis: if it does
                 // not fit the remaining fragmentainer, move it whole to the
-                // next page (last resort only on an empty page).
-                if y.get() + lines[li].cross.get() > bottom_limit.get() && placed {
+                // next page (last resort only on an empty page). A single-
+                // item line defers to the item's own fragmentation instead:
+                // a block item's content breaks across pages like a block
+                // (multi-line-row-080: item "1<br>2<br>3<br>4" renders
+                // 12 on page 1, 345 on page 2).
+                if y.get() + lines[li].cross.get() > bottom_limit.get()
+                    && placed
+                    && line_items.len() > 1
+                {
                     seen_all = false;
                     outgoing_children.push(ChildToken {
                         index: items[line_items[0]].block_index,
@@ -606,6 +613,7 @@ impl<'a> Ctx<'a> {
 
             let line_top = y;
             let line_cross = lines[li].cross;
+            let mut placed_bottom = line_top;
             while k < line_items.len() {
                 let item_idx = line_items[k];
                 let item = &items[item_idx];
@@ -690,6 +698,10 @@ impl<'a> Ctx<'a> {
                 if !res.empty {
                     children.push(res.fragment);
                     placed = true;
+                    let ib = item_top + res.used;
+                    if ib.get() > placed_bottom.get() {
+                        placed_bottom = ib;
+                    }
                 }
                 if let Some(tok) = res.outgoing {
                     // The item breaks inside the line: the line fragments.
@@ -711,6 +723,11 @@ impl<'a> Ctx<'a> {
                 k += 1;
             }
             if broke {
+                // The line broke inside: the container still occupies its
+                // placed content on this fragmentainer (css-break-3 §5.1).
+                if placed_bottom.get() > y.get() {
+                    y = placed_bottom;
+                }
                 break;
             }
 

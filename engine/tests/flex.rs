@@ -625,3 +625,72 @@ fn flex_container_border_paints_and_offsets_items() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// CORE-234 residuals — row flex line fragmentation (046) and single-item line
+// fragmentation (080)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn row_flex_broken_line_keeps_container_height() {
+    // 046: a row flex container whose single item breaks inside the line
+    // (break-after:page) must keep a box that spans the placed content, not
+    // collapse to a thin border bar.
+    let html = r#"
+    <style>
+      @page { size: 5in 3in; margin: 0.5in; }
+      body { margin: 0; }
+      .flex { display: flex; border: 0.25in solid black; }
+      .text { block-size: 0.25in; }
+    </style>
+    <div class="text">Before Flexbox</div>
+    <div class="flex">
+      <div>
+        <div>1</div>
+        <div style="break-after: page">2</div>
+        <div>3</div>
+        <div>4</div>
+      </div>
+    </div>
+    <div class="text">After Flexbox</div>
+    "#;
+    let out = lay(html);
+    let dom = dom_of(html);
+    let flex = node_id_by_class(&dom, "flex");
+    let (_fx, _fy, _fw, fh) = box_of(&out, 0, flex);
+    // Border top + placed content + border bottom: definitely more than the
+    // two borders alone (36pt), which is what a collapsed thin bar would be.
+    assert!(
+        fh > 2.0 * inches(0.25).get(),
+        "row flex container must keep its placed height on a broken line, got {fh}"
+    );
+}
+
+#[test]
+fn row_flex_single_item_fragments_across_pages() {
+    // 080: a single-item row line that does not fit the remaining
+    // fragmentainer fragments the item's content across pages instead of
+    // deferring the whole line.
+    let html = r#"
+    <style>
+      @page { size: 5in 3in; margin: 0.5in; }
+      body { margin: 0; font-size: 0.25in; }
+      .flex { display: flex; flex-flow: row wrap; border: 0.25in solid black; }
+      .item { width: 100%; }
+    </style>
+    <div style="height: 1in; background: gray;"></div>
+    <div class="flex">
+      <div class="item">1<br>2<br>3<br>4</div>
+      <div class="item">5</div>
+    </div>
+    "#;
+    let out = lay(html);
+    let dom = dom_of(html);
+    let item = node_id_by_class(&dom, "item");
+    let mut p1 = Vec::new();
+    find_source(&out.pages[0].root, item, &mut p1);
+    let mut p2 = Vec::new();
+    find_source(&out.pages[1].root, item, &mut p2);
+    assert!(!p1.is_empty(), "item must start on page 1");
+    assert!(!p2.is_empty(), "item must continue on page 2");
+}
+

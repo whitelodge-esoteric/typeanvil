@@ -167,6 +167,14 @@ The engine shall:
    so a bordered flex container diverged from its block-simulated reference
    (the `single-line-column-flex-fragmentation-066/068a-d/069a/c/d` pair
    flips from the v2026.9.1 batch).
+13. **Row line fragmentation (CORE-234 residuals)**: a row flex container whose
+   line breaks inside keeps a box that spans its placed content — the raw
+   line height is NOT dropped when an item's block breaks mid-line, so the
+   container does not collapse to a border-only bar (single-line-row-046).
+   A single-item row line that does not fit the remaining fragmentainer
+   fragments the item's content across pages like a block instead of
+   deferring the whole line (multi-line-row-080). Multi-item lines keep the
+   monolithic-line deferral.
 
 ## Interfaces
 
