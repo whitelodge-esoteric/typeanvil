@@ -126,7 +126,7 @@ sides; `TEST-OVER-PAGINATES` test side paginates past the reference;
 | break/flexbox/single-line-column-flex-fragmentation-069d | PIXEL-ONLY | P | 2→2 | 2→2 | flexbox-frag spec |
 | break/flexbox/single-line-row-flex-fragmentation-046 | PIXEL-ONLY | P | 2→2 | 2→2 | flexbox-frag spec |
 | break/float-with-large-margin-bottom-cross-page-001 | CHROME-BUG-VALID | F | 1→2 | 1→2 | float frag |
-| break/overflowing-block | TEST-OVER-PAGINATES | P | 1→3 | 1→1 | CORE-152 class |
+| break/overflowing-block | REF-SIDE-GAP | P | 1→3 | **1→1 (ref under-renders)** | CORE-204 (transferred) |
 | break/table/table-fragmentation-001a | REF-CORRECTION | P | 1→1 | 1→2 | table-frag spec |
 | break/table/table-fragmentation-001b | REF-CORRECTION | P | 1→1 | 1→2 | table-frag spec |
 | break/table/table-fragmentation-001c | EXPOSED-GAP | P | 1→2 | 1→2 | table-frag spec |
@@ -234,9 +234,13 @@ Coverage: 1 + 10 + 4 + 3 + 13 + 7 + 2 + 7 = **47**. Every flip carries a
 disposition and an owner.
 
 `overflowing-block` was the one flip whose test side looked like a genuine
-defect rather than a pure reference-side correction (test 1→3 against a 1-page
-reference, with Chrome passing). It became CORE-232, with the confirming
-bisect as its first step.
+defect rather than a pure reference-side correction. **Measured follow-up
+(CORE-232, 2026-09-18): that reading was wrong.** The test side renders 3
+pages and matches Chromium; the REFERENCE side renders 1 page where Chromium
+renders 3, because a 300% abspos box nested inside a monolithic 100% abspos
+parent inherits the parent's `f64::MAX` bottom limit and never fragments.
+The remaining work is **nested abspos continuation — CORE-204**. CORE-232 is
+Canceled (superseded), evidence transferred.
 
 ## Evidence
 
