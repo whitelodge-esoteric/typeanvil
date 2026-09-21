@@ -150,7 +150,8 @@ pub struct BackgroundImageRun {
     pub broken: bool,
 }
 
-/// Border rendering data for a table cell/row (border-collapse: collapse).
+/// Border rendering data for a table cell/row (border-collapse: collapse)
+/// and any block border (CORE-201: each side carries its OWN color).
 #[derive(Clone, Debug)]
 pub struct BorderBox {
     /// Widths on each side, points (0 = no border on that side).
@@ -158,8 +159,13 @@ pub struct BorderBox {
     pub right: Scalar,
     pub bottom: Scalar,
     pub left: Scalar,
-    /// Border color (shared across sides).
-    pub color: Color,
+    /// Border color per side (CORE-201). `currentColor` is resolved to a
+    /// concrete Color at fragment build time (the CORE-165 model), so these
+    /// are never `None`.
+    pub top_color: Color,
+    pub right_color: Color,
+    pub bottom_color: Color,
+    pub left_color: Color,
 }
 
 /// A laid-out run of text for a [`FragmentKind::Line`] fragment.

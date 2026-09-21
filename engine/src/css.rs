@@ -924,15 +924,19 @@ impl PageWritingMode {
 pub struct ComputedStyle {
     pub color: Color,
     pub background_color: Option<Color>,
-    /// Border widths (points) on each side; 0 = no border. Colors come from
-    /// [`ComputedStyle::border_color`].
+    /// Border widths (points) on each side; 0 = no border.
     pub border_top: Scalar,
     pub border_right: Scalar,
     pub border_bottom: Scalar,
     pub border_left: Scalar,
-    /// Border color shared by all four sides (CORE-61: collapse model, single
-    /// color). `None` means the border is transparent / not painted.
-    pub border_color: Option<Color>,
+    /// Border color on each side (CORE-201: per-side longhands paint only
+    /// their own side). `None` on a side means `currentColor` for that side
+    /// (the element's `color`, resolved to a concrete Color by consumers —
+    /// the CORE-165 model).
+    pub border_top_color: Option<Color>,
+    pub border_right_color: Option<Color>,
+    pub border_bottom_color: Option<Color>,
+    pub border_left_color: Option<Color>,
     pub font_size: Scalar,
     /// The resolved line box height in points (`line-height` property).
     pub line_height: Scalar,
@@ -1145,7 +1149,10 @@ impl ComputedStyle {
             border_right: Scalar::ZERO,
             border_bottom: Scalar::ZERO,
             border_left: Scalar::ZERO,
-            border_color: None,
+            border_top_color: None,
+            border_right_color: None,
+            border_bottom_color: None,
+            border_left_color: None,
             font_size: px_to_pt(16.0),
             line_height: px_to_pt(16.0) * NORMAL_LINE_HEIGHT_FACTOR,
             font_weight: 400.0,
@@ -1721,8 +1728,6 @@ impl CascadeSession {
         let border_bottom = if style_none(border_style) { Scalar::ZERO } else { border_side_pt(border.clone_border_bottom_width()) };
         let border_style = border.clone_border_left_style();
         let border_left = if style_none(border_style) { Scalar::ZERO } else { border_side_pt(border.clone_border_left_width()) };
-        let border_color_stylo = border.clone_border_top_color();
-
         // `text-align` compiles in the servo build (unlike the break
         // longhands), so stylo's cascade computed it — including inheritance
         // and the `start`/`end` logical keywords.
@@ -2108,17 +2113,21 @@ impl CascadeSession {
         let padding_bottom = nn_lp_to_pt(&padding.clone_padding_bottom());
         let padding_left = nn_lp_to_pt(&padding.clone_padding_left());
 
-        // Border color: stylo's computed top-side color (the engine's border
-        // model is one shared color — CORE-66's precedent). The `border-color`
-        // fallback pass below overrides when IT matched. Alpha preserved
-        // (CORE-153).
-        let stylo_border_color = match border_color_stylo {
+        // Border colors: stylo computes EACH side's color (CORE-201 — per-side
+        // longhands must paint only their own side, so the single shared slot
+        // is gone). The `border-color` fallback pass below still overrides
+        // when IT matched. Alpha preserved (CORE-153).
+        let stylo_side_color = |c: &ComputedColor| match c {
             ComputedColor::Absolute(c) if !c.is_transparent() => {
                 let [r, g, b, a] = c.to_nscolor().to_le_bytes();
                 Some(Color { r, g, b, a })
             }
             _ => None,
         };
+        let stylo_border_top_color = stylo_side_color(&border.clone_border_top_color());
+        let stylo_border_right_color = stylo_side_color(&border.clone_border_right_color());
+        let stylo_border_bottom_color = stylo_side_color(&border.clone_border_bottom_color());
+        let stylo_border_left_color = stylo_side_color(&border.clone_border_left_color());
 
         ComputedStyle {
             color,
@@ -2134,7 +2143,10 @@ impl CascadeSession {
             border_right,
             border_bottom,
             border_left,
-            border_color: stylo_border_color,
+            border_top_color: stylo_border_top_color,
+            border_right_color: stylo_border_right_color,
+            border_bottom_color: stylo_border_bottom_color,
+            border_left_color: stylo_border_left_color,
             font_size,
             line_height,
             font_family,
@@ -3217,6 +3229,13 @@ mod borders {
         },
         /// `border-color: <color>` — all four sides.
         Color(Color),
+        /// `border-top-color` (etc.) — ONE side only (CORE-201). The old
+        /// model folded these onto the all-four `Color` variant, which
+        /// repainted every band with the declared side's colour.
+        SideColor {
+            side: Side,
+            color: Color,
+        },
     }
 
     #[derive(Clone, Copy, Debug, PartialEq)]
@@ -3453,20 +3472,22 @@ mod borders {
                 width: wl,
                 color: c,
             }),
-            // Per-side color longhands (CORE-66, page-orientation mismatch
-            // tests use `border-bottom-color`). The engine's border model is a
-            // single shared color, so the per-side override sets that slot —
-            // enough to make test/notref differ where the tests require.
-            "border-top-color" | "border-right-color" | "border-bottom-color"
-            | "border-left-color" => {
-                if let Some(c) = c {
-                    Some(BorderDecl::Color(c))
-                } else {
-                    None
-                }
-            }
+            // Per-side color longhands (CORE-66 page-orientation mismatch
+            // tests use `border-bottom-color`; CORE-201: the longhand must
+            // paint ONLY its own side, so it maps to SideColor, never the
+            // all-four slot).
+            "border-top-color" => side_color(Side::Top, c),
+            "border-right-color" => side_color(Side::Right, c),
+            "border-bottom-color" => side_color(Side::Bottom, c),
+            "border-left-color" => side_color(Side::Left, c),
             _ => None,
         }
+    }
+
+    /// Wrap a parsed color into a per-side decl (CORE-201). A bare color
+    /// value with no usable color is dropped (invalid declaration).
+    fn side_color(side: Side, c: Option<Color>) -> Option<BorderDecl> {
+        c.map(|color| BorderDecl::SideColor { side, color })
     }
 
     fn parse_rules(css: &str) -> Vec<Rule> {
@@ -3536,9 +3557,111 @@ mod borders {
             right: Option<(u32, u32)>,
             bottom: Option<(u32, u32)>,
             left: Option<(u32, u32)>,
-            color: Option<(u32, u32)>,
+            top_color: Option<(u32, u32)>,
+            right_color: Option<(u32, u32)>,
+            bottom_color: Option<(u32, u32)>,
+            left_color: Option<(u32, u32)>,
         }
         let mut won = vec![Won::default(); styles.len()];
+
+        // One declaration applied to one element's style: widths per side,
+        // colors per side (CORE-201 — a side longhand must not clobber the
+        // other three). `prio` is the cascade payload; each side's color has
+        // its OWN winner slot so `border: black` + a later
+        // `border-bottom-color: cyan` keeps top/right/left black.
+        fn apply_decl(
+            st: &mut ComputedStyle,
+            won: &mut Won,
+            decl: &BorderDecl,
+            prio: (u32, u32),
+        ) {
+            match decl {
+                BorderDecl::Shorthand { widths, color } => {
+                    if let Some(w) = widths.0 {
+                        if won.top.is_none_or(|p| prio >= p) {
+                            st.border_top = w;
+                            won.top = Some(prio);
+                        }
+                    }
+                    if let Some(w) = widths.1 {
+                        if won.right.is_none_or(|p| prio >= p) {
+                            st.border_right = w;
+                            won.right = Some(prio);
+                        }
+                    }
+                    if let Some(w) = widths.2 {
+                        if won.bottom.is_none_or(|p| prio >= p) {
+                            st.border_bottom = w;
+                            won.bottom = Some(prio);
+                        }
+                    }
+                    if let Some(w) = widths.3 {
+                        if won.left.is_none_or(|p| prio >= p) {
+                            st.border_left = w;
+                            won.left = Some(prio);
+                        }
+                    }
+                    if let Some(c) = color {
+                        apply_color(st, won, Side::Top, *c, prio);
+                        apply_color(st, won, Side::Right, *c, prio);
+                        apply_color(st, won, Side::Bottom, *c, prio);
+                        apply_color(st, won, Side::Left, *c, prio);
+                    }
+                }
+                BorderDecl::Side {
+                    side,
+                    width,
+                    color,
+                } => {
+                    let (slot, flag) = match side {
+                        Side::Top => (&mut st.border_top, &mut won.top),
+                        Side::Right => (&mut st.border_right, &mut won.right),
+                        Side::Bottom => (&mut st.border_bottom, &mut won.bottom),
+                        Side::Left => (&mut st.border_left, &mut won.left),
+                    };
+                    if let Some(w) = width {
+                        if flag.is_none_or(|p| prio >= p) {
+                            *slot = *w;
+                            *flag = Some(prio);
+                        }
+                    }
+                    if let Some(c) = color {
+                        apply_color(st, won, *side, *c, prio);
+                    }
+                }
+                BorderDecl::Color(c) => {
+                    // `border-color: <color>` — all four sides, one priority.
+                    apply_color(st, won, Side::Top, *c, prio);
+                    apply_color(st, won, Side::Right, *c, prio);
+                    apply_color(st, won, Side::Bottom, *c, prio);
+                    apply_color(st, won, Side::Left, *c, prio);
+                }
+                BorderDecl::SideColor { side, color } => {
+                    // `border-<side>-color` — ONE side only (CORE-201).
+                    apply_color(st, won, *side, *color, prio);
+                }
+            }
+        }
+
+        // The color slot for ONE side, with its own cascade winner.
+        fn apply_color(
+            st: &mut ComputedStyle,
+            won: &mut Won,
+            side: Side,
+            color: Color,
+            prio: (u32, u32),
+        ) {
+            let (slot, flag) = match side {
+                Side::Top => (&mut st.border_top_color, &mut won.top_color),
+                Side::Right => (&mut st.border_right_color, &mut won.right_color),
+                Side::Bottom => (&mut st.border_bottom_color, &mut won.bottom_color),
+                Side::Left => (&mut st.border_left_color, &mut won.left_color),
+            };
+            if flag.is_none_or(|p| prio >= p) {
+                *slot = Some(color);
+                *flag = Some(prio);
+            }
+        }
 
         for rule in &rules {
             for sel in &rule.selectors {
@@ -3548,67 +3671,7 @@ mod borders {
                         continue;
                     }
                     for decl in &rule.decls {
-                        match decl {
-                            BorderDecl::Shorthand { widths, color } => {
-                                let st = &mut styles[id];                                if let Some(w) = widths.0 {
-                                    if won[id].top.is_none_or(|p| prio >= p) {
-                                        st.border_top = w;
-                                        won[id].top = Some(prio);
-                                    }
-                                }
-                                if let Some(w) = widths.1 {
-                                    if won[id].right.is_none_or(|p| prio >= p) {
-                                        st.border_right = w;
-                                        won[id].right = Some(prio);
-                                    }
-                                }
-                                if let Some(w) = widths.2 {
-                                    if won[id].bottom.is_none_or(|p| prio >= p) {
-                                        st.border_bottom = w;
-                                        won[id].bottom = Some(prio);
-                                    }
-                                }
-                                if let Some(w) = widths.3 {
-                                    if won[id].left.is_none_or(|p| prio >= p) {
-                                        st.border_left = w;
-                                        won[id].left = Some(prio);
-                                    }
-                                }
-                                if let Some(c) = color {
-                                    if won[id].color.is_none_or(|p| prio >= p) {
-                                        st.border_color = Some(*c);
-                                        won[id].color = Some(prio);
-                                    }
-                                }
-                            }
-                            BorderDecl::Side { side, width, color } => {
-                                let st = &mut styles[id];
-                                let (slot, flag) = match side {
-                                    Side::Top => (&mut st.border_top, &mut won[id].top),
-                                    Side::Right => (&mut st.border_right, &mut won[id].right),
-                                    Side::Bottom => (&mut st.border_bottom, &mut won[id].bottom),
-                                    Side::Left => (&mut st.border_left, &mut won[id].left),
-                                };
-                                if let Some(w) = width {
-                                    if flag.is_none_or(|p| prio >= p) {
-                                        *slot = *w;
-                                        *flag = Some(prio);
-                                    }
-                                }
-                                if let Some(c) = color {
-                                    if won[id].color.is_none_or(|p| prio >= p) {
-                                        st.border_color = Some(*c);
-                                        won[id].color = Some(prio);
-                                    }
-                                }
-                            }
-                            BorderDecl::Color(c) => {
-                                if won[id].color.is_none_or(|p| prio >= p) {
-                                    styles[id].border_color = Some(*c);
-                                    won[id].color = Some(prio);
-                                }
-                            }
-                        }
+                        apply_decl(&mut styles[id], &mut won[id], decl, prio);
                     }
                 }
             }
@@ -3630,67 +3693,7 @@ mod borders {
                 };
                 let prio = (u32::MAX, inline_order);
                 inline_order += 1;
-                match &decl {
-                    BorderDecl::Shorthand { widths, color } => {
-                        let st = &mut styles[id];                        if let Some(w) = widths.0 {
-                            if won[id].top.is_none_or(|p| prio >= p) {
-                                st.border_top = w;
-                                won[id].top = Some(prio);
-                            }
-                        }
-                        if let Some(w) = widths.1 {
-                            if won[id].right.is_none_or(|p| prio >= p) {
-                                st.border_right = w;
-                                won[id].right = Some(prio);
-                            }
-                        }
-                        if let Some(w) = widths.2 {
-                            if won[id].bottom.is_none_or(|p| prio >= p) {
-                                st.border_bottom = w;
-                                won[id].bottom = Some(prio);
-                            }
-                        }
-                        if let Some(w) = widths.3 {
-                            if won[id].left.is_none_or(|p| prio >= p) {
-                                st.border_left = w;
-                                won[id].left = Some(prio);
-                            }
-                        }
-                        if let Some(c) = color {
-                            if won[id].color.is_none_or(|p| prio >= p) {
-                                st.border_color = Some(*c);
-                                won[id].color = Some(prio);
-                            }
-                        }
-                    }
-                    BorderDecl::Side { side, width, color } => {
-                        let st = &mut styles[id];
-                        let (slot, flag) = match side {
-                            Side::Top => (&mut st.border_top, &mut won[id].top),
-                            Side::Right => (&mut st.border_right, &mut won[id].right),
-                            Side::Bottom => (&mut st.border_bottom, &mut won[id].bottom),
-                            Side::Left => (&mut st.border_left, &mut won[id].left),
-                        };
-                        if let Some(w) = width {
-                            if flag.is_none_or(|p| prio >= p) {
-                                *slot = *w;
-                                *flag = Some(prio);
-                            }
-                        }
-                        if let Some(c) = color {
-                            if won[id].color.is_none_or(|p| prio >= p) {
-                                st.border_color = Some(*c);
-                                won[id].color = Some(prio);
-                            }
-                        }
-                    }
-                    BorderDecl::Color(c) => {
-                        if won[id].color.is_none_or(|p| prio >= p) {
-                            styles[id].border_color = Some(*c);
-                            won[id].color = Some(prio);
-                        }
-                    }
-                }
+                apply_decl(&mut styles[id], &mut won[id], &decl, prio);
             }
         }
     }

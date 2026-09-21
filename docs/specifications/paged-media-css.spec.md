@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-16
-updated: 2026-09-15
+updated: 2026-09-20
 sidebar_position: 3
 tags: [css, paged-media, page, layout, engine]
 spec_id: paged-media-css
@@ -84,12 +84,6 @@ market.
 - Side margin boxes (`@left-*`, `@right-*` — vertical writing-mode boxes):
   parsed and positioned, but content is treated as a single horizontal line
   (no rotation); vertical writing modes are out of scope.
-- Per-side border colours on a box (one colour paints all four sides), for
-  margin boxes and elements alike. CORE-201 records the gap and the measured
-  reason it flips no WPT test: no fixture in `css-page/margin-boxes` declares
-  a per-side border colour at all, and the fixtures that do declare one fail
-  on pagination rather than on colour (probe: `border-bottom-color: cyan`
-  currently repaints all four bands).
 - Margin-box intrinsic sizing in the box's own writing mode (CORE-184).
   **Measured 2026-09-15 (CORE-182): this — not writing-mode rotation — is what
   the four `css-page/margin-boxes/dimensions-004/006/013/014` targets fail on.**
@@ -308,6 +302,18 @@ The engine shall:
       the page root in pre-order (CSS2.1 Appendix E: a negative stacking
       context paints after the context's own background and before any in-flow
       block background).
+18. **Per-side border colours (CORE-201)**: each of the four border sides of a
+    box shall carry its OWN colour, resolved independently through the cascade
+    (css-backgrounds-3 §4.5). A `border-<side>-color` longhand shall repaint
+    only that side's band; `border-color` and the `border` shorthand set all
+    four sides. The engine shall read all four per-side computed colours from
+    stylo (not just the top), and the hand-rolled `border` author-CSS pass
+    shall track a per-side cascade winner for each side rather than a single
+    shared slot. A side with no declared colour resolves `currentColor` to the
+    element's `color` (black by default) at fragment build time. This applies
+    to element borders and page-margin-box borders alike (the margin box spec
+    already holds per-side `(width, colour)` pairs; the fragment shall reflect
+    them per side instead of one colour from the first declared side).
 
 ## Interfaces
 
@@ -593,6 +599,22 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     when the full suite runs, then the pair matches — it is the fixture that
     measures a negative-`z-index` margin box staying behind the document
     background.
+33. **Per-side border colours (CORE-201)** — Given
+    `.filler { border: 10px solid black } .specialborder
+    { border-bottom-color: cyan }` on one element, when laid out, then the
+    box's `BorderBox` fragment carries cyan on the bottom and black on top,
+    right and left; the same declarations INLINE resolve identically; a side
+    with no declared colour resolves to black (the `currentColor` fallback);
+    and a page-margin box with `border: 10px solid black;
+    border-bottom: 10px solid cyan` keeps cyan on the bottom and black
+    elsewhere (`core201_per_side_border_colors.rs`,
+    `::border_bottom_color_paints_only_the_bottom_side`,
+    `::inline_border_bottom_color_paints_only_the_bottom_side`,
+    `::colorless_sides_resolve_the_currentcolor_fallback`,
+    `::margin_box_border_keeps_each_sides_own_color`). Plus the raster probe:
+    `border-bottom-color: cyan` with black on the other three sides renders
+    a PDF whose histogram shows cyan only in the bottom band
+    (`probe/core201-hist.py`, `core201-before.png` vs `core201-after.png`).
 
 ## Edge Cases
 

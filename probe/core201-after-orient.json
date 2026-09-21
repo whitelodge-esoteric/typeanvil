@@ -1,0 +1,57 @@
+{
+  "time_start": 1789954127.712951,
+  "run_info": {
+    "product": "cli"
+  },
+  "results": [
+    {
+      "test": "/css/css-page/page-orientation-on-portrait-001-print.html",
+      "status": "PASS",
+      "duration": 23.207,
+      "message": null,
+      "subtests": [
+        {
+          "name": "page 2",
+          "status": "PASS",
+          "message": "max_difference=0 total_pixels=0"
+        }
+      ]
+    },
+    {
+      "test": "/css/css-page/page-orientation-on-portrait-002-print.html",
+      "status": "PASS",
+      "duration": 13.881,
+      "message": null,
+      "subtests": [
+        {
+          "name": "page 1",
+          "status": "PASS",
+          "message": "max_difference=0 total_pixels=0"
+        },
+        {
+          "name": "page 2",
+          "status": "FAIL",
+          "message": "max_difference=255 total_pixels=1800"
+        }
+      ]
+    },
+    {
+      "test": "/css/css-page/page-orientation-on-portrait-003-print.html",
+      "status": "PASS",
+      "duration": 26.407,
+      "message": null,
+      "subtests": [
+        {
+          "name": "page 1",
+          "status": "PASS",
+          "message": "max_difference=0 total_pixels=0"
+        },
+        {
+          "name": "page 2",
+          "status": "FAIL",
+          "message": "max_difference=255 total_pixels=1800"
+        }
+      ]
+    }
+  ]
+}

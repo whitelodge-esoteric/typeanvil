@@ -786,13 +786,15 @@ impl<'a> Ctx<'a> {
             || style.border_bottom.get() > 0.0
             || style.border_left.get() > 0.0
         {
-            let color = style.border_color.unwrap_or(crate::css::Color::BLACK);
             let border_box = BorderBox {
                 top: style.border_top,
                 right: style.border_right,
                 bottom: style.border_bottom,
                 left: style.border_left,
-                color,
+                top_color: style.border_top_color.unwrap_or(crate::css::Color::BLACK),
+                right_color: style.border_right_color.unwrap_or(crate::css::Color::BLACK),
+                bottom_color: style.border_bottom_color.unwrap_or(crate::css::Color::BLACK),
+                left_color: style.border_left_color.unwrap_or(crate::css::Color::BLACK),
             };
             match fragment.content {
                 FragmentContent::Background(_) => {
@@ -1166,13 +1168,15 @@ impl<'a> Ctx<'a> {
             || style.border_bottom.get() > 0.0
             || style.border_left.get() > 0.0
         {
-            let color = style.border_color.unwrap_or(crate::css::Color::BLACK);
             let border_box = BorderBox {
                 top: style.border_top,
                 right: style.border_right,
                 bottom: style.border_bottom,
                 left: style.border_left,
-                color,
+                top_color: style.border_top_color.unwrap_or(crate::css::Color::BLACK),
+                right_color: style.border_right_color.unwrap_or(crate::css::Color::BLACK),
+                bottom_color: style.border_bottom_color.unwrap_or(crate::css::Color::BLACK),
+                left_color: style.border_left_color.unwrap_or(crate::css::Color::BLACK),
             };
             match fragment.content {
                 FragmentContent::Background(_) => {

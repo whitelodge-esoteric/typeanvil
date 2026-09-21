@@ -980,15 +980,27 @@ fn paginate(
     // Background does NOT paint here: it propagates to the canvas (CORE-144).
     let html_root_border = dom.find_tag("html").and_then(|id| {
         let s = &styles[id];
-        // Scalar has no Ord: explicit max via if-comparisons.
+        // Scalar has no Ord: explicit max via if-comparisons. The ring's
+        // colour follows the SIDE that defines its width (CORE-201; uniform
+        // borders behave exactly as before).
         let mut w = s.border_top;
-        if s.border_right.get() > w.get() { w = s.border_right; }
-        if s.border_bottom.get() > w.get() { w = s.border_bottom; }
-        if s.border_left.get() > w.get() { w = s.border_left; }
+        let mut c = s.border_top_color;
+        if s.border_right.get() > w.get() {
+            w = s.border_right;
+            c = s.border_right_color;
+        }
+        if s.border_bottom.get() > w.get() {
+            w = s.border_bottom;
+            c = s.border_bottom_color;
+        }
+        if s.border_left.get() > w.get() {
+            w = s.border_left;
+            c = s.border_left_color;
+        }
         (w.get() > 0.0).then(|| {
             (
                 w,
-                s.border_color.unwrap_or(crate::css::Color::BLACK),
+                c.unwrap_or(crate::css::Color::BLACK),
                 (s.padding_top, s.padding_right, s.padding_bottom, s.padding_left),
             )
         })
@@ -4547,13 +4559,15 @@ impl<'a> Ctx<'a> {
                 || style.border_bottom.get() > 0.0
                 || style.border_left.get() > 0.0)
         {
-            let color = style.border_color.unwrap_or(crate::css::Color::BLACK);
             let border_box = BorderBox {
                 top: style.border_top,
                 right: style.border_right,
                 bottom: style.border_bottom,
                 left: style.border_left,
-                color,
+                top_color: style.border_top_color.unwrap_or(crate::css::Color::BLACK),
+                right_color: style.border_right_color.unwrap_or(crate::css::Color::BLACK),
+                bottom_color: style.border_bottom_color.unwrap_or(crate::css::Color::BLACK),
+                left_color: style.border_left_color.unwrap_or(crate::css::Color::BLACK),
             };
             match fragment.content {
                 FragmentContent::Background(_) => {
@@ -5512,13 +5526,22 @@ impl<'a> Ctx<'a> {
             || st.border_bottom.get() > 0.0
             || st.border_left.get() > 0.0
         {
-            if let Some(color) = st.border_color {
+            // CORE-201: any side carrying a color is enough to paint; each
+            // side resolves its own (None side = currentColor, BLACK).
+            if st.border_top_color.is_some()
+                || st.border_right_color.is_some()
+                || st.border_bottom_color.is_some()
+                || st.border_left_color.is_some()
+            {
                 let border_box = BorderBox {
                     top: st.border_top,
                     right: st.border_right,
                     bottom: st.border_bottom,
                     left: st.border_left,
-                    color,
+                    top_color: st.border_top_color.unwrap_or(crate::css::Color::BLACK),
+                    right_color: st.border_right_color.unwrap_or(crate::css::Color::BLACK),
+                    bottom_color: st.border_bottom_color.unwrap_or(crate::css::Color::BLACK),
+                    left_color: st.border_left_color.unwrap_or(crate::css::Color::BLACK),
                 };
                 // CORE-100: background + border must COEXIST on the cell.
                 // layout_box set FragmentContent::Background(bg) when the cell
@@ -7141,13 +7164,30 @@ fn attach_margin_boxes(
         // insert-then-overwrite trap (CORE-165) loses the band when a
         // background fragment is replaced afterwards.
         if pb.border.iter().any(|w| w.get() > 0.0) {
-            let color = border_paint_color(mb);
+            // CORE-201: each side keeps its OWN declared colour (the margin
+            // box spec already holds per-side `(width, colour)` pairs, so
+            // the old first-declared-side shortcut is gone).
             let border_box = BorderBox {
                 top: pb.border[0],
                 right: pb.border[1],
                 bottom: pb.border[2],
                 left: pb.border[3],
-                color,
+                top_color: mb
+                    .border_top
+                    .map(|(_, c)| c)
+                    .unwrap_or(crate::css::Color::BLACK),
+                right_color: mb
+                    .border_right
+                    .map(|(_, c)| c)
+                    .unwrap_or(crate::css::Color::BLACK),
+                bottom_color: mb
+                    .border_bottom
+                    .map(|(_, c)| c)
+                    .unwrap_or(crate::css::Color::BLACK),
+                left_color: mb
+                    .border_left
+                    .map(|(_, c)| c)
+                    .unwrap_or(crate::css::Color::BLACK),
             };
             match fragment.content {
                 FragmentContent::Background(_) => {
@@ -7303,19 +7343,6 @@ fn min_content_width(text: &str, font_size: Scalar, face: crate::fonts::FaceId) 
         }
     }
     widest
-}
-
-/// The colour a margin box's border paints with: the first declared side
-/// colour, else black (the UA default for `currentColor` borders here).
-fn border_paint_color(mb: &crate::paged::MarginBoxSpec) -> crate::css::Color {
-    for side in [mb.border_top, mb.border_right, mb.border_bottom, mb.border_left] {
-        if let Some((w, c)) = side {
-            if w.get() > 0.0 {
-                return c;
-            }
-        }
-    }
-    crate::css::Color::BLACK
 }
 
 /// Vertical offset within a margin band for `top`/`middle`/`bottom` alignment.

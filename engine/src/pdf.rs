@@ -711,18 +711,7 @@ fn collect_flat(
     parent_y: f32,
     owner: Option<NodeId>,
     backgrounds: &mut Vec<(f32, f32, f32, f32, Color, Option<NodeId>)>,
-    borders: &mut Vec<(
-        f32,
-        f32,
-        f32,
-        f32,
-        f32,
-        f32,
-        f32,
-        f32,
-        Color,
-        Option<NodeId>,
-    )>,
+    borders: &mut Vec<BorderItem>,
     texts: &mut Vec<TextItem>,
     images: &mut Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)>,
     bg_images: &mut Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)>,
@@ -754,7 +743,10 @@ fn collect_flat(
                 b.right.to_f32(),
                 b.bottom.to_f32(),
                 b.left.to_f32(),
-                b.color,
+                b.top_color,
+                b.right_color,
+                b.bottom_color,
+                b.left_color,
                 my_owner,
             ));
         }
@@ -832,18 +824,7 @@ fn paint_margin_box(
 ) -> Result<()> {
     let mut backgrounds: Vec<(f32, f32, f32, f32, Color, Option<NodeId>)> = Vec::new();
     let mut bg_images: Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)> = Vec::new();
-    let mut borders: Vec<(
-        f32,
-        f32,
-        f32,
-        f32,
-        f32,
-        f32,
-        f32,
-        f32,
-        Color,
-        Option<NodeId>,
-    )> = Vec::new();
+    let mut borders: Vec<BorderItem> = Vec::new();
     let mut images: Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)> = Vec::new();
     let mut texts: Vec<TextItem> = Vec::new();
     collect_flat(
@@ -944,23 +925,23 @@ fn paint_margin_box(
         surface.pop();
     }
 
-    for (x, y, w, h, t, r, b, l, color, owner) in &borders {
-        let fill = solid_fill(*color);
-        let mut sides: Vec<(f32, f32, f32, f32)> = Vec::new();
+    for (x, y, w, h, t, r, b, l, ct, cr, cb, cl, owner) in &borders {
+        // CORE-201: each side strokes with its OWN colour.
+        let mut sides: Vec<(f32, f32, f32, f32, Color)> = Vec::new();
         if *t > 0.0 {
-            sides.push((*x, *y, *w, *t));
+            sides.push((*x, *y, *w, *t, *ct));
         }
         if *b > 0.0 {
-            sides.push((*x, *y + h - b, *w, *b));
+            sides.push((*x, *y + h - b, *w, *b, *cb));
         }
         if *l > 0.0 {
-            sides.push((*x, *y, *l, *h));
+            sides.push((*x, *y, *l, *h, *cl));
         }
         if *r > 0.0 {
-            sides.push((*x + w - r, *y, *r, *h));
+            sides.push((*x + w - r, *y, *r, *h, *cr));
         }
         if !tagged {
-            for (px, py, pw, ph) in &sides {
+            for (px, py, pw, ph, side_color) in &sides {
                 if pw <= &0.0 || ph <= &0.0 {
                     continue;
                 }
@@ -968,7 +949,7 @@ fn paint_margin_box(
                     let mut pb = krilla::geom::PathBuilder::new();
                     pb.push_rect(rect);
                     if let Some(path) = pb.finish() {
-                        surface.set_fill(Some(fill.clone()));
+                        surface.set_fill(Some(solid_fill(*side_color)));
                         surface.draw_path(&path);
                     }
                 }
@@ -977,7 +958,7 @@ fn paint_margin_box(
             continue;
         } else {
             let ident = surface.start_tagged(tag_for_owner(*owner));
-            for (px, py, pw, ph) in &sides {
+            for (px, py, pw, ph, side_color) in &sides {
                 if *pw <= 0.0 || *ph <= 0.0 {
                     continue;
                 }
@@ -985,7 +966,7 @@ fn paint_margin_box(
                     let mut pb = krilla::geom::PathBuilder::new();
                     pb.push_rect(rect);
                     if let Some(path) = pb.finish() {
-                        surface.set_fill(Some(fill.clone()));
+                        surface.set_fill(Some(solid_fill(*side_color)));
                         surface.draw_path(&path);
                     }
                 }
@@ -1081,6 +1062,9 @@ type BorderItem = (
     f32,
     f32,
     Color,
+    Color,
+    Color,
+    Color,
     Option<NodeId>,
 );
 /// (x, y, w, h, store key, owner) — one replaced image or background image.
@@ -1156,7 +1140,10 @@ fn push_content(
                 b.right.to_f32(),
                 b.bottom.to_f32(),
                 b.left.to_f32(),
-                b.color,
+                b.top_color,
+                b.right_color,
+                b.bottom_color,
+                b.left_color,
                 owner,
             ));
         }
@@ -1357,23 +1344,23 @@ fn paint_group(
 
     // Borders after backgrounds, before text: stroke each side whose
     // width > 0 as a thin filled rect (deterministic, no stroke state).
-    for (x, y, w, h, t, r, b, l, color, owner) in &group.borders {
-        let fill = solid_fill(*color);
-        let mut sides: Vec<(f32, f32, f32, f32)> = Vec::new();
+    for (x, y, w, h, t, r, b, l, ct, cr, cb, cl, owner) in &group.borders {
+        // CORE-201: each side strokes with its OWN colour.
+        let mut sides: Vec<(f32, f32, f32, f32, Color)> = Vec::new();
         if *t > 0.0 {
-            sides.push((*x, *y, *w, *t));
+            sides.push((*x, *y, *w, *t, *ct));
         }
         if *b > 0.0 {
-            sides.push((*x, *y + h - b, *w, *b));
+            sides.push((*x, *y + h - b, *w, *b, *cb));
         }
         if *l > 0.0 {
-            sides.push((*x, *y, *l, *h));
+            sides.push((*x, *y, *l, *h, *cl));
         }
         if *r > 0.0 {
-            sides.push((*x + w - r, *y, *r, *h));
+            sides.push((*x + w - r, *y, *r, *h, *cr));
         }
         if !tagged {
-            for (px, py, pw, ph) in &sides {
+            for (px, py, pw, ph, side_color) in &sides {
                 if pw <= &0.0 || ph <= &0.0 {
                     continue;
                 }
@@ -1381,7 +1368,7 @@ fn paint_group(
                     let mut pb = krilla::geom::PathBuilder::new();
                     pb.push_rect(rect);
                     if let Some(path) = pb.finish() {
-                        surface.set_fill(Some(fill.clone()));
+                        surface.set_fill(Some(solid_fill(*side_color)));
                         surface.draw_path(&path);
                     }
                 }
@@ -1392,7 +1379,7 @@ fn paint_group(
             // One marked-content sequence wraps ALL border sides of the
             // box — they are one logical graphic.
             let ident = surface.start_tagged(tag_for_owner(*owner));
-            for (px, py, pw, ph) in &sides {
+            for (px, py, pw, ph, side_color) in &sides {
                 if *pw <= 0.0 || *ph <= 0.0 {
                     continue;
                 }
@@ -1400,7 +1387,7 @@ fn paint_group(
                     let mut pb = krilla::geom::PathBuilder::new();
                     pb.push_rect(rect);
                     if let Some(path) = pb.finish() {
-                        surface.set_fill(Some(fill.clone()));
+                        surface.set_fill(Some(solid_fill(*side_color)));
                         surface.draw_path(&path);
                     }
                 }
