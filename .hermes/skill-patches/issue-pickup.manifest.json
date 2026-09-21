@@ -1,0 +1,16 @@
+{
+  "format": "typeanvil.skill-patch/1",
+  "scope": "issue pickup workflow corrections only",
+  "files": [
+    {
+      "path": "software-development/typeanvil-issue-loop/SKILL.md",
+      "before_sha256": "06faa11e053e29de514bec3d2a3bdf15a4cb92893431588bcb21cd58aed1d482",
+      "after_sha256": "8b46f213189d2441ccacfa6fa2016ab2f709ddbfa30774b2fdfab68bb814faf5"
+    },
+    {
+      "path": "software-development/typeanvil-project/SKILL.md",
+      "before_sha256": "376211e44499f3485035a60fad1768df8fbb5ad9938e62bde206621b126334ff",
+      "after_sha256": "895dc605dbf72e6950c8f3bb33d88fcf7bfc932a8617009038daed66e7704437"
+    }
+  ]
+}

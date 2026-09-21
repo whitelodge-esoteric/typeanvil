@@ -1,0 +1,258 @@
+--- a/software-development/typeanvil-issue-loop/SKILL.md
++++ b/software-development/typeanvil-issue-loop/SKILL.md
+@@ -1,7 +1,7 @@
+ ---
+ name: typeanvil-issue-loop
+ description: "Use when picking up a TypeAnvil CORE issue end-to-end."
+-version: 1.3.0
++version: 1.3.1
+ author: elijah
+ license: MIT
+ metadata:
+@@ -78,16 +78,15 @@
+    worktree. (CORE-101 was mid-flight while CORE-102 was picked instead.)
+ 3. Prefer dependency order + priority; verify a "Done" claim before trusting it
+    (phantom Done states happen).
+-4. Read the FULL description (`get_issue`, arg is `id`) AND all paginated
++4. After identifying the issue and checking ownership, mark it In Progress
++   and record the model IMMEDIATELY when investigation starts. Read back the
++   issue to verify the transition. Investigation is active work; do not wait
++   for reproduction or a confirmed diagnosis before setting the state.
++5. Read the FULL description (`get_issue`, arg is `id`) AND all paginated
+    comments. Follow supersession links to the canonical capability. Compare
+    later landings and unmerged branch work before accepting the diagnosis;
+-   descriptions can lag behind comment corrections.
+-5. Mark the issue In Progress and prepend the model line IMMEDIATELY — the
+-   moment you begin investigating or researching it, before reading evidence,
+-   before reproduction, before any verification. Investigation/research IS
+-   active work: never defer the In Progress transition until the premise gate
+-   passes or a diagnosis is confirmed. Leave it In Progress until the issue
+-   lands and closes.
++   descriptions can lag behind comment corrections. Keep the issue In Progress
++   through investigation and implementation until its verified disposition.
+ 
+ **Build/test in Docker, not on the host** (CORE-168, host OOM guard): run
+ `./scripts/dev-container.sh cargo test --manifest-path /work/engine/Cargo.toml
+@@ -102,42 +101,51 @@
+ 
+ ## 2. Worktree setup
+ 
++Fetch origin and resolve the active release branch BEFORE creating the
++worktree. Record its exact commit as BASE_SHA. Use the returned gitBranchName
++verbatim; it can already contain `ebboston/`. Set WORKTREE and ISSUE_BRANCH to
++the intended path and branch after checking existing ownership. From the active
++repository, run:
++
+ ```bash
+-git -C ~/workspace/typeanvil worktree add \
+-  ~/workspace/typeanvil.worktrees/core-<N> \
+-  -b ebboston/<gitBranchName-from-issue>
++git worktree add "$WORKTREE" -b "$ISSUE_BRANCH" "$BASE_SHA"
++git -C "$WORKTREE" rev-parse HEAD
+ ```
+ 
+-Then wire the worktree up (fresh worktrees lack these):
+-
+-- `.wpt` is gitignored and lives only in main:
+-  `ln -sfn ~/workspace/typeanvil/.wpt <worktree>/.wpt`
+-- Harness runs use MAIN's venv python:
+-  `~/workspace/typeanvil/.venv/bin/python -m harness ...`
+-- Demo builds: `scripts/build-demo.sh` defaults `PY=.venv/bin/python` relative
+-  to the repo root, which doesn't exist in fresh worktrees. Run:
+-  `PY=$HOME/workspace/typeanvil/.venv/bin/python bash scripts/build-demo.sh --keep-work`.
+-  It also requires the worktree's own engine binary first (`cargo build` in
+-  `<worktree>/engine`).
+-- Binary: for docs/corpus-only branches COPY main's binary and verify it with a
+-  behavioral signature (table-stress must render 42 pages post-CORE-89); for
+-  engine branches just run `cargo build` in `<worktree>/engine` (~26s full,
+-  ~2.5s incremental).
+-
+-**Path discipline:** patch/write_file resolve against the SESSION cwd, not the
+-worktree. `cd` into the worktree first and use paths under it, or edits land
+-silently in main. Check `git status` in main first — another session may carry
+-uncommitted WIP there.
+-
+-Note: the curated css-multicol subset (`harness/multicol_subset.py`) landed on
+-CORE-77's branch; until merged, run multicol-subset tests from the core-77
+-worktree's harness pointing `--cli-cmd` at YOUR worktree's binary.
+-
+-### Initialize cocoindex (ccc) for code search
+-
+-Right after worktree setup, initialize a semantic code index scoped to THIS
+-worktree (the index DB is per-directory: `.cocoindex_code/` inside the cwd,
+-already gitignored via `/.cocoindex_code/`):
++Verify HEAD equals BASE_SHA. Omitting the start point branches from the current
++checkout, which can be main and behind the release branch. Preserve an existing
++worktree; do not recreate it just to repair setup without checking live work.
++
++- Engine build, test, and CLI-harness runs use the worktree's
++  `scripts/dev-container.sh`. Follow `docs/operations/issue-evidence-review.md`
++  for the fresh build and targeted reproduction, including logs and exit codes.
++- The binary is `/work/engine/target/debug/typeanvil` INSIDE the container.
++  `engine/target` is a named Docker volume. An empty host directory says nothing
++  about build completion. For a background build, collect the terminal process
++  result with `process_manage`; never poll the host binary path or infer a
++  crash merely because an `--rm` container has exited.
++- WPT fixtures are available at `/main/.wpt` in the container. A host-side
++  source inspection can use main's checkout or an intentional `.wpt` symlink.
++- Documentation-only work skips engine builds and renders. Corpus/demo work
++  follows its current runbook and verifies the selected renderer's provenance.
++  Copying main's binary or testing an old page-count signature does not establish
++  the current release baseline.
++- Keep separate Cargo target volumes for concurrent worktrees. Existing warm
++  artifacts can make a fresh build incremental; do not assume a new worktree
++  shares compiled dependencies or quote historical host build times.
++
++**Path discipline:** use absolute worktree paths with file tools and set
++terminal `workdir` explicitly. Check main's status first and preserve its WIP.
++Use the harness from the intended branch point; historical issue worktrees are
++not a default source of current harness code.
++
++### Initialize cocoindex (ccc) when semantic search is needed
++
++Skip indexing for documentation-only work and known-symbol searches. Use exact
++searches for symbols and paths named by the issue, spec, or relevant lesson.
++When code discovery genuinely needs semantic search, initialize an index scoped
++to THIS worktree (the index DB is per-directory: `.cocoindex_code/` inside the
++cwd, already gitignored via `/.cocoindex_code/`):
+ 
+ ```bash
+ cd <worktree> && ~/.local/bin/ccc init --force && ~/.local/bin/ccc index
+@@ -154,7 +162,7 @@
+ (default) to pick up edits; consecutive searches on an unchanged tree can set
+ it false for speed.
+ 
+-Tear down when the issue lands (step 7 cleanup):
++If an index was created, tear it down when the issue lands (step 7 cleanup):
+ 
+ ```bash
+ cd <worktree> && ~/.local/bin/ccc reset --all --force
+@@ -167,20 +175,23 @@
+ committed, or just accept the leftover settings dir and let worktree removal
+ delete it. Never run ccc commands from inside ANOTHER session's worktree.
+ 
+-## 3. Reproduce BEFORE touching code
+-
+-Run the failing test with the CURRENT binary and save the report:
+-
+-```bash
+-cd <harness workdir>
+-~/workspace/typeanvil/.venv/bin/python -m harness run --engine cli \
+-  --cli-cmd "<worktree>/engine/target/debug/typeanvil render" \
+-  --filter <name> --report /tmp/<issue>-before.json --db /tmp/<issue>-hist.sqlite
+-```
+-
+-Confirm the failure mode matches the issue (page numbers, pixel counts). If it
+-doesn't reproduce, stop and re-read — the ticket's hypothesis may be wrong
+-(it often is; CORE-97 and CORE-99 both had wrong framing).
++## 3. Run one current pickup reproduction
++
++Read `docs/conventions/issue-evidence.md` and
++`docs/operations/issue-evidence-review.md` from the intended branch point.
++Use the runbook's Docker build and targeted reproduction procedure. Preserve
++the build status, actual selected IDs, source/fixture revisions, runner settings,
++and durable evidence. Inspect both test and reference for reftests.
++
++Run the smallest existing reproduction that answers the ticket's question.
++Reuse its result in step 4 when source, inputs, and settings have not changed;
++these steps form one premise gate. Reserve the full suite for the change gate.
++A new or altered causal probe is a separate experiment with its own identity.
++Documentation-only work uses current document/source evidence and skips rendering.
++
++Confirm that the measured behavior matches the active issue and its governing
++specification. If it does not, investigate that discrepancy and correct the
++active instructions before implementing their behavior.
+ 
+ ## 4. Diagnose with probes, not guesses
+ 
+@@ -196,12 +207,19 @@
+ CONFIRMED only when an isolating probe or failing test supports causality;
+ code resemblance or another agent's summary establishes a hypothesis only.
+ 
+-Before implementation, rerun the minimal reproduction on a freshly built
+-current branch point. Check that the named fixture actually exercises the
+-suspected property/path and inspect both test and reference. If the premise
+-fails, correct the current description and acceptance criteria before coding.
+-Retain disputed claims in clearly marked history or comments. Unknown causes
+-remain valid investigation tasks; do not invent a diagnosis to fill a template.
++Before implementation, use the fresh branch-point reproduction from step 3.
++Repeat it if source, fixture, runner inputs, or build provenance changed or are
++uncertain. Check that the fixture exercises the suspected property/path and
++inspect both test and reference. If the premise fails, correct the current
++description and acceptance criteria before coding. Retain disputed claims in
++marked history or comments. Unknown causes remain valid investigation tasks.
++
++Choose the next probe to distinguish specific hypotheses. Once the current
++failure, expected behavior, and causal boundary support a bounded fix, proceed
++to the regression test and implementation. Additional historical research needs
++an unresolved question that can change that decision. Exploration may include
++instrumentation or experimental edits; keep them labeled as experiments until
++verified. Preserve useful probes and rejected hypotheses for the next session.
+ 
+ Before creating a residual, remeasure it at the landed commit and read later
+ comments/landings. Keep same-capability boundary cases in the canonical ticket.
+@@ -219,6 +237,15 @@
+ `docs/lessons/harness-gate.md`, `docs/lessons/css-stylo.md` — the probes and
+ gotchas there will name the likely seam before you read engine code.
+ 
++- Reuse the retained reproduction and matching probe script. Read the script's
++  usage before invoking it; distinguish HTML-render inputs from existing-PDF
++  analysis. After an argument or API error, inspect the interface before retrying.
++  Write PDFs and reports under mounted `/work/...`; container `/tmp` disappears
++  when its `--rm` container exits.
++- Convert the isolating probe into a failing invariant assertion before the
++  behavior-changing fix when possible. An unconditional diagnostic panic proves
++  no invariant. Keep the same fixture and measurement through the fix and verify
++  that the assertion fails for the intended reason on the pre-fix source.
+ - Render test AND ref separately through our engine, dump charboxes with
+   pypdfium2 (`get_text_range` + `get_charbox`), compare per-line/per-column.
+ - Use the Chromium oracle (`playwright` chromium print-to-PDF) to learn what a
+--- a/software-development/typeanvil-project/SKILL.md
++++ b/software-development/typeanvil-project/SKILL.md
+@@ -1,7 +1,7 @@
+ ---
+ name: typeanvil-project
+ description: "TypeAnvil engine: spec-first, CORE-* issues, omp launch."
+-version: 1.0.0
++version: 1.0.1
+ author: elijah
+ license: MIT
+ metadata:
+@@ -65,26 +65,17 @@
+    PR. Docs are part of done, not an afterthought.
+ 5. **Commit with the issue id:** `docs: seed fragmentation core spec (CORE-51)`.
+ 
+-## Picking up the next issue (worked for CORE-51, 2026-08-17)
+-
+-1. `mcp__linear__list_projects` (query="TypeAnvil") → `mcp__linear__list_issues`
+-   (project="TypeAnvil", fields incl. status/statusType/priority/assignee).
+-2. Read the FULL issue description (`mcp__linear__get_issue`, arg is `id`) plus
+-   the linked research brief under `docs/research/<area>/` — issue titles are
+-   truncated in list output and carry the real "Done" definition.
+-3. Check repo state: `git log/status/branch` (clean main = clear runway) and
+-   what specs already exist under `docs/specifications/`.
+-4. Recommend by dependency order: foundation/moat first (CORE-51 fragmentation
+-   before CORE-52 paged-media before CORE-53 typography; CORE-54 hard
+-   interactions deliberately last).
+-5. Mark In Progress: `mcp__linear__save_issue` `id="CORE-XX"` `state="In Progress"`
+-   (state by NAME works on the MCP path — no UUID lookup).
+-6. Note the model used on the issue via a `patch` `prepend` op:
+-   `**Model: <name> — ...**` (prepend op takes ONLY `text`; AGENTS.md requires the
+-   tier noted when delegating).
+-7. Write the spec, run `python3 scripts/validate_docs.py`, commit with issue id.
+-8. Launch omp (see below), then VERIFY yourself — `cargo build`, `cargo test`,
+-   `git diff`. Never trust omp's summary alone.
++## Picking up an issue
++
++Use `typeanvil-issue-loop` as the single pickup procedure. It owns project
++resolution, ownership checks, immediate In Progress state, the explicit release
++branch point, Docker setup, targeted reproduction, and model routing. Repository
++`docs/conventions/issue-evidence.md` and
++`docs/operations/issue-evidence-review.md` define the evidence contract.
++
++Historical examples below describe earlier engine states. Check the current
++spec and source before using them. A main-branch snapshot or an old host command
++cannot establish the current release baseline.
+ 
+ ### What is actually in main (spec-seed ≠ feature)
+ 
