@@ -860,3 +860,166 @@ fn pinned_replaced_image_past_page_one_terminates() {
         "the image paints on the page containing its offset (node {aid})"
     );
 }
+
+#[test]
+fn harness_geometry_top200_tall_box_stays_seven_pages() {
+    // CORE-204 premise correction (user-accepted 2026-09-18): the historical
+    // CORE-194 report said `top:200px; height:1000px` rendered SIX pages
+    // where Chromium renders SEVEN at the harness geometry (5x3in, 0.5in
+    // margins, 96 DPI). Re-measured at e4bade1 the engine already matches
+    // Chromium (7 pages, ink on page 2) — the CORE-167/169/185/187 drain and
+    // declared-extent work landed in between. This test pins the premium:
+    // the box's offset belongs to page 2 and the document grows to include
+    // the full 750pt extent (7 pages: 144pt content height x 5 + 30).
+    let html = r#"<html><head><style>
+        body { margin: 0; }
+        .a { position: absolute; top: 200px; height: 1000px; }
+    </style></head><body>
+        <div class="a">x</div>
+    </body></html>"#;
+    let dom = dom_of(html);
+    let aid = node_id_by_class(&dom, "a");
+    // Harness geometry: 5x3in with 0.5in margins -> 144pt content height.
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    assert_eq!(
+        layout.pages.len(),
+        7,
+        "top:200px;height:1000px stays at Chromium's seven pages, got {} pages",
+        layout.pages.len()
+    );
+    assert!(
+        page_abspos_fragments(&layout, 0, aid).is_empty(),
+        "the box's offset (150pt) lands past page 1's 144pt content bottom"
+    );
+    assert!(
+        !page_abspos_fragments(&layout, 1, aid).is_empty(),
+        "the box starts on the page containing its offset (page 2)"
+    );
+}
+
+#[test]
+fn pinned_abspos_percentage_height_fragments_declared_extent() {
+    // CORE-204: a PINNED abspos whose declared extent is PERCENTAGE-based
+    // (`height: 300%`) never entered the CORE-187 fragmentation path — the
+    // `pinned_fragments` guard asked `resolved_height(...)` (absolute lengths
+    // + viewport units only), so a percentage stayed invisible and the box
+    // painted monolithically: ONE page where Chromium renders THREE at the
+    // harness geometry (measured with the oracle). Chromium 3 / engine 1
+    // at 5x3in, 0.5in margins; and 3 / 1 at margin-0.
+    // The container is the horizontal root (html/body STATIC); only the div
+    // is absolutely positioned, so its percentage resolves against the page
+    // content box (the initial containing block is definite).
+    let html = r#"<html><head><style>
+        html, body { margin: 0; padding: 0; }
+        .a { box-sizing: border-box; position: absolute; left: 0; right: 0;
+             height: 300%; border: solid orange 10px; }
+    </style></head><body>
+        <div class="a"></div>
+    </body></html>"#;
+    let dom = dom_of(html);
+    let aid = node_id_by_class(&dom, "a");
+    for geo in [
+        geometry(5.0, 3.0, 0.5),
+        geometry(5.0, 3.0, 0.0),
+    ] {
+        let layout = lay(html, geo);
+        assert_eq!(
+            layout.pages.len(),
+            3,
+            "a percentage-height pinned box fragments across 3 pages (Chromium ground truth), got {} pages",
+            layout.pages.len()
+        );
+        assert!(
+            !page_abspos_fragments(&layout, 0, aid).is_empty(),
+            "the box's first fragment sits on page 1"
+        );
+        for p in 1..3 {
+            assert!(
+                !page_abspos_fragments(&layout, p, aid).is_empty(),
+                "page {} must hold a continuation fragment",
+                p + 1
+            );
+        }
+    }
+}
+
+#[test]
+fn nested_abspos_fragments_against_page_bottom_despite_monolithic_parent() {
+    // CORE-204 (scope add from CORE-232): a box nested under a MONOLITHIC
+    // abspos parent inherits the parent's f64::MAX bottom limit, so the
+    // CORE-187 guard (`y + fh > bottom_limit`) could never fire and the
+    // nested box painted whole on one page. Chromium renders the all-abspos
+    // `overflowing-block-print-ref` chain (100% / 100% / 300%) as THREE
+    // pages at the harness geometry; the inner 300% child must fragment
+    // against the REAL fragmentainer bottom even though its parent fits one
+    // page. 300pt inner: 3 pages (2 pages at margin-0).
+    let html = r#"<html><head><style>
+        html, body { margin: 0; padding: 0; }
+        .outer { box-sizing: border-box; position: absolute; left: 0; right: 0;
+                 height: 50%; border: solid orange 10px; }
+        .inner { box-sizing: border-box; position: absolute; left: 0; right: 0;
+                 height: 300pt; border: solid gray 10px; }
+    </style></head><body>
+        <div class="outer"><div class="inner"></div></div>
+    </body></html>"#;
+    let dom = dom_of(html);
+    let iid = node_id_by_class(&dom, "inner");
+    for (geo, want) in [
+        (geometry(5.0, 3.0, 0.5), 3),
+        (geometry(5.0, 3.0, 0.0), 2),
+    ] {
+        let layout = lay(html, geo);
+        assert_eq!(
+            layout.pages.len(),
+            want,
+            "nested abspos must fragment against the real page bottom, got {} pages (want {want})",
+            layout.pages.len()
+        );
+        assert!(
+            !page_abspos_fragments(&layout, 0, iid).is_empty(),
+            "the nested box starts on page 1"
+        );
+        for p in 1..want {
+            assert!(
+                !page_abspos_fragments(&layout, p, iid).is_empty(),
+                "page {} must hold a nested continuation fragment",
+                p + 1
+            );
+        }
+    }
+}
+
+#[test]
+fn nested_percentage_abspos_fragments_against_page_bottom() {
+    // CORE-204: the nested case with a PERCENTAGE declared extent on the
+    // inner box — both mechanisms (inherited f64::MAX + percentage invisible
+    // to resolved_height) combine. Chromium: nested-pct (outer 50%, inner
+    // height:300%) renders 2 pages at harness geometry (100% content height
+    // = 162pt, 300% = 486pt... oracle-measured 2), ours rendered 1.
+    let html = r#"<html><head><style>
+        html, body { margin: 0; padding: 0; }
+        .outer { box-sizing: border-box; position: absolute; left: 0; right: 0;
+                 height: 50%; border: solid orange 10px; }
+        .inner { box-sizing: border-box; position: absolute; left: 0; right: 0;
+                 height: 300%; border: solid gray 10px; }
+    </style></head><body>
+        <div class="outer"><div class="inner"></div></div>
+    </body></html>"#;
+    let dom = dom_of(html);
+    let iid = node_id_by_class(&dom, "inner");
+    for geo in [
+        geometry(5.0, 3.0, 0.5),
+        geometry(5.0, 3.0, 0.0),
+    ] {
+        let layout = lay(html, geo);
+        assert!(
+            layout.pages.len() >= 2,
+            "nested percentage abspos must fragment, got {} pages (Chromium: 2)",
+            layout.pages.len()
+        );
+        assert!(
+            !page_abspos_fragments(&layout, 0, iid).is_empty(),
+            "the nested box starts on page 1"
+        );
+    }
+}

@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: elijah
 created: 2026-08-18
-updated: 2026-09-15
+updated: 2026-09-19
 sidebar_position: 9
 tags: [engine, layout, css-position, css-break, fragmentation]
 spec_id: out-of-flow-positioning
@@ -149,6 +149,18 @@ The engine shall:
    and a drained box that fits ONE fragmentainer overflows in place instead
    of paginating (fixedpos-004's `bottom:-100vh` reference boxes stay on
    their own page).
+   EXCEPTION (CORE-204): the CORE-187 fragment decision and the CORE-185
+   past-page defer use the REAL fragmentainer bottom (`content_y +
+   page_height`), never an inherited `bottom_limit` that a MONOLITHIC
+   ancestor widened to `f64::MAX` — a nested abspos whose parent fits one
+   fragmentainer must still fragment its own declared extent against the
+   page (overflowing-block-print-ref: 1 page before, 3 after, matching
+   Chromium). The declared-extent test is `resolved_height_or_percent` (the
+   CORE-169 walk): absolute lengths, viewport units, AND percentages all
+   count (`height: 300%` fragments). Percentage heights resolve against the
+   nearest definite ancestor extent, else the page content box. At the body
+   level `bottom_limit` already equals the real bottom, so top-level
+   behavior is unchanged.
    The drain MUST bound its own pagination: a MONOLITHIC layout path that
    ignores break tokens (a replaced element — `layout_image` returns an
    empty fragment + `break_before` whenever the box does not fit) would

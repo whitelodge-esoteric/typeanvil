@@ -3566,7 +3566,7 @@ impl<'a> Ctx<'a> {
                             && child_tok.is_break_before()
                             && placed
                             && !token.deferred_once
-                            && y.get() + fh.get() > bottom_limit.get()
+                            && y.get() + fh.get() > (self.content_y + self.page_height).get()
                         {
                             // Defer: enqueue the continuation job and force a
                             // page break so the next page starts fresh. The
@@ -3617,7 +3617,9 @@ impl<'a> Ctx<'a> {
                         // NOT place the box here — out-of-flow, no cursor
                         // advance. In-flow siblings after it still place on
                         // this page (no loop break).
-                        if !page_anchored && y.get() >= bottom_limit.get() {
+                        // CORE-185 past-page defer: compare against the real fragmentainer bottom
+                        // instead of bottom_limit (which is f64::MAX for nested boxes)
+                        if !page_anchored && y.get() >= (self.content_y + self.page_height).get() {
                             flow.abspos_jobs.push(AbsposJob {
                                 id: *child,
                                 target: Some((x, y)),
@@ -3643,8 +3645,8 @@ impl<'a> Ctx<'a> {
                         // arithmetic on a boundary the box sits exactly on.
                         let pinned_fragments = !page_anchored
                             && !self.clips_overflow_ancestor(*child)
-                            && self.resolved_height(cstyle).is_some()
-                            && y.get() + fh.get() > bottom_limit.get();
+                            && self.resolved_height_or_percent(*child, cstyle).is_some()
+                            && y.get() + fh.get() > (self.content_y + self.page_height).get();
                         // Monolithic placement (spec Behavior 9): a PINNED box
                         // (insets or positioned ancestor) lays its full content
                         // once — no page-bottom break, no resume token — even
@@ -3659,8 +3661,9 @@ impl<'a> Ctx<'a> {
                         // f64::MAX bottom_limit also broke the fill-to-edge
                         // paint box: `paint_height = bottom_limit - box_top`
                         // became f64::MAX and pdf.rs dropped the huge rects.)
+                        // Change D: use real fragmentainer bottom for box_bottom_limit when fragmenting
                         let box_bottom_limit = if page_anchored || pinned_fragments {
-                            bottom_limit
+                            Scalar(self.content_y.get() + self.page_height.get())
                         } else {
                             Scalar(f64::MAX)
                         };

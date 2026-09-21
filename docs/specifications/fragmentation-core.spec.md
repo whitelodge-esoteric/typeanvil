@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: elijah
 created: 2026-08-16
-updated: 2026-09-15
+updated: 2026-09-19
 sidebar_position: 2
 tags: [layout, fragmentation, css-break, engine]
 spec_id: fragmentation-core
@@ -65,6 +65,12 @@ break optimization pass — start greedy + appeal.
   starts on, and is not inside a clipping (`overflow` != `visible`) ancestor
   fragments from that page like an in-flow box; a pinned box that fits itself
   in one fragmentainer overflows in place instead of paginating.
+  EXCEPTION (CORE-204): a PINNED abspos with a DECLARED extent (absolute,
+  viewport, OR percentage — `resolved_height_or_percent`) fragments against
+  the REAL fragmentainer bottom even when it is NESTED under a monolithic
+  ancestor that fit one page; the inherited `bottom_limit` must not widen to
+  `f64::MAX` inside a monolithic subtree (see the out-of-flow spec
+  Behavior 9).
 - Pagination measurably O(n): a 1,000-page synthetic document lays out without
   super-linear cost.
 - PDF emission walks the fragment tree (no separate pagination pass).
