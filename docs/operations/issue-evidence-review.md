@@ -4,7 +4,7 @@ type: runbook
 status: approved
 owner: elijah
 created: 2026-09-15
-updated: 2026-09-15
+updated: 2026-09-21
 sidebar_position: 7
 tags: [linear, evidence, triage, workflow, testing]
 trigger: Before implementation or creation of a residual issue
@@ -64,6 +64,23 @@ reusing them; squash landings can have different commit IDs.
 From your isolated worktree root, run the following Bash commands. Set the real
 issue identifier and a filter matching the actual test ID. An input path in
 `/work` refers to this worktree; `/main` holds the shared WPT checkout.
+
+The [pickup command](../specifications/issue-pickup.spec.md) (`scripts/pickup.py`)
+wraps the build + reproduction + evidence recording below into one call. It
+resolves the release ref, checks worktree ownership and dirty state, builds in
+the container, runs the smallest reproduction, and writes a non-overwriting
+evidence directory with the manifest, logs, statuses, and PDFs. Use it when the
+issue names an exact WPT test ID or a concrete HTML input:
+
+```bash
+python3 scripts/pickup.py \
+  --worktree "$PWD" --issue CORE-180 \
+  --wpt-id css-page/margin-boxes/content-003-print.html \
+  --out probe/issue-evidence
+```
+
+The manual sequence below records the same evidence when you need finer control
+over the build or the harness invocation.
 
 ```bash
 ISSUE=CORE-180
