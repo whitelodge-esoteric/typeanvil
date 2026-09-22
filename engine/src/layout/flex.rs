@@ -764,6 +764,14 @@ impl<'a> Ctx<'a> {
         // --- Finish like the block path. ---------------------------------
         let padding_bottom = if broke { Scalar::ZERO } else { style.padding_bottom };
         y = y + padding_bottom;
+        // CORE-235: the box's own bottom border is part of its border-box
+        // size, exactly like padding_bottom (matches the layout_box block
+        // path). Without it the resumed flex container reports a height one
+        // border-width short of the equivalent display:block box, so a
+        // following sibling lands at a different y (CORE-122 invariant).
+        if !broke {
+            y = y + style.border_bottom;
+        }
         let box_height = y - box_top;
         let origin = Point::new(inner_left - style.border_left - style.padding_left, box_top);
         for child in &mut children {
@@ -1138,6 +1146,12 @@ impl<'a> Ctx<'a> {
 
         let padding_bottom = if broke { Scalar::ZERO } else { style.padding_bottom };
         y = y + padding_bottom;
+        // CORE-235: the box's own bottom border is part of its border-box
+        // size, exactly like padding_bottom (matches the layout_box block
+        // path).
+        if !broke {
+            y = y + style.border_bottom;
+        }
         // Container height must stay non-negative (CORE-207 fix)
         let mut box_height = y - box_top;
         box_height = Scalar(box_height.get().max(0.0));

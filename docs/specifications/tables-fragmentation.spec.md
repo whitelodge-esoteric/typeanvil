@@ -5,11 +5,11 @@ type: spec
 status: approved
 owner: elijah
 created: 2026-08-17
-updated: 2026-08-23
+updated: 2026-09-21
 sidebar_position: 4
 tags: [layout, tables, fragmentation, css-tables, engine]
 spec_id: tables-fragmentation
-issue_id: CORE-61, CORE-116
+issue_id: CORE-61, CORE-116, CORE-235
 applies_to: engine 0.x
 dependencies: [fragmentation-core, paged-media-css, wpt-conformance-harness]
 ---
@@ -71,7 +71,8 @@ tests in `engine/tests/` and the existing 36 engine tests as regression guard.
 - Row/column spans (`rowspan`/`colspan`) — render as unsupported (fall back to
   per-cell block stacking with a documented limitation), full css-tables-3
   spans deferred.
-- `border-collapse: separate` + `border-spacing` (defaults: collapse).
+- ~~`border-collapse: separate` + `border-spacing`~~ — **SUPERSEDED by CORE-235**:
+  see §Behavior 16–18. The separate model (CSS initial) is now supported.
 - Captions (`<caption>`), table in table (nested tables), tables inside
   multicol, RTL tables.
 - Full css-tables WPT suite — only the css-break table print-reftests are the
@@ -104,8 +105,8 @@ The engine SHALL implement the following, stated as "shall" rules:
 4. **Row layout.** Each row SHALL lay out its cells side by side at the
    resolved column widths; row height SHALL be the max of its cells' heights;
    cells SHALL have their padding/borders inside the column width.
-5. **border-collapse: collapse.** With `border-collapse: collapse` (the UA
-   default, stylesheet sets it), adjacent cell/row/table borders SHALL collapse
+5. **border-collapse: collapse.** With `border-collapse: collapse`, adjacent
+   cell/row/table borders SHALL collapse
    to a single border: 1px lines at shared edges, the table's outer border at
    the table box edge. `border-spacing` SHALL be treated as 0.
 6. **Rows as breakpoints.** A table taller than the fragmentainer SHALL break
@@ -166,6 +167,37 @@ The engine SHALL implement the following, stated as "shall" rules:
     row may be dropped or duplicated. A CONTINUATION pass of a row that has
     already split SHALL place immediately; deferring it would loop forever
     against a repeating header (the CORE-109 trap).
+16. **border-collapse: separate (CORE-235).** `border-collapse: separate` is
+    the CSS-initial value and SHALL be the engine's UA default for `table`
+    (the UA stylesheet SHALL NOT force `collapse`). Under `separate`, each
+    cell SHALL keep its own four borders; `border-spacing` SHALL add gaps
+    between adjacent cells (horizontal and vertical), and between the
+    table's border/padding box edge and the outermost cells (one spacing
+    gap per side, matching Chrome). The table's own border box SHALL paint
+    around the whole table (slice semantics: top band on the first fragment,
+    side bands on every fragment, bottom band on the last).
+17. **Separate-model sizing (CORE-235).** Under `border-collapse: separate`,
+    the column grid SHALL be sized inside the table's border + padding +
+    border-spacing chrome: an explicit `width` is the table's border-box
+    width, and the usable column width is that width minus
+    `border-left/right`, `padding-left/right`, and `border-spacing * (N+1)`
+    for N columns. Cells SHALL be offset from the table's left border-box
+    edge by `border-left + padding-left + spacing-home`, and each subsequent
+    column by its width plus one horizontal spacing gap. Row height SHALL
+    include the cell's border-bottom (measure_rows), and rows SHALL be
+    separated by vertical border-spacing; the table block SHALL consume
+    `border-top + padding-top + spacing` before its first row (first
+    fragment only) and `spacing + padding-bottom + border-bottom` after its
+    last row (last fragment only).
+18. **Border-box height includes bottom border (CORE-235).** A finished
+    (non-continuing) box's border-box height SHALL include its bottom
+    border: block, flex-container, and grid-container height calculations
+    add `border-bottom` after `padding-bottom` when the box did not break,
+    so a bordered box's bottom edge and a following sibling's `y` match the
+    equivalent `display:block` box. Slice continuation SHALL apply to border
+    painting: a box that fragments paints its top border band only on its
+    first fragment and its bottom band only on its last fragment (side
+    bands on every fragment).
 
 ## Acceptance Criteria
 
@@ -219,6 +251,16 @@ Each maps to a real test in `engine/tests/tables.rs` (new) or the WPT harness:
     nothing dropped or duplicated
     (`tests/core116_oversized_row.rs::oversized_row_cell_content_continues_across_pages`,
     `::oversized_row_resume_does_not_duplicate_finished_cells`).
+12. **Separate model (CORE-235)** — Given the four WPT fixtures
+    `table-fragmentation-001{a,b,c,d}-print.html` (5×3in page, 0.5in
+    margins, `border-spacing: 0.25in`, table `border: 0.25in`, cell
+    `border: 0.25in`, gold `content` block), when rendered by the harness at
+    the default geometry, then the test side matches its reference side:
+    `001a/001b` on 2 pages matching the Chromium oracle's 2 pages
+    (page count and per-page ink), and `001c/001d` on the same page count
+    as their references. The table's own border box, the cell borders
+    (including border-bottom), the border-spacing gaps, and the slice
+    border bands on continuation fragments all render.
 
 ## Edge Cases
 

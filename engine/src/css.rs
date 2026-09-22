@@ -627,6 +627,15 @@ pub enum Display {
     /// is treated as block-level in paged flow (same model as inline-flex).
     Grid,
 }
+
+/// The computed `border-collapse` value (css-tables-3 §13). `Separate` is
+/// the CSS initial value (what browsers' UA sheets give tables by default);
+/// `Collapse` merges adjacent cell borders and zeroes border-spacing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BorderCollapse {
+    Separate,
+    Collapse,
+}
 /// The computed `column-span` value (css-multicol-1 §4).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum ColumnSpan {
@@ -937,6 +946,15 @@ pub struct ComputedStyle {
     pub border_right_color: Option<Color>,
     pub border_bottom_color: Option<Color>,
     pub border_left_color: Option<Color>,
+    /// The computed `border-collapse` (css-tables-3 §13). `Separate` is the
+    /// CSS initial value; the engine UA sheet no longer forces collapse, so
+    /// a table that does not declare it behaves like browsers (CORE-235).
+    pub border_collapse: BorderCollapse,
+    /// The computed `border-spacing` (css-tables-3 §13, separate model only):
+    /// horizontal and vertical spacing between cells and around the grid.
+    /// Points; `Scalar::ZERO` when `border-collapse: collapse`.
+    pub border_spacing_h: Scalar,
+    pub border_spacing_v: Scalar,
     pub font_size: Scalar,
     /// The resolved line box height in points (`line-height` property).
     pub line_height: Scalar,
@@ -1153,6 +1171,11 @@ impl ComputedStyle {
             border_right_color: None,
             border_bottom_color: None,
             border_left_color: None,
+            // CSS initial: `separate` (browsers' UA sheets leave tables
+            // separate; the engine UA no longer forces collapse).
+            border_collapse: BorderCollapse::Separate,
+            border_spacing_h: Scalar::ZERO,
+            border_spacing_v: Scalar::ZERO,
             font_size: px_to_pt(16.0),
             line_height: px_to_pt(16.0) * NORMAL_LINE_HEIGHT_FACTOR,
             font_weight: 400.0,
@@ -1475,7 +1498,7 @@ impl CascadeSession {
         html, body, div, p, h1, h2, h3, h4, h5, h6, ul, ol, li, dl, dt, dd,
         blockquote, pre, section, article,
         header, footer, nav, main, aside, figure, figcaption { display: block; }
-        table { display: table; border-collapse: collapse; }
+        table { display: table; }
         thead { display: table-header-group; }
         tbody { display: table-row-group; }
         tfoot { display: table-footer-group; }
@@ -1529,7 +1552,6 @@ impl CascadeSession {
         body { margin: 8px; }
         blockquote { margin: 1.12em 22.5pt; }
         pre { margin: 1.12em 0; font-family: monospace; white-space: pre; }
-        table { border-collapse: collapse; }
         td, th { display: table-cell; }
     "#;
 
@@ -1728,6 +1750,20 @@ impl CascadeSession {
         let border_bottom = if style_none(border_style) { Scalar::ZERO } else { border_side_pt(border.clone_border_bottom_width()) };
         let border_style = border.clone_border_left_style();
         let border_left = if style_none(border_style) { Scalar::ZERO } else { border_side_pt(border.clone_border_left_width()) };
+        // `border-collapse` (css-tables-3 §13). The engine UA sheet no longer
+        // forces collapse, so a table without a declaration computes to the
+        // CSS initial `separate` — browsers' default, and what the Chrome-
+        // passing table-fragmentation-001 fixtures rely on (CORE-235).
+        let border_collapse = match values.clone_border_collapse() {
+            style::properties::longhands::border_collapse::computed_value::T::Collapse => BorderCollapse::Collapse,
+            style::properties::longhands::border_collapse::computed_value::T::Separate => BorderCollapse::Separate,
+        };
+        // `border-spacing` (separate model only): horizontal()/vertical()
+        // return Au; to_f64_px gives device px, converted to points like
+        // every other length (CORE-235).
+        let spacing = values.clone_border_spacing();
+        let border_spacing_h = crate::geom::px_to_pt(spacing.horizontal().to_f64_px());
+        let border_spacing_v = crate::geom::px_to_pt(spacing.vertical().to_f64_px());
         // `text-align` compiles in the servo build (unlike the break
         // longhands), so stylo's cascade computed it — including inheritance
         // and the `start`/`end` logical keywords.
@@ -2147,6 +2183,9 @@ impl CascadeSession {
             border_right_color: stylo_border_right_color,
             border_bottom_color: stylo_border_bottom_color,
             border_left_color: stylo_border_left_color,
+            border_collapse,
+            border_spacing_h,
+            border_spacing_v,
             font_size,
             line_height,
             font_family,

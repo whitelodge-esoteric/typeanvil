@@ -495,6 +495,13 @@ impl Ctx<'_> {
             style.padding_bottom
         };
         y = y + padding_bottom;
+        // CORE-235: the box's own bottom border is part of its border-box
+        // size, exactly like padding_bottom (matches the layout_box block
+        // path). Without it a grid container reports a height one border
+        // short of the equivalent block box.
+        if !broke {
+            y = y + style.border_bottom;
+        }
         let box_height = y - box_top;
         let origin = Point::new(inner_left - style.padding_left - style.margin_left, box_top);
         for child in &mut children {

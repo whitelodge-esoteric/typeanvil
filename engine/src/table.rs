@@ -273,7 +273,7 @@ pub fn measure_columns_scoped(
         };
     }
     let sum_max: Scalar = max_widths.iter().fold(Scalar::ZERO, |a, w| a + *w);
-    let used = match used_width {
+    let mut used = match used_width {
         Some(w) => w,
         None => {
             // `width: auto`: the smaller of the available width and the sum
@@ -285,6 +285,28 @@ pub fn measure_columns_scoped(
             }
         }
     };
+    // CORE-235: in the SEPARATE model (border-collapse: separate, the CSS
+    // initial) the table's used width is its BORDER-BOX width. The column
+    // grid lives INSIDE it, minus the table's own border, padding, and the
+    // border-spacing gaps — one gap between the table border/padding and the
+    // outermost columns plus one between adjacent columns (n+1 total for n
+    // columns). css-tables-3 §17.5.2: border-spacing separates adjacent
+    // cells AND the outermost cells from the table's border.
+    // In the COLLAPSE model the borders merge onto shared edges and spacing
+    // is zero, so the full used width reaches the columns (existing behavior).
+    let style = &styles[table_id];
+    if style.border_collapse == crate::css::BorderCollapse::Separate {
+        let n = max_widths.len() as f64;
+        let chrome = style.border_left
+            + style.border_right
+            + style.padding_left
+            + style.padding_right
+            + Scalar(style.border_spacing_h.get() * (n + 1.0));
+        used = used - chrome;
+        if used.get() < 0.0 {
+            used = Scalar::ZERO;
+        }
+    }
     let widths = distribute_column_widths(&min_widths, &max_widths, used);
     ColumnWidths {
         widths,
@@ -418,12 +440,53 @@ pub fn measure_rows(
             let inner_w = col_w - style.padding_left - style.padding_right;
             let inner_w = if inner_w.get() < 0.0 { Scalar::ZERO } else { inner_w };
             let text = dom.text_content(cell);
-            let content_h = measure_text_height(&text, style, inner_w);
+            let mut content_h = measure_text_height(&text, style, inner_w);
+            // CORE-235: a cell whose height comes from a BLOCK child — a div,
+            // an image, a nested box with a declared block-size — is not
+            // measured by the text pass. Sum the direct block children's
+            // resolved heights (absolute lengths and px runtime, not
+            // percentages — those need the containing-block chain, resolved
+            // at layout) so `measure_rows` reports the REAL row height. The
+            // row-deferral guard (layout.rs) relies on this: a row taller
+            // than a full fragmentainer must force-place monolithically, and
+            // with only the text measure it looked short enough to defer —
+            // which deferred forever (table-fragmentation-003a/b runaway to
+            // 100000 pages under the separate model).
+            let mut block_h = Scalar::ZERO;
+            for &child in &dom.nodes[cell].children {
+                if !matches!(dom.nodes[child].kind, NodeKind::Element(_)) {
+                    continue;
+                }
+                let cs = &styles[child];
+                // `style.height` is the resolved absolute length.
+                // Viewport/percentage heights stay out (they need the
+                // containing-block chain, resolved at layout — never reached
+                // for the WPT fixtures). Auto stays out (zero).
+                if let Some(h) = cs.height {
+                    if h.get() > block_h.get() {
+                        block_h = h;
+                    }
+                }
+            }
+            if block_h.get() > content_h.get() {
+                content_h = block_h;
+            }
             // CORE-96: a row's height includes its collapsed row-start border
             // (border-collapse: collapse — the row-start border is drawn on
             // the fragment that starts the row, spec rule 9, and Prince
             // accounts for it: measured 26.1 vs 25.6 for a 2-line row).
-            let total_h = content_h + style.padding_top + style.padding_bottom + style.border_top;
+            //
+            // CORE-235: in the SEPARATE model every cell keeps all four of
+            // its borders (collapse_cell_borders is skipped), so a row's
+            // height is content + padding + border_top + border_bottom.
+            // `border-spacing` is applied OUTSIDE the row box (between rows
+            // and around the grid) by the table-block layout, not here.
+            let border_bottom_h = match style.border_collapse {
+                crate::css::BorderCollapse::Collapse => Scalar::ZERO,
+                crate::css::BorderCollapse::Separate => style.border_bottom,
+            };
+            let total_h =
+                content_h + style.padding_top + style.padding_bottom + style.border_top + border_bottom_h;
             heights.push(total_h);
             if total_h.get() > row_h.get() {
                 row_h = total_h;
@@ -498,11 +561,14 @@ fn collect_cells(dom: &Dom, styles: &[ComputedStyle], row_id: NodeId) -> Vec<Nod
 /// `border-top`). The surviving side keeps its full width, so the shared
 /// edge renders once at declared thickness.
 pub fn collapse_cell_borders(dom: &Dom, styles: &mut [ComputedStyle]) {
-    // Every table element in document order.
+    // Every table element in document order. Only applies to tables with
+    // `border-collapse: collapse`; the separate model keeps each cell's full
+    // border and relies on border-spacing (css-tables-3 §13, CORE-235).
     let tables: Vec<NodeId> = (0..dom.nodes.len())
         .filter(|&id| {
             matches!(dom.nodes[id].kind, NodeKind::Element(_))
                 && styles[id].display == Display::Table
+                && styles[id].border_collapse == crate::css::BorderCollapse::Collapse
         })
         .collect();
     for table_id in tables {

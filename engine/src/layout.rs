@@ -4087,8 +4087,16 @@ impl<'a> Ctx<'a> {
                     // without this check declared-height page fillers pile onto
                     // one page). Extents taller than a full page fragment
                     // instead (the child-side rule keeps flowing them).
+                    // CORE-235: the deferral marks `deferred_once` (like the
+                    // row deferral) so a child that STILL cannot fit on the
+                    // next page — a repeating header/footer or table chrome
+                    // eats the space — force-places instead of deferring
+                    // forever (table-fragmentation-003a/b runaway: the 2in
+                    // content div equals a full page, the table chrome leaves
+                    // 108pt, so a plain break-before re-deferred every page).
                     if res.outgoing.is_none()
                         && child_tok.is_break_before()
+                        && !child_tok.deferred_once
                         && placed
                         && self.specified_extent(*child, &self.styles[*child])
                             .is_some_and(|ext| {
@@ -4099,7 +4107,7 @@ impl<'a> Ctx<'a> {
                         seen_all = false;
                         outgoing_children.push(ChildToken {
                             index: i,
-                            token: BreakToken::break_before(),
+                            token: BreakToken::break_before_deferred(),
                         });
                         broke = true;
                         break;
@@ -4145,6 +4153,16 @@ impl<'a> Ctx<'a> {
                     // the first line beside the carried floats (page-name-
                     // float-002, page-size-007 'second' beside float 9).
                     let floats_carry = !flow.pending_floats.is_empty();
+                    // CORE-235: a box that "places nothing" (no children, no
+                    // text) but breaks inside is deferred whole to the next
+                    // page — but only ONCE. Mark `deferred_once` (like the
+                    // row deferral) so a box that STILL cannot fit on the
+                    // next page — a repeating header/footer or table chrome
+                    // eats the space — force-places instead of deferring
+                    // forever (table-fragmentation-003a/b runaway to 100000
+                    // pages: the 2in content div equals a full page, the
+                    // table chrome leaves 108pt, so a plain break-before
+                    // re-deferred every page).
                     let placed_nothing = res.fragment.children.is_empty()
                         && !matches!(res.fragment.content, FragmentContent::Text(_))
                         && !floats_carry;
@@ -4156,6 +4174,7 @@ impl<'a> Ctx<'a> {
                     let not_huge = res.fragment.size.1.get() <= self.page_height.get();
                     if res.outgoing.is_some()
                         && child_tok.is_break_before()
+                        && !child_tok.deferred_once
                         && placed
                         && placed_nothing
                         && not_huge
@@ -4164,7 +4183,7 @@ impl<'a> Ctx<'a> {
                         seen_all = false;
                         outgoing_children.push(ChildToken {
                             index: i,
-                            token: BreakToken::break_before(),
+                            token: BreakToken::break_before_deferred(),
                         });
                         broke = true;
                         break;
@@ -4368,6 +4387,18 @@ impl<'a> Ctx<'a> {
             style.padding_bottom
         };
         y += padding_bottom;
+        // CORE-235: the box's own BOTTOM BORDER is part of its border-box
+        // size on its LAST fragment (like padding_bottom; slice semantics —
+        // a continuation fragment's bottom border belongs to the box's final
+        // fragment). Previously `box_height` excluded it: the fragment rect
+        // was one border-width short, so the BorderBox's bottom band painted
+        // one border-width ABOVE the box's true bottom edge and the `used`
+        // cursor under-advanced (table-fragmentation-001's td measured
+        // 126pt instead of 144pt). Cell borders on the table path go through
+        // this same block path, so the bottom band now lands on the box edge.
+        if !broke {
+            y += style.border_bottom;
+        }
 
         // BFC float containment (css2 §10.6.3): a flow-root / BFC-establishing
         // box's height encloses its floats. `y` only tracks in-flow content,
@@ -4559,10 +4590,19 @@ impl<'a> Ctx<'a> {
                 || style.border_bottom.get() > 0.0
                 || style.border_left.get() > 0.0)
         {
+            // box-decoration-break: slice (the CSS initial value, css-break-3
+            // §5.4): the TOP band paints only on the box's FIRST fragment and
+            // the BOTTOM band only on its LAST; the side bands paint on every
+            // fragment. Previously the full border box was attached to every
+            // continuation (clone-style), so a bordered box that fragmented
+            // drew a spurious top band at the top of the next page and its
+            // bottom band too early (CORE-235: table-fragmentation-001a ref —
+            // the gold content is positioned correctly; the border bands were
+            // painting over it on the continuation fragment).
             let border_box = BorderBox {
-                top: style.border_top,
+                top: if fresh { style.border_top } else { Scalar::ZERO },
                 right: style.border_right,
-                bottom: style.border_bottom,
+                bottom: if broke { Scalar::ZERO } else { style.border_bottom },
                 left: style.border_left,
                 top_color: style.border_top_color.unwrap_or(crate::css::Color::BLACK),
                 right_color: style.border_right_color.unwrap_or(crate::css::Color::BLACK),
@@ -4752,6 +4792,26 @@ impl<'a> Ctx<'a> {
         }
     }
 
+    /// The nearest table ancestor's separated-borders context (CORE-235):
+    /// `(is_separate, spacing_h, spacing_v)` of the owning table. Rows and
+    /// groups need the table's `border-spacing`/`border-collapse` for
+    /// inter-row / inter-cell gaps — those properties are declared on the
+    /// table, not on the row. `false` (collapse) → zero spacing.
+    fn table_split_context(&self, id: NodeId) -> (bool, Scalar, Scalar) {
+        let mut cur = Some(id);
+        while let Some(n) = cur {
+            if self.styles[n].display == Display::Table {
+                let ts = &self.styles[n];
+                if ts.border_collapse == crate::css::BorderCollapse::Separate {
+                    return (true, ts.border_spacing_h, ts.border_spacing_v);
+                }
+                return (false, Scalar::ZERO, Scalar::ZERO);
+            }
+            cur = self.dom.nodes[n].parent;
+        }
+        (false, Scalar::ZERO, Scalar::ZERO)
+    }
+
     /// CORE-89 first-page column freeze: resolve the frozen column widths for
     /// a table-family box. Walks up to the nearest table ancestor (the box
     /// itself when it IS the table), resolves the frozen [`MeasureScope`]
@@ -4841,6 +4901,38 @@ impl<'a> Ctx<'a> {
         let mut placed = page_has_content;
         let mut placed_any = false;
 
+        // CORE-235: the table's own chrome. In the SEPARATE model (the CSS
+        // initial value, border-collapse: separate) the table border-box
+        // wraps border + padding + border-spacing around the row grid:
+        //   - the FIRST fragment consumes border_top + padding_top +
+        //     spacing_v before the first row (a continuation fragment starts
+        //     at the top edge — box-decoration-break: slice);
+        //   - spacing_v separates rows/groups within a fragment;
+        //   - the LAST fragment adds spacing_v + padding_bottom +
+        //     border_bottom after the final row;
+        //   - the cell grid starts at x = origin_x + border_left +
+        //     padding_left + spacing_h (with spacing_h between columns),
+        //     and the column widths are measured INSIDE that chrome
+        //     (measure_columns_scoped subtracts it from the used width).
+        // In the COLLAPSE model borders merge and spacing is zero, so
+        // chrome_top is just the border+padding (spec-correct; the engine
+        // previously ignored the table's own border/padding entirely).
+        let tstyle = &self.styles[id];
+        let separate = tstyle.border_collapse == crate::css::BorderCollapse::Separate;
+        let sp_h = if separate { tstyle.border_spacing_h } else { Scalar::ZERO };
+        let sp_v = if separate { tstyle.border_spacing_v } else { Scalar::ZERO };
+        let chrome_top = if fresh {
+            tstyle.border_top + tstyle.padding_top + sp_v
+        } else {
+            Scalar::ZERO
+        };
+        y += chrome_top;
+        // The row grid's left edge: after the table's own left border,
+        // padding, and the outer border-spacing gap.
+        let grid_x = origin_x + tstyle.border_left + tstyle.padding_left + sp_h;
+        // Spacing between rows/groups placed earlier on THIS fragment.
+        let mut spaced_any = false;
+
         // Footer repetition (spec rule 8): a `tfoot`/`table-footer-group` is
         // laid out at the bottom of EVERY fragment that contains table content
         // (including the last), so its height is reserved out of the row
@@ -4873,6 +4965,14 @@ impl<'a> Ctx<'a> {
                 footer_height = footer_height + h;
             }
         }
+        // CORE-235: the footer placement below adds one vertical border-spacing
+        // gap before EACH footer group (see the footer-repetition block). The
+        // reservation must include those gaps or the reserved row_limit is
+        // short by sp_v, the body row defers forever, and the table never
+        // terminates (table-fragmentation-003a/b runaway to 100000 pages).
+        if separate {
+            footer_height = footer_height + sp_v * (footer_indices.len() as f64);
+        }
         let reserve_footer =
             footer_height.get() > 0.0 && footer_height.get() < self.page_height.get();
         let row_limit = if reserve_footer {
@@ -4891,9 +4991,12 @@ impl<'a> Ctx<'a> {
                     continue;
                 }
                 let child_tok = self.child_incoming(token, i);
+                if spaced_any && sp_v.get() > 0.0 {
+                    y += sp_v;
+                }
                 let res = self.layout_table_group(
                     *child,
-                    origin_x,
+                    grid_x,
                     avail_width,
                     y,
                     row_limit,
@@ -4906,6 +5009,7 @@ impl<'a> Ctx<'a> {
                     y += res.used;
                     placed = true;
                     placed_any = true;
+                    spaced_any = true;
                     frag_children.push(res.fragment);
                 }
                 if let Some(tok) = res.outgoing {
@@ -4940,10 +5044,13 @@ impl<'a> Ctx<'a> {
                 continue;
             }
             let child_tok = self.child_incoming(token, i);
+            if spaced_any && sp_v.get() > 0.0 {
+                y += sp_v;
+            }
             let res = match cd {
                 Display::TableHeaderGroup | Display::TableRowGroup => self.layout_table_group(
                     child,
-                    origin_x,
+                    grid_x,
                     avail_width,
                     y,
                     row_limit,
@@ -4954,7 +5061,7 @@ impl<'a> Ctx<'a> {
                 ),
                 Display::TableRow => self.layout_table_row(
                     child,
-                    origin_x,
+                    grid_x,
                     avail_width,
                     y,
                     row_limit,
@@ -4969,6 +5076,7 @@ impl<'a> Ctx<'a> {
                 y += res.used;
                 placed = true;
                 placed_any = true;
+                spaced_any = true;
                 frag_children.push(res.fragment);
             }
             if let Some(tok) = res.outgoing {
@@ -4989,9 +5097,12 @@ impl<'a> Ctx<'a> {
         if placed_any && reserve_footer {
             for &fi in &footer_indices {
                 let child_tok = self.child_incoming(token, fi);
+                if spaced_any && sp_v.get() > 0.0 {
+                    y += sp_v;
+                }
                 let res = self.layout_table_group(
                     children[fi],
-                    origin_x,
+                    grid_x,
                     avail_width,
                     y,
                     bottom_limit,
@@ -5003,6 +5114,7 @@ impl<'a> Ctx<'a> {
                 if !res.empty {
                     y += res.used;
                     placed = true;
+                    spaced_any = true;
                     frag_children.push(res.fragment);
                 }
                 if let Some(tok) = res.outgoing {
@@ -5015,6 +5127,14 @@ impl<'a> Ctx<'a> {
             }
         }
 
+        // CORE-235: the table's own bottom chrome. Only when the table
+        // FINISHES on this fragment (all rows placed, no outgoing): spacing_v
+        // (separate model) + padding_bottom + border_bottom. A continuation
+        // fragment leaves the bottom chrome to its last fragment (slice).
+        if seen_all {
+            y += sp_v + tstyle.padding_bottom + tstyle.border_bottom;
+        }
+
         // Rebase children to be parent-relative.
         let origin = Point::new(origin_x, top);
         for child in &mut frag_children {
@@ -5024,9 +5144,51 @@ impl<'a> Ctx<'a> {
             }
         }
         let height = y - top;
-        let mut fragment = Fragment::block(origin, (avail_width, height));
+        // The table's border box spans its USED width (a declared `width` or
+        // percentage), clamped to the available width — never the parent's
+        // full avail_width (CORE-235: a 3in table beside a 4in content box
+        // must paint a 3in border box, matching the div-based ref).
+        let table_box_w = match crate::table::table_used_width(self.styles, id, avail_width) {
+            Some(w) if w.get() < avail_width.get() => w,
+            _ => avail_width,
+        };
+        let mut fragment = Fragment::block(origin, (table_box_w, height));
         fragment.children = frag_children;
         fragment.source = Some(id);
+        // CORE-235: paint the table's OWN border box (the table element's
+        // `border` — previously never painted). Slice semantics like the
+        // block path: top band on the first fragment, bottom band on the
+        // last, side bands on every fragment. The border strokes INSIDE the
+        // table's border box (the fragment rect), on top of any background.
+        if tstyle.border_top.get() > 0.0
+            || tstyle.border_right.get() > 0.0
+            || tstyle.border_bottom.get() > 0.0
+            || tstyle.border_left.get() > 0.0
+        {
+            let border_box = BorderBox {
+                top: if fresh { tstyle.border_top } else { Scalar::ZERO },
+                right: tstyle.border_right,
+                bottom: if seen_all { tstyle.border_bottom } else { Scalar::ZERO },
+                left: tstyle.border_left,
+                top_color: tstyle.border_top_color.unwrap_or(crate::css::Color::BLACK),
+                right_color: tstyle.border_right_color.unwrap_or(crate::css::Color::BLACK),
+                bottom_color: tstyle.border_bottom_color.unwrap_or(crate::css::Color::BLACK),
+                left_color: tstyle.border_left_color.unwrap_or(crate::css::Color::BLACK),
+            };
+            match fragment.content {
+                FragmentContent::Background(_) => {
+                    let mut bf = Fragment::block(
+                        Point::new(Scalar::ZERO, Scalar::ZERO),
+                        (fragment.size.0, fragment.size.1),
+                    );
+                    bf.content = FragmentContent::Border(border_box);
+                    fragment.children.insert(0, bf);
+                }
+                _ => {
+                    fragment.content = FragmentContent::Border(border_box);
+                }
+            }
+        }
         let outgoing = if !seen_all {
             let consumed = token.consumed_block_size + height;
             let tok = BreakToken {
@@ -5103,9 +5265,17 @@ impl<'a> Ctx<'a> {
         let mut outgoing_children = Vec::new();
         let mut seen_all = true;
         let mut placed = page_has_content;
+        // CORE-235: spacing_v separates rows INSIDE a group (separate model).
+        // The table-block level handles spacing between groups; the top and
+        // bottom outer spacing is the table's chrome_top/chrome_bottom.
+        let (_, _, group_sp_v) = self.table_split_context(id);
+        let mut group_spaced = false;
 
         for i in start_index..rows.len() {
             let child_tok = self.child_incoming(token, i);
+            if group_spaced && group_sp_v.get() > 0.0 {
+                y += group_sp_v;
+            }
             let res = self.layout_table_row(
                 rows[i],
                 origin_x,
@@ -5120,6 +5290,7 @@ impl<'a> Ctx<'a> {
             if !res.empty {
                 y += res.used;
                 placed = true;
+                group_spaced = true;
                 frag_children.push(res.fragment);
             }
             if let Some(tok) = res.outgoing {
@@ -5248,6 +5419,7 @@ impl<'a> Ctx<'a> {
         // `[first]` duplication).
         let mut outcomes: Vec<Option<ChildToken>> = vec![None; cells.len()];
         let mut col = 0usize;
+        let (_, cell_sp_h, _) = self.table_split_context(id);
         for (ordinal, &cell) in cells.iter().enumerate() {
             let span = crate::table::cell_colspan(self.dom, cell);
             let mut col_w = Scalar::ZERO;
@@ -5255,7 +5427,9 @@ impl<'a> Ctx<'a> {
                 col_w = col_w + columns.widths.get(col + j).copied().unwrap_or(Scalar::ZERO);
             }
             let cell_x = x;
-            x += col_w;
+            // CORE-235 (separate model): border-spacing_h separates adjacent
+            // cells within the row (collapse: zero, unchanged).
+            x += col_w + cell_sp_h;
             col += span;
 
             // Resume bookkeeping: a cell with a DONE marker (seen-all, no
@@ -5281,31 +5455,6 @@ impl<'a> Ctx<'a> {
                 flow,
             );
             if !res.empty {
-                // CORE-119 #4 (css-tables-3 §9.7): every cell fills its ROW's
-                // height. A fresh row knows its measured height up front; a
-                // single-line cell laid out shorter must STRETCH to it so
-                // its bottom border lands on the row edge instead of leaving
-                // a gap. Resumed rows keep per-cell heights (the row is split;
-                // cells on this fragmentainer hold only their own remainder).
-                if fresh {
-                    let target = row_height;
-                    if res.fragment.size.1 < target {
-                        // The border child was sized to the PRE-stretch cell
-                        // height (CORE-119 follow-up: layout_table_cell
-                        // attaches it before we see the row height). Stretch
-                        // it too, or its bottom edge floats above the true
-                        // row bottom — the header-row gap in CORE-119's
-                        // follow-up screenshot.
-                        let delta = target - res.fragment.size.1;
-                        for child in &mut res.fragment.children {
-                            child.size.1 = child.size.1 + delta;
-                        }
-                        res.fragment.size.1 = target;
-                    }
-                    if res.used < target {
-                        res.used = target;
-                    }
-                }
                 children.push(res.fragment);
             }
             if res.used.get() > used_h.get() {
@@ -5361,7 +5510,49 @@ impl<'a> Ctx<'a> {
         // claims only what its cells actually used on THIS fragmentainer —
         // claiming the full measured height again would strand every
         // following row alone on its own page.
-        let used = if fresh { row_height } else { used_h };
+        // CORE-235: `row_height` (measure_rows) is text-content-based; a cell
+        // whose height comes from a BLOCK child (a div, an image) is taller
+        // than that measure, so clamp to the actual placed-cell height. This
+        // is what spaces the rows in table-fragmentation-001 (cells hold a
+        // 1.5in block) — without it a fresh row claims ~36pt while its cell
+        // paints 144pt, under-advancing `y` and overlapping following rows.
+        // CORE-235: a fresh row that BROKE INSIDE claims only what its cells
+        // actually placed (`used_h`), never the full measured `row_height` —
+        // claiming the full height advanced the table's cursor past the
+        // break, so the table thought it finished on this fragment and
+        // painted its bottom chrome early (table-fragmentation-001a's table
+        // border box 198pt vs the ref's 144pt on page 1).
+        let used = if fresh && !broke_inside {
+            if used_h.get() > row_height.get() {
+                used_h
+            } else {
+                row_height
+            }
+        } else {
+            used_h
+        };
+
+        // CORE-119 #4 (css-tables-3 §9.7): every cell fills its ROW's height.
+        // A fresh row knows its height up front (the `used` above, which now
+        // includes the placed-cell border_bottom per CORE-235); a cell laid
+        // out shorter must STRETCH to it so its bottom border lands on the
+        // row edge instead of leaving a gap (and sibling cells share one
+        // height — the border child sized to the PRE-stretch height must
+        // stretch too, or its bottom edge floats above the row bottom,
+        // CORE-119 follow-up). Resumed rows keep per-cell heights (the row is
+        // split; cells on this fragmentainer hold only their own remainder).
+        if fresh && !broke_inside {
+            let target = used;
+            for cell_frag in &mut children {
+                if cell_frag.size.1 < target {
+                    let delta = target - cell_frag.size.1;
+                    for child in &mut cell_frag.children {
+                        child.size.1 = child.size.1 + delta;
+                    }
+                    cell_frag.size.1 = target;
+                }
+            }
+        }
 
         let origin = Point::new(origin_x, top);
         for child in &mut children {
@@ -5518,8 +5709,15 @@ impl<'a> Ctx<'a> {
             token,
             flow,
         );
-        // Attach the cell's border box (border-collapse: collapse — the cell's
-        // four sides). The emitter strokes each side whose width > 0.
+        // Attach the cell's border box (the cell's four sides). The emitter
+        // strokes each side whose width > 0.
+        // box-decoration-break: slice (CORE-235): a cell that fragments paints
+        // its top band only on its FIRST fragment and its bottom band only on
+        // its LAST (the sides paint on every fragment). Without this a
+        // straddling cell drew an extra top band at the top of page 2 and its
+        // bottom band too early — table-fragmentation-001a's td border.
+        let cell_fresh = token.is_break_before();
+        let cell_broke = res.outgoing.is_some();
         let st = &self.styles[id];
         if st.border_top.get() > 0.0
             || st.border_right.get() > 0.0
@@ -5534,9 +5732,9 @@ impl<'a> Ctx<'a> {
                 || st.border_left_color.is_some()
             {
                 let border_box = BorderBox {
-                    top: st.border_top,
+                    top: if cell_fresh { st.border_top } else { Scalar::ZERO },
                     right: st.border_right,
-                    bottom: st.border_bottom,
+                    bottom: if cell_broke { Scalar::ZERO } else { st.border_bottom },
                     left: st.border_left,
                     top_color: st.border_top_color.unwrap_or(crate::css::Color::BLACK),
                     right_color: st.border_right_color.unwrap_or(crate::css::Color::BLACK),
