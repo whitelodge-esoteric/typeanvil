@@ -4,7 +4,7 @@ type: lesson
 status: approved
 owner: elijah
 created: 2026-09-16
-updated: 2026-09-16
+updated: 2026-09-21
 sidebar_position: 1
 tags: [engine, layout, flex, grid, margin-box, writing-mode, paint]
 ---
@@ -15,6 +15,7 @@ Layout lessons verified against real CORE issues. Read this before diagnosing an
 
 ## Lessons
 
+- **A box that "places nothing" but breaks inside must defer with `break_before_deferred()`, not a plain `break_before()`** (verified CORE-235, 2026-09-21): the CORE-167 deferral and the `placed_nothing` deferral in `layout.rs` both emitted a plain `break_before()` token, dropping the `deferred_once` flag. A child whose declared extent equals a full page but sits inside table chrome (border+padding+border-spacing leaves less than a page) can NEVER fit, so it re-deferred fresh on every page and the table emitted an identical continuation forever — `table-fragmentation-003a/b` ran away to 100000 pages. Fix: emit `break_before_deferred()` and guard the deferral on `!child_tok.deferred_once`, so a box that STILL cannot fit the next page force-places instead of deferring again (mirrors the row-deferral pattern). Signature: a table that terminates at baseline but runs away after a separate-model change, with the same `y`/`height`/child-token on every continuation page. Also: a fresh row that broke inside must claim only its actual placed height (`used_h`), not the full measured `row_height` — over-claiming advances the table cursor past the break, makes the table think it finished, and paints its bottom chrome early (001a's table border box was 198pt vs the ref's 144pt).
 - **A mode-switching wrapper is not automatically an orthogonal-flow context** (verified CORE-155): page-change suppression must compare the writing mode IN EFFECT at the page-declaring boxes against the PAGE's flow mode (the root element's `writing-mode`) by AXIS — vertical vs horizontal. The old predicate ("any intermediate ancestor-or-self declares `writing-mode`") suppressed the break in `page-name-orthogonal-writing-004`, where an `horizontal-tb` wrapper nested inside a `vertical-rl` one carries the page's OWN mode and the ref forces the same break with `break-after: page`. Hooks: `Ctx::writing_mode_at`, `Ctx::page_flow_writing_mode`, `orthogonal_flow` (engine/src/layout.rs); spec `docs/specifications/named-pages.spec.md` Behavior 4; tests `engine/tests/page_boundaries.rs`.
 - **Adding a field to a public struct breaks struct LITERALS in tests** (verified CORE-174): `LineResult` gained `trailing_space` and `engine/tests/typography.rs` failed to compile with `missing field 'trailing_space' in initializer`. Before believing a compile error is environmental, grep `engine/tests/` for `<Struct> {`. Cheapest fix is to add the field with a zero value at each literal.
 - **A line-baseline shift must move TEXT fragments only** (verified CORE-173): the first version of the tall-inline-block baseline fix shifted every child sitting on the line, which dragged a previously placed inline-block 3pt down with it. `inline_block.rs::two_inline_blocks_side_by_side` caught it ("both boxes share one line (equal y): got 39.039844 want 36.000000"). When you shift fragments already placed on a line, filter by content kind (`if let FragmentContent::Text(run) = &mut child.content`) and leave each atomic to manage its own placement.
