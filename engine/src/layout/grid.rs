@@ -427,6 +427,12 @@ impl Ctx<'_> {
                 y = y + row_h + row_gap;
                 continue;
             }
+            // Tracks the bottom of a FRAGMENTED declared-height item's piece
+            // on this page; the row advance below uses it instead of the full
+            // measured row height so following rows (and the in-flow text
+            // after the item) start right below the fragment rather than past
+            // the page bottom.
+            let mut frag_bottom = None;
             for it in placed_items.iter().filter(|it| it.row == ri) {
                 let mut child_tok = self.child_incoming(token, it.block_index);
                 let cell_x = inner_left + col_offsets[it.col];
@@ -456,23 +462,20 @@ impl Ctx<'_> {
                     child_tok.cross_override = Some(row_h - ist.margin_top - ist.margin_bottom);
                 }
                 // A grid item lays against the real fragmentainer bottom when
-                // its own declared extent (or content) is taller than what
-                // the row break would allow on this page. css-break-3: an
-                // item that exceeds the page bottom fragments there (007/008:
-                // a `height:350vh` grid item must reach 4 pages like the
-                // plain-block ref). Without this the item is laid against
-                // `row_top + row_h` (the full measured row height) and its
-                // declared-height continuation never fires — it paints in
-                // place overflowing. Small items keep the cell bottom; the
-                // row break (monolithic short rows) still defers whole.
-                // CORE-176: a definite-height container whose box FITS the
-                // page keeps the ink-overflow model — its over-tall rows
+                // its measured ROW height exceeds the page bottom. css-break-3:
+                // an item taller than the fragmentainer fragments there
+                // (007/008: a `height:350vh` grid item must reach 4 pages like
+                // the plain-block ref, whether the declared height sits on the
+                // item itself or on a descendant). Without this the item is
+                // laid against `row_top + row_h` (the full measured row
+                // height) and the declared-height continuation never fires —
+                // it paints in place overflowing. Small items keep the cell
+                // bottom; the row break (monolithic short rows) still defers
+                // whole. CORE-176: a definite-height container whose box FITS
+                // the page keeps the ink-overflow model — its over-tall rows
                 // paint past the bottom in place (one page), never fragment.
-                let item_laid_declared = !ink_overflow
-                    && self
-                        .specified_extent(it.id, ist)
-                        .map(|ext| row_top.get() + ext.get() > bottom_limit.get())
-                        .unwrap_or(false);
+                let item_laid_declared =
+                    !ink_overflow && row_top.get() + row_h.get() > bottom_limit.get();
                 let item_bottom = if item_laid_declared {
                     bottom_limit
                 } else {
@@ -497,6 +500,9 @@ impl Ctx<'_> {
                 if !res.empty {
                     children.push(res.fragment);
                     placed = true;
+                    if item_laid_declared {
+                        frag_bottom = Some(row_top.get() + res.used.get());
+                    }
                 }
                 if let Some(tok) = res.outgoing {
                     seen_all = false;
@@ -517,7 +523,8 @@ impl Ctx<'_> {
                     }
                 }
             }
-            y = row_top + row_h + row_gap;
+            let row_next_top = frag_bottom.unwrap_or(row_top.get() + row_h.get());
+            y = Scalar(row_next_top) + row_gap;
         }
 
         // --- 6. Finish like the flex/block paths. ---------------------------
