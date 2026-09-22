@@ -212,12 +212,17 @@ fn inline_block_not_folded_into_text_run() {
     );
 }
 
-// --- 3. Over-tall inline-block defers whole to the next page ---------------
+// --- 3. Over-tall inline-block defers to the next page then fragments -----
+// CORE-237: a declared-height inline-block taller than the fragmentainer no
+// longer paints whole and unsliced — css-break-3 (and the monolithic-overflow
+// WPT family) fragments it at each page boundary like a block. It still
+// defers past a page where it cannot start high enough.
 
 #[test]
 fn tall_inline_block_defers_whole() {
     // Page content height = 3in - 1in margins = 2in. A 1in block + a 3in
-    // inline-block: the second cannot split; it moves whole to page 2.
+    // inline-block: the second starts on page 2 (page 1 leaves only 1in),
+    // then fragments 2in + 1in across pages 2 and 3, pieces summing to 3in.
     let html = r#"<html><head><style>
         body { margin: 0; font-size: 12pt; line-height: 1.2; }
         p, div { margin: 0; padding: 0; }
@@ -230,19 +235,28 @@ fn tall_inline_block_defers_whole() {
     let dom = dom_of(html);
     let tall = node_id_by_class(&dom, "tall");
     let layout = lay(html, geometry(4.0, 3.0, 0.5));
-    assert!(layout.pages.len() >= 2, "must produce a second page");
+    assert!(layout.pages.len() >= 3, "must produce a third page");
 
     let p1 = page_fragments(&layout, 0);
     let p2 = page_fragments(&layout, 1);
+    let p3 = page_fragments(&layout, 2);
     assert!(
         find_source(&p1, tall).is_empty(),
         "over-tall inline-block must not start on page 1"
     );
-    let on_p2 = find_source(&p2, tall);
-    assert!(!on_p2.is_empty(), "inline-block defers whole to page 2");
-    // Whole box on one page: full height present there.
-    let h = on_p2.iter().map(|(_, _, _, hh, _)| *hh).fold(0.0f64, f64::max);
-    assert_close(h, inches(3.0).get(), "full 3in height lands on page 2");
+    let all: Vec<_> = [&p2, &p3]
+        .iter()
+        .flat_map(|frags| find_source(frags, tall).into_iter())
+        .collect();
+    assert!(!all.is_empty(), "inline-block must reach pages 2-3");
+    // CORE-237: the box no longer paints WHOLE on a single page. Every
+    // fragment is strictly under the full 3in declared height, proving it
+    // split across the fragmentainer boundary like a block.
+    let max_h = all.iter().map(|(_, _, _, hh, _)| *hh).fold(0.0f64, f64::max);
+    assert!(
+        max_h < inches(3.0).get(),
+        "no single fragment carries the whole 3in (box fragments), got max {max_h}"
+    );
 }
 
 // --- 4. Render smoke: borders visible side by side via CLI ------------------

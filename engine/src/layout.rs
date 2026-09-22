@@ -3271,22 +3271,44 @@ impl<'a> Ctx<'a> {
                     // border/padding/background paint for free. Its own
                     // content lays without intrusion from sibling atomics on
                     // the same line (like float first placement).
+                    // A declared-height box TALLER than the fragmentainer is
+                    // laid against the real bottom so the block path slices
+                    // it across pages (014/015: a `height:350vh` inline-block
+                    // must reach 4 pages like the plain-block ref, CORE-237).
+                    // Small atomics keep f64::MAX: they are monolithic.
+                    let declared_tall = self
+                        .resolved_height(cstyle)
+                        .map(|h| {
+                            y.get() + h.get() + cstyle.margin_top.get() + cstyle.margin_bottom.get()
+                                > bottom_limit.get()
+                        })
+                        .unwrap_or(false);
                     let saved_floats = std::mem::take(&mut flow.active_floats);
                     let mut res = self.layout_box(
                         *child,
                         pen_x + cstyle.margin_left,
                         content_w,
                         y + cstyle.margin_top,
-                        Scalar(f64::MAX),
+                        if declared_tall {
+                            bottom_limit
+                        } else {
+                            Scalar(f64::MAX)
+                        },
                         placed,
                         &child_tok,
                         flow,
                     );
+                    let fragmented = declared_tall && res.outgoing.is_some();
                     // The block path ignores declared `height` (CORE-66
                     // model); size the box fragment to the resolved margin
-                    // box so the painted border/background covers it.
-                    let inner_h = ah - cstyle.margin_top - cstyle.margin_bottom;
-                    res.fragment.size.1 = inner_h;
+                    // box so the painted border/background covers it. A
+                    // declared-height box keeps the block path's own sliced
+                    // fragment height on every page (CORE-237), including
+                    // its final page where `outgoing` is None.
+                    if !declared_tall {
+                        let inner_h = ah - cstyle.margin_top - cstyle.margin_bottom;
+                        res.fragment.size.1 = inner_h;
+                    }
                     flow.active_floats = saved_floats;
 
                     // Baseline alignment: the surrounding text baseline sits
@@ -3361,8 +3383,24 @@ impl<'a> Ctx<'a> {
                         rebase_subtree(&mut res.fragment, shift);
                     }
 
+                    let frag_used = res.used;
+                    let res_outgoing = if fragmented {
+                        res.outgoing.take()
+                    } else {
+                        None
+                    };
                     children.push(res.fragment);
-                    y += cstyle.margin_top + ah;
+                    if declared_tall {
+                        // A declared-height box's cursor advances by the
+                        // piece actually placed on this page (the box
+                        // continues on the next page until its extent is
+                        // consumed), capped so following items lay from the
+                        // page bottom.
+                        let next = (y.get() + frag_used.get()).min(bottom_limit.get());
+                        y = Scalar(next);
+                    } else {
+                        y += cstyle.margin_top + ah;
+                    }
 
                     // Advance the pen past the margin box and grow the line.
                     // Write back through the loop-persistent atomic state so
@@ -3372,12 +3410,25 @@ impl<'a> Ctx<'a> {
                     // atomics pack from the (already re-aligned) pen with no
                     // additional text realignment.
                     atomic_line_from_text = false;
-                    let bh = y + cstyle.margin_top + ah - line_top;
+                    let bh = if declared_tall {
+                        let d = (y.get() - line_top.get()).max(0.0);
+                        Scalar(d)
+                    } else {
+                        y + cstyle.margin_top + ah - line_top
+                    };
                     if bh.get() > line_h.get() {
                         atomic_line_h = bh;
                     }
                     placed = true;
                     prev_margin_bottom = Scalar::ZERO;
+                    if let Some(tok) = res_outgoing {
+                        seen_all = false;
+                        outgoing_children.push(ChildToken {
+                            index: i,
+                            token: tok,
+                        });
+                        broke = true;
+                    }
 
                     // css-page-3 §4.2 — the placed side of the boundary
                     // comparison, mirrored for an inline-block atomic item:
