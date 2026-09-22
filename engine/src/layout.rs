@@ -3985,6 +3985,15 @@ impl<'a> Ctx<'a> {
                                     index: i,
                                     token: res.outgoing.unwrap(),
                                 });
+                                // CORE-237: a float whose content fragmented
+                                // past the page bottom must keep the page loop
+                                // alive even when nothing in-flow follows it
+                                // (a bare declared-height float stands alone).
+                                // Without `broke` the body emits no outgoing
+                                // token and the continuation is dropped on
+                                // page 1. Do NOT `break` — following siblings
+                                // still place beside the float on this page.
+                                broke = true;
                             }
                             // The in-flow cursor does NOT advance past a float:
                             // the next sibling starts at the same y and wraps
@@ -4039,6 +4048,14 @@ impl<'a> Ctx<'a> {
                                     index: i,
                                     token: res.outgoing.unwrap(),
                                 });
+                                // CORE-237 (resume branch): the resolved float
+                                // on a later fragmentainer must keep the page
+                                // loop alive the same way the first placement
+                                // does — a bare declared-height float's
+                                // continuation otherwise stops after this
+                                // fragment. Do NOT `break`: siblings wrap
+                                // beside it on this page too.
+                                broke = true;
                             } else {
                                 // CORE-101: the float finished on this page —
                                 // drop its carry-over rectangle so it stops
