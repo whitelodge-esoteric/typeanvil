@@ -101,6 +101,29 @@ fn page_mc<'a>(layout: &'a Layout, page: usize) -> &'a Fragment {
     walk(root).expect("multicol container fragment exists")
 }
 
+/// The multicol container fragment on a page, allowing a single-column
+/// continuation: a block fragment with at least one column child. A
+/// fragmented container's continuation page re-balances the remaining
+/// content, which may fit in one column (CORE-236).
+fn page_mc_any<'a>(layout: &'a Layout, page: usize) -> &'a Fragment {
+    let root = &layout.pages[page].root;
+    fn is_column(f: &Fragment) -> bool {
+        f.source.is_none() && f.kind == FragmentKind::Block && !f.children.is_empty()
+    }
+    fn walk<'a>(f: &'a Fragment) -> Option<&'a Fragment> {
+        if f.children.iter().filter(|c| is_column(c)).count() >= 1 {
+            return Some(f);
+        }
+        for c in &f.children {
+            if let Some(r) = walk(c) {
+                return Some(r);
+            }
+        }
+        None
+    }
+    walk(root).expect("multicol container fragment exists")
+}
+
 // --- 1. Geometry ---------------------------------------------------------
 
 #[test]
@@ -273,10 +296,45 @@ fn multicol_fragments_across_pages() {
         layout.pages.len()
     );
     // Page 1 has a multicol container, page 2 has a fresh one (the
-    // continuation re-balances the remaining content).
-    let _p1 = page_mc(&layout, 0);
-    let p2 = page_mc(&layout, 1);
-    assert!(!p2.children.is_empty(), "page 2 has a fresh set of columns");
+        // continuation re-balances the remaining content, which may fit in a
+        // single column — CORE-236).
+        let _p1 = page_mc(&layout, 0);
+        let p2 = page_mc_any(&layout, 1);
+        assert!(!p2.children.is_empty(), "page 2 has a fresh set of columns");
+}
+
+
+#[test]
+fn declared_height_div_fills_continuation_column() {
+    // CORE-236 #1: a multicol container with a declared-height div taller
+    // than the page content area. On the continuation page the remaining
+    // div must fill columns to the page bottom, not truncate at the
+    // balanced column height.
+    let html = r#"<html><head><style>
+        body { margin: 0; }
+        article { column-count: 2; column-gap: 0; }
+        article > div { width: 100%; height: 3in; background: green; }
+    </style></head>
+    <body><article><div></div><div></div></article></body></html>"#;
+    let layout = lay(html);
+    assert!(
+        layout.pages.len() >= 2,
+        "container taller than the page fragments: {} pages",
+        layout.pages.len()
+    );
+    // Page 2's continuation fills its column to the full content height
+    // (144pt = 2in), not the truncated balanced height (~115pt).
+    let p2 = page_mc_any(&layout, 1);
+    let content_height = 144.0;
+    let max_col_h = p2
+        .children
+        .iter()
+        .map(|c| c.size.1.get())
+        .fold(0.0f64, f64::max);
+    assert!(
+        (max_col_h - content_height).abs() < 1.0,
+        "continuation column fills the content height: got {max_col_h}, want ~{content_height}"
+    );
 }
 
 // --- 6. Break-inside: avoid inside a column --------------------------------

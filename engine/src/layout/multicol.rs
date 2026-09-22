@@ -155,7 +155,15 @@ impl<'a> Ctx<'a> {
 
             if lay_set {
                 let (s0, s1, target) = sets[set_i];
-                let fits = y + target <= bottom_limit;
+                // A set whose balanced column height is shorter than its
+                // tallest in-flow block item cannot be laid by the balanced
+                // path: the item would be force-placed into a truncated
+                // column (CORE-236 #1 — a `break-inside:avoid` div taller
+                // than the balanced column on a continuation page). Route
+                // such a set through the partial-fill path, which fills
+                // columns to the page bottom.
+                let tallest = self.tallest_unsplittable(&items, s0, s1, col_w, style);
+                let fits = y + target <= bottom_limit && tallest.get() <= target.get();
                 if !fits {
                     // The set does not fit the page: fill the remaining page
                     // with as many columns as fit — anchored at the
@@ -222,6 +230,7 @@ impl<'a> Ctx<'a> {
                     });
                     y = y + laid;
                     set_i += 1;
+                    continue;
                 }
                 // The set fits: fill all n columns at the balanced target.
                 let (cols, consumed_upto, tok) = self.fill_columns(
@@ -384,8 +393,61 @@ impl<'a> Ctx<'a> {
         h
     }
 
-    /// The balanced column height for a set: `ceil(total / n)` rounded up to
-    /// a whole line box, at least one line. An empty set needs no columns.
+    /// The tallest unsplittable in-flow item in a set, at the column width.
+    /// A set whose balanced column height is shorter than its tallest
+    /// unsplittable item (a `break-inside:avoid` box or a monolithic atomic)
+    /// cannot be laid by the balanced path — the item would be force-placed
+    /// into a truncated column. Such a set must partial-fill to the page
+    /// bottom instead (CORE-236 #1).
+    fn tallest_unsplittable(
+        &self,
+        items: &[Item],
+        s0: usize,
+        s1: usize,
+        col_w: Scalar,
+        style: &ComputedStyle,
+    ) -> Scalar {
+        let mut max = Scalar::ZERO;
+        for item in &items[s0..s1] {
+            match item {
+                Item::Text(_, _, _) => {}
+                Item::Atomic(child) => {
+                    // Monolithic: cannot split across columns.
+                    let h = self.measure_block(*child, col_w);
+                    if h.get() > max.get() {
+                        max = h;
+                    }
+                }
+                Item::Block(child) => {
+                    let cs = &self.styles[*child];
+                    if cs.column_span == ColumnSpan::All || cs.float != crate::css::Float::None
+                        || matches!(cs.position, Position::Absolute | Position::Fixed)
+                    {
+                        continue;
+                    }
+                    // A block with a declared height (or `break-inside:avoid`)
+                    // is monolithic: it cannot split across columns, so a
+                    // balanced column shorter than it would force-place it
+                    // into a truncated column (CORE-236 #1).
+                    // A block with a declared height is monolithic: it cannot
+                    // split across columns, so a balanced column shorter than it
+                    // would force-place it into a truncated column (CORE-236 #1).
+                    // `break-inside:avoid` alone is NOT monolithic — it only forbids
+                    // page splits, not column splits (moz-multicol3 paragraphs).
+                    let monolithic = self.specified_extent(*child, cs).is_some();
+                    if !monolithic {
+                        // Splittable (text-flow): balances across columns fine.
+                        continue;
+                    }
+                    let h = self.measure_block(*child, col_w);
+                    if h.get() > max.get() {
+                        max = h;
+                    }
+                }
+            }
+        }
+        max
+    }
     fn balanced_target(&self, total: Scalar, n: u32, style: &ComputedStyle) -> Scalar {
         if total.get() <= 0.0 {
             return Scalar::ZERO;
