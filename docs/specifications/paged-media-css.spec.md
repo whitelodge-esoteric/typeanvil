@@ -173,11 +173,17 @@ The engine shall:
    otherwise becomes a space (css-text-3 §4.1.1). The box's `white-space` is
    its own declaration, else the page context's, else `normal`; css-page-3
    Appendix A lists `white-space` as applicable inside a margin box. Lines
-   stack at the box's `line-height`: the content's block extent is the line
-   count times that pitch, its max-content extent is the widest line, and its
-   min-content extent is the widest line's min-content (css-sizing-3 §5.1).
-   Each line aligns independently by `text-align`; no line soft-wraps, and
-   each is deterministically clipped if it overflows the box.
+   stack at the box's `line-height`, which is the box's own declaration, else
+   the page context's, else `normal` (CORE-184); a unitless value is a
+   multiplier of the box's own font-size, a percentage resolves against that
+   same font-size, and a length is absolute (css-inline-3 §5.2). A forced
+   break TERMINATES the last line and shall not open an empty one, so
+   `content: "x\ax\ax\a"` is three lines; a second consecutive trailing
+   break is a real empty line (CORE-184). The content's block extent is the
+   line count times that pitch, its max-content extent is the widest line, and
+   its min-content extent is the widest line's min-content (css-sizing-3
+   §5.1). Each line aligns independently by `text-align`; no line soft-wraps,
+   and each is deterministically clipped if it overflows the box.
    A `url(<path>)` piece (CORE-141) shall paint its image as replaced inline
    content of that image's INTRINSIC size (96 DPI pixels converted to points),
    following the text of the LAST line. The line box shall grow to the image
@@ -615,6 +621,30 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     `border-bottom-color: cyan` with black on the other three sides renders
     a PDF whose histogram shows cyan only in the bottom band
     (`probe/core201-hist.py`, `core201-before.png` vs `core201-after.png`).
+
+32. **Margin-box `line-height` (CORE-184)** — Given
+    `@page { font: 16px/1 Ahem; white-space: pre-wrap; @top-left { content:
+    "a\a b" } }`, when laid out, then the two baselines differ by 12pt
+    (`layout.rs::core184_tests::page_font_shorthand_line_height_reaches_margin_boxes`);
+    with `font: 16px Ahem` they differ by `normal` (1.2em)
+    (`core184_tests::default_line_height_stays_normal`); with `line-height: 2`
+    or `line-height: 20pt` on the box they differ by 24pt or 20pt, the box's
+    own declaration beating the page context
+    (`core184_tests::box_line_height_beats_the_page_context`,
+    `core184_tests::box_line_height_length_form`); and `parse_line_height`
+    maps `1`, `150%`, `20pt`, `24px` and `normal` to the corresponding
+    multiplier/length/absent forms (`paged.rs::parses_line_height_forms`).
+
+33. **A trailing forced break adds no line (CORE-184)** — Given a page area
+    150pt tall with `@page { font: 16px/1 Ahem; white-space: pre-wrap;` a
+    `@left-top` whose content is `"x\ax\ax\a"` and a `@left-bottom` whose
+    content is `"x\a"`, when the left edge is distributed by css-page-3
+    §5.3.2.2, then `@left-top` measures three lines and takes 36pt + 102pt ×
+    3/4 = 112.5pt, not the 100pt a four-line measure would give
+    (`layout.rs::core184_tests::trailing_forced_break_adds_no_line`); content
+    `"x\ax\a\a"` measures the same three lines, because exactly one
+    trailing terminator is dropped
+    (`core184_tests::only_one_trailing_break_is_dropped`).
 
 ## Edge Cases
 

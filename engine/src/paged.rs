@@ -294,6 +294,12 @@ pub struct MarginBoxStyle {
     /// decides whether a newline in the generated content forces a line
     /// break. `None` = not declared (inherit the page context, else `normal`).
     pub white_space: Option<crate::css::WhiteSpace>,
+    /// Margin-box `line-height` (css-page-3 Appendix A lists it as applicable
+    /// inside a margin box). `None` = not declared (inherit the page context,
+    /// else `normal`). CORE-184: without this the `/1` in
+    /// `@page { font: 16px/1 Ahem }` was parsed and discarded, so every
+    /// multi-line margin box stacked at 1.2em pitch instead of 1em.
+    pub line_height: Option<MarginLineHeight>,
     /// Margin-context `counter-reset` (css-page-3 §8). `None` = not declared.
     pub counter_reset: Option<CounterValue>,
     /// Margin-context `counter-increment`.
@@ -364,6 +370,9 @@ impl MarginBoxStyle {
         }
         if other.white_space.is_some() {
             self.white_space = other.white_space;
+        }
+        if other.line_height.is_some() {
+            self.line_height = other.line_height;
         }
         if other.counter_reset.is_some() {
             self.counter_reset = other.counter_reset.clone();
@@ -534,6 +543,9 @@ pub struct PageRule {
     /// `white-space` on the page context (CORE-178). It is an inherited text
     /// property, so it reaches every margin box that declares nothing itself
     /// (css-page-3 §6; `dimensions-005/008` set `pre-wrap` on `@page`).
+    /// Page-context `line-height` (css-page-3 §6): inherited by every
+    /// margin box that does not declare its own (CORE-184).
+    pub line_height: Option<MarginLineHeight>,
     pub white_space: Option<crate::css::WhiteSpace>,
     /// Source order, so later equal-specificity rules win.
     order: u32,
@@ -921,6 +933,7 @@ fn parse_one_page_rule(prelude: &str, body: &str, order: u32) -> Option<PageRule
         font_weight: None,
         font_style: None,
         white_space: None,
+        line_height: None,
         order,
     };
 
@@ -1099,6 +1112,7 @@ fn parse_margin_box_decls(body: &str) -> (Option<Option<Vec<ContentPiece>>>, Mar
             "font-size" => style.font_size = parse_page_length(value).and_then(page_length_abs),
             "font-weight" => style.font_weight = parse_font_weight(value),
             "font-style" => style.font_style = parse_font_style(value),
+            "line-height" => style.line_height = parse_line_height(value),
             "font" => apply_font_shorthand(&mut style, value),
             // CORE-178: `white-space` is on the margin-context property list
             // (css-page-3 Appendix A), so it applies inside a margin box.
@@ -1228,10 +1242,14 @@ fn apply_font_shorthand(style: &mut MarginBoxStyle, value: &str) {
         Some((s, f)) => (s, f.trim()),
         None => return,
     };
-    if let Some((sz, _lh)) = size_tok.split_once('/') {
+    // `size[/line-height]` — the line-height half was previously parsed and
+    // discarded (CORE-184), which silently dropped the `1` in
+    // `font: 16px/1 Ahem`.
+    if let Some((sz, lh)) = size_tok.split_once('/') {
         if let Some(abs) = parse_page_length(sz).and_then(page_length_abs) {
             style.font_size = Some(abs);
         }
+        style.line_height = parse_line_height(lh);
     } else if let Some(abs) = parse_page_length(size_tok).and_then(page_length_abs) {
         style.font_size = Some(abs);
     }
@@ -1403,6 +1421,7 @@ fn apply_page_decl(rule: &mut PageRule, decl: &str) {
         "font-size" => rule.font_size = parse_page_length(value).and_then(page_length_abs),
         "font-weight" => rule.font_weight = parse_font_weight(value),
         "font-style" => rule.font_style = parse_font_style(value),
+        "line-height" => rule.line_height = parse_line_height(value),
         "white-space" => rule.white_space = parse_white_space(value),
         "font" => {
             let mut s = MarginBoxStyle {
@@ -1417,6 +1436,7 @@ fn apply_page_decl(rule: &mut PageRule, decl: &str) {
             rule.font_size = s.font_size;
             rule.font_weight = s.font_weight;
             rule.font_style = s.font_style;
+            rule.line_height = s.line_height;
         }
         _ => {}
     }
@@ -1580,6 +1600,47 @@ fn parse_border_side(value: &str) -> Option<(Scalar, Color)> {
 
 /// Parse one margin/size value: `auto`, `inherit`, a percentage, or an
 /// absolute length.
+/// A parsed `line-height` value for a margin box or the page context.
+///
+/// css-inline-3 §5.2: a unitless number is a multiplier of the box's OWN
+/// font-size, a percentage resolves against that same font-size, and a length
+/// is absolute. `normal` (and anything unparseable) yields `None`, which
+/// callers resolve with `NORMAL_LINE_HEIGHT_FACTOR`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum MarginLineHeight {
+    /// Unitless multiplier of the element's font-size (also `%` / 100).
+    Number(f64),
+    /// An absolute length in points.
+    Length(Scalar),
+}
+
+/// Resolve a parsed `line-height` against a font-size (css-inline-3 §5.2).
+pub fn resolve_line_height(lh: MarginLineHeight, font_size: Scalar) -> Scalar {
+    match lh {
+        MarginLineHeight::Number(n) => Scalar(font_size.get() * n),
+        MarginLineHeight::Length(pt) => pt,
+    }
+}
+
+/// Parse a `line-height` declaration. `normal` returns `None`.
+///
+/// A bare number (or a percentage) is a multiplier; anything carrying a unit
+/// is an absolute length. `em` in a length resolves through `parse_length`.
+pub fn parse_line_height(s: &str) -> Option<MarginLineHeight> {
+    let s = s.trim();
+    if s.is_empty() || s.eq_ignore_ascii_case("normal") {
+        return None;
+    }
+    if let Some(pct) = s.strip_suffix('%') {
+        let n: f64 = pct.trim().parse().ok()?;
+        return Some(MarginLineHeight::Number(n / 100.0));
+    }
+    if let Ok(n) = s.parse::<f64>() {
+        return Some(MarginLineHeight::Number(n));
+    }
+    parse_length(s).map(MarginLineHeight::Length)
+}
+
 fn parse_page_length(s: &str) -> Option<PageLength> {
     let s = s.trim();
     if s.eq_ignore_ascii_case("auto") {
@@ -1980,6 +2041,9 @@ pub fn resolve_page_spec(
     let mut page_color: Option<Color> = None;
     let mut page_font_family: Option<Vec<crate::fonts::FamilySpec>> = None;
     let mut page_font_size: Option<Scalar> = None;
+    // Page-context `line-height` (CORE-184): inherited by margin boxes that do
+    // not declare their own, exactly like `font-size`.
+    let mut page_line_height: Option<MarginLineHeight> = None;
     let mut page_font_weight: Option<f32> = None;
     let mut page_font_style: Option<crate::css::FontStyle> = None;
     // `white-space` is inherited, so a page-context declaration reaches every
@@ -2183,6 +2247,9 @@ pub fn resolve_page_spec(
         if r.font_size.is_some() {
             page_font_size = r.font_size;
         }
+        if r.line_height.is_some() {
+            page_line_height = r.line_height;
+        }
         if r.font_weight.is_some() {
             page_font_weight = r.font_weight;
         }
@@ -2338,7 +2405,13 @@ pub fn resolve_page_spec(
                 font_size,
                 font_face: resolved.primary,
                 font_fallbacks: resolved.fallbacks,
-                line_height: font_size * crate::css::NORMAL_LINE_HEIGHT_FACTOR,
+                // The box's own `line-height` wins, else the page context's,
+                // else `normal` (css-page-3 §6 inheritance; CORE-184).
+                line_height: style
+                    .line_height
+                    .or(page_line_height)
+                    .map(|lh| resolve_line_height(lh, font_size))
+                    .unwrap_or(font_size * crate::css::NORMAL_LINE_HEIGHT_FACTOR),
                 white_space: style.white_space.or(page_white_space).unwrap_or_default(),
                 text_align: style
                     .text_align
@@ -2629,6 +2702,26 @@ mod tests {
         assert_eq!(
             r.margin_boxes[1].content,
             Some(Some(vec![ContentPiece::CounterPage]))
+        );
+    }
+
+    /// CORE-184: a unitless `line-height` is a multiplier of the box's own
+    /// font-size, a percentage likewise, a length is absolute, and `normal`
+    /// is not a declared value at all (css-inline-3 §5.2).
+    #[test]
+    fn parses_line_height_forms() {
+        assert_eq!(parse_line_height("normal"), None);
+        assert_eq!(parse_line_height("  "), None);
+        assert_eq!(parse_line_height("1"), Some(MarginLineHeight::Number(1.0)));
+        assert_eq!(parse_line_height("1.5"), Some(MarginLineHeight::Number(1.5)));
+        assert_eq!(parse_line_height("150%"), Some(MarginLineHeight::Number(1.5)));
+        assert_eq!(parse_line_height("20pt"), Some(MarginLineHeight::Length(Scalar(20.0))));
+        assert_eq!(parse_line_height("24px"), Some(MarginLineHeight::Length(Scalar(18.0))));
+        // Number and Length resolve differently against the same font-size.
+        assert_eq!(resolve_line_height(MarginLineHeight::Number(1.0), Scalar(12.0)), Scalar(12.0));
+        assert_eq!(
+            resolve_line_height(MarginLineHeight::Length(Scalar(20.0)), Scalar(12.0)),
+            Scalar(20.0)
         );
     }
 

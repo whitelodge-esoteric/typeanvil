@@ -7575,9 +7575,21 @@ fn attach_margin_boxes(
 /// empty box still occupies its line box.
 fn margin_box_lines(text: &str, ws: crate::css::WhiteSpace) -> Vec<String> {
     if ws.preserves_breaks() {
-        text.split('\n')
+        let mut lines: Vec<String> = text
+            .split('\n')
             .map(|l| l.strip_suffix('\r').unwrap_or(l).to_string())
-            .collect()
+            .collect();
+        // A forced break TERMINATES the last line; it does not open an empty
+        // one. `content: "x\ax\ax\a"` is THREE lines, not four — the WPT
+        // dimensions-* fixtures state that arithmetic in their own comments
+        // ("Min/max height for left-top is 3em (three lines)" for exactly that
+        // string), and the browsers that pass those pairs agree. A SECOND
+        // trailing break IS a real empty line (`"a\a\a"` = "a" + ""), so drop
+        // exactly one.
+        if lines.len() > 1 && lines.last().is_some_and(|l| l.is_empty()) && text.ends_with('\n') {
+            lines.pop();
+        }
+        lines
     } else {
         let mut s = String::with_capacity(text.len());
         for c in text.chars() {
@@ -8589,6 +8601,178 @@ mod core178_tests {
                  @top-left { white-space: normal; content: "a\a b"; } }"#,
         );
         assert_eq!(ys.len(), 1, "the box's `normal` collapses: {ys:?}");
+    }
+}
+
+#[cfg(test)]
+mod core184_tests {
+    use super::*;
+    use crate::css::Stylesheet;
+    use crate::geom::PageGeometry;
+
+    /// A 300x300pt page with 75pt margins, so the page area is 150x150pt.
+    fn geometry() -> PageGeometry {
+        PageGeometry {
+            width: Scalar(300.0),
+            height: Scalar(300.0),
+            margin_top: Scalar(75.0),
+            margin_right: Scalar(75.0),
+            margin_bottom: Scalar(75.0),
+            margin_left: Scalar(75.0),
+        }
+    }
+
+    fn laid(css: &str) -> Layout {
+        let html = format!("<html><head><style>{css}</style></head><body></body></html>");
+        let dom = Dom::parse(&html).expect("parse");
+        let sheet = Stylesheet::parse(css);
+        layout(&dom, &sheet, geometry())
+    }
+
+    /// Every fragment's page-absolute box, as `(x, y, w, h)`. Margin boxes
+    /// live in `Fragmentainer::margin_boxes` (CORE-179), not in the content
+    /// root, so the walk seeds from each margin-box subtree with their
+    /// page-absolute offset.
+    fn boxes(laid: &Layout) -> Vec<(f64, f64, f64, f64)> {
+        let mut out = Vec::new();
+        let mut stack: Vec<(&Fragment, f64, f64)> = laid.pages[0]
+            .margin_boxes
+            .iter()
+            .map(|mb| (&mb.fragment, 0.0f64, 0.0f64))
+            .collect();
+        while let Some((frag, px, py)) = stack.pop() {
+            let ax = px + frag.offset.x.get();
+            let ay = py + frag.offset.y.get();
+            out.push((ax, ay, frag.size.0.get(), frag.size.1.get()));
+            for c in &frag.children {
+                stack.push((c, ax, ay));
+            }
+        }
+        out
+    }
+
+    /// The height of the margin box whose border box starts at `(x, y)`.
+    fn box_height_at(laid: &Layout, x: f64, y: f64) -> f64 {
+        boxes(laid)
+            .into_iter()
+            .find(|(bx, by, _, _)| (bx - x).abs() < 0.5 && (by - y).abs() < 0.5)
+            .map(|(_, _, _, h)| h)
+            .unwrap_or_else(|| panic!("no margin box at ({x}, {y})"))
+    }
+
+    /// Text baselines on page 0, top-to-bottom. Margin boxes live in
+    /// `Fragmentainer::margin_boxes` (CORE-179), so the walk starts at each
+    /// margin-box subtree (mirrors `core178_tests::margin_box_baselines`).
+    fn baselines(css: &str) -> Vec<f64> {
+        let laid = laid(css);
+        let mut found = Vec::new();
+        for mb in &laid.pages[0].margin_boxes {
+            super::core150_tests::collect_text_baselines(&mb.fragment, 0.0, 0.0, &mut found);
+        }
+        let mut ys: Vec<f64> = found.into_iter().map(|(_, y)| y).collect();
+        ys.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        ys
+    }
+
+    /// CORE-184. A forced break TERMINATES the last line; it does not open an
+    /// empty one. `content: "x\ax\ax\a"` is three lines, not four — the WPT
+    /// `css-page/margin-boxes/dimensions-004` fixture states exactly that in
+    /// its own comment ("Min/max height for left-top is 3em (three lines)")
+    /// against exactly that string. Before the fix the four-line measure fed
+    /// §5.3.2.2's proportional distribution, so every height on the edge was
+    /// wrong.
+    ///
+    /// page area 150pt tall; left-top measures 3em, left-bottom 1em (em = 12pt
+    /// here), so the surplus 102pt splits 3:1 ->
+    /// left-top 36 + 102*3/4 = 112.5pt (100pt if the trailing break counted).
+    #[test]
+    fn trailing_forced_break_adds_no_line() {
+        let laid = laid(
+            r#"@page { size: 400px; margin: 100px; font: 16px/1 Ahem;
+                     white-space: pre-wrap;
+                     @left-top { content: "x\ax\ax\a"; background: yellow; }
+                     @left-bottom { content: "x\a"; background: hotpink; } }"#,
+        );
+        let h = box_height_at(&laid, 0.0, 75.0);
+        assert!(
+            (h - 112.5).abs() < 1e-6,
+            "left-top must take 3 lines' share (112.5pt), got {h}"
+        );
+    }
+
+    /// CORE-184. The `/1` in `@page { font: 16px/1 Ahem }` was parsed and then
+    /// discarded, so every multi-line margin box stacked at 1.2em pitch. The
+    /// dimensions-* fixtures set `font: 16px/1` and their commented arithmetic
+    /// assumes a 1em pitch.
+    #[test]
+    fn page_font_shorthand_line_height_reaches_margin_boxes() {
+        let ys = baselines(
+            r#"@page { size: 400px; margin: 100px; font: 16px/1 Ahem;
+                     white-space: pre-wrap;
+                     @top-left { content: "a\a b"; } }"#,
+        );
+        assert_eq!(ys.len(), 2, "two lines: {ys:?}");
+        let pitch = ys[1] - ys[0];
+        assert!(
+            (pitch - 12.0).abs() < 1e-6,
+            "16px/1 is a 12pt pitch, got {pitch}"
+        );
+    }
+
+    /// CORE-184. Without the shorthand's `/lh`, the `normal` factor applies.
+    #[test]
+    fn default_line_height_stays_normal() {
+        let ys = baselines(
+            r#"@page { size: 400px; margin: 100px; font: 16px Ahem;
+                     white-space: pre-wrap;
+                     @top-left { content: "a\a b"; } }"#,
+        );
+        let expected = 12.0 * crate::css::NORMAL_LINE_HEIGHT_FACTOR;
+        assert!((ys[1] - ys[0] - expected).abs() < 1e-6, "{ys:?}");
+    }
+
+    /// CORE-184. The box's own `line-height` beats the page context's, and a
+    /// unitless value is a multiplier of the box's own font-size
+    /// (css-inline-3 §5.2; css-page-3 Appendix A applies it in a margin box).
+    #[test]
+    fn box_line_height_beats_the_page_context() {
+        let ys = baselines(
+            r#"@page { size: 400px; margin: 100px; font: 16px/1 Ahem;
+                     white-space: pre-wrap;
+                     @top-left { line-height: 2; content: "a\a b"; } }"#,
+        );
+        assert!(
+            (ys[1] - ys[0] - 24.0).abs() < 1e-6,
+            "`line-height: 2` at 12pt is a 24pt pitch: {ys:?}"
+        );
+    }
+
+    /// CORE-184. A length `line-height` is absolute and does not follow the
+    /// inherited `font`.
+    #[test]
+    fn box_line_height_length_form() {
+        let ys = baselines(
+            r#"@page { size: 400px; margin: 100px; font: 16px/1 Ahem;
+                     white-space: pre-wrap;
+                     @top-left { line-height: 20pt; content: "a\a b"; } }"#,
+        );
+        assert!((ys[1] - ys[0] - 20.0).abs() < 1e-6, "{ys:?}");
+    }
+
+    /// CORE-184. A SECOND trailing break is a real empty line (`"a\a\a"` is
+    /// "a" then ""), so exactly one trailing terminator is dropped.
+    #[test]
+    fn only_one_trailing_break_is_dropped() {
+        // Three lines' worth of measure (2 + 1 em) vs two.
+        let laid = laid(
+            r#"@page { size: 400px; margin: 100px; font: 16px/1 Ahem;
+                     white-space: pre-wrap;
+                     @left-top { content: "x\ax\a\a"; background: yellow; }
+                     @left-bottom { content: "x\a"; background: hotpink; } }"#,
+        );
+        // left-top 3em, left-bottom 1em -> 36 + 102*3/4 = 112.5pt.
+        let h = box_height_at(&laid, 0.0, 75.0);
+        assert!((h - 112.5).abs() < 1e-6, "expected 112.5pt, got {h}");
     }
 }
 
