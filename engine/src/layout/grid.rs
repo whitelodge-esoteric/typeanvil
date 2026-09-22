@@ -455,12 +455,35 @@ impl Ctx<'_> {
                     // clips — same rule as flex's cross override).
                     child_tok.cross_override = Some(row_h - ist.margin_top - ist.margin_bottom);
                 }
+                // A grid item lays against the real fragmentainer bottom when
+                // its own declared extent (or content) is taller than what
+                // the row break would allow on this page. css-break-3: an
+                // item that exceeds the page bottom fragments there (007/008:
+                // a `height:350vh` grid item must reach 4 pages like the
+                // plain-block ref). Without this the item is laid against
+                // `row_top + row_h` (the full measured row height) and its
+                // declared-height continuation never fires — it paints in
+                // place overflowing. Small items keep the cell bottom; the
+                // row break (monolithic short rows) still defers whole.
+                // CORE-176: a definite-height container whose box FITS the
+                // page keeps the ink-overflow model — its over-tall rows
+                // paint past the bottom in place (one page), never fragment.
+                let item_laid_declared = !ink_overflow
+                    && self
+                        .specified_extent(it.id, ist)
+                        .map(|ext| row_top.get() + ext.get() > bottom_limit.get())
+                        .unwrap_or(false);
+                let item_bottom = if item_laid_declared {
+                    bottom_limit
+                } else {
+                    row_top + row_h
+                };
                 let mut res = self.layout_box(
                     it.id,
                     cell_x,
                     cell_w,
                     row_top,
-                    row_top + row_h,
+                    item_bottom,
                     placed,
                     &child_tok,
                     flow,
@@ -481,8 +504,17 @@ impl Ctx<'_> {
                         index: it.block_index,
                         token: tok,
                     });
-                    // Absorb: keep going with sibling cells; the row's
-                    // continuation rides the row break below.
+                    // A declared-height item laid against the real
+                    // fragmentainer bottom fragments its OWN box and must
+                    // carry the grid's continuation to the next page —
+                    // absorbed tokens (short rows, cell content) ride the
+                    // row break instead.
+                    if item_laid_declared {
+                        broke = true;
+                    } else {
+                        // Absorb: keep going with sibling cells; the row's
+                        // continuation rides the row break below.
+                    }
                 }
             }
             y = row_top + row_h + row_gap;
