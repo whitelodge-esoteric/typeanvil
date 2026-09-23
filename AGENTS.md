@@ -82,9 +82,11 @@ inspect Linear or prove diagnoses.
 
 - Work is tracked in Linear (team Core, project Typeanvil, issue ids like
   CORE-57). Reference the issue id in commit messages: `feat: ... (CORE-57)`.
-- Note the model tier on Linear issues when delegating (`Model: deepseek` by
-  default; opus-class only for architecture/engine work where a mistake is
-  expensive).
+- Note the model tier on Linear issues when delegating, keyed to expected effort:
+  `Model: Qwen3 Coder 480B A35B (nous/qwen/qwen3-coder)` for high effort,
+  `Model: DeepSeek V4.1 Flash (nous/deepseek/deepseek-v4.1-flash)` for normal,
+  `Model: GLM 5.3 Flash (nous/z-ai/glm-5.3-flash)` for low. The `model-qwen` /
+  `model-deepseek` / `model-glm` labels mirror the tiers.
 - Docs site: `cd docsite && npm run build` (Docusaurus; content lives in
   `../docs`, never edit `docsite/docs/`).
 - When an issue closes, delete the Docker assets that belong to it: its build
