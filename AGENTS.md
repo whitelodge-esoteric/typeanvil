@@ -42,7 +42,8 @@ Every feature starts as a spec; code follows the spec; tests prove the spec.
 - Research → `docs/research/<area>/` (cited, self-contained). Runbooks →
   `docs/operations/`. Lessons → `docs/lessons/` — never delete a lesson,
   supersede it.
-- Transient task prompts → `prompts/` at the repo root, never `docs/`.
+- Transient task prompts and agent scratch never belong in the repository —
+  compose them in worktree scratch or the vault, and keep them out of commits.
 - Write human-first (plain English, short sentences, lead with the point),
   machine-parseable second (stable section headings, "shall" for normative
   statements).

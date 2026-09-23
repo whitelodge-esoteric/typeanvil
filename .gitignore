@@ -1,5 +1,7 @@
 .wpt
 .wpt/
+.hermes/
+.DS_Store
 artifacts/
 history.sqlite
 __pycache__/
@@ -35,6 +37,13 @@ demo/showcase/out.baseline/
 
 # benchmark scratch renders
 benchmarks/.work/
+
+# issue-evidence dumps from scripts/pickup.py (evidence lives in Linear)
+probe/issue-evidence/
+
+# stale top-level developer renders; the tracked demo/corpus + demo/showcase
+# baselines are the deliverables
+demo/out/
 
 # cocoindex (ccc) local semantic-code index
 /.cocoindex_code/

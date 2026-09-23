@@ -4,7 +4,7 @@ type: convention
 status: approved
 owner: elijah
 created: 2026-08-16
-updated: 2026-09-16
+updated: 2026-09-23
 sidebar_position: 1
 tags: [docs, meta]
 ---
@@ -58,7 +58,8 @@ The docs are the intermediary between humans and machines:
 
 - **User-changeable configuration** → product documentation / in-app help. Not
   here.
-- **Transient AI task prompts** → `prompts/` at the repo root.
+- **Transient AI task prompts and agent scratch** → worktree scratch or the
+  vault, never committed to the repository.
 - **Strategy, market, and product decisions** → Obsidian vault
   (`brain/Projects/Typeanvil/`). The vault is strategy; `docs/` is engineering
   truth. Research reports produced by agents go in `docs/research/` (below),
@@ -188,8 +189,9 @@ everything else.
 
 A Typeanvil rule, not a suggestion: an AI agent asked to implement, change,
 debug, or release Typeanvil MUST load the relevant docs first — conventions,
-then the spec or runbook — and treat them as authoritative. `prompts/` is for
-composing task prompts; `docs/` is the ground truth those prompts point at.
+then the spec or runbook — and treat them as authoritative. Compose task
+prompts in worktree scratch; `docs/` is the ground truth those prompts point
+at.
 Research an agent produces goes into `docs/research/`, categorized by
 directory, with frontmatter.
 

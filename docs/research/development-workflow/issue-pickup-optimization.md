@@ -4,7 +4,7 @@ type: research
 status: approved
 owner: elijah
 created: 2026-09-21
-updated: 2026-09-21
+updated: 2026-09-23
 sidebar_position: 1
 tags: [workflow, evidence, tooling, performance]
 ---
@@ -112,8 +112,9 @@ The executing profile's workflow instructions were corrected to:
 9. Replace the project guide's duplicate pickup procedure with a single workflow
    reference.
 
-The exact profile-specific changes are archived outside `docs/` in
-`.hermes/skill-patches/`. Committing that archive does not install it into other
+The exact profile-specific changes live in the profile's own skills directory,
+outside the repository (the former `.hermes/skill-patches/` archive was removed
+from the repo). Committing such an archive does not install it into other
 profiles. Broader historical instruction cleanup is still pending.
 
 ## Recommended work

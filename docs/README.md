@@ -48,7 +48,8 @@ flowchart LR
 
 - **User-changeable configuration** → product docs / in-app help. Internal docs
   describe the code, not the user's knobs.
-- **Transient AI task prompts** → `prompts/` at the repo root.
+- **Transient AI task prompts and agent scratch** → never in this repository.
+  Compose prompts in worktree scratch; keep notes in the vault.
 - **Strategy, market, and product decisions** → Obsidian vault
   (`brain/Projects/Typeanvil/`). The vault holds strategy; `docs/` holds
   engineering truth. Research reports produced by agents go in
