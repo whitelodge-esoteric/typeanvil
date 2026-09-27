@@ -45,12 +45,46 @@ pub const FACE_BOLD_ITALIC: FaceId = FaceId(3);
 
 /// The filesystem paths of the bundled fallback faces, indexed by `FaceId.0`
 /// for ids 0..4 (the old `face_path` table).
-const BUNDLED_PATHS: [&str; 4] = [
-    "/System/Library/Fonts/Supplemental/Arial.ttf",
-    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-    "/System/Library/Fonts/Supplemental/Arial Italic.ttf",
-    "/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf",
+///
+/// Each face has a candidate list, tried in order; the first readable path
+/// wins (see `bundled_path`). The macOS Arial set stays first so existing
+/// macOS hosts and the dev container (which mounts macOS fonts) render
+/// byte-identically to pre-CORE-247 output. On Linux hosts without Arial —
+/// i.e. the shipped container image — the bundled open-source set (Liberation
+/// Sans, metric-compatible with Arial) is the fallback, so a Linux render
+/// never reads empty font bytes (CORE-247).
+const BUNDLED_PATH_CANDIDATES: [&[&str]; 4] = [
+    &[
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/usr/share/fonts/typeanvil/LiberationSans-Regular.ttf",
+    ],
+    &[
+        "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+        "/usr/share/fonts/typeanvil/LiberationSans-Bold.ttf",
+    ],
+    &[
+        "/System/Library/Fonts/Supplemental/Arial Italic.ttf",
+        "/usr/share/fonts/typeanvil/LiberationSans-Italic.ttf",
+    ],
+    &[
+        "/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf",
+        "/usr/share/fonts/typeanvil/LiberationSans-BoldItalic.ttf",
+    ],
 ];
+
+/// The first readable path for a bundled face: the first candidate that
+/// exists as a file. Falls back to the last candidate when none exist so
+/// callers can produce a clear error instead of silently reading empty
+/// bytes. Deterministic for a given host (candidates are ordered and the
+/// existence check is stable for a process lifetime in practice).
+pub fn bundled_path(id: u32) -> &'static str {
+    let candidates = BUNDLED_PATH_CANDIDATES[id as usize];
+    candidates
+        .iter()
+        .find(|p| std::path::Path::new(p).is_file())
+        .copied()
+        .unwrap_or(candidates[candidates.len() - 1])
+}
 
 const BUNDLED_POSTSCRIPT: [&str; 4] = [
     "ArialMT",
@@ -104,11 +138,9 @@ struct Registry {
 }
 
 static REGISTRY: LazyLock<Mutex<Registry>> = LazyLock::new(|| {
-    let faces = BUNDLED_PATHS
-        .iter()
-        .enumerate()
-        .map(|(i, path)| RegisteredFace {
-            source: FaceSource::Path((*path).to_string(), 0),
+    let faces = (0..4)
+        .map(|i| RegisteredFace {
+            source: FaceSource::Path(bundled_path(i as u32).to_string(), 0),
             postscript_name: BUNDLED_POSTSCRIPT[i].to_string(),
             weight: if i == 1 || i == 3 { 700.0 } else { 400.0 },
             italic: i >= 2,
@@ -205,10 +237,7 @@ pub fn register_face_bytes(
             weight,
             italic,
         });
-        reg.custom
-            .entry(key.0.clone())
-            .or_default()
-            .push(id);
+        reg.custom.entry(key.0.clone()).or_default().push(id);
         reg.registered_rules.insert(key, id);
         Some(id)
     })
@@ -266,7 +295,11 @@ fn match_weight(faces: &[(f32, FaceId)], target: f32) -> Option<FaceId> {
     if (400.0..=500.0).contains(&target) {
         // §5.2: ascending toward 500, then descending below target, then
         // ascending above 500.
-        let up_to_500: Vec<_> = faces.iter().filter(|(w, _)| *w > target && *w <= 500.0).cloned().collect();
+        let up_to_500: Vec<_> = faces
+            .iter()
+            .filter(|(w, _)| *w > target && *w <= 500.0)
+            .cloned()
+            .collect();
         if let Some(id) = by_asc(up_to_500) {
             return Some(id);
         }
@@ -323,11 +356,7 @@ fn best_face(candidates: &[FaceId], weight: f32, italic: bool) -> Option<FaceId>
 /// chain (spec Behavior 2/4/8). Deterministic. Falls back to the bundled
 /// Arial face for the requested weight/style when nothing resolves
 /// (Behavior 6) — the pre-CORE-103 behavior, preserved.
-pub fn resolve_font(
-    families: &[FamilySpec],
-    weight: f32,
-    style: FontStyle,
-) -> FontResolution {
+pub fn resolve_font(families: &[FamilySpec], weight: f32, style: FontStyle) -> FontResolution {
     let italic = matches!(style, FontStyle::Italic);
     let mut primary: Option<FaceId> = None;
     let mut fallbacks: Vec<FaceId> = Vec::new();
@@ -343,7 +372,10 @@ pub fn resolve_font(
         }
     }
     match primary {
-        Some(p) => FontResolution { primary: p, fallbacks },
+        Some(p) => FontResolution {
+            primary: p,
+            fallbacks,
+        },
         None => FontResolution {
             primary: bundled_fallback(weight, style),
             fallbacks: Vec::new(),
@@ -383,21 +415,24 @@ fn family_candidates(spec: &FamilySpec) -> Vec<FaceId> {
                     out
                 })
         }
-            // GENERIC GATE (0-regression rule): the engine's UA default
-            // font-family is stylo's initial value — bare `serif` — and the
-            // WPT harness compares OUR test vs OUR reference through this
-            // same default. Resolving generics to concrete system faces
-            // changes line metrics for every unstyled doc and re-baselines
-            // the suite. Until a deliberate re-baseline lands, ALL generics
-            // resolve to the bundled Arial set (the pre-CORE-103 behavior).
-            // The fontdb generic mapping is verified and recorded in the
-            // spec; flipping this switch is a one-line follow-up gated on a
-            // full-suite run. Author-declared family NAMES resolve fully.
-            FamilySpec::Serif
-            | FamilySpec::SansSerif
-            | FamilySpec::Monospace
-            | FamilySpec::Cursive
-            | FamilySpec::Fantasy => vec![FACE_REGULAR, FACE_BOLD, FACE_ITALIC, FACE_BOLD_ITALIC],
+        // GENERIC GATE (0-regression rule): the engine's UA default
+        // font-family is stylo's initial value — bare `serif` — and the
+        // WPT harness compares OUR test vs OUR reference through this
+        // same default. Resolving generics to concrete system faces
+        // changes line metrics for every unstyled doc and re-baselines
+        // the suite. Until a deliberate re-baseline lands, ALL generics
+        // resolve to the bundled set (the pre-CORE-103 behavior). The
+        // bundled set is platform-appropriate: macOS Arial, or the
+        // container image's Liberation set on Linux (CORE-247) — so a
+        // Linux render never reads empty font bytes. The fontdb generic
+        // mapping is verified and recorded in the spec; flipping this
+        // switch is a one-line follow-up gated on a full-suite run.
+        // Author-declared family NAMES resolve fully.
+        FamilySpec::Serif
+        | FamilySpec::SansSerif
+        | FamilySpec::Monospace
+        | FamilySpec::Cursive
+        | FamilySpec::Fantasy => vec![FACE_REGULAR, FACE_BOLD, FACE_ITALIC, FACE_BOLD_ITALIC],
     }
 }
 
@@ -505,8 +540,13 @@ pub fn face_count() -> usize {
 /// src: local(...)`), registered on demand.
 pub fn system_family_faces(family: &str) -> Vec<fontdb::FaceInfo> {
     let key = family.to_ascii_lowercase();
-    FONTDB.faces()
-        .filter(|f| f.families.iter().any(|(n, _)| n.to_ascii_lowercase() == key))
+    FONTDB
+        .faces()
+        .filter(|f| {
+            f.families
+                .iter()
+                .any(|(n, _)| n.to_ascii_lowercase() == key)
+        })
         .cloned()
         .collect()
 }
@@ -517,11 +557,10 @@ pub fn register_system_face_pub(info: &fontdb::FaceInfo) -> FaceId {
 }
 
 /// Legacy path helper (bundled faces only; tests + the PDF fallback).
+/// Returns the first READABLE bundled path for the face (macOS Arial when
+/// present; the container image's Liberation set otherwise — CORE-247).
 pub fn face_path(face: FaceId) -> &'static str {
-    BUNDLED_PATHS
-        .get(face.0 as usize)
-        .copied()
-        .unwrap_or(BUNDLED_PATHS[0])
+    bundled_path(face.0 as u32)
 }
 
 #[cfg(test)]
@@ -531,7 +570,36 @@ mod tests {
     #[test]
     fn bundled_ids_are_stable() {
         assert_eq!(FACE_REGULAR, FaceId(0));
-        assert_eq!(face_path(FACE_BOLD), "/System/Library/Fonts/Supplemental/Arial Bold.ttf");
+        // The bundled faces keep their fixed ids; the resolved path is the
+        // first READABLE candidate (macOS Arial when present, else the
+        // container's Liberation set — CORE-247). On macOS and in the dev
+        // container (which mounts macOS fonts) this is the Arial path.
+        assert_eq!(
+            face_path(FACE_BOLD),
+            "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
+        );
+    }
+
+    // CORE-247: the bundled fallback must never resolve to empty font bytes.
+    // Every bundled face resolves to a readable path (macOS Arial, or the
+    // container image's Liberation set on Linux) and its bytes parse as a
+    // font. This is the invariant the container image relies on.
+    #[test]
+    fn bundled_faces_resolve_to_readable_bytes() {
+        for id in 0..4 {
+            let face = FaceId(id);
+            let path = face_path(face);
+            let bytes = std::fs::read(path)
+                .unwrap_or_else(|e| panic!("bundled face {id} unreadable at {path}: {e}"));
+            assert!(
+                !bytes.is_empty(),
+                "bundled face {id} resolved to empty bytes at {path}"
+            );
+            assert!(
+                read_fonts::FontRef::new(&bytes).is_ok(),
+                "bundled face {id} bytes at {path} do not parse as a font"
+            );
+        }
     }
 
     // System-face resolution depends on the host's font database (fontdb

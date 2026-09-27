@@ -13,6 +13,7 @@ RUN python3 --version && python3 -m pip install --no-cache-dir --break-system-pa
       pillow \
       pypdfium2 \
       playwright \
+      pyyaml \
  && python3 -m playwright install chromium --with-deps
 
 # Non-root user matching common CI practice; work mounted at /work.
