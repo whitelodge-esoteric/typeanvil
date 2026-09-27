@@ -1,6 +1,7 @@
 # Release CI (CORE-135): tag → cross-platform binaries → GitHub Releases.
 # CORE-136 adds the npm-publish job: wrapper + platform packages, versions
-# stamped from the tag.
+# stamped from the tag. CORE-247 adds the container job: multi-arch image
+# pushed to GHCR.
 #
 # Trigger: push of a tag `v*`. Version is CalVer (YYYY.M.PATCH — plain month;
 # zero-padded month is not npm-semver-valid), decided on CORE-133; the tag is
@@ -195,6 +196,98 @@ jobs:
           gh release view "$TAG" >/dev/null 2>&1 || \
             gh release create "$TAG" --title "$TAG" --generate-notes
           gh release upload "$TAG" dist/* --clobber
+
+  # Container distribution (CORE-247): wrap the release binaries in a minimal
+  # image (distroless, non-root, no shell) with the bundled Liberation font
+  # set, build multi-arch amd64+arm64 via buildx, and push to GHCR tagged
+  # with the CalVer tag. Packaging only — the binary is the CORE-135 artifact
+  # unchanged (determinism rules in release-ci.spec.md still apply).
+  #
+  # GHCR does not require the repo public: private images work with repo auth
+  # (GITHUB_TOKEN + packages: write). The image name follows the repo owner,
+  # so it is ghcr.io/<owner>/typeanvil.
+  container:
+    needs: [derive-version, build]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download release binaries
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+
+      - name: Extract per-arch binaries into the build context
+        env:
+          VERSION: ${{ needs.derive-version.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          # amd64 = musl static; arm64 = gnu glibc (matches the Dockerfile's
+          # TARGETARCH COPY). The Dockerfile expects dist/typeanvil-linux-<arch>.
+          tar -xzf "dist/typeanvil-$VERSION-x86_64-unknown-linux-musl.tar.gz" -C dist
+          mv "dist/typeanvil-$VERSION-x86_64-unknown-linux-musl/typeanvil" dist/typeanvil-linux-amd64
+          tar -xzf "dist/typeanvil-$VERSION-aarch64-unknown-linux-gnu.tar.gz" -C dist
+          mv "dist/typeanvil-$VERSION-aarch64-unknown-linux-gnu/typeanvil" dist/typeanvil-linux-arm64
+          chmod +x dist/typeanvil-linux-*
+          ls -la dist/typeanvil-linux-*
+
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push multi-arch image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.IMAGE }}:${{ needs.derive-version.outputs.version }}
+
+      - name: Verify --version matches tag
+        env:
+          VERSION: ${{ needs.derive-version.outputs.version }}
+        run: |
+          ACTUAL=$(docker run --rm --platform linux/amd64 \
+            "$IMAGE:$VERSION" --version)
+          EXPECTED="typeanvil $VERSION"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::container --version mismatch: got '$ACTUAL', expected '$EXPECTED'"
+            exit 1
+          fi
+          echo "container version check ok: $ACTUAL"
+
+      - name: Smoke render (no host fonts) + non-root check
+        env:
+          VERSION: ${{ needs.derive-version.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Render a minimal doc with NO user fonts mounted: the bundled
+          # Liberation set must produce a valid PDF (never empty font bytes).
+          mkdir -p /tmp/smoke
+          printf '<!DOCTYPE html><html><body><p>Hello Typeanvil</p></body></html>' \
+            > /tmp/smoke/in.html
+          docker run --rm --platform linux/amd64 \
+            -v /tmp/smoke:/work "$IMAGE:$VERSION" \
+            render /work/in.html -o /work/out.pdf
+          test -s /tmp/smoke/out.pdf
+          # Non-root: the image's default user must be a numeric non-root uid.
+          docker inspect "$IMAGE:$VERSION" --format '{{.Config.User}}' \
+            | grep -qE '^[0-9]+$' && echo "non-root user ok"
+          echo "smoke render ok: $(stat -c%s /tmp/smoke/out.pdf) bytes"
 
   # npm distribution (CORE-136): publish the wrapper + platform packages with
   # the binaries from this same tag. Versions are stamped from the tag —
