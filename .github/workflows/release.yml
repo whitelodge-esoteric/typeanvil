@@ -280,6 +280,9 @@ jobs:
           mkdir -p /tmp/smoke
           printf '<!DOCTYPE html><html><body><p>Hello Typeanvil</p></body></html>' \
             > /tmp/smoke/in.html
+          # The container runs as the distroless nonroot user (uid 65532);
+          # make the mounted dir world-writable so the PDF can be written back.
+          chmod 777 /tmp/smoke
           docker run --rm --platform linux/amd64 \
             -v /tmp/smoke:/work "$IMAGE:$VERSION" \
             render /work/in.html --page-width 8.5in --page-height 11in \
