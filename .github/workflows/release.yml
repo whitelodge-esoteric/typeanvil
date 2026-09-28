@@ -282,7 +282,8 @@ jobs:
             > /tmp/smoke/in.html
           docker run --rm --platform linux/amd64 \
             -v /tmp/smoke:/work "$IMAGE:$VERSION" \
-            render /work/in.html -o /work/out.pdf
+            render /work/in.html --page-width 8.5in --page-height 11in \
+            -o /work/out.pdf
           test -s /tmp/smoke/out.pdf
           # Non-root: the image's default user must be a numeric non-root uid.
           docker inspect "$IMAGE:$VERSION" --format '{{.Config.User}}' \
