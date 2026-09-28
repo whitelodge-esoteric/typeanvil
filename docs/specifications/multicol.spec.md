@@ -3,13 +3,12 @@ title: Multi-Column Layout
 slug: /specifications/multicol
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-08-18
-updated: 2026-08-19
+updated: 2026-09-27
 sidebar_position: 8
 tags: [engine, layout, css-multicol, fragmentation]
 spec_id: multicol
-issue_id: CORE-63
 applies_to: engine 0.x
 dependencies: [fragmentation-core, paged-media-css, wpt-conformance-harness]
 ---
@@ -18,16 +17,17 @@ dependencies: [fragmentation-core, paged-media-css, wpt-conformance-harness]
 
 ## Overview
 
-css-multicol (744 WPT files) is the largest conformance surface after
+css-multicol (744 WPT files) is a major conformance surface after
 css-page. Three hard parts: **balancing** (column heights made as equal as
 possible — needs measure passes), **spanners** (an element spanning all
 columns interrupts the column flow), and **nested multicol** (multicol under
 print constrains inner content by every enclosing context).
 
-The CORE-51 model already generalizes to this: fragmentainers are first-class
+The fragmentation-core model already generalizes to this: fragmentainers are first-class
 fragments with no source box, and the fragmentation-core spec's goal #3 names
-columns explicitly as a future fragmentainer kind. The engine today has no
-multicol support — the only "column" code is table-column width measurement.
+columns explicitly as a future fragmentainer kind. The current engine has a
+multicol layout path; this specification records the remaining contract and
+the integration boundaries for column fragmentainers.
 
 **Path chosen: stylo for the longhands, engine for the layout.** Verified
 2026-08-18 against stylo 0.20.0 `properties/longhands.toml`:
@@ -73,7 +73,7 @@ fitness target.
 
 - `column-fill: auto` (gecko-only longhand in stylo 0.20 — see above).
 - `columns` shorthand beyond what stylo computes from the two longhands.
-- Floats (CORE-62), abspos (CORE-64), or flex (CORE-65) inside multicol — the
+- Floats, abspos, or flex inside multicol — the
   interaction specs land after the individual features.
 - **Column rules** (`column-rule-*`): the longhands compute cleanly but rule
   painting in the gap is deferred; the gap renders as background this pass.
@@ -111,7 +111,7 @@ The engine shall:
    the remaining content resumes on the next page as a fresh balanced set of
    columns (the container's break token carries the consumed children's
    tokens); a column never slices a line.
-8. Reuse the CORE-51 rules inside columns: `break-inside: avoid`, widows,
+8. Reuse the fragmentation-core rules inside columns: `break-inside: avoid`, widows,
    orphans, and forced breaks apply per column fragmentainer.
 9. Stay deterministic: column geometry is a pure function of measure; measure
    passes are bounded and deterministic.
@@ -156,7 +156,7 @@ The engine shall:
 
 ### `engine/src/frag.rs`
 
-- Reuse the `Fragmentainer` abstraction for columns (CORE-51 goal #3). If the
+- Reuse the `Fragmentainer` abstraction for columns (fragmentation-core goal #3). If the
   existing fragmentainer type is page-bound (has page geometry), introduce a
   `Columnainer` that shares the break-token machinery and adds inline
   progression; the PDF pass maps column fragmentainers to page coordinates.
@@ -186,7 +186,7 @@ Each criterion maps to a test in `engine/tests/multicol.rs` (helpers mirror
    columns; no column slices a line. Partial fills anchor columns at the
    container's current content cursor, so content taller than the page
    (e.g. a long table) progresses instead of re-laying its first row forever
-   (CORE-78 regression `table_fragments_inside_multicol`: a 12-row
+   (termination regression `table_fragments_inside_multicol`: a 12-row
    `break-inside: avoid` table in `column-count: 2` renders 2-3 pages and
    terminates).
 6. **Breaks inside columns.** Given `break-inside: avoid` on a box inside a
@@ -223,8 +223,9 @@ Each criterion maps to a test in `engine/tests/multicol.rs` (helpers mirror
   (goal #3 explicitly names columns)
 - Page geometry / margins: `paged-media-css.spec.md`
 - Research brief: `docs/research/layoutng-fragmentation/typeanvil-layoutng-fragmentation-brief.md`
-- Parent epic: Linear CORE-54.
-- Table × multicol infinite-pagination bug and fix: Linear CORE-78.
+- `engine/src/layout.rs` — column fragmentainer construction and continuation.
+- `engine/tests/tables.rs::table_fragments_inside_multicol` — termination
+  regression coverage for tables inside columns.
 - stylo 0.20.0 `properties/longhands.toml` (verified 2026-08-18):
   `column-count`/`column-width`/`column-span` compiled but pref-gated
   (`layout.columns.enabled`); `column-gap`/`row-gap`/`column-rule-*` compiled;

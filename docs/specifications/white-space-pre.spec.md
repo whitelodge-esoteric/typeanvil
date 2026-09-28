@@ -2,9 +2,9 @@
 title: "white-space: pre — preformatted text preservation"
 type: spec
 status: in-review
-owner: Elijah Boston
+owner: maintainers
 created: 2026-09-13
-updated: 2026-09-13
+updated: 2026-09-27
 sidebar_position: 10
 tags: [engine, css-text, white-space, fragmentation]
 spec_id: SPEC-WHITESPACE-PRE
@@ -15,11 +15,9 @@ slug: /specifications/white-space-pre
 
 ## Motivation
 
-The engine collapses all newlines and white space in text runs: a
-`white-space: pre` block renders as one run-on line. Found in the CORE-148
-showcase technical report — a 6-line config sample in
-`<p class="code">` rendered as a single line; Prince shows 6 lines. Affects
-`<pre>`, `white-space: pre`, `pre-wrap`, and `pre-line`.
+The engine's computed-style seam now maps stylo's white-space longhands to an
+internal `WhiteSpace` value. This specification defines preservation and
+fragmentation behavior for `pre`, `pre-wrap`, `pre-line`, and `break-spaces`.
 
 ## Standards basis
 
@@ -53,7 +51,7 @@ other line sequence: a long pre block splits at line boundaries, not mid-line.
 
 ## Acceptance criteria
 
-1. The CORE-148 report fixture's code block renders as 6 lines.
+1. The report fixture's code block renders as 6 lines.
 2. A probe fixture with `white-space: pre` yields line count = newline count
    + 1; interior multi-space runs keep their width.
 3. `<pre>` preserves its source line structure without any author CSS.
@@ -68,6 +66,6 @@ other line sequence: a long pre block splits at line boundaries, not mid-line.
 - `white-space: break-spaces` space-width semantics beyond preservation.
 - Tab character advance-width handling (tabs render as-is; no tab stops).
 - Segmented-line byte-offset interaction with footnotes inside pre blocks
-  (footnote markers inside pre follow the CORE-146 segmented rule; a pre
+  (footnote markers inside pre follow the segmented-line rule; a pre
   segment boundary is a hard break, and call markers spanning two pre lines
   inherit the existing segmented logic).

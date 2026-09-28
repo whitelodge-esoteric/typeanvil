@@ -2,31 +2,30 @@
 title: npm distribution — typeanvil package for Node and Bun
 type: spec
 status: draft
-owner: Elijah Boston
+owner: maintainers
 created: 2026-09-04
-updated: 2026-09-16
+updated: 2026-09-27
 slug: /specifications/npm-distribution
 sidebar_position: 46
-tags: [npm, distribution, node, bun, core-136, release]
-spec_id: SPEC-CORE-136-npm-distribution
-issue_id: CORE-136
+tags: [npm, distribution, node, bun, release]
+spec_id: npm-distribution
 applies_to:
   - npm/
   - .github/workflows/release.yml
 dependencies:
-  - SPEC-CORE-135-release-ci
+  - release-ci
 ---
 
-# npm distribution: `typeanvil` (Node + Bun) (CORE-136)
+# npm distribution: `typeanvil` (Node + Bun)
 
-Parent epic: CORE-133 (installable runtime). Blocked by CORE-135 (release
-artifacts), which is Done. One npm package covers both runtimes: Bun installs
+The package consumes the release workflow's platform artifacts. One npm
+package covers both runtimes: Bun installs
 npm packages natively, so Node ≥ 18 and Bun both consume the same artifact.
 
 ## Goals
 
 1. `npm install typeanvil` works on Node ≥ 18 and Bun, on the 5 release
-   targets from CORE-135.
+   targets from `release-ci.spec.md`.
 2. The package is a thin wrapper: it resolves the native binary and spawns it.
    No engine logic in JavaScript.
 3. Publishing is wired into the existing tag-triggered release workflow —
@@ -34,8 +33,8 @@ npm packages natively, so Node ≥ 18 and Bun both consume the same artifact.
 
 ## Non-Goals
 
-- No Homebrew tap (CORE-137).
-- No macOS signing/notarization (CORE-138).
+- No Homebrew tap (`container-distribution.spec.md` covers distribution).
+- No macOS signing/notarization (see `release-ci.spec.md`).
 - No engine logic, patching, or bundling in JavaScript.
 - Publishing does not gate on the repo being public; the npm package itself is
   public-facing regardless.
@@ -127,7 +126,7 @@ package name.
 
 ## Publishing flow (release workflow)
 
-The tag-triggered release workflow (CORE-135) gains an `npm-publish` job
+The tag-triggered release workflow gains an `npm-publish` job
 after `release`:
 
 1. Download the built binaries (same artifacts the release job attaches).

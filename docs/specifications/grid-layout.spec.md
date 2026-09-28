@@ -3,13 +3,12 @@ title: Grid Layout — Minimal Track/Placement Model
 slug: /specifications/grid-layout
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-09-04
-updated: 2026-09-14
+updated: 2026-09-27
 sidebar_position: 21
 tags: [layout, css-grid, engine, wpt]
 spec_id: grid-layout
-issue_id: CORE-139
 applies_to: engine 0.x
 dependencies: [fragmentation-core, flexbox-fragmentation]
 ---
@@ -18,10 +17,10 @@ dependencies: [fragmentation-core, flexbox-fragmentation]
 
 ## Overview
 
-CORE-126's diagnosis showed 26 of the 37 `css-page/margin-boxes` references
+The `css-page/margin-boxes` corpus showed that 26 of 37 references
 use `display: grid`. The engine fell back to block layout, so those refs
 could never match. This spec defines the minimal, refs-shaped grid model
-(CORE-139): not full css-grid, but the subset the WPT corpus and the demo
+(not full css-grid): this is the subset the WPT corpus and the demo
 corpus exercise.
 
 ## Behavior
@@ -29,7 +28,7 @@ corpus exercise.
 1. `display: grid` / `inline-grid` shall compute to a grid container.
    `inline-grid` is treated as block-level in paged flow (the `inline-flex`
    model). The servo build's `layout.grid.enabled` pref shall be enabled at
-   stylesheet parse (the `layout.columns.enabled` pattern from CORE-63).
+   stylesheet parse (the existing column-feature preference pattern).
 2. The engine shall read computed `grid-template-columns` /
    `grid-template-rows` from stylo and flatten each
    `TrackSize` to its breadth: `Breadth(b)` and `FitContent(b)` keep `b`;
@@ -55,7 +54,7 @@ corpus exercise.
 7. Fragmentation: rows shall be monolithic (like flex lines). A row that
    does not fit the current fragmentainer moves whole to the next page.
    Items never split inside their cell. Resume state names the first
-   unfinished item's block index. (CORE-176 amends: a container with a
+   unfinished item's block index. A later grid containment rule requires that a container with a
    definite block size whose own box fits the fragmentainer does not
    fragment at all — rows past the definite height are ink overflow of
    the box, clipped at the page edge; the monolithic-row break applies
@@ -77,7 +76,7 @@ values, baseline alignment.
 1. `monolithic-overflow-007/008`-style grid containment docs render with the
    grid container holding its oversized child (honest geometry, verified by
    pixel probe).
-2. Full-suite gate: no true regressions (the CORE-126 Stage-1 false-pass
+2. Full-suite gate: no true regressions (blank-on-both-sides
    caveat applies: blank-on-both-sides flips to honest FAIL are gains).
 3. `cargo test` green, including grid unit tests for track sizing and
    placement.

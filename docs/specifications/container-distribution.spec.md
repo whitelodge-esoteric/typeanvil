@@ -2,28 +2,26 @@
 title: Container distribution — docker run CLI, user fonts, open-source fallback
 type: spec
 status: draft
-owner: Elijah Boston
+owner: maintainers
 created: 2026-09-27
 updated: 2026-09-27
 slug: /specifications/container-distribution
 sidebar_position: 47
-tags: [container, distribution, docker, fonts, core-247, release]
-spec_id: SPEC-CORE-247-container-distribution
-issue_id: CORE-247
+tags: [container, distribution, docker, fonts, release]
+spec_id: container-distribution
 applies_to:
   - engine/src/fonts.rs
   - .github/workflows/release.yml
   - docker/
 dependencies:
-  - SPEC-CORE-135-release-ci
-  - SPEC-CORE-134-cli-surface
+  - release-ci
+  - cli-surface
   - font-resolution
 ---
 
-# Container distribution: `docker run` CLI, user fonts, open-source fallback (CORE-247)
+# Container distribution: `docker run` CLI, user fonts, open-source fallback
 
-Parent epic: CORE-133 (installable runtime). Sibling: CORE-136 (npm). Reuses
-CORE-135 release artifacts. The container wraps the existing musl Linux binary;
+The container reuses the release artifacts. It wraps the existing Linux binary;
 it adds no new compile matrix.
 
 ## Overview
@@ -54,7 +52,7 @@ through fontdb and gives them precedence over the bundled set.
 
 ## Non-Goals
 
-- No Homebrew tap (CORE-137), no macOS signing (CORE-138).
+- No Homebrew tap or macOS signing.
 - No engine logic in the image beyond the shipped binary.
 - No network font loading; `@font-face` `https://` sources fail resolution
   deterministically (unchanged from `font-resolution`).
@@ -152,9 +150,8 @@ ghcr.io/typeanvil/typeanvil:<tag>
 
 ## Acceptance Criteria
 
-- **AC1 (spec committed):** `docs/specifications/container-distribution.spec.md`
-  with a valid `SPEC-CORE-247-container-distribution` id and frontmatter is
-  committed to the repo BEFORE engine/CI code; docs validator green.
+- **AC1 (spec committed):** This specification has valid frontmatter before
+  engine or CI changes; the docs validator is green.
 - **AC2:** Linux fallback renders with valid font bytes; the GENERIC GATE
   re-points to the bundled set with an approved re-baseline per
   `docs/conventions/css-standards-alignment.md`.
@@ -183,8 +180,8 @@ ghcr.io/typeanvil/typeanvil:<tag>
 
 ## References
 
-- Parent: CORE-133 (installable runtime). Sibling: CORE-136 (npm).
-- Reuses: CORE-135 release artifacts (musl binary).
+- Release workflow: `.github/workflows/release.yml`.
+- Container definition: `docker/Dockerfile`.
 - `font-resolution.spec.md` — the GENERIC GATE and bundled Arial fallback.
 - `release-ci.spec.md` — determinism constraints the container job must not
   violate.

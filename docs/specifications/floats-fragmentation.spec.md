@@ -3,13 +3,12 @@ title: Floats Fragmentation
 slug: /specifications/floats-fragmentation
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-08-18
-updated: 2026-09-06
+updated: 2026-09-27
 sidebar_position: 7
 tags: [engine, layout, css-float, css-break, fragmentation]
 spec_id: floats-fragmentation
-issue_id: CORE-62
 applies_to: engine 0.x
 dependencies: [fragmentation-core, wpt-conformance-harness]
 ---
@@ -27,7 +26,7 @@ block-offset must be known before a child can fragment.
 The engine has zero float support today: `layout.rs` lays out block and inline
 boxes only (the only "float" hits in the source are the `geom.rs` FMA comment
 and table-column widths). This issue adds `float`/`clear` placement and
-fragmentation on top of the CORE-51 fragment tree.
+fragmentation on top of the fragment tree.
 
 **Path chosen: stylo.** Verified 2026-08-18 against stylo 0.20.0
 `properties/longhands.toml`: `float` (type `Float`) and `clear` (type `Clear`)
@@ -69,7 +68,7 @@ plus unit tests in `engine/tests/floats.rs`.
   same-BFC floats; nested BFC interactions follow the outer flow.
 - `shape-outside` / float shapes (compiled in stylo but not required; not
   promised).
-- Floats inside multicol (CORE-63) or abspos interactions (CORE-64) — the
+- Floats inside multicol or abspos interactions — the
   interaction specs land after the individual features.
 - Floats in the `@page` margin-box context.
 - Advanced BFC rules (new formatting contexts triggered by overflow/float
@@ -105,7 +104,7 @@ The engine shall:
    children (the issue's ordering requirement): the parallel flow is laid out
    with the BFC's offset already known, so resumed fragments land at correct
    absolute offsets.
-9. Keep the CORE-51 monolithic rule: a float taller than a fragmentainer
+9. Keep the monolithic-content rule: a float taller than a fragmentainer
    overflows rather than slicing a line; last-resort breakpoints place it.
 10. Stay deterministic: float resolution is a single document-order pass with
     no hash-order dependence.
@@ -146,7 +145,7 @@ The engine shall:
 
 - `Fragmentainer` gains a float-resume list (or the parallel-flow token set is
   threaded through the existing break-token tree — the minimal change that
-  keeps the token design compatible with CORE-51).
+  keeps the token design compatible with the existing break-token model).
 
 ### `engine/src/pdf.rs`
 
@@ -203,11 +202,11 @@ Each criterion maps to a test in `engine/tests/floats.rs` (helpers mirror
   `fragmentation-core.spec.md`
 - Research brief (float × break as a parallel flow):
   `docs/research/layoutng-fragmentation/typeanvil-layoutng-fragmentation-brief.md`
-- Parent epic: Linear CORE-54.
+- Fragmentation model: `fragmentation-core.spec.md`.
 - stylo 0.20.0 `properties/longhands.toml`: `float`, `clear` — compiled in the
   servo build (verified 2026-08-18).
 
-## Behavior — floats across fragmentainers (CORE-145, 2026-09-06)
+## Behavior — floats across fragmentainers (2026-09-06)
 
 The engine shall additionally:
 
@@ -245,7 +244,7 @@ zero status flips vs a fresh branch-point binary (9d96067). Residuals
 page-size-009 (page count 1 vs 2) and page-size-012 (pixel diff) fail on the
 branch-point binary too — pre-existing, out of scope here.
 
-## Acceptance Criteria — CORE-145 additions
+## Acceptance Criteria — additional float behavior
 
 Each criterion maps to a test in `engine/tests/floats.rs`:
 

@@ -3,13 +3,12 @@ title: Table First-Page Column Freeze (Prince Parity)
 slug: /specifications/table-first-page-column-freeze
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-08-20
-updated: 2026-09-15
+updated: 2026-09-27
 sidebar_position: 14
 tags: [layout, tables, css-tables, engine, demo-parity]
 spec_id: table-first-page-column-freeze
-issue_id: CORE-89
 applies_to: engine 0.x
 dependencies: [auto-table-layout, tables-fragmentation, fragmentation-core, paged-media-css]
 ---
@@ -18,10 +17,10 @@ dependencies: [auto-table-layout, tables-fragmentation, fragmentation-core, page
 
 ## Overview
 
-CORE-81 shipped the standard css-tables-3 auto table layout (intrinsic
+The standard css-tables-3 auto table layout (intrinsic
 min/max over **all** cells + two-pass distribution) and the constrained
 two-column probe now matches Prince within ±2%. But **table-stress only moved
-20 → 21 pages** (Prince: 45). The measured root cause (CORE-81 wrap-up,
+20 → 21 pages** (Prince: 45). The measured root cause,
 2026-08-20): **Prince freezes column widths from its FIRST page's content** —
 it measures only the header + the rows that fit the first fragmentainer. On
 table-stress its Description column is ≈57pt (the *header's own width*),
@@ -36,7 +35,7 @@ header + the body rows whose top edge lands in the first fragmentainer (+ the
 footer), and those widths are frozen for the whole table. The distribution
 algorithm (css-tables-3 §10.4.2, auto-table-layout §Behavior 5) is **unchanged**
 — only the inputs change. A table that fits a single fragmentainer measures
-all rows exactly as CORE-81 does, so single-page tables, the two-column probe,
+all rows exactly as the standard all-rows measure does, so single-page tables, the two-column probe,
 and the WPT subset are byte-for-byte unchanged (the regression guard).
 
 **Conformance note:** css-tables-3 §10.4.1 defines table width from *all*
@@ -44,17 +43,17 @@ rows; the first-page freeze is a deliberate, documented deviation to match
 Prince's observed behavior — filed under
 `docs/conventions/css-standards-alignment.md`. The wedge is Prince-parity
 output, and this deviation is scoped to fragmented tables only — the same
-spirit as the CORE-81 UAX#14 glue note. The engine shall NOT apply the
+spirit as the standard-measure UAX#14 glue note. The engine shall NOT apply the
 freeze to single-fragmentainer tables.
 
-**Measured result (2026-08-20, CORE-89 landed):** table-stress moves
+**Measured result (2026-08-20, first-freeze landing):** table-stress moves
 21 → **42 pages** (Prince: 45) at the demo geometry; the Description column
 freezes at the header's own width (the 112pt "Disappearing/reappearing" token
 in row 34 never enters the measure). Overall diff on the corpus drops
 33.07% → 29.06%. The constrained two-column probe stays within ±2% of Prince
 (295pt), and the css-break table WPT subset does not regress.
 
-**CORE-96 follow-up (same day):** the frozen widths were NOT the full story —
+**Follow-up fixes (same day):** the frozen widths were NOT the full story —
 the remaining 40v45 gap came from (a) the tfoot not repeating per page
 (tables-fragmentation rule 8 was unimplemented), (b) `th` not bold in the UA
 defaults (Prince bolds it), (c) the colspan-blind measure inflating the On
@@ -80,21 +79,22 @@ subset does not regress, and the full existing tables suite stays green.
 - **Fixed-point with a hard cap**: "rows that fit the first fragmentainer"
   is self-referential (rows fit depends on widths, widths depend on rows
   measured), so the scope resolves via a bounded iteration — hard cap 3
-  passes (the same convergence cap as `counter(pages)`, CORE-84) — and the
+  passes (the same convergence cap as `counter(pages)`) — and the
   last computed scope freezes. Always terminates, always deterministic.
 - Single-fragmentainer tables measure all rows (scope `All`), identical to
-  CORE-81.
+  the standard table-layout behavior.
 - Determinism preserved: identical input → identical scope → identical widths
   → byte-identical PDF.
 
-**Non-Goals** (unchanged from CORE-81)
+**Non-Goals** (unchanged from `auto-table-layout.spec.md`)
 
 - `table-layout: fixed` resolution (still the auto algorithm).
 - Per-column percentage widths (`<col>`, `th { width: % }`).
 - `rowspan`/`colspan` width-sharing contributions.
 - `border-collapse: separate` + `border-spacing`.
 - Nested-table measure (inner tables resolve their own scope independently).
-- Table-in-multicol width parity (CORE-78 fixed the hang; the freeze applies
+- Table-in-multicol width parity (the termination guard is covered by the
+  multicol integration test; the freeze applies
   with the multicol column as the first fragmentainer, but width parity there
   remains a later pass).
 
@@ -110,7 +110,7 @@ The engine SHALL implement the following, stated as "shall" rules:
    fragmentainer's content bottom). `k` SHALL be resolved by rule 3.
 2. **Single-fragmentainer tables are unchanged.** When the table's entire
    content fits the first fragmentainer, the scope SHALL be `All` (header +
-   every body row + footer) — identical to CORE-81 — and the freeze SHALL NOT
+   every body row + footer) — identical to the standard all-rows measure — and the freeze SHALL NOT
    apply. This is the regression guard for the two-column probe, the WPT
    subset, and every existing single-page tables test.
 3. **Bounded fixed-point resolution.** The freeze scope SHALL be resolved by
@@ -146,19 +146,19 @@ The engine SHALL implement the following, stated as "shall" rules:
 8. **First fragmentainer definition.** The "first fragmentainer" SHALL be the
      fragmentainer in which the table's first content lands: a partial page
      when the table starts mid-page, the first multicol column when the table
-     sits in a multicol container (CORE-78 guard: the termination fix must
+     sits in a multicol container (the `table_fragments_inside_multicol` termination guard must
      not regress), and its content height is the height available at that
      point.
 
 ## Interfaces
 
 ```rust
-// engine/src/table.rs — CORE-89 additions/changes.
+// engine/src/table.rs — freeze-scope additions/changes.
 
 /// Which rows contribute to the intrinsic measure.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MeasureScope {
-    /// Header + every body row + footer (CORE-81 behavior; single-
+    /// Header + every body row + footer (standard behavior; single-
     /// fragmentainer tables, and pass 1 of the freeze resolution).
     All,
     /// Header + the first `body_rows` body rows + footer (frozen scope).
@@ -176,7 +176,7 @@ pub fn intrinsic_column_widths(
     scope: MeasureScope,
 ) -> (Vec<Scalar>, Vec<Scalar>)  // (min_widths, max_widths)
 
-/// Unchanged from CORE-81: pure css-tables-3 two-pass distribution.
+/// Pure css-tables-3 two-pass distribution, unchanged by the freeze.
 pub fn distribute_column_widths(min_widths: &[Scalar], max_widths: &[Scalar], used_width: Scalar) -> Vec<Scalar>
 
 /// Resolve the frozen scope at the table's first layout: bounded fixed-point
@@ -201,7 +201,7 @@ pub fn resolve_freeze_scope(
 // re-resolve.
 ```
 
-`measure_columns` SHALL keep its CORE-81 signature (no new parameter) and
+`measure_columns` SHALL keep its existing signature (no new parameter) and
 gain the scope via the freeze state: the layout layer resolves the scope
 once and passes it down, so the public seam stays stable.
 
@@ -240,10 +240,10 @@ pipeline:
    stays green — the freeze must not move it).
 8. **WPT subset no regression** — Given the css-break table print-reftest
    subset through the harness, when re-run, then the pass count does not drop
-   below the CORE-81 baseline (all affected tables fit one fragmentainer →
+   below the established table baseline (all affected tables fit one fragmentainer →
    scope `All` → unchanged).
-9. **Regression** — Given the existing engine tests (incl. the full CORE-81
-   tables.rs suite), when the change lands, then all stay green; the demo
+9. **Regression** — Given the existing engine tests (incl. the full
+   `engine/tests/tables.rs` suite), when the change lands, then all stay green; the demo
    scoreboard regenerates and table-stress moves from 21 toward 45.
 
 ## Edge Cases
@@ -260,13 +260,13 @@ pipeline:
   that fits.
 - No body rows: scope `All` (header + footer), no panic.
 - Table inside multicol: first fragmentainer = first column content area;
-  CORE-78's termination fix must not regress (regression test
+  the termination guard must not regress (regression test
   `table_fragments_inside_multicol` stays green).
 - Nested tables: the outer table's freeze applies to its own first
   fragmentainer; inner tables resolve their own scope; no interaction.
 - Empty table / zero rows: scope `All`, empty `ColumnWidths`, no panic
-  (CORE-81 rule 8).
-- Freeze moving a table off the overflow branch: the CORE-81 distribution
+  (the empty-table rule).
+- Freeze moving a table off the overflow branch: the established distribution
   rules still apply verbatim to the frozen intrinsics; no new branch is
   introduced.
 - Determinism of the fixed point: iteration order is fixed (pass 1 `All`,
@@ -280,21 +280,23 @@ pipeline:
 3. Demo regen: table-stress `typeanvil_pages` ≥ 40 in the regenerated
    `demo/corpus/out/scoreboard.json`; two-column probe width unchanged within ±2%
    (char-box extraction, `demo/scripts/col_words.py`).
-4. Harness: css-break table subset pass count ≥ CORE-81 baseline.
-5. Close the loop in Linear (CORE-89) with What-was-built / Verification /
-   Next pass; commit messages reference CORE-89.
+4. Harness: css-break table subset pass count does not regress from the
+   recorded baseline.
+5. Record the implementation, verification, and any remaining parity work in
+   repository documentation or release notes.
 
 ## References
 
-- CORE-89 (this issue; measured root cause: Prince first-page freeze,
-  Description ≈57pt = header width).
-- CORE-81 `auto-table-layout` spec — the algorithm this amends (measure set
+- Measured root cause: Prince first-page freeze, Description ≈57pt = header
+  width.
+- `auto-table-layout.spec.md` — the algorithm this amends (measure set
   only; distribution unchanged).
-- CORE-79 second demo triage (measurement evidence: table-stress 21 vs 45).
+- Demo triage measurement evidence: table-stress 21 vs 45.
 - Prince ground truth: `/tmp/ts-prince-5x3.pdf` (demo geometry, 45 pages,
   Description ≈57pt measured 2026-08-20), `demo/scripts/col_words.py`
   (char-box word dumps).
 - css-tables-3 §10.4.1 (all-rows width — the deviation this spec documents),
   §10.4.2 (distribution, unchanged); CSS2.1 §17.5.2.2.
-- CORE-84 `counter(pages)` bounded two-pass convergence pattern (hard cap 3)
+- `paged-media-css.spec.md` — the bounded `counter(pages)` convergence pattern
+  (hard cap 3) used here.
   — the same termination strategy used here.

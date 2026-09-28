@@ -3,13 +3,12 @@ title: Font Weight and Style Faces
 slug: /specifications/font-weight-style
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-08-19
-updated: 2026-08-19
+updated: 2026-09-27
 sidebar_position: 12
 tags: [engine, css-fonts, typography, pdf, determinism]
 spec_id: font-weight-style
-issue_id: CORE-80
 applies_to: engine 0.x
 dependencies: [typography-layer, wpt-conformance-harness]
 ---
@@ -25,15 +24,15 @@ shaping. No face is ever selected from the computed style: every `h1`/`h2`,
 `thead th`, `.total-row`, `.brand`, `.sig .name`, `.abstract`, and `blockquote`
 in the demo corpus renders regular-weight, upright Arial.
 
-CORE-79 triage (2026-08-19) measured this as **the single largest visible diff
+The 2026-08-19 demo triage measured this as **the single largest visible diff
 driver across all six demo docs** (invoice 30.0%, letterhead 14.7%, paper
 27.5%, prose 28.5%, report 17.7%, table-stress 33.5%). The verification was
 not eyeballed: a minimal repro (`/tmp/boldtest.html`, `.plain` / `.bold` /
 `.italic`, Arial 12pt) shows the Typeanvil PDF embeds ONE font
 (`/BaseFont …+ArialMT`) while Prince embeds three (`ArialMT`, `Arial-BoldMT`,
 `Arial-ItalicMT`), and the bold line measures 257.5pt in Prince where
-Typeanvil has no bold variant at all. It also explains why CORE-73 (font
-pinning) moved zero scoreboard numbers: the engine used Arial regardless of
+Typeanvil has no bold variant at all. It also explains why font pinning moved zero scoreboard numbers: the engine
+used Arial regardless of
 the declared stack.
 
 This issue computes `font-weight` / `font-style` from the stylo cascade
@@ -71,8 +70,8 @@ three faces that already exist on this machine.
   four real faces exist on this machine; a future portability issue may add
   them as a fallback.
 - `@font-face` / custom font loading; font fallback across families. The
-  family is still pinned to Arial regardless of the declared stack (CORE-73
-  decision); this issue selects the **face within that family** only.
+  family is still pinned to Arial regardless of the declared stack; this issue
+  selects the **face within that family** only.
 
 ## Behavior
 
@@ -243,11 +242,10 @@ Given/When/Then, each mapping to a real test in `engine/tests/fonts.rs`:
 
 ## References
 
-- CORE-79 triage: `docs/research/` notes + `git log` for CORE-79 commit
+- 2026-08-19 demo triage: `docs/research/` notes and the repository history
   (`docs(demo): second triage — structural diff drivers found; font
   weight/style ignored`). Verification technique (PDF font-list grep,
-  line-width measurement): `references/pdf-verification-techniques.md` in the
-  `typeanvil-project` skill.
+  line-width measurement) against the generated PDF.
 - Stylo 0.20 computed values (verified in the vendored crate):
   `values/computed/font.rs` — `FontWeight(FontWeightFixedPoint)` with
   `.value() -> f32`; `FontStyle(FontStyleFixedPoint)` with `NORMAL`, `ITALIC`,
@@ -255,7 +253,7 @@ Given/When/Then, each mapping to a real test in `engine/tests/fonts.rs`:
   confirmed in the generated `properties.rs` of the debug build.
 - Face files verified present on this machine:
   `/System/Library/Fonts/Supplemental/Arial{,. Bold,. Italic,. Bold Italic}.ttf`.
-- Typography-layer spec (CORE-53): shaping/measurement pipeline this issue
+- Typography-layer spec: shaping/measurement pipeline this issue
   extends; its Non-Goals defer "fontique-based discovery" to a later issue.
 - CSS Fonts Module Level 4 (css-fonts-4): `font-weight` numeric mapping,
   `font-style` computed values.

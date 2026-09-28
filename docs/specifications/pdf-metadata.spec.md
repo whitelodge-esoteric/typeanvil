@@ -3,13 +3,12 @@ title: PDF Document Metadata
 slug: /specifications/pdf-metadata
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-08-21
-updated: 2026-08-21
+updated: 2026-09-27
 sidebar_position: 13
 tags: [engine, pdf, metadata, determinism]
 spec_id: pdf-metadata
-issue_id: CORE-105
 applies_to: engine 0.x
 dependencies: [wpt-conformance-harness]
 ---
@@ -46,9 +45,9 @@ Verified krilla facts (krilla 0.8.2, checked 2026-08-21):
 
 - No fixed default metadata when the document declares none (see Decision).
 - No creation/modification dates from any source — the clock is never read.
-- No XMP custom schemas, no PDF/A or PDF/UA conformance (CORE-111 owns tagged
+- No XMP custom schemas, no PDF/A or PDF/UA conformance (`tagged-pdf.spec.md` owns tagged
   PDF, which will revisit validation errors).
-- No woff/woff2 concerns here (fonts are CORE-103's territory).
+- No woff/woff2 concerns here (fonts are `font-resolution.spec.md`'s territory).
 
 ## Decision: absent metadata stays absent
 
@@ -145,9 +144,8 @@ pub fn extract_metadata(dom: &Dom, title_override: Option<String>, author_overri
 
 ## References
 
-- Linear issue CORE-105.
+- `engine/src/pdf.rs` — metadata application and deterministic PDF emission.
 - krilla 0.8.2 `src/interchange/metadata.rs`, `src/chunk_container.rs`
   (instance-id hashing) — verified 2026-08-21.
 - Determinism contract: module docs of `engine/src/pdf.rs`.
-- Follow-on: CORE-111 (tagged PDF/PDF-UA) will need `creation_date` decisions
-  for validators.
+- `tagged-pdf.spec.md` — the separate tagged-PDF and validator contract.

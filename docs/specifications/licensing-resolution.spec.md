@@ -1,117 +1,104 @@
 ---
-title: Licensing and Distribution (Open Core / AGPL)
-slug: /specifications/licensing-resolution
+title: Licensing and Distribution
 type: spec
-status: draft
-owner: elijah
+status: approved
+owner: maintainers
 created: 2026-08-21
-updated: 2026-08-26
+updated: 2026-09-27
 sidebar_position: 24
 tags: [engine, licensing, agpl, distribution]
 spec_id: licensing-resolution
-issue_id: CORE-125
-applies_to: engine 0.x
+applies_to: engine and engine tooling
+slug: /specifications/licensing-resolution
 dependencies: []
 ---
 
-# Licensing and Distribution (Open Core / AGPL)
+# Licensing and Distribution
 
 ## Overview
 
-Typeanvil is distributed as **free, open-source software under the GNU
-Affero General Public License v3 (AGPL-3.0)**. The runtime renders with no
-watermark, no license check, and no feature gating. Revenue comes from the
-hosted cloud service (`docs/specifications/typeanvil-cloud-service.spec.md`),
-not from selling the binary.
+Typeanvil's engine and engine tooling are free software under the
+[AGPL-3.0-only](https://www.gnu.org/licenses/agpl-3.0.html) license. The
+repository ships the license text and contribution terms. The engine has no
+license state, activation flow, watermark, phone-home behavior, or feature gate.
 
-This spec supersedes the previous commercial closed-source design
-(license resolution chain + unlicensed watermark), decided against on
-2026-08-25. The prior watermark seam work from CORE-115 iteration one is
-dropped; this issue now covers the distribution model instead.
-
-**Why AGPL:** the license adds a network-use clause to GPL — anyone who
-modifies Typeanvil and offers it as a service must publish their modified
-source. This prevents a competitor from forking the engine and hosting a
-proprietary clone of our own cloud product. As copyright holder, we can
-also offer a separate commercial license to companies that need to embed
-the engine in proprietary software (dual licensing) — optional, later.
+The repository documents the engine and its tooling. Hosted-service behavior is
+outside this specification. Public hosted-service documentation will be linked
+here when it is available.
 
 ## Goals / Non-Goals
 
 **Goals**
 
-- Single license file (`LICENSE`, AGPL-3.0 text) at repo root.
-- Copyright headers carry the AGPL notice in `engine/` source files.
-- The engine renders identically regardless of environment: no license
-  lookup code paths exist anywhere.
-- `Cargo.toml` declares `license = "AGPL-3.0-only"` (decided 2026-08-25).
-- Distribution via crates.io / GitHub releases of source; container images
-  published publicly for cloud use.
+- Keep the engine usable offline without registration or activation.
+- Preserve deterministic rendering regardless of distribution context.
+- State the repository license and contribution terms clearly.
+- Keep engine and tooling distribution separate from any hosted service.
 
 **Non-Goals**
 
-- License resolution, license files, Ed25519 verification, activation —
-  all dropped with the commercial model.
-- Watermark rendering in `pdf.rs` — dropped.
-- Phone-home telemetry of any kind.
-- A `typeanvil license` subcommand — dropped.
-- License-checking code for a future commercial license — a commercial
-  license (use without AGPL obligations) is a legal contract + billing
-  channel, delivered as permission, not a key. It never lives in the
-  runtime; enforcement is legal + the cloud API gateway.
+- License resolution, license files, activation, or runtime entitlement checks.
+- Watermark rendering for unlicensed use.
+- Phone-home telemetry or mandatory network access.
+- Hosted-service plans, billing, authentication, quotas, or watermark policy.
+- A commercial licensing program for the engine.
 
 ## Behavior
 
-1. **No enforcement code.** The engine shall contain no license resolution,
-   watermarking, or gating logic. Rendering output depends only on input.
-2. **AGPL compliance surface.** The repository shall ship: the full AGPL
-   license text, a README section stating the license and pointing at the
-   cloud service, and source notices per the AGPL's requirements.
-3. **Determinism preserved unchanged.** Identical input → byte-identical
-   PDF, with no environment-dependent branches introduced by licensing
-   (there are none).
-4. **Dependency audit.** All engine dependencies shall remain compatible
-   with AGPL distribution (Apache-2.0/MIT/BSD/MPL are compatible; no
-   additional constraints were imposed by the old model either).
-5. **Trademark separation.** "Typeanvil" name/logo are not licensed under
-   AGPL; forks shall not use the marks (standard open-core trademark
-   carve-out, enforced informally until trademark registration).
+1. **License declaration.** The repository shall declare AGPL-3.0-only in the
+   root license file and engine package metadata.
+2. **No runtime enforcement.** The engine shall contain no license resolution,
+   activation, watermarking, phone-home, or feature-gating logic.
+3. **Offline operation.** Rendering shall not require registration, a license
+   file, a network request, or a hosted-service account.
+4. **Determinism.** Identical input, engine version, dependency data, and font
+   data shall produce identical output. Licensing context shall not affect it.
+5. **Contribution terms.** The repository shall publish `CLA.md` and shall link
+   to it from contributor-facing documentation.
+6. **Dependency compatibility.** Engine dependencies shall remain distributable
+   under the repository's license and their own license terms. License review
+   shall use current package metadata rather than an old research note.
+7. **Service boundary.** Engine and tooling documentation shall not describe
+   hosted-service behavior as an engine feature. When public service
+   documentation exists, repository docs may link to it.
+
+## Interfaces
+
+The relevant distribution interfaces are repository files and package metadata:
+
+- `LICENSE` — AGPL-3.0-only license text.
+- `CLA.md` — contribution terms.
+- `engine/Cargo.toml` — package license metadata.
+- `README.md` — public license and scope statement.
+
+The engine CLI has no license or activation subcommand.
 
 ## Acceptance Criteria
 
-1. Repo root contains the complete AGPL-3.0 license text; the validator
-   or CI checks its presence and first-line hash prefix.
-2. `cargo build && cargo test` pass with zero licensing-related modules;
-   grep confirms no `licensing` module, no `--license` flag, no watermark
-   string exists in `engine/src/`.
-3. Rendering a minimal document produces byte-identical output before and
-   after the licensing-code removal PR (regression proof that no behavior
-   changed).
-4. `cargo package --list` succeeds and `cargo publish --dry-run` reports
-   `license = "AGPL-*"` metadata.
+1. The repository root contains the complete AGPL-3.0-only license text.
+2. `engine/Cargo.toml` declares `license = "AGPL-3.0-only"`.
+3. A source and test search finds no engine license-check, activation,
+   watermark, or phone-home path.
+4. A minimal offline render does not inspect a license file or contact a
+   network service.
+5. The README identifies the engine and tooling license, links `CLA.md`, and
+   leaves hosted-service documentation as a future public link.
+6. Documentation validation passes with PyYAML installed.
 
 ## Edge Cases
 
-- Contributor CLA: needed only if we later want to dual-license or
-  relicense; decide before outside contributions arrive.
-- Cloud service itself: we are the copyright holder, so AGPL's network
-  clause never obligates us to publish our platform modifications.
-- Enterprise embedding requests: handled case-by-case under a future
-  commercial license; does not change the OSS default.
+- A contributor may use the engine offline. The render result shall not change.
+- A deployment that adds authentication or quotas is outside the engine and
+  shall be documented by that deployment.
+- A future hosted service may have separate terms. Those terms shall not be
+  represented as engine runtime behavior.
+- A dependency license change requires a new review before release.
 
 ## References
 
-- Cloud service spec: `docs/specifications/typeanvil-cloud-service.spec.md`
-- Prior research brief (historical context):
-  `docs/research/licensing/licensing-and-distribution.md`
-- AGPL-3.0 text: https://www.gnu.org/licenses/agpl-3.0.txt
-- Dependency license audit (2026-08-26, CORE-125): all 182 normal-scope
-  dependencies of the engine verified via `cargo tree -e normal` + registry
-  `Cargo.toml` inspection. License families present: MIT (+ "Unlicense OR
-  MIT"), Apache-2.0 (with LLVM/ISC exceptions on derive crates), BSD-2/3,
-  MPL-2.0 (servo/stylo stack: stylo, cssparser, selectors, app_units,
-  to_shmem, uluru), Unicode-3.0 (icu4x family), Zlib (slotmap). Every one
-  is compatible with AGPL-3.0-only distribution; no copyleft-incompatible
-  or unknown-license dependency exists. Re-audit command:
-  `cargo tree -e normal --prefix none | sort -u`, then check each crate's
-  `license` field.
+- [GNU AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html)
+- `LICENSE` — repository root license text.
+- `CLA.md` — repository contribution terms.
+- [Typeanvil architecture](../architecture/overview.md)
+- [Container distribution specification](container-distribution.spec.md)
+- [Documentation conventions](../conventions/doc-conventions.md)

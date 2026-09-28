@@ -2,25 +2,23 @@
 title: Release CI — tag to cross-platform binaries to GitHub Releases
 type: spec
 status: in-review
-owner: Elijah Boston
+owner: maintainers
 created: 2026-09-03
-updated: 2026-09-16
+updated: 2026-09-27
 slug: /specifications/release-ci
 sidebar_position: 45
-tags: [release, ci, distribution, core-135, calver]
-spec_id: SPEC-CORE-135-release-ci
-issue_id: CORE-135
+tags: [release, ci, distribution, calver]
+spec_id: release-ci
 applies_to:
   - .github/workflows/release.yml
 dependencies:
-  - SPEC-CORE-134-cli-surface
+  - cli-surface
 ---
 
-# Release CI: tag → cross-platform binaries → GitHub Releases (CORE-135)
+# Release CI: tag → cross-platform binaries → GitHub Releases
 
-Parent epic: CORE-133 (installable runtime). The npm package (CORE-136) and the
-Homebrew formula (CORE-137) both download release artifacts produced by this
-pipeline, so this ticket gates both.
+The npm package and Homebrew formula both download release artifacts produced
+by this pipeline, so this workflow is the distribution source for both.
 
 ## Goals
 
@@ -32,11 +30,10 @@ pipeline, so this ticket gates both.
 
 ## Non-Goals
 
-- No Homebrew tap update in this workflow (CORE-137). The sibling npm publish
-  job was added later by CORE-136 (SPEC-CORE-136-npm-distribution); it stays a
+- No Homebrew tap update in this workflow. The npm publish job stays a
   separate job and publishes only when the `NPM_TOKEN` secret is present, so
   the binary release never depends on it.
-- No macOS signing or notarization (CORE-138 decides that).
+- No macOS signing or notarization (deferred until distribution needs it).
 - No `latest` moving tag management beyond what GitHub Releases provides.
 
 ## Decision: hand-rolled matrix (not cargo-dist)
@@ -50,8 +47,8 @@ matrix grows past ~8 targets or per-target quirks multiply.
 
 ## Versioning: CalVer
 
-Releases use calendar versioning `YYYY.M.PATCH` (e.g. `2026.9.0`), decided on
-CORE-133. Tags are `vYYYY.M.PATCH` (e.g. `v2026.9.0`).
+Releases use calendar versioning `YYYY.M.PATCH` (e.g. `2026.9.0`). Tags are
+`vYYYY.M.PATCH` (e.g. `v2026.9.0`).
 
 Correction (2026-09-03, found during CI bring-up): the epic's original
 "zero-padded month" idea is wrong. node-semver rejects leading zeros, so

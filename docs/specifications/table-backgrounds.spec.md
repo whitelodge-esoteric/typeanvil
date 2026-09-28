@@ -3,13 +3,12 @@ title: Table Backgrounds (Cell + Row + Group)
 slug: /specifications/table-backgrounds
 type: spec
 status: approved
-owner: elijah
+owner: maintainers
 created: 2026-08-20
-updated: 2026-09-15
+updated: 2026-09-27
 sidebar_position: 16
 tags: [layout, tables, css-tables, backgrounds, engine]
 spec_id: table-backgrounds
-issue_id: CORE-100
 applies_to: engine 0.x
 dependencies: [tables-fragmentation, auto-table-layout, table-first-page-column-freeze]
 ---
@@ -18,14 +17,14 @@ dependencies: [tables-fragmentation, auto-table-layout, table-first-page-column-
 
 ## Overview
 
-`background-color` on table parts must paint. CORE-100 found two gaps:
+`background-color` on table parts must paint. The implementation addressed two
+gaps:
 
 1. **Cell bg + border did not coexist.** `layout_table_cell` overwrote
    `FragmentContent::Background` with `FragmentContent::Border` whenever any
    border was present, so every corpus table with `th, td { border; background }`
    rendered its colored headers and total rows WHITE (invoice p1: 0 `#a8dadc`
-   px vs Prince 4,016). Fixed in the CORE-96 branch: keep the Background
-   fragment and push the border as a child fragment.
+   px vs Prince 4,016). Fixed by the table-fragmentation change: keep the Background
 2. **Row/group-level backgrounds did not paint at all.** `tr`, `thead`,
    `tbody`, and `tfoot` blocks emitted no fill (the triage repro's `#00ff00`
    was absent). Fixed here: the row and group fragments carry their own
@@ -53,7 +52,7 @@ the correct z-order with no emitter change.
 ## Non-Goals
 
 - `table`-, `colgroup`-, and `col`-level backgrounds (out of scope for
-  CORE-100; same pattern extends later).
+  this spec; same pattern extends later).
 - `border-collapse: separate` (the engine is collapse-only).
 - Background images, gradients, `background-clip`/`origin`/`position` —
   `background-color` only.
@@ -127,8 +126,6 @@ borders before text).
 
 ## References
 
-- CORE-100 (Linear) + `demo/corpus/TRIAGE.md` §CORE-100 — pixel-scan evidence and
-  minimal repros.
-- CORE-96 — the cell bg+border half landed in that branch (commit e420843,
-  merged 2933d80).
+- `demo/corpus/TRIAGE.md` — pixel-scan evidence and minimal repros.
+- `engine/src/layout.rs` — table cell, row, and group background fragments.
 - css-tables-3 §16.2 (table painting order).

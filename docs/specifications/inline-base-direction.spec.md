@@ -3,13 +3,12 @@ title: "Inline Base Direction (direction: rtl)"
 slug: /specifications/inline-base-direction
 type: spec
 status: in-review
-owner: elijah
+owner: maintainers
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-27
 sidebar_position: 46
 tags: [engine, css, writing-modes, rtl, stylo]
 spec_id: inline-base-direction
-issue_id: CORE-166
 applies_to: engine 0.x
 dependencies: [fragmentation-core, paged-media-css]
 ---
@@ -96,7 +95,7 @@ is a recorded non-goal.
 - **AC2 — page-left-right-002 passes.** Harness filter
   `page-left-right-002`: FAIL → PASS after the fix (0.0% → 100.0%).
 - **AC3 — zero WPT regressions.** Full-suite A/B against the release-tip
-  binary: no status flips. (Result recorded on the Linear issue.)
+  binary: no status flips. Record the result with the release verification.
 - **AC4 — parity unit tests.** `engine/src/paged.rs::pseudo_parity`
   covers both progressions including `:first` invariance.
 
@@ -118,5 +117,4 @@ is a recorded non-goal.
   resolution)
 - css-page-3 §4.1 (page progression, `:left`/`:right`)
 - Chromium oracle probes + WPT `page-left-right-002-print` (2026-09-12)
-- Related: CORE-153 (page left/right residuals), CORE-127 (named pages
-  epic)
+- Named pages: `paged-media-css.spec.md`.

@@ -2,7 +2,7 @@
 title: CSS Standards Alignment
 type: convention
 status: approved
-owner: elijah
+owner: maintainers
 created: 2026-08-24
 updated: 2026-09-09
 sidebar_position: 3

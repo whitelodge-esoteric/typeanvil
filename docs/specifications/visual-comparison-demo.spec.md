@@ -3,13 +3,12 @@ title: Visual Comparison Demo
 slug: /specifications/visual-comparison-demo
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-08-17
-updated: 2026-09-16
+updated: 2026-09-27
 sidebar_position: 5
 tags: [demo, comparison, prince, gallery, pipeline]
 spec_id: visual-comparison-demo
-issue_id: CORE-68
 applies_to: demo 0.x
 dependencies: [wpt-conformance-harness, fragmentation-core, paged-media-css, typography-layer, tables-fragmentation]
 ---
@@ -27,15 +26,15 @@ Two audiences:
    (`@page`, margin boxes, running headers, counters, TOC), fragmentation,
    typography (Knuth-Plass justification, hyphenation, protrusion), and
    fragmenting tables.
-2. **Internal QA** — the pixel-diff scoreboard + triage surfaces genuine
-   engine gaps as follow-up CORE-* issues, exactly like the WPT conformance
-   baseline (CORE-60) did.
+2. **Internal QA** — the pixel-diff scoreboard and triage surface genuine
+   engine gaps as follow-up work, exactly like the WPT conformance baseline
+   did.
 
 The demo is **measurement + presentation only**: no engine feature work
 happens here. The engine already renders the wedge; this spec defines how we
 *show* that.
 
-**Scope boundary (decided on the parent CORE-67):** Prince is the only
+**Scope boundary:** Prince is the only
 comparison engine. Chromium headless is an explicit non-goal — it does not
 support paged-media CSS, so it would only show the wedge gap, not the wedge
 strength.
@@ -50,7 +49,8 @@ strength.
   `demo/corpus/out/scoreboard.json`. Every corpus-track artifact SHALL live
   under `demo/corpus/`, mirroring the showcase track's layout.
 - A corpus of 6–8 real documents, each exercising a **shipped** wedge feature
-  (CORE-51/52/53/61), self-contained (fonts/assets resolve via `--base-url`).
+  (fragmentation, paged-media CSS, typography), self-contained (fonts/assets
+  resolve via `--base-url`).
 - Per-doc notes from a manifest: what the doc exercises, known TypeAnvil
   limitations, expected visual deltas vs Prince.
 - A triage step (the closing child) that buckets every diff and files
@@ -59,8 +59,8 @@ strength.
 
 **Non-Goals**
 
-- Chromium headless comparison (explicit non-goal on CORE-67).
-- Any engine feature work (floats/multicol/flexbox remain backlog CORE-62/63/65
+- Chromium headless comparison (an explicit non-goal).
+- Any engine feature work (floats, multicol, and flexbox remain backlog items
   and may appear only as "known gap" notes, never as features we claim).
 - A live/web-served gallery — the artifact is static files committed to the
   repo, openable from disk.
@@ -88,7 +88,7 @@ The demo SHALL implement the following, stated as "shall" rules:
    movement of that doc's scoreboard (used by `--guard`); its absence means
    movement is unexpected.
 3. **Engine CLI contract.** Both engines SHALL be invoked with the identical
-   flag set, matching the `typeanvil render` contract (CORE-60 harness spec):
+   flag set, matching the `typeanvil render` contract:
    `<engine> <input.html> --page-width W --page-height H --margin-top MT
    --margin-right MR --margin-bottom MB --margin-left ML --base-url
    http://127.0.0.1:PORT/ -o <output.pdf>`. `scripts/render-prince.sh` SHALL
@@ -111,9 +111,9 @@ The demo SHALL implement the following, stated as "shall" rules:
    "pages": [ { "page": <1-based>, "diff_percent": <float> } ],
    "overall_diff_percent": <float>, "structure_match": <bool | null>,
    "structure_reasons": [<string>] } ] }`. `structure_match` and
-   `structure_reasons` are OPTIONAL (nullable) — scoreboards written before
-   CORE-215 remain valid and still validate.
-7. **Bucket semantics.** The triage child (CORE-72) SHALL classify each doc's
+   `structure_reasons` are OPTIONAL (nullable); an older scoreboard that omits
+   them remains valid.
+7. **Bucket semantics.** The triage step SHALL classify each doc's
    overall diff into exactly one bucket: `identical` (< 1% diff, no visible
    difference), `cosmetic` (1–20%, spacing/positioning/font-substitution
    differences only — no content missing or misplaced), `missing-feature`
@@ -149,7 +149,7 @@ The demo SHALL implement the following, stated as "shall" rules:
     pointing at `demo/corpus/README.md` (install + license steps).
 11. **License honesty.** `demo/corpus/README.md` SHALL document that this
     track uses Prince's free non-commercial license, comparison-only, with
-    install + version-pin steps (CORE-69).
+    install and version-pin steps.
 
 ## Interfaces
 
@@ -205,7 +205,7 @@ The demo SHALL implement the following, stated as "shall" rules:
 }
 ```
 
-**Corpus fixture list** (CORE-70 authors these; names are illustrative):
+**Corpus fixture list** (fixture names are illustrative):
 
 - `invoice.html` — tables, repeating table headers, page numbers
 - `report.html` — running headers/footers, page counters, TOC
@@ -216,7 +216,7 @@ The demo SHALL implement the following, stated as "shall" rules:
 - `invoice-statement.html` — business document: two fragmenting tables in one
   file (line items, then a running-balance statement of account), each
   repeating its header row per page, plus a margin-box running header and
-  accented glyphs that keep the ToUnicode path exercised (CORE-209)
+  accented glyphs that keep the ToUnicode path exercised
 
 ## Acceptance Criteria
 
@@ -252,8 +252,7 @@ Each maps to a real check in `scripts/build-demo.sh` or a committed artifact:
 ## Edge Cases
 
 - **Missing Prince binary** — pipeline aborts with a clear message;
-  `demo/corpus/README.md` has the install + free-license steps (CORE-69's
-  deliverable).
+  `demo/corpus/README.md` has the install and free-license steps.
 - **Page-count mismatch** — recorded in the scoreboard, not a crash; gallery
   shows both page sequences with the count noted.
 - **Zero-diff tolerance** — sub-1% diffs from font substitution/antialiasing
@@ -273,11 +272,11 @@ Each maps to a real check in `scripts/build-demo.sh` or a committed artifact:
   previous baseline, and SHALL NOT present a moved number as an improvement
   or a regression until the movement is attributed (char-box evidence per
   doc, both sides measured at baseline AND candidate).
-- **UA defaults are Prince-parity, not HTML4-screen (CORE-92 + CORE-95)** —
+- **UA defaults are Prince-parity, not HTML4-screen** —
   the engine's UA stylesheet matches Prince's print defaults: `body { margin:
-  0 }` (CORE-92, probe 2026-08-20: Prince's first baseline = content top +
+  0 }` (probe 2026-08-20: Prince's first baseline = content top +
   half-leading exactly), fixed-point heading sizes/margins (h1 24pt/16pt …
-  h6 8pt/21pt) and 1.12em paragraph margins (CORE-95, `ua-print-defaults`
+  h6 8pt/21pt) and 1.12em paragraph margins (see the `ua-print-defaults`
   spec), plus css-break-3 top-of-fragmentainer margin truncation — the first
   in-flow box on every page/column renders flush with the content top. The
   old HTML4 em-based screen defaults pushed unstyled headings ~27pt down and
@@ -288,17 +287,17 @@ Each maps to a real check in `scripts/build-demo.sh` or a committed artifact:
 ## Verification
 
 1. `python3 scripts/validate_docs.py` — OK (this spec).
-2. CORE-69: `scripts/render-prince.sh` renders a corpus fixture with the
-   identical flag set as the engine; `demo/corpus/README.md` documents license +
-   version pin.
-3. CORE-70: all corpus fixtures render through both engines without crashing;
+2. `scripts/render-prince.sh` renders a corpus fixture with the identical flag
+   set as the engine; `demo/corpus/README.md` documents license and version
+   pin.
+3. All corpus fixtures render through both engines without crashing;
    `manifest.json` complete and committed.
-4. CORE-71: the `demo/corpus/README.md` gallery + `scoreboard.json` build
-   from a clean checkout; scoreboard validates; re-run byte-identical.
-5. CORE-72: baseline gallery + scoreboard committed; every doc bucketed
+4. The `demo/corpus/README.md` gallery and `scoreboard.json` build from a
+   clean checkout; the scoreboard validates; a re-run is byte-identical.
+5. Baseline gallery and scoreboard committed; every doc bucketed
    (identical/cosmetic/missing-feature/engine-bug); genuine engine bugs filed
-   as follow-up CORE-* issues with gallery pages as evidence.
-6. CORE-216: `docs/operations/visual-qa.md` runs the four geometry
-   checks (overlap, overflow, text round-trip, declared-fill) over the
-   rendered corpus pages; both engines are checked per fixture.
+   as follow-up work with gallery pages as evidence.
+6. `docs/operations/visual-qa.md` runs the four geometry checks (overlap,
+   overflow, text round-trip, declared-fill) over the rendered corpus pages;
+   both engines are checked per fixture.
 

@@ -3,13 +3,12 @@ title: Named Pages — page Property Propagation, Selection, and Change Breaks
 slug: /specifications/named-pages
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-09-04
-updated: 2026-09-14
+updated: 2026-09-27
 sidebar_position: 25
 tags: [engine, css-page, paged-media, layout, breaks]
 spec_id: named-pages
-issue_id: CORE-127
 applies_to: engine 0.x
 dependencies: [paged-media-css]
 ---
@@ -18,11 +17,11 @@ dependencies: [paged-media-css]
 
 ## Overview
 
-Slice (a) of the CORE-127 epic: the `page-name-*` WPT family (~30 failures at
+The `page-name-*` WPT family (~30 failures at
 the 2026-08-31 baseline, engine `fd43280`). Named-page selection at page
-starts existed since CORE-82 (`active_page_name`); what was missing is the
+starts existed via `active_page_name`; what was missing is the
 FORCED BREAK between boxes whose page context changes (css-page-3 §4.2
-"Using named pages"). A first CORE-66-era attempt compared declared `page`
+"Using named pages"). An earlier attempt compared declared `page`
 values and regressed 38 tests; this spec records the leaf-context model that
 the WPT refs actually encode.
 
@@ -31,13 +30,13 @@ the WPT refs actually encode.
 1. A page break is forced between in-flow siblings whose effective page
    contexts differ, so `page-name-siblings-*` and `page-name-propagated-*`
    match their refs.
-2. The CORE-82 page-selection model (which named `@page` rule styles each
+2. The `active_page_name` page-selection model (which named `@page` rule styles each
    page) is unchanged.
 3. Zero regressions across css-page and css-break.
 
 ## Non-Goals
 
-1. `<br>` is not implemented (CORE-159). The tokenizer re-flows text runs with
+1. `<br>` is not implemented. The tokenizer re-flows text runs with
    `split_whitespace()`, so no forced line break exists to honor. This is a
    text-runs feature, not a named-page one; the boundary rule below no longer
    depends on it. `page-name-002` cannot pixel-match its reference until it
@@ -61,7 +60,7 @@ the WPT refs actually encode.
    FAIL this test at 6 pages, Firefox passes — no agreed browser model).
    `page-name-002` is characterised by the boundary study recorded under
    Non-Goal 1 and is actionable; `page-name-003` is permanently unsatisfiable
-   (see Non-Goal 1). Fixed by the two CORE-157 slices:
+   (see Non-Goal 1). Fixed by two later slices:
    `page-name-img-001/002` (an inline-level replaced image's own `page`
    declaration is inert — Behavior 6), `page-name-display-none-child` and
    `page-name-inline-block-002` (the boundary comparison now also runs on
@@ -98,7 +97,7 @@ the WPT refs actually encode.
    declaration, else the page name of the nearest PRECEDING in-flow
    replaced sibling that declared one (stickiness applies through replaced
    elements only), else the nearest ancestor-or-self with one, else the
-   default page (existing CORE-82 model; `effective_page`).
+   default page (the existing `effective_page` model).
 2. **Content leaf.** A box's page-boundary position is its FIRST (or LAST)
    in-flow content leaf: descend through in-flow block children, skipping
    out-of-flow boxes (float, absolute, fixed), `display: none`, and
@@ -133,7 +132,7 @@ the WPT refs actually encode.
    its own boundary (`page-name-display-none-child`).
 
     A **bare text run IS in-flow content** and is a valid target on either side
-    of the comparison (CORE-158). It takes its containing block's effective page
+    of the comparison. It takes its containing block's effective page
     context, so `[div page:a]A[/div] X [div page:a]C[/div]` is three pages
     (a -> default -> a), and a trailing run after a named page adds one more.
     The itemizer has already dropped whitespace-only runs, so a surviving
@@ -164,7 +163,7 @@ the WPT refs actually encode.
      `page_boundaries.rs::page_change_suppressed_when_inner_mode_orthogonal_to_page_flow`).
 
 5. **Selection unchanged.** Page geometry (which `@page` rule applies) is
-   still resolved per page start by `active_page_name` (CORE-82).
+   still resolved per page start by `active_page_name`.
 6. **Class-A applicability of `page`.** The `page` property applies only to
    boxes that create class A break points (css-page-3 §8.1). An inline-level
    replaced image (`<img>`, inline `<svg>`) creates none, so its own `page`
@@ -176,7 +175,7 @@ the WPT refs actually encode.
 7. **Root-element `display: none`.** A `display: none` on the root ELEMENT
    (`html`) suppresses the document: one valid empty page with NO page-box
    chrome, which compares equal to a blank reference
-   (`root-element-display-none`; CORE-66). The check must read the html
+   (`root-element-display-none`). The check must read the html
    element's computed display — `dom.root` is the synthetic document node,
    never element-styled, so testing it never fires. A `display: none` CHILD
    generates no box and its text must not fold into the parent's run
@@ -213,7 +212,7 @@ Each maps to a live WPT test in the harness (`harness run --filter css-page`):
   (`page-name-orthogonal-writing-004`; `page_boundaries.rs`
   `page_change_breaks_when_inner_mode_matches_page_flow` renders two pages).
 - Given two `page:a` blocks separated by a bare text run, the render is three
-  pages — a, default, a (CORE-158; `engine/tests/page_boundaries.rs`
+  pages — a, default, a (`engine/tests/page_boundaries.rs`
   `p3_named_text_named_breaks_twice`).
 - Given a named page followed by trailing bare text, the render is two pages
   (`p4_named_then_text_breaks`).
@@ -239,6 +238,6 @@ Each maps to a live WPT test in the harness (`harness run --filter css-page`):
 ## References
 
 - css-page-3 §4.2 (Using named pages) — the forced-break requirement.
-- CORE-82 `active_page_name` (page selection at page starts).
-- CORE-66's declared-value attempt (38-test regression; superseded model).
-- Linear: CORE-127 slice (a).
+- `active_page_name` (page selection at page starts).
+- An earlier declared-value attempt (38-test regression; superseded model).
+- `engine/src/layout.rs::active_page_name` and the `page-name-*` WPT fixtures.

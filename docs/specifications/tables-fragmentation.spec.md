@@ -3,13 +3,12 @@ title: Tables × Page Breaks
 slug: /specifications/tables-fragmentation
 type: spec
 status: approved
-owner: elijah
+owner: maintainers
 created: 2026-08-17
-updated: 2026-09-21
+updated: 2026-09-27
 sidebar_position: 4
 tags: [layout, tables, fragmentation, css-tables, engine]
 spec_id: tables-fragmentation
-issue_id: CORE-61, CORE-116, CORE-235
 applies_to: engine 0.x
 dependencies: [fragmentation-core, paged-media-css, wpt-conformance-harness]
 ---
@@ -18,18 +17,17 @@ dependencies: [fragmentation-core, paged-media-css, wpt-conformance-harness]
 
 ## Overview
 
-The Prince-beating feature. WeasyPrint's known weakness is super-linear
+The table-fragmentation feature. WeasyPrint's known weakness is super-linear
 multi-page tables (relayout-from-scratch per page); Prince's differentiator is
 tables that fragment cleanly with **repeating header rows, no mid-cell slicing,
 and borders that survive breaks**. TypeAnvil gets this for free in the engine
-because CORE-51 made fragmentation the core: the fragment tree + break tokens
+because fragmentation is the core: the fragment tree + break tokens
 already carry state across pages, so a table is just a family of boxes with
 **rows as breakpoints**.
 
-Today `display: table|table-row|table-cell|table-header-group|table-footer-group`
-fall through to block/inline (the `Display` enum has only `Block | Inline |
-None`), so a `<table>` renders as stacked blocks and the CORE-60 baseline shows
-the gap (`table-fragmentation-002a/b`, `fixedpos-in-footer-forced-break`).
+The engine has table display variants and a table layout path. The remaining
+contract covers column measurement, row fragmentation, repeated sections, and
+the supported border models.
 
 The scope is the wedge: **fragmentation of a styled table**, not the full
 css-tables-3 suite. Column/row sizing, border-collapse, header/footer
@@ -62,7 +60,7 @@ tests in `engine/tests/` and the existing 36 engine tests as regression guard.
 - `break-inside: avoid` on rows/groups honored via the existing appeal scoring;
   monolithic cells overflow rather than slice.
 - Deterministic pagination: no relayout-from-scratch — continuation uses break
-  tokens exactly like CORE-51 (O(n) multi-page tables).
+  tokens like any other fragmented content (O(n) multi-page tables).
 
 **Non-Goals** (deferred, per wedge scope)
 
@@ -71,8 +69,8 @@ tests in `engine/tests/` and the existing 36 engine tests as regression guard.
 - Row/column spans (`rowspan`/`colspan`) — render as unsupported (fall back to
   per-cell block stacking with a documented limitation), full css-tables-3
   spans deferred.
-- ~~`border-collapse: separate` + `border-spacing`~~ — **SUPERSEDED by CORE-235**:
-  see §Behavior 16–18. The separate model (CSS initial) is now supported.
+- `border-collapse: separate` + `border-spacing` — see §Behavior 16–18.
+  The separate model (CSS initial) is supported.
 - Captions (`<caption>`), table in table (nested tables), tables inside
   multicol, RTL tables.
 - Full css-tables WPT suite — only the css-break table print-reftests are the
@@ -128,22 +126,22 @@ The engine SHALL implement the following, stated as "shall" rules:
    preserved across fragments (top border on first fragment, side borders on
    every fragment, bottom border on the last).
 10. **break-inside: avoid.** `break-inside: avoid` on a row/group SHALL be
-    honored via the existing break-appeal scoring (CORE-51): if the row doesn't
+    honored via the existing break-appeal scoring: if the row doesn't
     fit, it moves whole to the next fragmentainer rather than splitting,
     unless the row alone is taller than the fragmentainer (then it fragments —
     rule 6).
 11. **Monolithic overflow.** A cell/row taller than the fragmentainer SHALL
-    overflow, never slice (CORE-51 rule), and the table continues on the next
+    overflow, never slice, and the table continues on the next
     fragmentainer with the overflowed content carried by break tokens.
-12. **Determinism.** Pagination SHALL be token-based (CORE-51): laying out
+12. **Determinism.** Pagination SHALL be token-based: laying out
     page N+1 passes the table's outgoing break token; finished rows are
     skipped, the interrupted row resumes. A 100-row table spanning 10 pages
     SHALL lay out in linear time (no relayout of earlier pages).
 13. **Generated content / TOC unchanged.** Tables SHALL NOT disturb existing
     paged-media features: a table inside a page with margin boxes, running
     headers, or `target-counter` resolution renders correctly (regression
-    guard: report + invoice demos, CORE-52 tests).
-14. **Row deferral is bounded (CORE-109).** A row that does not fit the
+    guard: report + invoice demos).
+14. **Row deferral is bounded.** A row that does not fit the
     remaining space of the current fragmentainer, but fits one full
     fragmentainer, SHALL defer to the next fragmentainer at most ONCE. If,
     on the continuation fragmentainer, the row still does not fit (for
@@ -156,7 +154,7 @@ The engine SHALL implement the following, stated as "shall" rules:
     the next page; only when the row fits NO fragmentainer at all does it
     drop the row with "dropping unpackable block" — TypeAnvil instead
     force-places it, preferring visible overflow over silent content loss.)
-15. **Oversized-row cell continuation survives (CORE-116).** When a row
+15. **Oversized-row cell continuation survives.** When a row
     fragments because a cell crosses a fragmentainer boundary, the row SHALL
     emit an outgoing break token carrying each laid-out cell's state:
     continuations for cells still in flight and done-markers for cells that
@@ -166,8 +164,8 @@ The engine SHALL implement the following, stated as "shall" rules:
     at the resumed row's used height — no table content past an oversized
     row may be dropped or duplicated. A CONTINUATION pass of a row that has
     already split SHALL place immediately; deferring it would loop forever
-    against a repeating header (the CORE-109 trap).
-16. **border-collapse: separate (CORE-235).** `border-collapse: separate` is
+    against a repeating header (the repeat-deferral trap).
+16. **border-collapse: separate.** `border-collapse: separate` is
     the CSS-initial value and SHALL be the engine's UA default for `table`
     (the UA stylesheet SHALL NOT force `collapse`). Under `separate`, each
     cell SHALL keep its own four borders; `border-spacing` SHALL add gaps
@@ -176,7 +174,7 @@ The engine SHALL implement the following, stated as "shall" rules:
     gap per side, matching Chrome). The table's own border box SHALL paint
     around the whole table (slice semantics: top band on the first fragment,
     side bands on every fragment, bottom band on the last).
-17. **Separate-model sizing (CORE-235).** Under `border-collapse: separate`,
+17. **Separate-model sizing.** Under `border-collapse: separate`,
     the column grid SHALL be sized inside the table's border + padding +
     border-spacing chrome: an explicit `width` is the table's border-box
     width, and the usable column width is that width minus
@@ -189,7 +187,7 @@ The engine SHALL implement the following, stated as "shall" rules:
     `border-top + padding-top + spacing` before its first row (first
     fragment only) and `spacing + padding-bottom + border-bottom` after its
     last row (last fragment only).
-18. **Border-box height includes bottom border (CORE-235).** A finished
+18. **Border-box height includes bottom border.** A finished
     (non-continuing) box's border-box height SHALL include its bottom
     border: block, flex-container, and grid-container height calculations
     add `border-bottom` after `padding-bottom` when the box did not break,
@@ -230,28 +228,28 @@ Each maps to a real test in `engine/tests/tables.rs` (new) or the WPT harness:
 7. **O(n) multi-page** — Given a 100-row × 10-page table, when laid out, then
    it completes with correct page count and row content preserved
    (`test_tables_pagination_linear_100x10`).
-8. **Regression** — Given the existing 36 engine tests + the CORE-52 report
+5. **Regression** — Given the existing engine tests + the report
    and invoice demos, when the table pass lands, then all 36 stay green and
    both demos render (invoice now with a real table if the fixture is
    converted).
 9. **WPT fitness** — Given the harness, when `--engine cli` runs the css-break
    table print-reftests (`css/css-break/table/`), then the previously failing
-   table tests pass (baseline: 3 failing from CORE-60) and none of the
-   currently-passing tests regress (gate on the CORE-60 baseline).
-10. **Giant-row deadlock guard (CORE-109)** — Given a table whose row fits a
+   table tests pass (baseline: 3 failing) and none of the currently-passing
+   tests regress (gate on the recorded baseline).
+10. **Giant-row deadlock guard** — Given a table whose row fits a
     full fragmentainer but not a fragmentainer shrunk by the repeating
     header, when rendered, then pagination terminates in bounded time, the
     row defers once and is then placed whole
     (`test_giant_row_defers_at_most_once`). A row taller than any
     fragmentainer still places monolithically without hanging
     (`test_row_taller_than_page_still_places_monolithically`).
-11. **Oversized-row content survives (CORE-116)** — Given a cell taller than
+11. **Oversized-row content survives** — Given a cell taller than
     one fragmentainer followed by more rows, when rendered, then every line
     of every cell appears exactly once across pages and later rows render —
     nothing dropped or duplicated
     (`tests/core116_oversized_row.rs::oversized_row_cell_content_continues_across_pages`,
     `::oversized_row_resume_does_not_duplicate_finished_cells`).
-12. **Separate model (CORE-235)** — Given the four WPT fixtures
+12. **Separate model** — Given the four WPT fixtures
     `table-fragmentation-001{a,b,c,d}-print.html` (5×3in page, 0.5in
     margins, `border-spacing: 0.25in`, table `border: 0.25in`, cell
     `border: 0.25in`, gold `content` block), when rendered by the harness at
@@ -269,8 +267,8 @@ Each maps to a real test in `engine/tests/tables.rs` (new) or the WPT harness:
   available width, cells shrink proportionally, no horizontal overflow panic.
 - A header taller than the fragmentainer: the header itself fragments
   (monolithic rule), body rows follow on subsequent fragmentainers.
-- `table` with `display: none` on ancestor: whole table suppressed (existing
-  CORE-51 rule).
+- `table` with `display: none` on ancestor: whole table suppressed (the
+  existing suppression rule).
 - A table directly inside another table's cell: deferred (Non-Goals) — the
   inner table renders as block-stacked rows with a documented limitation,
   never a panic.
@@ -278,7 +276,7 @@ Each maps to a real test in `engine/tests/tables.rs` (new) or the WPT harness:
   + borders), per css-tables-3.
 - `colspan`: a spanning cell contributes an equal share of its intrinsic to
   each spanned column and occupies every spanned slot in measure AND layout
-  (CORE-96, auto-table-layout §Behavior 9). `rowspan`: not supported — a
+  (see auto-table-layout §Behavior 9). `rowspan`: not supported — a
   `rowspan` cell occupies one grid slot (documented limitation, no panic).
 
 ## Verification
@@ -286,10 +284,10 @@ Each maps to a real test in `engine/tests/tables.rs` (new) or the WPT harness:
 1. `cargo build` clean, `cargo test` all green (36 existing + new tables
    tests).
 2. `python3 scripts/validate_docs.py` OK (this spec + any updated specs).
-3. Harness: run the css-break table print-reftest subset via the CORE-60
+3. Harness: run the css-break table print-reftest subset via the harness
    command (`--engine cli --cli-cmd "engine/target/debug/typeanvil render"`),
    confirm the 3 baseline failures now pass and the gate holds.
 4. Visual: rasterize the table demo (new fixture or converted invoice) and
    confirm repeating header, intact borders, no mid-row slice.
-5. Close the loop in Linear (CORE-61) with What-was-built / Verification /
-   Next pass, commit messages referencing CORE-61.
+5. Record the implementation, verification, and remaining table coverage in
+   repository documentation or release notes.

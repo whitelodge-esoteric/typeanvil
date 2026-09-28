@@ -3,13 +3,12 @@ title: CSS Floats
 slug: /specifications/css-floats
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-08-19
-updated: 2026-08-20
+updated: 2026-09-27
 sidebar_position: 7
 tags: [engine, css, floats, fragmentation, layout]
 spec_id: css-floats
-issue_id: CORE-62
 applies_to: engine 0.x
 dependencies: [fragmentation-core, typography-layer, tables-fragmentation]
 ---
@@ -69,7 +68,7 @@ read it from stylo like `float`.
   area). One float per side per y-band, placed at the edge.
 - BFC / margin-collapse semantics around floats. The float's own margins
   offset it from the edge; no collapsing across the float boundary.
-- Floats inside multicol/flex (future CORE-63/CORE-65 work); floats nested
+- Floats inside multicol/flex (future integration work); floats nested
   inside a float are naturally handled by recursion and stay in scope.
 - Cross-band global Knuth-Plass optimization: text beside a float is broken
   per segment (see Behavior §6), not as one whole-paragraph total-fit run.
@@ -120,7 +119,7 @@ The engine shall:
    the rebuilt line-text length: `materialize_line` collapses every whitespace
    run (newlines, indent, multi-space) to one space, so `lr.text.len()`
    undercounts source bytes, the next segment re-breaks inside the previous
-   line's last word, and its final glyph is drawn twice (CORE-91, fixed
+   line's last word, and its final glyph is drawn twice (fixed
    2026-08-20). `build_items` records each box's source end so every line
    knows its true span.
 8. Track active floats as intrusions with their rectangle
@@ -279,7 +278,7 @@ Each criterion maps to a test in `engine/tests/floats.rs` (helpers mirror
    passes unmodified).
 8. **Determinism.** CLI render of a doc with floats twice → byte-identical
    PDFs (mirror `tests/smoke.rs`).
-9. **Segment reflow tiles the source exactly (CORE-91 regression).** Given a
+9. **Segment reflow tiles the source exactly (source-offset regression).** Given a
    right float whose bottom crosses a paragraph (multi-line source with
    newlines/indent), the concatenation of every line's glyph text across all
    pages, whitespace-normalized, equals the source text — no duplicated
@@ -311,5 +310,5 @@ Each criterion maps to a test in `engine/tests/floats.rs` (helpers mirror
 - CSS2 §9.5 float rules (simplified stacking): https://www.w3.org/TR/CSS2/visuren.html#floats
 - LayoutNG hard-interactions brief (float = parallel flow, BFC block-offset
   note): `docs/research/layoutng-fragmentation/typeanvil-layoutng-fragmentation-brief.md`
-- Parent epic: CORE-54 (campaign plan in the issue description)
+- Fragmentation model: `fragmentation-core.spec.md`.
 - Typography layer (line breaking, untouched): `typography-layer.spec.md`

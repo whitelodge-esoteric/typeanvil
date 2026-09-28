@@ -3,13 +3,12 @@ title: Harness Release Gate
 slug: /specifications/harness-release-gate
 type: spec
 status: approved
-owner: elijah
+owner: maintainers
 created: 2026-09-15
-updated: 2026-09-16
+updated: 2026-09-27
 sidebar_position: 2
 tags: [harness, wpt, conformance, testing, release, gate]
 spec_id: harness-release-gate
-issue_id: CORE-206
 applies_to: harness 0.x
 dependencies: [wpt-conformance-harness]
 ---
@@ -155,7 +154,7 @@ The harness shall:
     per-document output comparison, and direct checks.
 24. Return a nonzero exit status when a gate condition fails.
 25. Reference the gate from the landing and release procedure documents, and
-    point the CORE-203 and CORE-204 landing requirements at it.
+    point the landing and release requirements at it.
 26. Define two tiers. The engine-change tier runs the direct checks and a bounded
     coverage subset; it is the bar a promotion must pass. The promotion tier
     runs the full selected set as a delta against the previously promoted state:
@@ -367,4 +366,4 @@ binary identity produce the same fingerprints.
   spec-wins rule for disputed behavior.
 - `docs/research/wpt-harness/core182-interior-writing-mode-scoping.md` — the
   measured shared-error case.
-- CORE-206 (this gate), CORE-203 and CORE-204 (consumers).
+- The release gate (this spec); the landing and release procedures consume it.

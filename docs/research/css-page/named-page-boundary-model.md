@@ -1,15 +1,15 @@
 ---
-title: "Named-page break boundaries — Chromium oracle study (CORE-157)"
+title: "Named-page break boundaries — Chromium oracle study"
 type: research
 status: approved
-owner: elijah
+owner: maintainers
 created: 2026-09-09
 updated: 2026-09-09
 sidebar_position: 1
 tags: [css-page, named-pages, fragmentation, chromium, probe]
 ---
 
-# Named-page break boundaries — Chromium oracle study (CORE-157)
+# Named-page break boundaries — Chromium oracle study
 
 ## Verdict
 
@@ -102,9 +102,9 @@ The two breaks the engine does fire are the block-to-block ones (1st→2nd and
 effective page context, act as a page-boundary position, and take part in the
 page-change comparison. The comparison must no longer stop at a bare text run.
 This lives in the in-flow item loop of `engine/src/layout.rs`, in the same code
-that CORE-157's two landed slices already modified.
+that two earlier landed slices already modified.
 
-**Risk.** CORE-66 recorded a 38-test regression when breaks were forced on
+**Risk.** An earlier attempt recorded a 38-test regression when breaks were forced on
 page-name changes, so this area is historically hazardous. Several `page-name-*`
 tests currently pass under the narrower rule and may flip in either direction.
 Gate the change on the full 283-test suite and expect to accept some flips as
@@ -177,11 +177,11 @@ PY
 Both legs of every disputed fixture, with the harness:
 
 ```bash
-.venv/bin/python -m harness --wpt ~/workspace/typeanvil/.wpt run \
+.venv/bin/python -m harness --wpt <checkout>/.wpt run \
   --engine chromium --filter page-name-002 \
   --report /tmp/cr-002.json --db /tmp/h.sqlite --artifacts /tmp/art-cr
 
-.venv/bin/python -m harness --wpt ~/workspace/typeanvil/.wpt run \
+.venv/bin/python -m harness --wpt <checkout>/.wpt run \
   --engine cli --cli-cmd "<worktree>/engine/target/debug/typeanvil render" \
   --filter page-name-002 \
   --report /tmp/cli-002.json --db /tmp/h2.sqlite --artifacts /tmp/art-cli
@@ -189,10 +189,8 @@ Both legs of every disputed fixture, with the harness:
 
 ## References
 
-- css-page-3 §4.2 (Using named pages) — the page-change break requirement.
-- `docs/specifications/named-pages.spec.md` — the engine's named-page model.
-- WPT fixtures: `.wpt/css/css-page/page-name-002-print{,-ref}.html`,
-  `page-name-003-print{,-ref}.html`, `page-name-abspos-002-print{,-ref}.html`,
-  `fixedpos-010-print{,-ref}.html`.
-- Linear: CORE-157 (study), CORE-127 (epic), CORE-66 (the 38-test regression
-  recorded for forced page-name breaks).
+- [CSS Paged Media Module Level 3](https://www.w3.org/TR/css-page-3/), §8.1, named-page value propagation and forced breaks.
+- [WPT print reftests](https://web-platform-tests.org/writing-tests/print-reftests.html), default geometry and page-by-page comparison.
+- [WPT css-page directory](https://github.com/web-platform-tests/wpt/tree/master/css/css-page), public fixture corpus.
+- `docs/specifications/named-pages.spec.md` — implementation contract.
+- `docs/specifications/paged-media-css.spec.md` — paged-media scope and limitations.

@@ -3,13 +3,12 @@ title: Issue Pickup Command
 slug: /specifications/issue-pickup
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-09-21
-updated: 2026-09-21
+updated: 2026-09-27
 sidebar_position: 2
 tags: [workflow, evidence, tooling, harness, docker]
 spec_id: issue-pickup
-issue_id: CORE-238
 applies_to: scripts/pickup.py
 dependencies: [harness-release-gate, wpt-conformance-harness]
 ---
@@ -158,7 +157,7 @@ environment error.
 ```json
 {
   "schema": "typeanvil.pickup/1",
-  "issue": "CORE-238",
+  "issue": "CORE-<id>",
   "outcome": "reproduced_expected_failure",
   "source": {"commit": "...", "dirty": false, "patch_identity": null},
   "binary": {"path": "...", "sha256": "...", "version": "..."},
@@ -222,4 +221,6 @@ Each criterion maps to a test in `tests/test_pickup.py` or a recorded real run.
   this command does not replace.
 - [WPT conformance harness](wpt-conformance-harness.spec.md) — the harness this
   command drives.
-- CORE-238 (this issue), CORE-205 (evidence rules), CORE-206 (gate).
+- This spec (`docs/specifications/issue-pickup.spec.md`),
+  `docs/conventions/issue-evidence.md` (evidence rules), and
+  `docs/specifications/harness-release-gate.spec.md` (release gate).

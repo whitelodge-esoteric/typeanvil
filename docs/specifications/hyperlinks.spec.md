@@ -3,13 +3,12 @@ title: Hyperlink Annotations
 slug: /specifications/hyperlinks
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-08-21
-updated: 2026-08-21
+updated: 2026-09-27
 sidebar_position: 14
 tags: [engine, pdf, annotations, determinism]
 spec_id: hyperlinks
-issue_id: CORE-104
 applies_to: engine 0.x
 dependencies: [fragmentation-core, pdf-metadata]
 ---
@@ -67,7 +66,7 @@ krilla's surface space directly — no flip is needed for link rects.
    its text within the enclosing item's text plus the raw href value.
 2. After line breaking, for each line whose source span overlaps a link
    span, the engine SHALL compute the x extent of the overlap from the
-   line's shaped glyphs (`ShapedGlyph.range` byte ranges, CORE-85) and
+   line's shaped glyphs (`ShapedGlyph.range` byte ranges) and
    record one link rect per overlapping segment, attached to the page the
    line was placed on.
 3. A link whose text breaks across pages SHALL produce rects on each page,
@@ -136,7 +135,7 @@ Implementation seam (layout.rs):
   inline `<a>` recursion into the pending string; `Item::Text` carries its
   span list alongside the text.
 - The line-placement loop already tracks absolute source offsets per line
-  (`lr.consumed`, CORE-91); a line's link sub-spans come from intersecting
+  (`lr.consumed`); a line's link sub-spans come from intersecting
   `[line_start, line_end)` with the recorded spans, then mapping byte ranges
   to glyph x-extents via `ShapedGlyph.range`.
 
@@ -182,12 +181,12 @@ Implementation seam (layout.rs):
 
 ## References
 
-- Linear issue CORE-104.
+- krilla interactive modules (`annotation.rs`, `action.rs`, `destination.rs`) —
+  API verified against the vendored dependency.
 - krilla 0.8.2 interactive modules (`annotation.rs`, `action.rs`,
   `destination.rs`) — API verified 2026-08-21.
 - `docs/specifications/pdf-metadata.spec.md` (Layout-level document data +
   deterministic emit precedent).
 - `docs/specifications/hyphenation-line-break-parity.spec.md` (source-byte
-  accounting, `lr.consumed`, CORE-91).
-- css-flexbox/css-text not implicated; WPT gate applies unchanged
-  (`references/wpt-harness-run.md`).
+  accounting, `lr.consumed`).
+- css-flexbox/css-text are not implicated; the WPT gate applies unchanged.

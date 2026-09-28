@@ -2,22 +2,21 @@
 title: Structured Machine-Readable Diagnostics
 type: spec
 status: approved
-owner: Elijah Boston
+owner: maintainers
 created: 2026-08-24
-updated: 2026-08-24
+updated: 2026-09-27
 slug: /specifications/diagnostics
 sidebar_position: 43
-tags: [cli, diagnostics, css-parsing, core-112]
-spec_id: SPEC-CORE-112-diagnostics
-issue_id: CORE-112
+tags: [cli, diagnostics, css-parsing]
+spec_id: diagnostics
 applies_to:
   - engine/src/diagnostics.rs
   - engine/src/main.rs
 dependencies:
-  - SPEC-CORE-58-wpt-conformance-harness
+  - wpt-conformance-harness
 ---
 
-# Structured Machine-Readable Diagnostics (CORE-112)
+# Structured Machine-Readable Diagnostics
 
 ## Overview
 
@@ -47,7 +46,7 @@ true statements about the render even though it runs as a separate pass.
   fragmentation) require threading a sink through `layout()`; deferred to a
   follow-up issue. Iteration one reports the stylesheet surface only.
 - **Harness integration** (per-test diagnostic counts in WPT reports) —
-  explicitly listed as follow-up in CORE-112.
+  deferred to a later harness revision.
 - Value-level validation beyond structural checks (a full CSS value grammar
   is stylo's job; the scanner never re-implements it).
 - Fixing or working around anything the diagnostics report.
@@ -144,7 +143,7 @@ CLI: `typeanvil render <input.html> … [--diagnostics json|text] -o out.pdf`
 2. Given the same fixture rendered twice with `--diagnostics json`, the two
    stdout documents SHALL be byte-identical (determinism).
 3. Given any document rendered WITHOUT `--diagnostics`, the stderr and the
-   output PDF bytes SHALL be unchanged versus the pre-CORE-112 binary
+   output PDF bytes SHALL be unchanged versus the baseline binary
    (gated: full `cargo test` suite green; PDF determinism tests cover
    byte-stability).
 4. Comments and strings containing property-like text produce NO events
@@ -182,13 +181,13 @@ flex-direction, flex-wrap, flex-grow, flex-shrink, flex-basis, flex,
 align-items, align-self, justify-content, order, src (@font-face).
 
 Note: `min-width` is parsed by stylo but the block layout path ignores
-height/auto constraints (CORE-66 model); it stays OUT of the reported set —
+height/auto constraints (the current block-layout model); it stays OUT of the reported set —
 this scanner reports the stylesheet surface, and per-property layout
 fidelity is layout-time diagnostics' job (Non-Goals).
 
 ## References
 
-- Issue CORE-112; GitHub mirror whitelodge-esoteric/deltacore#96.
-- CORE-83 lesson (char-safe CSS scanning — the scanner iterates code points,
+- `engine/src/diagnostics.rs` and `engine/src/main.rs` — implementation seams.
+- Char-safe CSS scanning: the scanner iterates code points,
   never raw bytes).
 - Future: layout-time diagnostic events, harness per-test counts.

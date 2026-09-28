@@ -3,13 +3,12 @@ title: Running Headers — string-set and string()
 slug: /specifications/string-set-running-headers
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-08-22
-updated: 2026-08-24
+updated: 2026-09-27
 sidebar_position: 16
 tags: [engine, css-gcpm, css-page, paged-media]
 spec_id: string-set-running-headers
-issue_id: CORE-108
 applies_to: engine 0.x
 dependencies: [paged-media-css, fragmentation-core]
 ---
@@ -99,7 +98,7 @@ are normative for this implementation.
 
 6. **Two-pass convergence.** Margin-box text never affects pagination, so
    string resolution cannot change page counts; the same bounded fixed-point
-   argument as `counter(pages)` (CORE-84) applies. Element `content:` reads
+   argument as `counter(pages)` applies. Element `content:` reads
    happen during body layout and use the current-value map directly (existing
    behavior); they do not consume the page log.
 
@@ -167,4 +166,4 @@ comparison run manually before landing.
 
 - Probe evidence (normative): `docs/research/css-gcpm/prince-string-keywords-probe.md`
 - css-gcpm-3 §7 (generated content for paged media)
-- CORE-84 two-pass convergence precedent; CORE-82 named-page context lessons
+- The two-pass convergence precedent; `named-pages.spec.md` named-page context lessons

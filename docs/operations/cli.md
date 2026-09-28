@@ -2,7 +2,7 @@
 title: Typeanvil CLI Reference
 type: runbook
 status: approved
-owner: elijah
+owner: maintainers
 created: 2026-08-26
 updated: 2026-08-26
 sidebar_position: 3
@@ -86,7 +86,7 @@ typeanvil render paper.html \
 
 ## Notes
 
-- There is no `--help` flag yet. This page is the reference.
+- Use `typeanvil render --help` to inspect the current command surface.
 - Author CSS wins over CLI geometry: an `@page { size: … }` rule in the
   document overrides the command-line page size.
 - Styles come from `<style>` elements in the document. External stylesheet

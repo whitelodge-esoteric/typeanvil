@@ -3,13 +3,12 @@ title: Print Media Queries
 slug: /specifications/print-media-queries
 type: spec
 status: in-review
-owner: elijah
+owner: maintainers
 created: 2026-09-09
-updated: 2026-09-09
+updated: 2026-09-27
 sidebar_position: 44
 tags: [engine, css, media-queries, paged-media, stylo]
 spec_id: print-media-queries
-issue_id: CORE-156
 applies_to: engine 0.x
 dependencies: [paged-media-css, fragmentation-core]
 ---
@@ -72,8 +71,8 @@ passes at the harness's 5x3in / 0.5in setup.)
 - iframe and frameset layout (media-queries-002/003 need them; out of
   scope).
 - Changing the cascade session's viewport used for `vw`/`vh` unit
-  resolution: it stays at the fixed 1024x768 (CORE-66 decision; CORE-140
-  tracks the fix). Only media evaluation uses the page box.
+  resolution: it stays at the fixed 1024x768 (the fixed-viewport decision;
+  `vw`/`vh` correctness is tracked separately). Only media evaluation uses the page box.
 
 ## Behavior
 
@@ -114,7 +113,7 @@ passes at the harness's 5x3in / 0.5in setup.)
    `CustomMediaEvaluator::none()`; no media condition logic is
    reimplemented.
 6. The cascade session's viewport for `vw`/`vh`/`vmin`/`vmax` unit
-   resolution SHALL remain the fixed 1024x768 (CORE-66).
+   resolution SHALL remain the fixed 1024x768 (the fixed-viewport decision).
 7. `@page` rules, paged-media element properties, break properties, and
    border properties inside a true `@media` SHALL apply; inside a false
    `@media` they SHALL NOT apply. Cascade order among rules inside
@@ -251,4 +250,4 @@ Independent verification on release base `05eaa21`:
 - csswg-drafts#5437 (implementations use page area; standard says page
   box): https://github.com/w3c/csswg-drafts/issues/5437
 - WPT media-queries-001/002/003-print.html (`wpt/css/css-page/`)
-- CORE-66 viewport decision (`engine/src/css.rs` `CascadeSession::new`)
+- The fixed-viewport decision (`engine/src/css.rs` `CascadeSession::new`)

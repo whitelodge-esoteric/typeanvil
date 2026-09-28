@@ -3,13 +3,12 @@ title: Flexbox Fragmentation
 slug: /specifications/flexbox-fragmentation
 type: spec
 status: in-review
-owner: elijah
+owner: maintainers
 created: 2026-08-18
-updated: 2026-09-18
+updated: 2026-09-27
 sidebar_position: 10
 tags: [engine, layout, css-flexbox, css-break, fragmentation]
 spec_id: flexbox-fragmentation
-issue_id: CORE-65
 applies_to: engine 0.x
 dependencies: [fragmentation-core, wpt-conformance-harness]
 ---
@@ -18,10 +17,11 @@ dependencies: [fragmentation-core, wpt-conformance-harness]
 
 ## Overview
 
-The CORE-60 baseline (2026-08-17) showed 12 failing flexbox fragmentation
-print-reftests — the largest css-break gap outside the CORE-54 children —
+The 2026-08-17 release baseline showed 12 failing flexbox fragmentation
+print-reftests — the largest css-break gap outside the children covered by the
+fragmentation work —
 because the engine has **no flex layout at all**. Block layout is
-fragmentation-first (CORE-51) but handles only block and inline boxes.
+fragmentation-first but handles only block and inline boxes.
 
 Flex adds the research brief's hard case: **two-pass modes × fragmentation**.
 The flex algorithm (taffy is the reference implementation) needs a measure
@@ -44,7 +44,7 @@ resolution), adapted to the fragment tree and the two-pass-measure-before-
 fragmentation rule below.
 
 **Fitness function:** the 27 css-break flexbox print-reftests via the
-harness (11/27 passing as of CORE-65 landing; the rest deferred — see
+harness (11/27 passing at the initial implementation baseline; the rest deferred — see
 Acceptance Criteria for the honest breakdown).
 
 ## Goals / Non-Goals
@@ -64,7 +64,7 @@ Acceptance Criteria for the honest breakdown).
 - Gaps: `row-gap` / `column-gap` between items.
 - **Fragmentation**: the flex container and its items fragment across pages
   via break tokens; `break-inside: avoid` on an item moves the whole item;
-  a single item line never slices (CORE-51 monolithic rule); the container
+  a single item line never slices (monolithic-content rule); the container
   resumes deterministically.
 - Determinism: flex resolution is a pure function of measure; identical input
   → byte-identical PDF.
@@ -79,14 +79,14 @@ Acceptance Criteria for the honest breakdown).
   unused).
 - Advanced alignment (`align-content`, `justify-content: space-around/evenly`,
   baseline and overflow-safe variants).
-- Nested flex inside floats (CORE-62), multicol (CORE-63), or abspos
-  (CORE-64) — interaction specs land after the individual features. Nested
+- Nested flex inside floats, multicol, or abspos — interaction specifications
+  land after the individual features. Nested
   flex inside a flex item works (the item lays out through `layout_box`).
 - **Declared `height` on flex items.** The column path resolves an item's
   hypothetical main size from `flex-basis` first and falls back to the
   declared height (`specified_extent`); `flex: 1` (basis 0%) grows from zero
   against the container's definite main size. The cross-axis stretch and the
-  row path mirror the block path's content-based measure (CORE-66
+  row path mirror the block path's content-based measure (the current
   auto-height self-consistency) — see Behavior 9 for the column grow/shrink
   rule.
 - `wrap-reverse` line ordering (folds to `wrap`).
@@ -119,26 +119,26 @@ The engine shall:
    `break-inside: avoid` on an item moves the whole item to the next
    fragmentainer.
 6. Never slice an item line: a single item (or item line) taller than the
-   fragmentainer overflows it (CORE-51 monolithic rule), with last-resort
+   fragmentainer overflows it (monolithic-content rule), with last-resort
    breakpoints placing it.
 7. Resume deterministically: the flex line state (item order, accumulated
    sizes) is carried in the break token; page N+1 resumes without relayout of
    page N's items.
 8. Keep the CLI contract and determinism guarantees unchanged.
-9. **Cross-axis auto margins (css-flexbox-1 §8.1, CORE-153)**: an item's
+9. **Cross-axis auto margins (css-flexbox-1 §8.1)**: an item's
    auto cross margins absorb the line's free space and take precedence over
    `align-self`. Both sides auto → the item centers in the line; a LONE auto
    margin absorbs ALL the free space on its side (a zero margin on the
    opposite side does not disable it — `margin-top: auto; margin-bottom: 0`
    packs the item to the line's end).
-10. **Cross-axis stretch (css-flexbox-1 §9.4 step 4, CORE-153)**: an item
+10. **Cross-axis stretch (css-flexbox-1 §9.4 step 4)**: an item
    whose align-self resolves to `stretch` (the default) with an AUTO cross
    size and no auto cross margins grows so its MARGIN box fills the line's
    cross size. The flex container records the resolved used cross size in
    the item's child break token (`cross_override`); the block paint path
    grows the paint box to it like a declared height (never shrinking, so
    overflow text does not clip). Pagination stays content-based.
-11. **Column main-axis grow/shrink (css-flexbox-1 §9.7, CORE-207)**: a
+11. **Column main-axis grow/shrink (css-flexbox-1 §9.7)**: a
    column flex container resolves each item's hypothetical main size
    (height) from `flex-basis` — a length, a percentage of the container's
    DEFINITE main size, or 0% for `flex: 1` — falling back to the declared
@@ -157,9 +157,9 @@ The engine shall:
    (the margin-boxes refs' edges rely on this). Without a definite main
    size, grow/shrink does nothing and items keep their bases (css-flexbox-1
    §9.8).
-12. **Flex container border and box geometry (CORE-234)**: a flex container
+12. **Flex container border and box geometry**: a flex container
    with a `border` paints it and lays its items inside the border box,
-   exactly like the block path (CORE-126). The container fragment carries a
+   exactly like the block path. The container fragment carries a
    `FragmentContent::Border`; `content_top` includes `border_top` (when
    fresh), `inner_left`/`inner_width` include `border_left`/`border_right`,
    and the fragment origin is the border-box left edge. Previously the flex
@@ -167,7 +167,7 @@ The engine shall:
    so a bordered flex container diverged from its block-simulated reference
    (the `single-line-column-flex-fragmentation-066/068a-d/069a/c/d` pair
    flips from the v2026.9.1 batch).
-13. **Row line fragmentation (CORE-234 residuals)**: a row flex container whose
+13. **Row line fragmentation**: a row flex container whose
    line breaks inside keeps a box that spans its placed content — the raw
    line height is NOT dropped when an item's block breaks mid-line, so the
    container does not collapse to a border-only bar (single-line-row-046).
@@ -211,7 +211,7 @@ The engine shall:
   unchanged.
 - `layout.rs::collect_items_rec` treats flex displays as block-level items
   (they were falling into the inline branch, which folded flex children into
-  the parent's text run — a CORE-65 fix).
+  the parent's text run — an inline-item collection fix).
 - Fragmentation integration: flex items lay out with break tokens exactly
   like block children (the fragment tree's existing resume machinery); the
   container's token carries a `FlexToken` (line, next item, mid-line flag).
@@ -245,26 +245,27 @@ Each criterion maps to a test in `engine/tests/flex.rs` (helpers mirror
    container fragments; a single item line never slices;
    `break-inside: avoid` on an item moves the whole item to the next page.
 5. **WPT targets.** The flexbox print-reftests pass via the harness:
-   **12/31 passing after the CORE-114 propagation fixes (2026-08-24)** —
-   068a-d, 069a, 069b†, 069c, 069d†, 066, 080 — up from 11/27 at CORE-65
-   landing (069b/069d had silently regressed to failing; † = fixed by
-   CORE-114). The remaining failures are classified per test in the table
+   **12/31 passing after the propagation fixes (2026-08-24)** —
+   068a-d, 069a, 069b†, 069c, 069d†, 066, 080 — up from 11/27 at the initial
+   implementation baseline (069b/069d had silently regressed to failing;
+   † = fixed by the propagation patch). The remaining failures are classified
+   per test in the table
    below; each row records the evidence-backed root cause and the action
    taken or deferred:
 
    | Test | Failure mode | Root cause (evidence) | Classification |
    |---|---|---|---|
-   | 042 | page-1 pixel diff (~933 px) | Ref mocks flex with `position: relative` + `left/top` offsets on `height:`-declared items inside a `height: 2.5in` box; engine block path ignores declared height (CORE-66 auto-height model), so ref geometry collapses. Test itself needs fragmentation-aware cross-axis growth (item 3 pushed to page 2 lowers item 4). | Reference-limited (block-path `height` is a CORE-66-adjacent engine ticket) |
+   | 042 | page-1 pixel diff (~933 px) | Ref mocks flex with `position: relative` + `left/top` offsets on `height:`-declared items inside a `height: 2.5in` box; engine block path ignores declared height under its current auto-height model, so ref geometry collapses. Test itself needs fragmentation-aware cross-axis growth (item 3 pushed to page 2 lowers item 4). | Reference-limited (block-path `height` is outside this spec) |
    | 045 | test=3 pages vs ref=2 | Same ref family as 042: ref uses a plain block box with declared heights; test's flex container fragments differently because item heights are ignored inconsistently across paths. Table content (`thead` repeat) renders correctly on both sides. | Reference-limited (same root as 042) |
-   | 046 | page-2 pixel diff (~1474 px) | Text layout matches exactly (charbox-verified); residual is "After Flexbox" baseline y=111.0 vs ref 139.8 — the ref's trailing-margin handling after a forced mid-container break differs by one line box. | Engine gap (trailing margin/break interaction) — tracked as CORE-122 |
+   | 046 | page-2 pixel diff (~1474 px) | Text layout matches exactly (charbox-verified); residual is "After Flexbox" baseline y=111.0 vs ref 139.8 — the ref's trailing-margin handling after a forced mid-container break differs by one line box. | Engine gap (trailing margin/break interaction) |
    | 060 | test=2 pages vs ref=1 | Ref mocks `row-gap` + item-3 `margin-top` with `.gap` divs of declared height; engine ignores those heights so ref fits 1 page while flex test paginates honestly at 2. | Reference-limited (same root as 042) |
    | 063 | test=2 pages vs ref=1 | Ref replaces flex lines with gap divs; without honored heights all 6 items fit one page. Flex test's honest pagination gives 2. | Reference-limited (same root as 042) |
-   | 064 | page-1 pixel diff (~2514 px) | Ref uses `position: relative` offsets (`left: 1.75in`) to place items 3-2/3-1 out of source order; engine has no relative-offset painting for block/flex children, so positions differ structurally. | Engine gap (`position: relative` offset painting) — tracked as CORE-121 |
+   | 064 | page-1 pixel diff (~2514 px) | Ref uses `position: relative` offsets (`left: 1.75in`) to place items 3-2/3-1 out of source order; engine has no relative-offset painting for block/flex children, so positions differ structurally. | Engine gap (`position: relative` offset painting) |
    | 065 | test=3 pages vs ref=2 | Test sets `display: column` (invalid → falls back) over `display: flex`; ref is a plain block with a table. Engine treats the whole table as monolithic (no table fragmentation yet), pushing it whole to page 2. | Engine gap (table fragmentation) — out of flex scope |
    | 075 | page-1 pixel diff (~1316 px) | Ref mocks wrapped lines with abspos-positioned items in fixed-height divs; same height/offset family as 042/064. | Reference-limited (same roots as 042 + 064) |
    | 076 | page-1 pixel diff (~1316 px) | Same as 075 (variant with different top offsets). | Reference-limited |
-   | 081a–d | small pixel diffs p1+p2 (~250–270 px each) | CORE-107 fixed inline break-before parsing, so page COUNTS now match. Residual: refs emulate flex items as `display: inline-block`, which the engine folds into text runs (CORE-65 finding) — border/box geometry differs slightly. | Engine gap (`display: inline-block`) — tracked as CORE-120 |
-   | 082a–d | pixel diffs p1+p2 (~821/~3535 px) | Nested-flex tests whose refs use `display: inline-block` emulation AND an inline `break-before: page` on the nested wrapper. Break propagates correctly post-CORE-114; residual is inline-block geometry. | Engine gap (`display: inline-block`) — tracked as CORE-120 |
+   | 081a–d | small pixel diffs p1+p2 (~250–270 px each) | The inline break-before parser now works, so page COUNTS match. Residual: refs emulate flex items as `display: inline-block`, which the engine folds into text runs — border/box geometry differs slightly. | Engine gap (`display: inline-block`) |
+   | 082a–d | pixel diffs p1+p2 (~821/~3535 px) | Nested-flex tests whose refs use `display: inline-block` emulation and an inline `break-before: page` on the nested wrapper. Break propagates correctly; residual is inline-block geometry. | Engine gap (`display: inline-block`) |
 
    Cluster summary (supersedes the three-cluster list below, kept for
    history): **6 reference-limited** (042, 045, 060, 063, 075, 076 — all
@@ -273,17 +274,17 @@ Each criterion maps to a test in `engine/tests/flex.rs` (helpers mirror
    relative-offset ×2, table fragmentation ×1, margin-after-break ×1),
    **2 fixed this issue** (069b, 069d — nested-container forced-break
    propagation). The remaining failures were:
-   **11/27 passing at CORE-65 landing** — 068a-d, 069a-d (column-reverse /
+   **11/27 passing at the initial implementation baseline** — 068a-d, 069a-d (column-reverse /
    column break propagation), 066, 080, 046 — up from 0/27 (no flex at all).
    The remaining 16 fail for engine-wide reasons OUTSIDE flex scope,
    documented per cluster:
    - **Height-simulated references (060, 063, 064, 065, 075, 076, 042,
      045):** the refs mock flex geometry with `height:`-declared divs and
-     gap divs; the engine's BLOCK path ignores `height` (CORE-66
+     gap divs; the engine's BLOCK path ignores `height` (the current
      auto-height model), so the refs render compact and the flex test (which
      renders content-based but honors margins/gaps the refs can't) diverges
      or gains pages. Fixing these requires block-path height support — a
-     CORE-66-adjacent engine change, deliberately NOT made here (it would
+     adjacent engine change, deliberately NOT made here (it would
      regress the monolithic-overflow/body-background suites).
    - **Inline break-before on refs (081a-d):** the refs use
      `style="break-before: page"` inline attributes, which the engine's
@@ -322,9 +323,9 @@ Each criterion maps to a test in `engine/tests/flex.rs` (helpers mirror
 - Research brief (two-pass modes × fragmentation hard case):
   `docs/research/layoutng-fragmentation/typeanvil-layoutng-fragmentation-brief.md`
 - Fragment tree this builds on: `fragmentation-core.spec.md`
-- CORE-60 baseline (12 failing flexbox print-reftests): Linear CORE-60
+- 2026-08-17 release baseline (12 failing flexbox print-reftests).
 - stylo 0.20.0 `properties/longhands.toml` + `values/specified/box.rs`
   (verified 2026-08-18): all flex longhands compiled in the servo build;
   `display: flex`/`inline-flex` parse.
-- Self-consistency trap (test-vs-ref through the same engine, CORE-66):
-  `references/wpt-self-consistency-and-page-hardening.md`
+- Self-consistency is checked by the harness's test/reference run; the
+  repository does not carry a separate reference brief.

@@ -1,56 +1,78 @@
 ---
 title: Typeanvil Documentation
+type: convention
+status: approved
+owner: maintainers
+created: 2026-08-16
+updated: 2026-09-27
 sidebar_position: 1
+tags: [docs, meta, public]
 ---
 
 # Typeanvil Documentation
 
-The single source of truth for how Typeanvil works, how it is built, and how to
-operate it. Want to know how a feature behaves? Read its spec. Releasing? Read
-the runbook. Surprised by something? Write a lesson.
+This site documents the Typeanvil engine and its tooling. It is written for
+users, contributors, and AI agents who have access to the public repository and
+public web resources.
 
-```mermaid
-flowchart LR
-    subgraph docs["docs/ — the Docusaurus site"]
-        C[conventions/ — how we work and document]
-        S[specifications/ — one spec per feature]
-        A[architecture/ — how it fits together]
-        O[operations/ — release & tooling runbooks]
-        L[lessons/ — what didn't work]
-        R[research/ — agent research, by topic]
-    end
-    S -. keep in sync .-> CODE[(engine + harness)]
-    O -. releases .-> CODE
-    L -. referenced by .-> S
-```
-
-## Map
-
-| Folder | Purpose |
-|---|---|
-| `conventions/` | How we work and how we document |
-| `specifications/` | One spec per feature — the implementation contract |
-| `architecture/` | How the system fits together and why |
-| `operations/` | Runbooks: release, deploy, tooling |
-| `lessons/` | What didn't work, and what to do instead |
-| `research/` | Research done by agents, categorized by directory |
+The current behavior baseline is the `release/2026.9` branch. That branch is
+the integration line for the current release. Promotion to `main` follows the
+release gate and release procedure.
 
 ## Start here
 
-1. `conventions/doc-conventions.md` — the rules of this directory
-2. `conventions/frontmatter-schema.md` — the frontmatter every doc must carry
-3. `specifications/` — the features, one file each
-4. `research/` — what we've studied, topic by topic
-5. Browse this site interactively: `cd docsite && npm run start` (see
-   `operations/docs-site.md`)
+| Reader | Start with |
+|---|---|
+| User | [CLI reference](operations/cli.md), [architecture](architecture/overview.md), and the repository `README.md` |
+| Contributor | [development guidelines](conventions/development-guidelines.md), [documentation conventions](conventions/doc-conventions.md), and the [WPT harness](specifications/wpt-conformance-harness.spec.md) |
+| AI agent | `AGENTS.md`, [documentation conventions](conventions/doc-conventions.md), and the relevant feature specification |
 
-## Not in this directory
+## Map
 
-- **User-changeable configuration** → product docs / in-app help. Internal docs
-  describe the code, not the user's knobs.
-- **Transient AI task prompts and agent scratch** → never in this repository.
-  Compose prompts in worktree scratch; keep notes in the vault.
-- **Strategy, market, and product decisions** → Obsidian vault
-  (`brain/Projects/Typeanvil/`). The vault holds strategy; `docs/` holds
-  engineering truth. Research reports produced by agents go in
-  `docs/research/`, not the vault.
+```mermaid
+flowchart LR
+    D[docs/] --> C[conventions/\npublic working rules]
+    D --> S[specifications/\nfeature contracts]
+    D --> A[architecture/\ncurrent system design]
+    D --> O[operations/\nreproducible tooling]
+    D --> L[lessons/\ndurable engineering lessons]
+    D --> R[research/\npublic technical studies]
+    S --> E[(engine)]
+    O --> H[(harness and release tooling)]
+```
+
+## Documentation sections
+
+- [Architecture](architecture/overview.md) — engine pipeline, module
+  boundaries, fragmentation, PDF output, and test tooling.
+- [Conventions](conventions/doc-conventions.md) — public working rules and the
+  documentation boundary.
+- [Specifications](specifications/fragmentation-core.spec.md) — behavior contracts and
+  acceptance criteria.
+- [Operations](operations/cli.md) — CLI, container, harness, release, and
+  docs-site runbooks.
+- [Lessons](lessons/engine-layout.md) — durable engineering lessons.
+- [Research](research/wpt-harness/typeanvil-wpt-harness-brief.md) — cited
+  research that remains useful to public readers.
+
+## Public documentation boundary
+
+The repository contains stable technical information. Temporary issue triage,
+private project coordination, product strategy, raw probes, and machine-specific
+paths belong in an external note store. Repository docs must stand alone and
+must not require access to private trackers, vaults, or local files.
+
+See [Documentation Conventions](conventions/doc-conventions.md) for the complete
+boundary and lifecycle rules.
+
+## Site development
+
+The Docusaurus site reads content from this directory. To run it locally:
+
+```bash
+cd docsite
+npm run start
+```
+
+See [the docs-site runbook](operations/docs-site.md) for build and verification
+commands.
