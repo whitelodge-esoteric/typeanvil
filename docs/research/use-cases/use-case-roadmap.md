@@ -2,9 +2,9 @@
 title: Use-Case Research — Document Classes, Weighted Features, Corpus Expansion
 type: research
 status: approved
-owner: elijah
+owner: maintainers
 created: 2026-09-22
-updated: 2026-09-22
+updated: 2026-09-28
 sidebar_position: 1
 tags: [roadmap, use-cases, corpus, document-classes, features]
 ---
@@ -121,6 +121,6 @@ fragmentation) is caught by multiple documents, not one synthetic fixture.
 
 Approved 2026-09-22. The class/feature table and the 24-document corpus target
 are signed off. Next step: start the corpus expansion in weight order
-(Reports/Invoices first, then Books/Academic, then Manuals). The WPT epic
-(CORE-248) is the parking lot for conformance issues that do not overlap a
-weighted feature.
+(Reports/Invoices first, then Books/Academic, then Manuals). The WPT
+conformance epic is the parking lot for conformance issues that do not overlap
+a weighted feature.
