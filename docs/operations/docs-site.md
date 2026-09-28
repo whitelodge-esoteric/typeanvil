@@ -2,7 +2,7 @@
 title: Running the Docs Site
 type: runbook
 status: approved
-owner: elijah
+owner: maintainers
 created: 2026-08-16
 updated: 2026-08-16
 sidebar_position: 1
@@ -24,7 +24,7 @@ docs content lives in `docs/`; the site is just a renderer — edit markdown in
 
 ## Prerequisites
 
-- Node ≥ 20 (repo dev machine has v26).
+- Node ≥ 20.
 - Dependencies installed: `cd docsite && npm install`.
 
 ## Steps

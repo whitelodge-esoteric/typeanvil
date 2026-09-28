@@ -3,13 +3,12 @@ title: Selector Matching — Structural Pseudo-Classes Across Text Nodes
 slug: /specifications/selector-matching
 type: spec
 status: approved
-owner: elijah
+owner: maintainers
 created: 2026-09-09
-updated: 2026-09-09
+updated: 2026-09-27
 sidebar_position: 26
 tags: [engine, css, selectors, stylo, cascade]
 spec_id: selector-matching
-issue_id: CORE-155
 applies_to: engine 0.x
 dependencies: []
 ---
@@ -90,4 +89,4 @@ print-reftest named where applicable.
 - Servo's own `SelectorsElement` implementation for its DOM (the reference
   behavior this adapter mirrors).
 - `selectors` crate 0.40 `matching.rs` — `:nth-of-type` traversal.
-- Linear: CORE-155.
+- `engine/src/stylo_dom.rs` — the element-only sibling and child accessors.

@@ -2,14 +2,18 @@
 title: "Prince 16.2 string() keyword semantics — probe evidence"
 type: research
 status: approved
-owner: elijah
+owner: maintainers
 created: 2026-08-22
 updated: 2026-08-22
 sidebar_position: 2
 tags: [css-gcpm, paged-media, prince, probe]
 ---
 
-# Prince 16.2 `string()` keyword semantics — probed 2026-08-22 (CORE-108)
+# Prince 16.2 `string()` keyword semantics — probe evidence
+
+This study records a historical Prince 16.2 probe. It is retained as comparison
+ evidence only; the normative behavior is defined by [CSS Generated Content for
+ Paged Media Level 3](https://www.w3.org/TR/css-gcpm-3/).
 
 Three probe docs in this directory (`core-108-string-probe.html`,
 `core-108-except-probe.html`, `core-108-midpage-probe.html`), rendered with
@@ -59,3 +63,9 @@ Probe 3 ("Beta" starts MID-page on page 2, not at top):
   layout begins" — capture state must be snapshotted at page start.
 - Carry-over falls out of keeping one persistent current-value map plus a
   per-page list of assignments made during that page.
+
+## References
+
+- [CSS Generated Content for Paged Media Level 3](https://www.w3.org/TR/css-gcpm-3/) — normative named-string definitions.
+- [Prince generated content documentation](https://www.princexml.com/doc/gen-content/) — comparison-engine behavior.
+- [WPT css-gcpm directory](https://github.com/web-platform-tests/wpt/tree/master/css/css-gcpm) — public test corpus.

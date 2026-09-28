@@ -3,13 +3,12 @@ title: Cross-References — target-counter / target-text
 slug: /specifications/cross-references
 type: spec
 status: in-review
-owner: elijah
+owner: maintainers
 created: 2026-09-03
-updated: 2026-09-03
+updated: 2026-09-27
 sidebar_position: 18
 tags: [engine, css-gcpm, cross-references, toc, determinism]
 spec_id: cross-references
-issue_id: CORE-129
 applies_to: engine 0.x
 dependencies: [paged-media-css, hyperlinks]
 ---
@@ -21,9 +20,9 @@ dependencies: [paged-media-css, hyperlinks]
 Reports and papers reference their own sections: a TOC entry reads
 "Foundations ........ 2", body text reads "see §3.2 on page 14". PrinceXML
 expresses these with css-gcpm-3 generated content: `target-counter(url,
-counter-name)` and `target-text(url)`. TypeAnvil already shipped TOC leaders
-(CORE-99), internal link annotations (CORE-104), and the `counter(pages)`
-two-pass loop (CORE-84); `target-counter(attr(href), page)` rode the same
+counter-name)` and `target-text(url)`. TypeAnvil already ships TOC leaders,
+internal link annotations, and the `counter(pages)` two-pass loop;
+`target-counter(attr(href), page)` rides the same
 loop. This spec completes the pair: the counter-name argument (named document
 counters and `pages`) and `target-text()`.
 
@@ -55,7 +54,7 @@ counters and `pages`) and `target-text()`.
    element (document order) with that `id` is the target.
 3. `target-counter(..., page)` **shall** resolve to the 1-based page number
    the target element lands on, via the existing bounded multi-pass loop
-   (hard cap 3; same map CORE-104's link resolution reads).
+   (hard cap 3; the same map used by link resolution).
 4. `target-counter(..., pages)` **shall** resolve to the document's total
    page count from the previous pass (same value `counter(pages)` yields).
 5. `target-counter(..., <name>)` for a named counter **shall** resolve to the
@@ -70,7 +69,7 @@ counters and `pages`) and `target-text()`.
    `target-text` alike — never a panic, never a bogus number.
 8. Resolution **shall** be a pure function of the document: BTreeMap state,
    document-order walks, no clock, no environment reads (determinism rule,
-   CORE-105).
+   the determinism contract).
 9. The leader-fill reservation **shall** keep treating resolved pieces at the
    0.5em per-character heuristic, so the two-pass TOC convergence property
    (paged-media-css spec §9–10) is preserved.
@@ -121,5 +120,4 @@ counters and `pages`) and `target-text()`.
 
 - css-gcpm-3 §7 (target-counter, target-text).
 - Paged media spec (two-pass machinery): `docs/specifications/paged-media-css.spec.md`.
-- Link annotations: `docs/specifications/hyperlinks.spec.md` (CORE-104).
-- Linear: CORE-129.
+- Link annotations: `docs/specifications/hyperlinks.spec.md`.

@@ -3,14 +3,12 @@ title: Out-of-Flow Positioning
 slug: /specifications/out-of-flow-positioning
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-08-18
-updated: 2026-09-19
+updated: 2026-09-27
 sidebar_position: 9
 tags: [engine, layout, css-position, css-break, fragmentation]
 spec_id: out-of-flow-positioning
-issue_id: CORE-64
-superseded_by_note: Behaviors 5/9 refined by CORE-169 (2026-09-13); Behavior 9 exception by CORE-185 (2026-09-15)
 applies_to: engine 0.x
 dependencies: [fragmentation-core, wpt-conformance-harness]
 ---
@@ -67,8 +65,8 @@ harness, plus unit tests in `engine/tests/position.rs`.
   until sticky semantics land (non-goal).
 - Stacking contexts / z-index beyond sibling ordering (no compositing,
   opacity-created stacking contexts).
-- Abspos inside floats (CORE-62), multicol (CORE-63), or flex (CORE-65) — the
-  interaction specs land after the individual features.
+- Abspos inside floats, multicol, or flex — the interaction specs land after
+  the individual features.
 - Transforms as containing-block creators; abspos in the `@page` margin-box
   context.
 
@@ -95,7 +93,7 @@ The engine shall:
    (css-break-3; the Chromium tree-mapping rule). Concretely: the fragment is
    appended to `fragmentainer.root.children` (the page root's children),
    already in PAGE-ABSOLUTE coordinates (the out-of-flow branch lays against
-   `content.x`/`content.y` directly — CORE-127 slice b; the earlier
+   `content.x`/`content.y` directly; the earlier
    content-origin subtraction double-shifted paint up-left by the margin,
    hidden because test and ref shifted identically), so the in-flow
    subtree never sees it.
@@ -106,7 +104,7 @@ The engine shall:
    containing block (page 0's content box — the anchor page), laid out ONCE
    after pagination, with the fragment CLONED onto every page at the page's
    own content-origin offset (css-position-3 §fixed in paged media: fixed
-   content repeats on all pages; CORE-127 slice b). A named page resolving a
+   content repeats on all pages). A named page resolving a
    different `@page` size/margin shifts the clone by the content-origin
    delta; the box keeps its anchor-page geometry. Nested fixed boxes are
    consumed by their outer box (one clone covers the subtree).
@@ -118,14 +116,14 @@ The engine shall:
    any inset, or whose containing block is a positioned ancestor — taller
    than the fragmentainer: the box is PLACED ONCE (like last-resort lines)
    and may overflow the page bottom; it never slices and never resumes
-   across pages — the abspos item needs no break token. REFINED (CORE-169):
+   across pages — the abspos item needs no break token. REFINED:
    a PAGE-ANCHORED abspos box (auto insets, initial containing block) at
    its static position with a declared extent fragments across
    fragmentainers like an in-flow box (css-break-3 §2.3 class A): when it
    does not fit the remaining space, it defers whole to the next page
-   (one deferral, then force-place — the CORE-109 guard), and its fragments
+   (one deferral, then force-place — the repeat-deferral guard), and its fragments
    attach page-locally, each page's own `@page` context applying.
-   EXCEPTION (CORE-185): a PINNED box whose used inset lands AT OR PAST the
+   EXCEPTION: a PINNED box whose used inset lands AT OR PAST the
    fragmentainer bottom must not vanish — the offset resolves against the
    page AREA, so `top: 500px` at a 216pt page height belongs to page 2 and
    the document GROWS to include that page (Chromium fragmented printing).
@@ -134,7 +132,7 @@ The engine shall:
    bottom limit (a tall box fragments across pages, css-break-3 class A
    once started), and the body's in-flow siblings after it still place on
    the current page (the box is out of flow; no loop break).
-   EXCEPTION (CORE-187): a PINNED box that STARTS inside the page, declares
+   EXCEPTION: a PINNED box that STARTS inside the page, declares
    an extent, and does not fit the space left on that page FRAGMENTS from
    that page (css-break-3 §2.3 class A) instead of overflowing invisibly —
    Chromium renders `top:50px; height:1000px` as 6 pages at the harness
@@ -149,14 +147,14 @@ The engine shall:
    and a drained box that fits ONE fragmentainer overflows in place instead
    of paginating (fixedpos-004's `bottom:-100vh` reference boxes stay on
    their own page).
-   EXCEPTION (CORE-204): the CORE-187 fragment decision and the CORE-185
-   past-page defer use the REAL fragmentainer bottom (`content_y +
+   EXCEPTION: the pinned-box fragment decision and the past-page defer use
+   the REAL fragmentainer bottom (`content_y +
    page_height`), never an inherited `bottom_limit` that a MONOLITHIC
    ancestor widened to `f64::MAX` — a nested abspos whose parent fits one
    fragmentainer must still fragment its own declared extent against the
    page (overflowing-block-print-ref: 1 page before, 3 after, matching
    Chromium). The declared-extent test is `resolved_height_or_percent` (the
-   CORE-169 walk): absolute lengths, viewport units, AND percentages all
+   declared-extent walk): absolute lengths, viewport units, AND percentages all
    count (`height: 300%` fragments). Percentage heights resolve against the
    nearest definite ancestor extent, else the page content box. At the body
    level `bottom_limit` already equals the real bottom, so top-level
@@ -175,7 +173,7 @@ The engine shall:
 ### `engine/src/css.rs`
 
 - Add engine-owned types (the seam: `ComputedStyle` never carries stylo types —
-  mirror the CORE-62 `Float` mapping):
+  mirror the existing `Float` mapping):
 
   ```rust
   /// CSS `position` (mapped from stylo `PositionProperty`).
@@ -198,7 +196,7 @@ The engine shall:
   pub z_index: Option<i32>,
   ```
 
-- `ComputedStyle.clips_overflow` (CORE-187): `true` when either
+- `ComputedStyle.clips_overflow`: `true` when either
   `overflow-x` or `overflow-y` is non-`visible` (`visible` beside a clipping
   axis computes to `auto`, css-overflow-3 §3). Layout reads it through
   `Ctx::clips_overflow_ancestor` to keep a clipped abspos subtree from
@@ -210,7 +208,8 @@ The engine shall:
   `to_length()` = `None`) → `Option<Scalar>`; `box_.clone_z_index()` →
   `Option<i32>`. `ComputedStyle::initial()`: `Static`, insets `None`,
   `z_index: None`. (Verify accessor struct placement in the generated
-  `properties.rs` before relying on it — see CORE-62's `clone_width` lesson.)
+  `properties.rs` before relying on it — the same accessor-placement caveat
+  recorded for the float mapping's `clone_width`.)
 
 ### `engine/src/layout.rs`
 
@@ -222,43 +221,43 @@ The engine shall:
     box) is the fallback.
   - `abspos: Vec<Fragment>` — abspos fragments with page-absolute offsets,
     drained into the fragmentainer root after each page.
-  - `abspos_jobs: Vec<AbsposJob>` (CORE-169) — page-anchored abspos boxes
+  - `abspos_jobs: Vec<AbsposJob>` — page-anchored abspos boxes
     queued to continue on the NEXT fragmentainer; snapshotted at page start
     (`drained_jobs`), drained after the body layout of the page that
     follows the deferral. Each job lays ONE fragment through the
     block-family dispatch (`layout_table_like`) with a real `bottom_limit`
-    (so CORE-167's declared-height fragmentation slices it), pushing
+    (so declared-height fragmentation slices it), pushing
     fragments DIRECTLY into the current fragmentainer root.
-  - `abspos_resume_tokens: BTreeMap<NodeId, BreakToken>` (CORE-169) — the
+  - `abspos_resume_tokens: BTreeMap<NodeId, BreakToken>` — the
     continuation token of a box whose drain fragment broke again.
-  - `abspos_finished: Vec<NodeId>` (CORE-169) — boxes the drain placed to
+  - `abspos_finished: Vec<NodeId>` — boxes the drain placed to
     completion; the body item loop drops their stale pending tokens.
-  - Body item-loop rule (CORE-169): a child carrying a `deferred_once`
+  - Body item-loop rule: a child carrying a `deferred_once`
     child token is drain-owned — the body never re-renders it; it carries
     the token forward (with `broke = true`, keeping the page loop alive)
     while a job or resume token exists for it, and drops the token once
     the drain finished the box.
 - In the block item loop, a child with `position: Absolute | Fixed` takes the
-  **out-of-flow branch** (parallel to the CORE-62 float branch): resolve the
+  **out-of-flow branch** (parallel to the float branch): resolve the
   containing block (nearest positioned ancestor, else the page content box;
   `Fixed` always the page content box), resolve x/y from the insets (left →
   `cb.x + left`; else right → `cb.x + cb_w - w - right`; else static x = cb.x;
   same for y with top/bottom), measure (width auto → shrink-to-fit, height via
   `measure_block`), lay the box monolithically with the page bottom, push the
   fragment to `flow.abspos`, and do NOT advance the in-flow cursor. `continue`
-  with an explicit `i += 1` (the CORE-62 lesson).
+  with an explicit `i += 1` (the float-branch lesson).
 - `measure_block` skips `position: Absolute | Fixed` children (they add no
   in-flow height) — same rule as floats.
 - After `layout_root` returns for a page, drain `flow.abspos` (sorted stable by
   `z_index`, tree order for ties/`None`) into `fragmentainer.root.children`.
-  The offsets are already page-absolute (CORE-127 slice b) — no origin
+  The offsets are already page-absolute — no origin
   adjustment is applied at drain time; the emitter's root walk treats every
   root child as page-absolute.
 
 ### `engine/src/frag.rs`
 
 - `Fragmentainer` gains `content_origin: Point` — the page-absolute origin of
-  the page's content box (CORE-127 slice b), set by `paginate` for every page
+  the page's content box, set by `paginate` for every page
   it lays out. The fixed-position attachment pass uses it to shift each
   fixed clone by the page's content-origin delta (named pages may resolve a
   different `@page` size/margin per page). Abspos fragments ride the
@@ -294,13 +293,13 @@ Each criterion maps to a test in `engine/tests/position.rs` (helpers mirror
    relative (no crash, offsets applied).
 8. **Determinism.** Two renders are byte-identical; the full existing engine
    test suite still passes.
-9. **Page-anchored abspos fragmentation (CORE-169).** Given a page-anchored
+9. **Page-anchored abspos fragmentation.** Given a page-anchored
    `position: absolute` container with declared-height children spanning
    more than the remaining fragmentainer space, the box defers to a fresh
    page and its children slice at fragmentainer edges; each page's own
    `:left`/`:right` `@page` context applies per fragment
    (page-margin-007).
-10. **Pinned abspos fragmentation (CORE-187).** Given a pinned
+10. **Pinned abspos fragmentation.** Given a pinned
     `position: absolute; top: 50px; height: 1000px` box on a 3in-high page,
     the box fragments across six pages with its first fragment on the page
     its offset belongs to (Chromium-verified; `fixedpos-004-print` matches
@@ -322,10 +321,10 @@ Each criterion maps to a test in `engine/tests/position.rs` (helpers mirror
 - Abspos box taller than the fragmentainer: pinned boxes (insets or a
   positioned containing block) WITHOUT a declared extent overflow
   monolithically and are never sliced; a pinned box WITH a declared extent
-  that exceeds the page it starts on fragments from that page (CORE-187),
-  and page-anchored boxes (CORE-169) fragment at fragmentainer edges. A
+  that exceeds the page it starts on fragments from that page, and
+  page-anchored boxes fragment at fragmentainer edges. A
   pinned box inside an `overflow`-clipping ancestor always overflows in
-  place: the clip means its overflow cannot paginate the document (CORE-187).
+  place: the clip means its overflow cannot paginate the document.
 - Abspos inside a table cell: containing block resolution follows the same
   ancestor rule (the cell's positioned ancestor, else the page) — basic
   behavior only, deeper table+abspos interactions deferred.
@@ -339,6 +338,5 @@ Each criterion maps to a test in `engine/tests/position.rs` (helpers mirror
 - Chromium tree-mapping lesson (the issue's framing): see
   `docs/research/layoutng-fragmentation/typeanvil-layoutng-fragmentation-brief.md`
 - Fragment tree this builds on: `fragmentation-core.spec.md`
-- Parent epic: Linear CORE-54.
 - stylo 0.20.0 `properties/longhands.toml` (verified 2026-08-18): `position`,
   `top`/`left`/`right`/`bottom`, `z-index` — compiled in the servo build.

@@ -3,13 +3,12 @@ title: OpenType Feature Settings — font-feature-settings and font-variant-*
 slug: /specifications/opentype-features
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-08-24
-updated: 2026-08-24
+updated: 2026-09-27
 sidebar_position: 14
 tags: [engine, css-fonts, typography, opentype, determinism]
 spec_id: opentype-features
-issue_id: CORE-113
 applies_to: engine 0.x
 dependencies: [font-resolution, font-weight-style, typography-layer]
 ---
@@ -163,7 +162,7 @@ pub fn shape_word(word: &str, font_size: Scalar, face: FaceId,
 
 ## References
 
-- Issue CORE-113; blocked-by relationship satisfied by CORE-103
+- Blocked-by relationship satisfied by `font-resolution.spec.md`
   (custom fonts landed).
 - css-fonts-4 §10 (font-feature-settings) and §6 (font-variant-*).
 - HarfRust 0.13 `ShapeOptions::features` API (verified in crate source).

@@ -3,13 +3,12 @@ title: Auto Table Layout — Column-Width Distribution
 slug: /specifications/auto-table-layout
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-08-20
-updated: 2026-09-15
+updated: 2026-09-27
 sidebar_position: 13
 tags: [layout, tables, css-tables, engine, demo-parity]
 spec_id: auto-table-layout
-issue_id: CORE-81
 applies_to: engine 0.x
 dependencies: [tables-fragmentation, fragmentation-core, paged-media-css]
 ---
@@ -18,7 +17,7 @@ dependencies: [tables-fragmentation, fragmentation-core, paged-media-css]
 
 ## Overview
 
-The CORE-79 demo triage (2026-08-19) isolated the largest remaining
+The 2026-08-19 demo triage isolated the largest remaining
 table-driven diff: **table-stress at 33.5% (TypeAnvil 20 pages vs Prince
 45)**. The root cause is the column-width distribution in auto table layout.
 TypeAnvil fits 4 data rows/page (row pitch 14.8pt); Prince fits 1–3 (pitch
@@ -26,13 +25,12 @@ TypeAnvil fits 4 data rows/page (row pitch 14.8pt); Prince fits 1–3 (pitch
 descriptions wrap to two lines, while TypeAnvil gives it its full
 max-content width (~150pt+) so nothing wraps.
 
-`measure_columns` in `engine/src/table.rs` (from CORE-61) is a
-**max-content-only heuristic**: it measures each column's widest wrapped line
-capped at the available width, and either keeps those widths as-is (when the
-sum fits) or scales them down proportionally. The CSS auto table layout
-algorithm (CSS2.1 §17.5.2.2, refined by css-tables-3 §10.4.2) instead uses a
-**min-content/max-content basis** and distributes the available width in two
-passes. This spec replaces the heuristic with that algorithm.
+`measure_columns` in `engine/src/table.rs` uses the CSS auto table layout
+algorithm (CSS2.1 §17.5.2.2, refined by css-tables-3 §10.4.2): it measures
+min-content and max-content widths, then distributes the available width in
+two passes. The release implementation also carries a bounded first-page
+measure scope for fragmented tables; the companion specification documents
+that Prince-parity refinement.
 
 **Verified ground truth (2026-08-20, demo geometry: 5in × 3in page, 0.5in
 margins → 288pt content width — the build-demo.sh flags):**
@@ -56,7 +54,8 @@ margins → 288pt content width — the build-demo.sh flags):**
   freeze**: Prince measures only the header + first-page rows, so its
   Description column is ≈57pt (the header's own width — it never sees the
   112pt "Disappearing/reappearing" row, which lands on page 2). Matching
-  that freeze is a follow-up (CORE-89); the standard algorithm ships first.
+  that freeze is implemented by the companion
+  [first-page column-freeze specification](table-first-page-column-freeze.spec.md).
 - On an unconstrained two-column probe (long text + short number, room to
   spare, Letter geometry), Prince gives the long column its max-content
   (357pt) and the short column max + a share of extra (33pt) — the
@@ -64,7 +63,7 @@ margins → 288pt content width — the build-demo.sh flags):**
   width), Prince splits col1 ≈ 293pt / col2 ≈ 23pt, matching the css-tables-3
   middle branch within measurement error (predicted 297 / 22.9).
   Measurement method: char-box geometry from both PDFs
-  (`demo/scripts/col_words.py`), the same technique CORE-79 used.
+  (`demo/scripts/col_words.py`), using the repository's column-geometry method.
 
 **Fitness function:** the table-stress corpus fixture page count moves
 materially toward Prince's 45 (from 20), plus the parity probe below, plus
@@ -92,18 +91,19 @@ regression guard.
 
 - `table-layout: fixed` — the engine does not read `table-layout`; `fixed`
   resolves to the auto algorithm (documented limitation, unchanged from
-  CORE-61).
+  the table-layout contract).
 - Percentage column widths as *per-column* sizing (`<col>`, `th { width: % }`)
   — only the table's own width percentage is in scope.
 - `rowspan` — row-spanning cells are not supported (a `rowspan` cell occupies
   its own grid slot only).
 - Full css-tables-3 §10.4.3 spanning-cell distribution — a spanning cell
   contributes an **equal share** of its intrinsic to each spanned column
-  (CORE-96 simplification, Prince-matching); the spec's clamping/redistribution
+  (a Prince-matching simplification); the spec's clamping/redistribution
   details are not implemented.
 - `border-collapse: separate` + `border-spacing` (defaults: collapse).
 - Table-in-table measure (nested tables stay block-stacked).
-- Tables inside multicol (CORE-78 fixed the hang; width parity there is a
+Table inside multicol (the termination guard is covered by the multicol
+integration tests; width parity there is a
   later pass).
 
 ## Behavior
@@ -118,7 +118,7 @@ The engine SHALL implement the following, stated as "shall" rules:
    the width of "Disappearing/reappearing" (≈112pt at 9pt Arial) — the
    measured width of Prince's Description column on table-stress (verified
    2026-08-20). Empty cells SHALL contribute their padding + borders only
-   (CORE-61 rule). **Standards-alignment note:** CSS sizing treats UAX #14
+   (existing table-measure rule). **Standards-alignment note:** CSS sizing treats UAX #14
    break opportunities as min-content break points, so the standard measure
    is narrower; this rule deviates to match Prince's observed glue behavior.
    It is a documented exception under
@@ -163,11 +163,11 @@ The engine SHALL implement the following, stated as "shall" rules:
 9. **Spanning-cell measure and placement (`colspan`).** A cell with
    `colspan` > 1 SHALL contribute an **equal share** of its intrinsic
    min/max (`cell / span`) to each spanned column (css-tables-3 §10.4.3
-   simplification, CORE-96) and SHALL occupy every spanned column slot in
+   simplification) and SHALL occupy every spanned column slot in
    layout — its box spans the summed column widths and its row height is
    measured at the spanned width. This is what keeps a tfoot's
    `colspan="4"` total from inflating one column to its whole-text width
-   (Prince parity, CORE-96). `rowspan` remains unsupported (Non-Goals).
+   (Prince parity). `rowspan` remains unsupported (Non-Goals).
 
 ## Interfaces
 
@@ -248,7 +248,7 @@ pipeline:
 5. **Used width resolution** — Given the same 6-column table with
    `width: auto` vs `width: 100%` vs `width: 400pt`, when rendered, then the
    used widths differ as specified (`test_table_used_width_resolution`).
-6. **Description column wraps (the CORE-79 lever)** — Given a 6-column table
+6. **Description column wraps (the demo parity lever)** — Given a 6-column table
    shaped like table-stress (SKU / long Description / 4 numeric) with
    `width: 100%` at the demo geometry (5in × 3in page, 0.5in margins → 288pt
    content), when measured, then the overflow branch applies (sum(min) > used)
@@ -259,7 +259,7 @@ pipeline:
    rendered through the engine at the demo geometry (build-demo.sh flags:
    `--page-width 5in --page-height 3in`, 0.5in margins), when the page count
    is measured, then it is > 20 (measured 21; the old heuristic pinned 20 —
-   see the Overview for why full 45-page parity needs the CORE-89 follow-up)
+   see the Overview for why full 45-page parity needs first-page measurement)
    (`test_table_stress_page_count_grows`).
 8. **Two-column probe parity** — Given the two-column probe fixture (long
    text + short numeric, fixed table width of 320pt on a Letter page that
@@ -267,7 +267,7 @@ pipeline:
    width equals the Prince-verified constant ≈ 295pt within ±2% (wrapped vs
    unwrapped cell geometry compared in both PDFs during the demo pass)
    (`test_two_column_probe_width`).
-9. **Regression** — Given the existing engine tests (incl. the 36 CORE-61
+9. **Regression** — Given the existing engine tests (including the table
    baseline), when the change lands, then all stay green; the demo scoreboard
    regenerates and table-stress diff drops from 33.5%.
 
@@ -282,8 +282,8 @@ pipeline:
 - A table with only a header (no body): header cells drive the intrinsics.
 - Cells with `white-space: nowrap` or long unbreakable tokens: min-content
   grows accordingly (already handled by the breaker).
-- Nested tables: unchanged (block-stacked per CORE-61).
-- Table inside multicol (CORE-78 regression guard): widths measured against
+- Nested tables: unchanged (block-stacked).
+- Table inside multicol (regression guard): widths measured against
   the column content width; the termination fix must not regress.
 
 ## Verification
@@ -295,15 +295,15 @@ pipeline:
    char-box extraction (`demo/scripts/col_words.py <pdf>`) — the
    technique that produced the ground truth above.
 4. `demo/corpus/out/scoreboard.json` regenerated; table-stress `typeanvil_pages`
-   moves 20 → 21 (see Overview; CORE-89 closes the residual gap) and the
+   moves 20 → 21 (see Overview; first-page measurement addresses the residual gap) and the
    overall diff drops below 33.5%.
-5. Close the loop in Linear (CORE-81) with What-was-built / Verification /
-   Next pass; commit messages reference CORE-81.
+5. Record the implementation, verification, and any remaining parity work in
+   the repository documentation or release notes.
 
 ## References
 
-- CORE-79 second demo triage (parent issue; measurement evidence).
-- CORE-61 `tables-fragmentation` spec (the feature this replaces the
+- 2026-08-19 demo triage (measurement evidence).
+- `tables-fragmentation.spec.md` (the feature this replaces the
   column-measure part of; §Behavior #3).
 - css-tables-3 §10.4.2 (extra-width distribution), CSS2.1 §17.5.2.2 (auto
   table layout).

@@ -3,13 +3,12 @@ title: Existing-hyphen breaks render one hyphen
 slug: /specifications/existing-hyphen-break
 type: spec
 status: in-review
-owner: elijah
+owner: maintainers
 created: 2026-08-20
-updated: 2026-08-20
+updated: 2026-09-27
 sidebar_position: 16
 tags: [engine, typography, hyphenation, line-breaking]
 spec_id: existing-hyphen-break
-issue_id: CORE-98
 applies_to: engine 0.x
 dependencies: [typography-layer, hyphenation-line-break-parity]
 ---
@@ -50,7 +49,8 @@ Non-Goals:
    the preceding syllable box's text, so the line that breaks there must not
    receive a second glyph.
 2. `push_word` shall emit `hyphen: Some` penalties (with the hyphen glyph) for
-   every other Liang break boundary, unchanged from CORE-97.
+   every other Liang break boundary, unchanged from the existing hyphenation
+   pipeline.
 3. `materialize_line` shall append the hyphen glyph only when the break item
    carries `hyphen: Some` (unchanged code path; the fix is purely which
    penalties carry a glyph).
@@ -83,7 +83,7 @@ breaks at its own hyphen (e.g. 39pt, demo geometry):
   `-` in the line text.
 
 Mapped test: `engine/tests/typography.rs`
-`existing_hyphen_break_single_hyphen` (CORE-98 regression).
+`existing_hyphen_break_single_hyphen` (regression).
 
 Given the letterhead demo fixture rendered through the CLI:
 
@@ -107,7 +107,7 @@ Given the letterhead demo fixture rendered through the CLI:
 
 ## References
 
-- CORE-97 spec: `hyphenation-line-break-parity` (hypher syllable pipeline,
+- `hyphenation-line-break-parity.spec.md` (hypher syllable pipeline,
   `LEFT_HYPHEN_MIN`, K-P penalty semantics).
 - `engine/src/typography.rs` — `push_word`, `materialize_line`.
 - Demo triage 2026-08-20 at `5afe57d` (letterhead p1 `page--`).

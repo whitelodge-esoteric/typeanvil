@@ -3,13 +3,12 @@ title: CSS line-height
 slug: /specifications/line-height
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-08-18
-updated: 2026-08-20
+updated: 2026-09-27
 sidebar_position: 6
 tags: [engine, css, typography, line-height]
 spec_id: line-height
-issue_id: CORE-74
 applies_to: engine 0.x
 dependencies: [typography-layer, visual-comparison-demo]
 ---
@@ -18,18 +17,15 @@ dependencies: [typography-layer, visual-comparison-demo]
 
 ## Overview
 
-The engine currently hardcodes every line box height as `font_size * 1.2`
-(`layout.rs` `LINE_HEIGHT_FACTOR = 1.2`), ignoring the CSS `line-height`
-property. Discovered during CORE-73 close-out: the demo corpus declares
-`line-height: 1.2` in its CSS, but only Prince honors it — TypeAnvil's own
-hardcoded factor made the numbers coincidentally close for `1.2` while
-remaining wrong for every other declared value, and the visual comparison
-divergence (Table Stress: TypeAnvil 20 pages vs Prince 45; diff % stuck in the
-15–34% band) is driven by vertical metrics.
+The engine resolves element `line-height` through stylo and stores the result
+as an absolute point value in `ComputedStyle::line_height`. `normal` retains
+the deterministic `1.2` factor; unitless numbers and resolved lengths are
+handled per the CSS inheritance rules. The same value drives line fragments,
+text-height measurement, and baseline placement.
 
-This issue makes the engine honor `line-height` so vertical metrics match
-Prince's when the document declares a line height. It is the single
-highest-leverage correctness fix for the visual comparison demo.
+The implementation was introduced to remove the former fixed-factor behavior.
+The remaining contract in this document defines the supported value grammar,
+the measurement sites, and the observable baseline formula.
 
 **Path chosen: stylo.** `line-height` compiles in stylo's servo build
 (verified 2026-08-18 against stylo 0.20.0 generated `properties.rs`:
@@ -102,9 +98,7 @@ The engine shall:
     `baseline = box_top + ascent + (line_height − ascent − descent)/2`,
     where `ascent`/`descent` are the face's hhea metrics scaled to the run's
     font size. The line box HEIGHT remains `line_height`; only the glyph
-    baseline moves. (CORE-90: this replaces the historic
-    `box_top + font_size`, which made prose page counts cross Prince between
-    line-height 1.2 and 1.6.)
+    font size. This replaces the former `box_top + font_size` placement.
 
 ## Interfaces
 
@@ -146,7 +140,7 @@ The engine shall:
 
 ### `engine/src/typography.rs`
 
-- Add (CORE-90):
+- Add:
 
   ```rust
   /// The face's hhea vertical metrics as (ascent, descent) fractions of em.
@@ -177,7 +171,7 @@ The engine shall:
 ### `engine/src/table.rs`
 
 - Line 198 (`measure_text_height`): `let line_height = style.line_height;`
-  (the call site the CORE-74 description's "four sites" list missed — it is a
+  (the call site the implementation description's "four sites" list missed — it is a
   height measure that must mirror laid-out lines).
 
 ## Acceptance Criteria
@@ -207,12 +201,12 @@ Each criterion maps to a test in `engine/tests/line_height.rs` (helpers mirror
 7. **Determinism preserved.** Rendering the same doc twice with a declared
    `line-height` produces byte-identical PDFs (CLI render + hash compare, as
    in `tests/smoke.rs`).
-8. **Baseline placement (CORE-90).** Given a single-line block with
+8. **Baseline placement.** Given a single-line block with
    `font-size: 10pt; line-height: 1.6` at content top 36pt, the first text
    baseline is at `36 + 0.9053·10 + (16 − 0.9053·10 − 0.2119·10)/2` ≈ 47.46pt
-   — NOT `36 + 10` (the pre-CORE-90 behavior). Asserted on the fragment
+   — NOT `36 + 10` (the former placement). Asserted on the fragment
    tree's `TextRun.baseline.y` in page coordinates.
-9. **Prince parity of the offset function (CORE-90).** `baseline_offset`
+9. **Prince parity of the offset function.** `baseline_offset`
    reproduces the values measured from Prince 16.2 output (Arial hhea
    asc/desc 1854/434 per 2048): e.g. `(10pt, 12pt) → 9.467`, `(10pt, 16pt) →
    11.467`, `(15pt, 24pt) → 17.200`, each within 0.01pt.
@@ -237,11 +231,10 @@ Each criterion maps to a test in `engine/tests/line_height.rs` (helpers mirror
 - css-inline-3 `line-height`: https://drafts.csswg.org/css-inline-3/#line-height-property
 - CSS2.1 §10.8.1 leading and half-leading (baseline offset formula):
   https://www.w3.org/TR/CSS21/visudet.html#leading
-- CORE-90 (baseline placement divergence — the follow-up this spec's §Behavior
-  10 and criteria 8–9 document): Linear CORE-90; probe evidence in
-  `probe/CORE90_DIAGNOSIS.md` (worktree)
-- CORE-73 close-out (discovery: corpus font-pinning converged page counts but
-  not diff %, engine ignores `line-height`): Linear CORE-73
+- `engine/src/css.rs` — stylo conversion of `LineHeight::{Normal, Number,
+  Length}` into `ComputedStyle::line_height`.
+- `engine/src/typography.rs` — `baseline_offset` and font metrics used by the
+  line fragments.
 - Visual comparison demo (the consumer this fix serves): `visual-comparison-demo.spec.md`
 - Typography layer (line boxes, K-P breaking — untouched by this issue):
   `typography-layer.spec.md`

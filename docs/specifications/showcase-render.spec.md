@@ -3,13 +3,12 @@ title: Showcase Render
 slug: /specifications/showcase-render
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-09-08
-updated: 2026-09-16
+updated: 2026-09-27
 sidebar_position: 6
 tags: [demo, showcase, print-resolution, gallery]
 spec_id: showcase-render
-issue_id: CORE-148
 applies_to: demo 0.x
 dependencies: [visual-comparison-demo, paged-media-css, fragmentation-core, images, footnotes, cross-references]
 ---
@@ -58,12 +57,12 @@ is not a diff target).
 ## Non-Goals
 
 - No Prince diffing or SCORING for showcase fixtures. Prince is a mirror,
-  not a judge (CORE-211 discussion, 2026-09-15): a visual difference from
-  Prince is a hint, not a defect. Defects are defined by the visual-QA
-  checks (CORE-216), never by divergence from Prince.
+  not a judge (2026-09-15): a visual difference from Prince is a hint, not a
+  defect. Defects are defined by the visual-QA checks, never by divergence
+  from Prince.
 - No changes to the comparison pipeline's geometry, manifest, or scoreboard.
-- SVG content in fixtures waits for CORE-131 to reach main (raster images
-  only). When SVG lands on main, a showcase fixture MAY add an SVG figure.
+- SVG content in fixtures waits for SVG rasterization support (raster images
+  only). When SVG support lands, a showcase fixture MAY add an SVG figure.
 - No new engine features. If a fixture exposes an engine gap, file an issue;
   the fixture either avoids the gap or records a known-limitation.
 
@@ -73,7 +72,7 @@ is not a diff target).
    `demo/showcase/manifest.json` through the TypeAnvil binary at US Letter
    (`8.5in × 11in`) with `0.75in` margins, from `demo/showcase/` as the
    process CWD (relative `url()`/`src` resolution matches the comparison
-   pipeline's corpus-dir pattern; `--base-url` threading is CORE-140).
+   pipeline's corpus-dir pattern; `--base-url` threading is shared).
 2. The renderer SHALL rasterize each render's pages to PNG at 300 DPI into
    `demo/showcase/out/images/<fixture>/page-NNN-ta.png`.
 3. The build SHALL write the showcase gallery into
@@ -97,7 +96,7 @@ is not a diff target).
    change specified by `visual-comparison-demo.spec.md` Behavior 1, and it
    legitimately moves the scoreboard. A showcase-only change SHALL NOT move
    the comparison scoreboard.
-7. **Unstressed Prince reference overlay (CORE-217).** The build SHALL
+7. **Unstressed Prince reference overlay.** The build SHALL
    additionally render every showcase fixture through
    `scripts/render-prince.sh` at the identical page geometry (US Letter,
    0.75in margins) and rasterize at the same 300 DPI into
@@ -111,8 +110,8 @@ is not a diff target).
    unavailability. The inspection page SHALL be byte-identical across
    rebuilds and SHALL be covered by the `--determinism` byte-compare. Every
    TypeAnvil AND Prince showcase page SHALL run through the visual-QA checks
-   in `docs/operations/visual-qa.md` (CORE-216); a defect on either side is
-   a finding, not a parity chase.
+   in `docs/operations/visual-qa.md`; a defect on either side is a finding,
+   not a parity chase.
 
 ## Interfaces
 
@@ -173,14 +172,14 @@ is not a diff target).
 - **Fixture 1 chart images:** committed under `demo/showcase/assets/` with
   licenses; generated programmatically (deterministic script) rather than
   hand-drawn, so a rebuild can regenerate identical bytes.
-- **Multi-byte/non-ASCII text** in fixtures is fine (CORE-83 fixed the
-  mojibake class); fixtures SHOULD include some to keep the ToUnicode path
-  exercised at print sizes.
+- **Multi-byte/non-ASCII text** in fixtures is fine (the mojibake class is
+  fixed); fixtures SHOULD include some to keep the ToUnicode path exercised
+  at print sizes.
 
 ## References
 
-- CORE-148 (this feature), CORE-146 discussion (why 5×3@96 for the
-  comparison), CORE-147 (markdown gallery promotion pattern).
+- Comparison geometry is 5×3in at 96 DPI (matching the WPT harness); the
+  gallery uses the shared markdown promotion pattern.
 - `docs/specifications/visual-comparison-demo.spec.md` — the comparison
   contract this spec extends.
 - **Size budget decision (2026-09-08):** 13 pages @ 300 DPI total
@@ -192,9 +191,9 @@ is not a diff target).
   report 1.69). Still roughly 5× under the cap, so no page caps, no JPEG
   conversion, and no palette reduction were needed.
 - **Engine facts this spec relies on** (verified during implementation):
-- CORE-216: `docs/operations/visual-qa.md` runs the four geometry
-  checks over showcase renders; the inspection page (CORE-217) feeds both
-  TypeAnvil and Prince sides into the same checks.
+- `docs/operations/visual-qa.md` runs the four geometry checks over showcase
+  renders; the inspection page feeds both TypeAnvil and Prince sides into the
+  same checks.
 
   fixture-internal `@page { margin }` wins over CLI `--margin-*` (the
   poster renders full-bleed under shared CLI flags); `content: ... leader()

@@ -3,13 +3,12 @@ title: Tagged PDF / PDF-UA Accessibility
 slug: /specifications/tagged-pdf
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-08-24
-updated: 2026-08-24
+updated: 2026-09-27
 sidebar_position: 16
 tags: [engine, pdf, accessibility, tagging, determinism]
 spec_id: tagged-pdf
-issue_id: CORE-111
 applies_to: engine 0.x
 dependencies: [pdf-metadata]
 ---
@@ -18,13 +17,10 @@ dependencies: [pdf-metadata]
 
 ## Overview
 
-TypeAnvil emits untagged PDFs today: `SerializeSettings { enable_tagging:
-false }`, no logical structure tree, no marked content. Prince sells
-accessibility hard; matching it removes a differentiator, and machine-readable
-document structure fits TypeAnvil's AI-first positioning. This spec adds a
-logical structure tree (headings, paragraphs, lists, tables, figures with alt
-text, language) through krilla 0.8.2's tagging API, behind a `--tagged` CLI
-flag so the untagged output stays byte-identical.
+TypeAnvil supports opt-in tagged PDFs through krilla 0.8.2's tagging API.
+The `--tagged` path emits a logical structure tree for headings, paragraphs,
+lists, tables, figures, links, and language. The default untagged output stays
+byte-identical.
 
 Verified krilla facts (krilla 0.8.2, checked 2026-08-24):
 
@@ -107,7 +103,7 @@ as PDF-400/UA-1 intend.
    absent `lang` means no language entry.
 5. Heading groups SHALL carry their text as the `Hn` title; heading text
    draws remain ordinary leaf content beneath the group.
-6. Link annotations (CORE-104) rendered in tagged mode SHALL be registered
+6. Link annotations (`hyperlinks.spec.md`) rendered in tagged mode SHALL be registered
    with `add_tagged_annotation`, and the corresponding `Link` group SHALL
    contain the annotation identifier followed by the link text's identifiers.
 7. With `--ua`, the document SHALL be finished under krilla's accessibility
@@ -254,9 +250,10 @@ Recorded 2026-08-24 (worktree `core-111`, binary at 53854a0 + this change):
 
 ## References
 
-- Linear issue CORE-111; depends on nothing open (images CORE-106 landed).
+- `engine/src/pdf.rs` and `engine/src/tags.rs` — tagging, artifact, and
+  structure-tree emission.
 - krilla 0.8.2 `src/interchange/tagging/mod.rs` (+ `generated.rs`),
   `src/surface.rs::start_tagged`, `src/document.rs::set_tag_tree`,
   `src/configure/mod.rs::with_accessibility_validator` — verified 2026-08-24.
-- CORE-105 metadata spec (title source for UA conformance).
+- `pdf-metadata.spec.md` (title source for UA conformance).
 - PDF/UA-1 (ISO 14289-1) basics; PDF-400 marked-content model.

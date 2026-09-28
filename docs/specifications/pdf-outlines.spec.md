@@ -3,13 +3,12 @@ title: PDF Outlines and Bookmarks
 slug: /specifications/pdf-outlines
 type: spec
 status: in-review
-owner: elijah
+owner: maintainers
 created: 2026-09-03
-updated: 2026-09-03
+updated: 2026-09-27
 sidebar_position: 21
 tags: [engine, pdf, outlines, bookmarks, gcpm]
 spec_id: pdf-outlines
-issue_id: CORE-128
 applies_to: engine 0.x
 dependencies: [paged-media-css, tagged-pdf, diagnostics]
 ---
@@ -19,7 +18,7 @@ dependencies: [paged-media-css, tagged-pdf, diagnostics]
 ## Overview
 
 PDF bookmarks (the outline tree) are the most buyer-visible navigation feature
-after hyperlinks. CORE-52 shipped a first cut: `h1`–`h6` elements are collected
+after hyperlinks. An initial cut shipped first: `h1`–`h6` elements are collected
 in document order and nested by heading level in `pdf.rs::build_outline`.
 That covers the default case only. This spec completes Prince parity per
 css-gcpm-3 §Bookmarks: the `bookmark-level`, `bookmark-label`, and
@@ -167,7 +166,7 @@ already does.
    `bookmark-level: 2`, `--diagnostics json` emits one
    `bookmark-anchor-unresolved` event. (::diagnostics_broken_anchor)
 8. **No-regression** — Documents without bookmark declarations render
-   byte-identical to pre-CORE-128 output for the existing test suite
+   byte-identical to the pre-bookmark output for the existing test suite
    (`pdf_bookmarks` test in paged_media.rs continues to pass with updated
    expectations); `cargo test` green.
 
@@ -191,6 +190,6 @@ already does.
 - css-gcpm-3 §Bookmarks (W3C)
 - Prince 16.2 html.css default heading bookmarks (probed: headings produce
   bookmarks; non-headings never do without explicit bookmark-level)
-- CORE-52 (paged-media, first bookmark cut), CORE-105 (metadata render
-  plumbing), CORE-111 (fragment-source attribution), CORE-112 (diagnostics
-  schema)
+- `paged-media-css.spec.md` (first bookmark cut), `pdf-metadata.spec.md` (metadata render
+  plumbing), `tagged-pdf.spec.md` (fragment-source attribution), and `diagnostics.spec.md` (diagnostics
+  schema).

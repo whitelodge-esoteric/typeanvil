@@ -2,9 +2,9 @@
 title: "Page floats — float: top/bottom/next-page/snap"
 type: spec
 status: approved
-owner: elijah
+owner: maintainers
 created: 2026-09-13
-updated: 2026-09-13
+updated: 2026-09-27
 sidebar_position: 30
 tags: [css-page, floats, pagination]
 spec_id: SPEC-PAGE-FLOATS
@@ -13,7 +13,7 @@ slug: /specifications/page-floats
 
 # Page floats — `float: top | bottom | next-page | snap`
 
-Spec for CORE-130. Extends the css-floats spec (CORE-62) with the
+Extends the css-floats specification with the
 page-float family from css-page-3 §"page floats" / css-page-4
 §"page-floats". Prince's book and report templates pin figures to page
 edges with these values; the inline float model cannot express them.
@@ -26,7 +26,7 @@ edges with these values; the inline float model cannot express them.
    `snap-block`/`snap-inline` variants are out of scope).
 3. The keywords SHALL parse in both the stylo seam and the hand-rolled
    paged-props pass (stylesheet rules and inline `style=""`), following
-   the `float: footnote` (CORE-107) pattern.
+   the existing `float: footnote` parsing pattern.
 
 ## Placement
 
@@ -56,7 +56,7 @@ edges with these values; the inline float model cannot express them.
    lanes). Text after a `top` float starts BELOW the float's band; a
    `bottom` float's band hangs at the page bottom edge and does not
    move the in-flow cursor.
-10. `float: footnote` (CORE-107) SHALL keep its current behavior; it is
+10. `float: footnote` SHALL keep its current behavior; it is
     a distinct area selection, not a page-float band.
 
 ## Acceptance criteria
@@ -69,6 +69,6 @@ edges with these values; the inline float model cannot express them.
 - A `float: top` figure that does not fit the current page defers and
   pins at the next page's top.
 - `float: snap` behaves as `float: top`.
-- Footnote rendering (CORE-107) is unchanged.
+- Footnote rendering is unchanged.
 - Full WPT suite: zero regressions.
 - `cargo test` green, including `engine/tests/page_floats.rs`.

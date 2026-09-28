@@ -3,13 +3,12 @@ title: Footnotes
 slug: /specifications/footnotes
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-08-22
-updated: 2026-08-24
+updated: 2026-09-27
 sidebar_position: 15
 tags: [engine, css-gcpm, css-page, fragmentation, paged-media]
 spec_id: footnotes
-issue_id: CORE-107
 applies_to: engine 0.x
 dependencies: [fragmentation-core, paged-media-css, typography-layer]
 ---
@@ -252,9 +251,8 @@ while drawing raised.
 
 - css-gcpm-3 §7 (footnotes): https://drafts.csswg.org/css-gcpm-3/#footnotes
 - css-page-3 (page floats context): https://drafts.csswg.org/css-page-3/
-- Issue: CORE-107. Probe PDFs + analysis scripts archived at `/tmp/core107-*`
-  (2026-08-22 session; key facts recorded in Probe Evidence above).
-- Engine structures reused: out-of-flow branch in `layout_box` (CORE-62/64),
-  margin-box root attachment (`attach_margin_boxes`, CORE-52),
-  generated-content shaping (`shape_word`, CORE-83), ToUnicode glyph ranges
-  (CORE-85).
+- Probe PDFs and analysis scripts from the 2026-08-22 session are external
+  working material; the key facts are recorded in Probe Evidence above.
+- Engine structures reused: out-of-flow branch in `layout_box`, margin-box
+  root attachment (`attach_margin_boxes`), generated-content shaping
+  (`shape_word`), and ToUnicode glyph ranges.

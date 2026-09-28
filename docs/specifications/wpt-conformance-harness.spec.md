@@ -3,13 +3,12 @@ title: WPT Conformance Harness
 slug: /specifications/wpt-conformance-harness
 type: spec
 status: approved
-owner: elijah
+owner: maintainers
 created: 2026-08-16
-updated: 2026-09-15
+updated: 2026-09-27
 sidebar_position: 1
 tags: [harness, wpt, conformance, testing]
 spec_id: wpt-conformance-harness
-issue_id: CORE-49
 applies_to: harness 0.x
 dependencies: []
 ---
@@ -68,7 +67,7 @@ The harness shall:
    `-print.html`, live under a `print/` directory, or declare a
    `rel="match"`/`rel="mismatch"` link whose target exists. Additionally,
    the curated css-multicol subset (`harness/multicol_subset.py`,
-   `MULTICOL_SUBSET`, CORE-77) is always enumerated even though those tests
+   `MULTICOL_SUBSET`) is always enumerated even though those tests
    are ordinary screen reftests: css-multicol keeps its coverage in screen
    reftests, and the subset is hand-triaged to exercise only shipped engine
    features (known-gap features — `column-fill: auto`, column rules,
@@ -167,7 +166,7 @@ typeanvil render <input.html> \
 Deterministic, offline, fixed page geometry. `PageSpec` defaults are the WPT
 print-reftest geometry: 5in × 3in, 0.5in margins on all sides.
 
-**Invoking the CLI engine (verified 2026-08-17, CORE-60):** `--cli-cmd` is the
+**Invoking the CLI engine (verified 2026-08-17 against the initial WPT conformance baseline):** `--cli-cmd` is the
 full command prefix and MUST include the `render` subcommand, because the
 harness appends the template args (which start with `{input}`) directly:
 
@@ -248,12 +247,12 @@ Named residual drivers (attribution follows `demo/corpus/TRIAGE.md` conventions)
 - **Margin-box styling layer missing** (0/37): all 16 margin-box positions
   render with correct content, but `@page` font inheritance, margin-box
   width/height/auto-margin geometry, borders, backgrounds, and
-  `vertical-align` are unimplemented — **CORE-126**.
+  `vertical-align` are unimplemented (the margin-box styling layer).
 - **css-page core families** (~97 fails): `page-name-*` propagation/selection
   (~30), `fixedpos-*` page repetition (10), page-box/page-size/page-margin
-  completeness + misc tail (~50) — **CORE-127**.
+  completeness + misc tail (~50).
 - **css-break/flexbox** (16 fails): 8 inline-block geometry residuals
-  (081a–d/082a–d; page counts already match post-CORE-120), 4
+  (081a–d/082a–d; page counts already match in the current engine), 4
   reference-limited tests (refs depend on block-path declared-height,
   unpassable by design until that feature lands), 063/060/065/045
   page-count mismatches.
@@ -283,6 +282,6 @@ required — without it every test fails as `worker crash`/`AssertionError`
 - [Harness release gate](harness-release-gate.spec.md) — the baseline and
   candidate evidence path.
 - [Run the release gate](../operations/release-gate.md) — the operating steps.
-- Origin issue: CORE-49 (WPT print-reftest conformance harness).
+- Origin: the WPT print-reftest conformance harness (the first deliverable of Typeanvil).
 - WPT docs: [reftests](https://web-platform-tests.org/writing-tests/reftests.html),
   [print-reftests](https://web-platform-tests.org/writing-tests/print-reftests.html).

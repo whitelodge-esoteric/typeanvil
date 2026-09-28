@@ -2,25 +2,23 @@
 title: CLI surface — --version and --help
 type: spec
 status: approved
-owner: Elijah Boston
+owner: maintainers
 created: 2026-09-03
-updated: 2026-09-03
+updated: 2026-09-27
 slug: /specifications/cli-surface
 sidebar_position: 44
-tags: [cli, version, help, core-134, distribution]
-spec_id: SPEC-CORE-134-cli-surface
-issue_id: CORE-134
+tags: [cli, version, help, distribution]
+spec_id: cli-surface
 applies_to:
   - engine/src/main.rs
   - engine/tests/cli_surface.rs
 dependencies:
-  - SPEC-CORE-112-diagnostics
+  - diagnostics
 ---
 
-# CLI surface: `--version` and `--help` (CORE-134)
+# CLI surface: `--version` and `--help`
 
-Parent epic: CORE-133 (installable runtime). Release CI (CORE-135), the npm
-package (CORE-136), and the Homebrew formula (CORE-137) all need a
+The installable runtime, release workflow, npm package, and Homebrew formula all need a
 machine-readable version and discoverable help text from the binary itself.
 
 ## Goals
@@ -61,7 +59,7 @@ typeanvil render doc.html --version   # stderr: error; exit != 0
 ```
 
 The version string is the compile-time `env!("CARGO_PKG_VERSION")` — no
-runtime file reads, no network. CORE-135's release workflow stamps
+runtime file reads, no network. The release workflow stamps
 `engine/Cargo.toml` from the git tag at build time, so the binary's version
 always equals the tag.
 
@@ -89,10 +87,9 @@ Each criterion maps to a test in `engine/tests/cli_surface.rs`.
 - `--version` with extra args (`typeanvil --version extra`) — first-arg
   match wins; extra args are ignored. Wrappers get a stable one-line output.
 - The version line format is `typeanvil <version>` with a single space;
-  CORE-135's tag-match check parses exactly this shape.
+  the release tag-match check parses exactly this shape.
 
 ## References
 
-- Epic: CORE-133 (installable runtime — npm + Homebrew distribution)
-- Downstream: CORE-135 (release CI tag-match check), CORE-136, CORE-137
-- Diagnostics spec for the CLI-doc conventions: `diagnostics.spec.md`
+- Release workflow: `.github/workflows/release.yml`.
+- Diagnostics spec for the CLI conventions: `diagnostics.spec.md`.

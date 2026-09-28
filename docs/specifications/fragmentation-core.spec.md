@@ -3,13 +3,12 @@ title: Fragmentation Core
 slug: /specifications/fragmentation-core
 type: spec
 status: approved
-owner: elijah
+owner: maintainers
 created: 2026-08-16
-updated: 2026-09-19
+updated: 2026-09-27
 sidebar_position: 2
 tags: [layout, fragmentation, css-break, engine]
 spec_id: fragmentation-core
-issue_id: CORE-51
 applies_to: engine 0.x
 dependencies: [wpt-conformance-harness]
 ---
@@ -57,15 +56,15 @@ break optimization pass — start greedy + appeal.
   space runs out at a bad point, stopping deterministically at the recorded
   break.
 - Monolithic content taller than a fragmentainer **overflows, never slices**.
-  EXCEPTION (CORE-185): a PINNED abspos whose used inset lands at/past the
+  EXCEPTION: a PINNED abspos whose used inset lands at/past the
   fragmentainer bottom is deferred to the page CONTAINING its offset
   (Chromium fragmented printing) and fragments from there; see
-  `out-of-flow-positioning.spec.md` Behavior 9. EXCEPTION (CORE-187): a PINNED
+  `out-of-flow-positioning.spec.md` Behavior 9. EXCEPTION: a PINNED
   abspos that STARTS inside the page, declares an extent, exceeds the page it
   starts on, and is not inside a clipping (`overflow` != `visible`) ancestor
   fragments from that page like an in-flow box; a pinned box that fits itself
   in one fragmentainer overflows in place instead of paginating.
-  EXCEPTION (CORE-204): a PINNED abspos with a DECLARED extent (absolute,
+  EXCEPTION: a PINNED abspos with a DECLARED extent (absolute,
   viewport, OR percentage — `resolved_height_or_percent`) fragments against
   the REAL fragmentainer bottom even when it is NESTED under a monolithic
   ancestor that fit one page; the inherited `bottom_limit` must not widen to
@@ -76,11 +75,11 @@ break optimization pass — start greedy + appeal.
 - PDF emission walks the fragment tree (no separate pagination pass).
 - Deterministic output: identical input → identical PDF bytes.
 
-**Non-Goals** (deferred to CORE-54 or explicitly dropped per the research
+**Non-Goals** (deferred to later interaction work or explicitly dropped per the research
 brief's "simplify" list)
 
 - Floats × breaks (parallel flows), OOF positioning across fragmentainers,
-  tables × fragmentation, multicol / nested fragmentation — all CORE-54.
+  tables × fragmentation, multicol / nested fragmentation.
 - Incremental relayout, invalidation, constraint-space caching — batch
   compilation lays out once; keep only measure-pass memoization inside a single
   layout.
@@ -130,7 +129,7 @@ The engine shall:
 10. **Never slice monolithic content**: a monolithic box (line, image, tall
     fixed-height box) taller than the fragmentainer overflows it, with
     last-resort breakpoints placing it.
-11. **Occupy the specified extent in flow (CORE-167)**: a fresh block box
+11. **Occupy the specified extent in flow**: a fresh block box
     with a declared `height` (box-sizing honored) occupies that extent in
     pagination — the cursor advances by it and a fresh child whose extent
     fits one fragmentainer but not the remaining space defers whole to the
@@ -138,7 +137,7 @@ The engine shall:
     content (`height: 0` divs, page-size-007/008), and block-child overflow
     keeps the content extent (block-002-wm-*). An extent crossing the
     fragmentainer edge paints through it without emitting a continuation —
-    empty declared-height boxes are treated as monolithic (the CORE-143
+    empty declared-height boxes are treated as monolithic (the
     page-change fixtures pin this; true extent fragmentation is future
     work gated on a full-suite A/B).
 12. **Truncate margins at fragmentainer boundaries**: margins adjoining a page
@@ -243,7 +242,7 @@ Given/When/Then, each mapping to a real test in `engine/tests/`:
   resort), no infinite relayout loop.
 - **Forced break inside an avoid box** → forced break wins; the box fragments
   at the forced boundary.
-- **Trailing blank page** (CORE-176) → a final page whose fragment tree paints
+- **Trailing blank page** → a final page whose fragment tree paints
   nothing is dropped. Guards: only the LAST page (outgoing token is none); a
   sized bare fragment is layout state, not blank (a declared-height
   continuation tail slice keeps its page even with content-less paint). A
@@ -254,7 +253,7 @@ Given/When/Then, each mapping to a real test in `engine/tests/`:
   exactly one page via the post-loop fallback.
 - **Margin at a page boundary** → a fragmented box's continuation truncates
   its top margin at the fragmentainer edge; a FRESH box at a page start keeps
-  its top margin (css-break-3 §3.1, refined in CORE-153 toward the spec and
+  its top margin (css-break-3 §3.1, refined toward the spec and
   Chromium; previously truncated Prince-style — see
   ua-print-defaults.spec.md).
 - **`orphans`/`widows` conflicting with `break-inside: avoid`** → css-break-3
@@ -272,17 +271,17 @@ Given/When/Then, each mapping to a real test in `engine/tests/`:
   (fitness function; CLI contract for `typeanvil render`).
 - Engine today: `engine/src/layout.rs` (the `Cursor` model being replaced),
   `engine/src/css.rs` (`ComputedStyle` seam), `engine/src/pdf.rs`.
-- Related work: CORE-50 (walking skeleton), CORE-56 (stylo binding on the
-  `ComputedStyle` seam).
+- Related implementation: `engine/src/layout.rs`, `engine/src/css.rs`, and
+  the `ComputedStyle` seam.
 - WPT: css-break-3 spec (w3.org/TR/css-break-3), css-break print-reftests
   (~640 files).
 
-## Addendum: Explicit-Height Block Continuation (CORE-152)
+## Addendum: Explicit-Height Block Continuation
 
-`updated: 2026-09-09`. Narrowed slice of CORE-152: continuation of an
+`updated: 2026-09-09`. This is a narrowed slice: continuation of an
 ordinary block with an explicit CSS `height` that extends past the
 fragmentainer, in the block path only (`layout_box`). Wrapper / flex / grid
-continuation is out of scope here and remains tracked by CORE-152.
+continuation is out of scope here and remains tracked separately.
 
 ### Problem
 

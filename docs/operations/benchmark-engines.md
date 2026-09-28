@@ -1,13 +1,12 @@
 ---
-title: Engine Benchmark — TypeAnvil vs PrinceXML
+title: Engine Benchmark — Typeanvil vs PrinceXML
 type: runbook
 status: approved
-owner: elijah
+owner: maintainers
 created: 2026-08-25
-updated: 2026-08-25
+updated: 2026-09-27
 sidebar_position: 2
 tags: [benchmark, performance, prince]
-issue_id: CORE-123
 ---
 
 # Engine benchmark — TypeAnvil vs PrinceXML
@@ -20,7 +19,7 @@ of CI or pre-commit.
 
 ```bash
 cargo build --release --manifest-path engine/Cargo.toml
-.venv/bin/python scripts/benchmark.py --runs 5
+python3 scripts/benchmark.py --runs 5
 ```
 
 Useful flags:

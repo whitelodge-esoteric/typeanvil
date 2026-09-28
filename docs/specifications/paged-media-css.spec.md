@@ -3,13 +3,12 @@ title: Paged-Media CSS
 slug: /specifications/paged-media-css
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-08-16
-updated: 2026-09-20
+updated: 2026-09-27
 sidebar_position: 3
 tags: [css, paged-media, page, layout, engine]
 spec_id: paged-media-css
-issue_id: CORE-52
 applies_to: engine 0.x
 dependencies: [wpt-conformance-harness, fragmentation-core]
 ---
@@ -28,7 +27,7 @@ reports and invoices:
 - `leader('.')` dotted TOC leaders
 - PDF bookmarks from heading structure
 
-The fragmentainers-first model from CORE-51 is the foundation: pages are
+The fragmentainers-first model from the fragmentation core is the foundation: pages are
 already first-class fragments with no source box, so `@page` geometry and
 margin boxes attach naturally to each `Fragmentainer`. This issue makes the
 page box a *resolved, per-page* thing (size, margins, margin-box content)
@@ -84,8 +83,8 @@ market.
 - Side margin boxes (`@left-*`, `@right-*` — vertical writing-mode boxes):
   parsed and positioned, but content is treated as a single horizontal line
   (no rotation); vertical writing modes are out of scope.
-- Margin-box intrinsic sizing in the box's own writing mode (CORE-184).
-  **Measured 2026-09-15 (CORE-182): this — not writing-mode rotation — is what
+- Margin-box intrinsic sizing in the box's own writing mode.
+  **Measured 2026-09-15: this — not writing-mode rotation — is what
   the four `css-page/margin-boxes/dimensions-004/006/013/014` targets fail on.**
   `writing-mode` is not even parsed for a margin box today (`MarginBoxSpec`
   carries no such field), and the four references SIMULATE vertical text with
@@ -94,16 +93,16 @@ market.
   `<div style="width:17.5em">xxxxxxx</div>`), so a rotation-only change could
   not match them. What differs is intrinsic sizing in the box's own writing
   mode (seven lines stack along the block axis → min-content WIDTH 7em, per
-  dimensions-013's own comment). CORE-178 landed the multi-line content that
-  sizing depends on.
+  dimensions-013's own comment). Multi-line margin-box content, which the
+  sizing depends on, landed separately.
 - Margin-box glyph ROTATION for a real font in a vertical writing mode. The
   `dimensions-*` fixtures use the Ahem font, whose glyph is a solid square, so
   rotation is invisible to them by construction and the gate cannot measure it.
 - Document-interior vertical text layout (rotated glyph runs, vertical line
-  boxes). CORE-182 re-keyed the vertical BLOCK geometry on the mode in effect
+  boxes). Vertical block geometry is keyed on the writing mode in effect
   at the box, but text still advances along physical +x inside a vertical
   subtree: no glyph run is rotated, and an interior vertical subtree that
-  crosses a page edge is not sliced along its own block axis. CORE-181's
+  crosses a page edge is not sliced along its own block axis. Root-vertical
   root-vertical page progression is built on top of this and owns the eight
   `body-background-*` / `block-00{1,2}-wm-*` / `page-box-008` targets.
 - Footnotes, cross-references beyond `target-counter(..., page)`, named
@@ -116,31 +115,31 @@ market.
 The engine shall:
 
 1. **Parse `@page` rules** from the author stylesheet: a targeted, deterministic
-   author-CSS pass (the same pattern as CORE-51's `breaks` module — stylo's
+   author-CSS pass (the same pattern as the fragmentation core's `breaks` module — stylo's
    servo build does not compile `@page` or the paged-media longhands). Rules
    carry: optional name (default page if absent), pseudo-class
    (`:first`/`:left`/`:right`/none), `size`, margin longhands, and margin-box
    declarations. Unknown declarations are skipped without failing. A prelude
    token joins name and pseudo without whitespace (`@page a:first` — the first
-   colon starts the pseudo; CORE-143). Rules inherit the cascade-layer rank of
+   colon starts the pseudo). Rules inherit the cascade-layer rank of
    the `@layer` block that encloses them (css-cascade-5 §6): unlayered rules
    beat every layer, later-declared layers beat earlier ones regardless of
-   source position (CORE-143).
+   source position.
 2. **Resolve per-page spec**: each `Fragmentainer` selects the matching `@page`
    rule by (a) page name in effect, then (b) pseudo-class from global page
    index — index 0 is `:first` (and `:right` per LTR progression), odd 1-based
    indices are `:right`, even are `:left`; most-specific match wins (layer
-   rank dominates pseudo specificity; CORE-143); if no rule
+   rank dominates pseudo specificity); if no rule
    matches, the CLI-provided geometry is the fallback.
 3. **Override CLI geometry**: `@page` `size` and margins override the CLI
    `--page-width`/`--page-height`/`--margin-*` defaults for pages they match;
    the CLI values remain the default when no rule applies. The CLI contract's
    flag shape is unchanged.
-3a. **Resolve viewport units against the page box (CORE-140)**: `vh`/`vw`
+3a. **Resolve viewport units against the page box**: `vh`/`vw`
    (and viewport-unit insets) are carried RAW through the cascade and
    resolved at layout time against the initial containing block's content
    box (css-values-4 §7.8 print behavior; 100vh = page content height). The
-   stylo viewport stays fixed at 1024x768 (CORE-66) — resolution happens in
+   stylo viewport stays fixed at 1024x768 — resolution happens in
    layout, not in style. This flipped page-margin-001/003 and
    page-size-009 PASS; fixedpos-007/008 and underflow-from-next-page
    flipped FAIL, exposing the abspos-across-pages and negative-margin-at-
@@ -163,7 +162,7 @@ The engine shall:
    with no separate pass. A center-aligned top/bottom box is centered on the
    CONTENT-box midline `((left + right) / 2)`, never inside a fixed third
    slot: text wider than a third spills into adjacent slots symmetrically
-   (css-page-3 margin-box geometry; matches Prince 16.2 — CORE-117).
+   (css-page-3 margin-box geometry; matches Prince 16.2).
 6. **Render margin-box content**: `content` values of literal text,
    `string(name)`, `counter(page)`, and `counter(<name>)` are resolved at
    fragmentainer build time, then broken into lines. CSS escapes in the
@@ -174,17 +173,17 @@ The engine shall:
    its own declaration, else the page context's, else `normal`; css-page-3
    Appendix A lists `white-space` as applicable inside a margin box. Lines
    stack at the box's `line-height`, which is the box's own declaration, else
-   the page context's, else `normal` (CORE-184); a unitless value is a
+   the page context's, else `normal`; a unitless value is a
    multiplier of the box's own font-size, a percentage resolves against that
    same font-size, and a length is absolute (css-inline-3 §5.2). A forced
    break TERMINATES the last line and shall not open an empty one, so
    `content: "x\ax\ax\a"` is three lines; a second consecutive trailing
-   break is a real empty line (CORE-184). The content's block extent is the
+   break is a real empty line. The content's block extent is the
    line count times that pitch, its max-content extent is the widest line, and
    its min-content extent is the widest line's min-content (css-sizing-3
    §5.1). Each line aligns independently by `text-align`; no line soft-wraps,
    and each is deterministically clipped if it overflows the box.
-   A `url(<path>)` piece (CORE-141) shall paint its image as replaced inline
+   A `url(<path>)` piece shall paint its image as replaced inline
    content of that image's INTRINSIC size (96 DPI pixels converted to points),
    following the text of the LAST line. The line box shall grow to the image
    (css2 §10.8): a 50px image in a 50px page margin fills the band and the
@@ -192,7 +191,7 @@ The engine shall:
    hanging above the box. The path resolves like an `<img src>` and is interned
    in the same image store, so the PDF emitter embeds it once. Literal non-ASCII
    (em dash, curly quotes, `·`) is shaped like body text — a real glyph
-   with a ToUnicode mapping, never raw UTF-8 bytes as Latin-1 (CORE-83).
+   with a ToUnicode mapping, never raw UTF-8 bytes as Latin-1.
 7. **Thread running strings**: `string-set: <name> content()` on an element
    assigns the element's text content to the named string; the value in effect
    for a page is the last assignment encountered in that page's document-order
@@ -217,7 +216,7 @@ The engine shall:
 10. **Fill leaders**: `leader('.')` in an inline text run fills from the last
     character to the right content edge with the repeating character, at line
     break time, deterministically. The fill pitch is the leader character's
-    real shaped advance (CORE-99); the width RESERVED for the fixed text
+    real shaped advance; the width RESERVED for the fixed text
     parts is shaped at real width for literal pieces and uses a flat 0.5em
     per-character estimate for resolved pieces (`counter`, `target-counter`),
     so the fill count never depends on the resolved number glyphs and the
@@ -235,12 +234,12 @@ The engine shall:
     super-linear pagination; the existing 1,000-page linear test still holds.
 14. **Keep the fragment-tree contract**: `layout(dom, stylesheet, geometry) ->
     Layout` signature is unchanged; `Layout.pages` remain `Fragmentainer`s;
-    fragmentation, break tokens, and appeal scoring from CORE-51 are
+    fragmentation, break tokens, and appeal scoring from the fragmentation core are
     untouched by this issue.
 15. **Keep the CLI contract**: `typeanvil render <input.html> --page-width ...
     --page-height ... --margin-* ... -o out.pdf` still works (flags are now
     defaults that `@page` may override).
-16. **Size and paint the page-margin boxes (CORE-141)**: each margin box shall
+16. **Size and paint the page-margin boxes**: each margin box shall
     be a real CSS box. The engine shall parse the box-model declarations of a
     margin box (`width`, `height`, the `margin-*` and `padding-*` longhands and
     their shorthands, `border`/`border-<side>`, `background`/`background-color`)
@@ -274,12 +273,12 @@ The engine shall:
       shorthand may carry a colour AND an image; the colour paints below the
       tiled image.
     - A declared page area (`@page { width; height }`) shall be honoured
-      INSIDE the page box (CORE-144) and shall NOT resize the page box: the
+      INSIDE the page box and shall NOT resize the page box: the
       requested page size is the page size. An earlier attempt grew the box to
       area + margins; it flipped no tests, `width`/`height` are not css-page-3
       page descriptors, Chromium keeps the requested size, and the CLI contract
       requires the page-size flags to be honoured exactly.
-17. **Page-margin box painting order and `z-index` (CORE-179)**: the engine
+17. **Page-margin box painting order and `z-index`**: the engine
     shall paint a page in css-page-3 §3.1's layer order — page background,
     document canvas, page borders, document contents, then page-margin boxes —
     and shall treat the document canvas, the page borders and ALL document
@@ -308,7 +307,7 @@ The engine shall:
       the page root in pre-order (CSS2.1 Appendix E: a negative stacking
       context paints after the context's own background and before any in-flow
       block background).
-18. **Per-side border colours (CORE-201)**: each of the four border sides of a
+18. **Per-side border colours**: each of the four border sides of a
     box shall carry its OWN colour, resolved independently through the cascade
     (css-backgrounds-3 §4.5). A `border-<side>-color` longhand shall repaint
     only that side's band; `border-color` and the `border` shorthand set all
@@ -367,7 +366,7 @@ counter_increment: Vec<(String, i32)>   // counter-increment declarations
 
 `StringSetValue` is `Content` (the element's text content) — `attr()` values
 are parsed but resolved as content for now. These are filled by the same
-targeted author-CSS pass as CORE-51's `breaks` module (extend it or add a
+targeted author-CSS pass as the fragmentation core's `breaks` module (extend it or add a
 sibling module — the exact shape is the implementer's call, documented in
 code).
 
@@ -451,17 +450,17 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     empty `div`s where one declares `page: a` and the next declares `page: b`
     (or declares nothing), when rendered, then a page break fires between them
     (`paged_media.rs::page_change_break_between_empty_page_declaring_divs`,
-    `paged_media.rs::page_change_break_to_undeclared_sibling_page` — CORE-143,
+    `paged_media.rs::page_change_break_to_undeclared_sibling_page`,
     pseudo-first-margin-001..004).
 11. **`@page name:pseudo` without whitespace** — Given `@page a:first`, when
     parsed, then the rule matches named page `a` on its first page only, and
     its margin applies there
-    (`paged_media.rs::named_page_pseudo_without_whitespace_parses` — CORE-143,
+    (`paged_media.rs::named_page_pseudo_without_whitespace_parses`,
     pseudo-first-margin-002).
 12. **Cascade layers order `@page` rules** — Given `@layer a, b;` with `@page`
     rules inside both layers, when rendered, then the later-declared layer's
     margins win regardless of source position, and an unlayered `@page` beats
-    both (`paged_media.rs::cascade_layers_order_page_margins` — CORE-143,
+    both (`paged_media.rs::cascade_layers_order_page_margins`,
     layers-001..004).
 10. **Invoice demo** — Given the invoice fixture
     (`engine/tests/fixtures/invoice.html`) with a running header, footer page
@@ -525,11 +524,11 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     (`alpha_color.rs::semitransparent_body_background_keeps_alpha_in_canvas_propagation`,
     `alpha_color.rs::opaque_backgrounds_default_to_opaque_alpha`).
 22. **Raster probe** — Given `probe/core153_alpha/probe_alpha.py` run with
-    the main checkout's `.venv/bin/python` against a built engine binary,
+    the repository Python environment against a built engine binary,
     when executed, then every composited pixel case (page-box-002 shape,
     alpha 0, nested overlap) prints OK and the script exits 0.
-    Command from this worktree's root:
-    `/Users/elijah/workspace/typeanvil/.venv/bin/python probe/core153_alpha/probe_alpha.py engine/target/debug/typeanvil`.
+    Example from the repository root:
+    `python3 probe/core153_alpha/probe_alpha.py engine/target/debug/typeanvil`.
 
 23. **Margin-box sizing** — Given the `@page` declarations of
     `css-page-3 §5.3.2`'s own worked example (left box min 4em / max 17em,
@@ -568,7 +567,7 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     fragment follows it (paint order: colour < image < border), and the PDF
     embeds the image exactly once
     (`images.rs::margin_box_background_image_tiles_over_border_box`).
-29. **Margin-box multi-line content (CORE-178)** — Given
+29. **Margin-box multi-line content** — Given
     `@page { size: 400px; margin: 100px; @top-left-corner { white-space:
     pre-wrap; content: "Line 1\aLine 2"; width: 100px; height: 100px;
     background: green } }`, when laid out, then the box's font size leaves the
@@ -579,17 +578,17 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     same content WITHOUT a break-preserving `white-space`, then ONE run is
     produced and the newline is rendered as a space
     (`core178_tests::normal_white_space_collapses_the_newline`).
-30. **Page-context `white-space` inheritance (CORE-178)** — Given
+30. **Page-context `white-space` inheritance** — Given
     `@page { white-space: pre-wrap; @top-left { content: "a\a b" } }`, when
     laid out, then the box inherits the page context's value and paints two
     runs; the same rule with no `white-space` anywhere paints one
     (`core178_tests::page_context_white_space_inherits`).
-31. **Margin-box CSS escapes (CORE-178)** — Given a string token containing
+31. **Margin-box CSS escapes** — Given a string token containing
     `\a`, a `\41` hex escape, an escaped quote and a `\` line continuation,
     when the paged parser reads it, then it unescapes to a newline, `A`, the
     quote, and nothing respectively (css-syntax-3 §4.3.7)
     (`paged.rs::unescapes_css_string_escapes`).
-32. **Margin-box paint order and `z-index` (CORE-179)** — Given the 16 margin
+32. **Margin-box paint order and `z-index`** — Given the 16 margin
     boxes declared in a non-clockwise order, when the page spec resolves, then
     each box carries its own css-page-3 §3.1 slot and its declared `z-index`
     (an undeclared `z-index` is 0), and no margin box fragment sits in the
@@ -605,9 +604,9 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     when the full suite runs, then the pair matches — it is the fixture that
     measures a negative-`z-index` margin box staying behind the document
     background.
-33. **Per-side border colours (CORE-201)** — Given
-    `.filler { border: 10px solid black } .specialborder
-    { border-bottom-color: cyan }` on one element, when laid out, then the
+33. **Per-side border colours** — Given
+    `.filler { border: 10px solid black } .specialborder { border-bottom-color: cyan }`
+    on one element, when laid out, then the
     box's `BorderBox` fragment carries cyan on the bottom and black on top,
     right and left; the same declarations INLINE resolve identically; a side
     with no declared colour resolves to black (the `currentColor` fallback);
@@ -622,7 +621,7 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     a PDF whose histogram shows cyan only in the bottom band
     (`probe/core201-hist.py`, `core201-before.png` vs `core201-after.png`).
 
-32. **Margin-box `line-height` (CORE-184)** — Given
+32. **Margin-box `line-height`** — Given
     `@page { font: 16px/1 Ahem; white-space: pre-wrap; @top-left { content:
     "a\a b" } }`, when laid out, then the two baselines differ by 12pt
     (`layout.rs::core184_tests::page_font_shorthand_line_height_reaches_margin_boxes`);
@@ -635,7 +634,7 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     maps `1`, `150%`, `20pt`, `24px` and `normal` to the corresponding
     multiplier/length/absent forms (`paged.rs::parses_line_height_forms`).
 
-33. **A trailing forced break adds no line (CORE-184)** — Given a page area
+33. **A trailing forced break adds no line** — Given a page area
     150pt tall with `@page { font: 16px/1 Ahem; white-space: pre-wrap;` a
     `@left-top` whose content is `"x\ax\ax\a"` and a `@left-bottom` whose
     content is `"x\a"`, when the left edge is distributed by css-page-3
@@ -673,7 +672,7 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   at the page the element's box starts.
 - **Two-pass convergence failure** (page numbers shift between passes) → cap
   at 3 passes, use the last result; documented in code as a known limitation.
-- **Background color alpha (CORE-153, css-color-3/4)** → CSS colors carry an
+- **Background color alpha (css-color-3/4)** → CSS colors carry an
   alpha channel through the whole pipeline: parse (`#rgba`, `#rrggbbaa`,
   `rgb()`/`rgba()` in comma and space syntax, the `transparent` keyword =
   fully transparent black) → stylo computed color → fragment paint → PDF
@@ -682,7 +681,7 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   at paint time over whatever is actually beneath it (the `@page` fill for
   the canvas background, the page/canvas for element boxes). Colors parsed
   without an alpha component are opaque (alpha 255). Migration: the `a`
-  field is required, so pre-CORE-153 `Color { r, g, b }` struct literals no
+  field is required, so the earlier `Color { r, g, b }` struct literals no
   longer compile; opaque construction is `Color::rgb(r, g, b)` (no Rust
   field-default syntax). Invalid color declarations are rejected at parse
   time (malformed hex tokens, non-finite numbers, wrong channel arity,
@@ -695,12 +694,12 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   propagation of a semitransparent body/html background keeps that alpha
   (page-box-002: opaque blue `@page` under a `#f008` body paints
   violet `rgb(136, 0, 119)`, not red, not blue).
-- **Canvas background propagation (CORE-144)** → the html (else body)
+- **Canvas background propagation** → the html (else body)
   background paints the CANVAS over the page CONTENT area, under all content
   but above the `@page` box fill (so page margins keep the page box's own
   background); the donor box paints none of its own. Vertical percentage
   `@page` padding resolves against the page HEIGHT.
-- **`@page` logical margins/padding map per writing mode (CORE-153)** → the
+- **`@page` logical margins/padding map per writing mode** → the
   `margin-inline-*` / `margin-block-*` longhands and their `padding-*`
   counterparts stay SYMBOLIC through the `@page` parser and map to physical
   edges at resolution time against the page context's EFFECTIVE writing
@@ -711,14 +710,14 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   the WIDTH, with inline-start = top, inline-end = bottom, block-start =
   right, block-end = left (page-box-008/009; their refs simulate the
   margins with border widths 16/32/48/80 top/right/bottom/left). Document
-  content still lays out horizontal-tb (CORE-127's orthogonal-flow
+  content still lays out horizontal-tb (orthogonal-flow
   suppression); only the page context's margin/padding geometry is
   writing-mode aware. Zero WPT status flips on landing — page-box-008/009
   remain FAIL on separate residuals (vertical-rl block geometry, a
   declared-height ref fragmentation bug) — but the margin bands now match
   the refs' border simulation exactly. Vertical-LR keeps LTR block
   anchoring (its block axis runs left→right; page-margin-003's ref).
-  This session's composition (CORE-153, 2026-09-14): `:root { writing-mode }`
+  This session's composition (2026-09-14): `:root { writing-mode }`
   is read via the engine's OWN cascade pass (stylo's servo build does not
   compute writing-mode for `:root` selectors — the paged pass previously
   never matched `:root` at all); a block in a vertical writing mode fills
@@ -726,8 +725,8 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   a vertical-rl definite-width box with `margin-right` anchors at the RIGHT
   edge (page-margin-002's ref). page-box-008/009, page-margin-002 and
   page-size-012 land through this composition.
-- **`sideways-rl` / `sideways-lr` are vertical page-context modes (CORE-181,
-  2026-09-14)** → both are valid `writing-mode` values (css-writing-modes-3
+- **`sideways-rl` / `sideways-lr` are vertical page-context modes
+  (2026-09-14)** → both are valid `writing-mode` values (css-writing-modes-3
   §3.1) with a HORIZONTAL block axis, so the @page logical margin/padding
   mapping and the orthogonal-flow predicate must treat them as vertical. They
   parsed as horizontal in BOTH places: the `@page` parser mapped them to
@@ -736,8 +735,7 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   `vertical-rl`'s axes; `sideways-lr`'s inline axis runs bottom-to-top, so its
   inline pair is REVERSED (inline-start = the physical BOTTOM). This landing
   flipped ZERO WPT statuses — the two fixtures that depend on sideways parsing
-  (`body-background-slr/srl`) still fail on root-vertical page progression,
-  which CORE-181 owns — so the seam is proven by unit tests instead:
+  (`body-background-slr/srl`) still fail on root-vertical page progression — so the seam is proven by unit tests instead:
   `paged::tests::logical_margins_map_sideways_modes` (the logical→physical
   edge arithmetic for both modes) and
   `layout::core153_vertical_rl_tests::sideways_modes_are_vertical_page_flows`
@@ -745,7 +743,7 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   block-start anchoring follows the block axis: sideways-rl right-anchors like
   vertical-rl, sideways-lr runs left-to-right like vertical-lr). Both were
   proven RED with the mapping reverted.
-- **Element `content: url()` paints as replaced content (CORE-183, 2026-09-15)** →
+- **Element `content: url()` paints as replaced content (2026-09-15)** →
   an element whose `content` carries a `url()` image is REPLACED content
   (css-content-3 §2): the declaration replaces the element's own children and
   the image paints at its natural size (96dpi px → pt, the same rule the `<img>`
@@ -763,14 +761,14 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   a BROKEN 0x0 image and painted nothing.
   **GIF is still not decoded** (`images::sniff` covers PNG, JPEG and SVG), and
   the `firefox-bug-2026295-print` fixture's images are GIFs, so that target still
-  FAILS; GIF support is tracked as **CORE-186** (it blocks CORE-183). Zero WPT status
+  FAILS; GIF support is a separate follow-up that blocks element `content: url()` support. Zero WPT status
   flips on landing, so the seam is proven by two RED-first unit tests
   (`layout::core183_element_content_image_tests::element_content_url_paints_image_at_natural_size`,
   `css::core183_decl_split_tests::data_uri_in_content_survives_inline_declaration_splitting`)
   plus a before/after ink control: the same PNG markup painted 0 ink before and
   64 after.
-- **Vertical block geometry is keyed on the mode IN EFFECT AT THE BOX (CORE-182,
-  2026-09-15)** → the CORE-153 block-start anchoring rule was keyed on the ROOT
+- **Vertical block geometry is keyed on the mode IN EFFECT AT THE BOX
+  (2026-09-15)** → the block-start anchoring rule was keyed on the ROOT
   element's mode, so an INTERIOR `writing-mode` declaration was ignored for
   geometry. It now reads `Ctx::writing_mode_at(id)` (the nearest
   ancestor-or-self declaration, else the page flow mode), which is what
@@ -784,10 +782,10 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   not evidence of a dead seam: the WPT print-reftests compare our test render
   against our reference render through the SAME engine, so a change that applies
   uniformly to both sides of a pair is invisible to the gate. The payoff for this
-  capability arrives with CORE-181's root-vertical page PROGRESSION, which is
+  capability arrives with root-vertical page PROGRESSION, which is
   what the eight `body-background-*` / `block-00{1,2}-wm-*` / `page-box-008`
   targets actually fail on.
-  **The CORE-153 inline-extent fill was deliberately NOT re-keyed the same way.**
+  **The inline-extent fill was deliberately NOT re-keyed the same way.**
   Widening it to the box's own mode was built and measured, and it regressed the
   Chromium-verified page count of the `page-name-orthogonal-writing-003` shape:
   an interior `vertical-rl` wrapper under a horizontal page filled its inline
@@ -798,31 +796,30 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   root/body chain, but an interior vertical box inside a horizontal flow has a
   content-based, indefinite containing-block inline extent. Generalising it needs
   a definite containing-block inline size, which the engine only models for
-  DECLARED extents (`specified_extent`, CORE-167) — so the fill keeps its
+  DECLARED extents (`specified_extent`) — so the fill keeps its
   page-flow key and the NOTE in `layout_box` records why. The WPT gate could not
   catch this class of change at all: both sides of the pair moved together.
-- **UA body margin is the WHATWG 8px in print (CORE-153, 2026-09-14)** → the
-  UA sheet's `body { margin: 0 }` (Prince alignment, CORE-92) is REVERSED to
+- **UA body margin is the WHATWG 8px in print (2026-09-14)** → the
+  UA sheet's `body { margin: 0 }` (Prince alignment) is REVERSED to
   `margin: 8px` (6pt): Chromium applies the 8px body margin in print, and
   the page-box-002/003 refs simulate it with an inner `margin: 8px` div, so
   css-standards-alignment (spec wins over PrinceXML) decides. The `//`
   line-comments in UA_CSS previously poisoned stylo's rule stream, so even
   the OLD `body { margin: 0 }` was never parsed (the initial 0 matched by
   accident). Flips: page-box-002/003 FAIL→PASS; layers-003 and
-  page-name-margin-001 PASS→FAIL — both are CORE-177 bucket-3 invalid-test
+  page-name-margin-001 PASS→FAIL — both are invalid-test
   candidates (Chrome AND Firefox fail them), so the flips EXPOSE test bugs
   rather than regress.
-- **Border shorthands apply 1-4 value widths per side (CORE-153,
-  2026-09-14)** → `border-width: 40px 80px 120px 160px` (and the `border`
+- **Border shorthands apply 1-4 value widths per side (2026-09-14)** → `border-width: 40px 80px 120px 160px` (and the `border`
   shorthand) previously collapsed every side to the LAST length token;
   page-box-007's ref renders its 400x800px simulation box with all borders
   160px. The shorthand now expands per css-backgrounds-3 §4.3 (1→all,
   2→vertical/horizontal, 3→top/h/bottom, 4→top right bottom left).
-- **html-root-box (CORE-165)** → the `<html>` element's own border paints as
+- **html-root-box** → the `<html>` element's own border paints as
   page chrome: a band at the page-area rect's edge on every page (the root
   box fragments per page; its border repeats per fragment). The root's
-  background still propagates to the canvas (CORE-144) — never double-painted.
-- **Page chrome insets content (CORE-165)** → document content lays out
+  background still propagates to the canvas — never double-painted.
+- **Page chrome insets content** → document content lays out
   inside the `@page` border+padding bands AND the html root's border/padding
   (the body's containing block is the html content box; Chromium-verified:
   page-box-011 oracle text at border+padding offset). The chrome bands paint
@@ -830,12 +827,12 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   the page) clamps chrome to 0. Border+padding no longer merge: the border
   band keeps its own width and the padding band its declared size
   (css-box-3 §3: border box ⊃ padding box ⊃ content box — superseding
-  CORE-144's border-eats-padding model).
-- **`@page` border currentColor (CORE-165)** → an omitted `border-color`
+  the earlier border-eats-padding model).
+- **`@page` border currentColor** → an omitted `border-color`
   resolves at used-value time to the page's cascaded `color`
   (css-backgrounds-3 §3; page-box-005: `@page :first { color: orange }`
   colors page 1's border).
-- **Block content respects its border (CORE-165)** → a block's content box
+- **Block content respects its border** → a block's content box
   starts after its border widths, not just its padding (css-box-3 §3;
   oracle-verified: bordered div text at border+padding offset). inner_width
   already subtracted the borders; the content origin now matches.
@@ -844,7 +841,7 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   the only one emitted (multi-pass TOC/counter documents produce one
   fragmentainer set per pass; earlier passes are discarded before emit, so
   the canvas fill can never paint over the fixed clones).
-- **Page-anchored abspos fragments inside, continuations drain (CORE-153)**
+- **Page-anchored abspos fragments inside, continuations drain**
   → a page-anchored `position: absolute` box (auto insets, no positioned
   ancestor, page content box as containing block) that FITS the remaining
   fragmentainer still lays with a real bottom limit (not the monolithic
@@ -867,18 +864,17 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
 
 ## References
 
-- CORE-51 spec: `docs/specifications/fragmentation-core.spec.md` (the
+- `docs/specifications/fragmentation-core.spec.md` (the
   fragment-tree contract this builds on).
 - Harness spec: `docs/specifications/wpt-conformance-harness.spec.md`
   (fitness function; the `--engine cli` adapter contract for `typeanvil
   render`; css-page is 367 WPT files, 333 print-named).
-- CORE-51 code: `engine/src/frag.rs`, `engine/src/layout.rs` (fragmentainers,
+- `engine/src/frag.rs`, `engine/src/layout.rs` (fragmentainers,
   break tokens), `engine/src/css.rs` (the `breaks` author-CSS pass pattern).
 - krilla 0.8: `Document::set_outline`, `interchange::outline::{Outline,
   OutlineNode}` (native PDF bookmarks; source in
-  `~/.cargo/registry/src/*/krilla-0.8*/`).
+  `$CARGO_HOME/registry/src/*/krilla-0.8*/`).
 - W3C: CSS Paged Media Module Level 3 (w3.org/TR/css-page-3), CSS
   Generated Content for Paged Media (w3.org/TR/css-gcpm-3 — `string-set`,
   `leader()`, `target-counter`).
-- Vault: `brain/Projects/Typeanvil/Project Overview.md` (typography/demo
-  positioning), `docs/research/rust-ecosystem/typeanvil-rust-typesetting-research.md`.
+- `docs/research/rust-ecosystem/typeanvil-rust-typesetting-research.md`.

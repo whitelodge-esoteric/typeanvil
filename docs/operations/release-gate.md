@@ -3,13 +3,12 @@ title: Run the Release Gate
 slug: /operations/release-gate
 type: runbook
 status: approved
-owner: elijah
+owner: maintainers
 created: 2026-09-15
-updated: 2026-09-16
+updated: 2026-09-27
 sidebar_position: 8
 tags: [harness, wpt, release, gate, testing]
 trigger: Before landing an engine change, and before promoting the release branch
-issue_id: CORE-206
 ---
 
 # Run the release gate
@@ -48,7 +47,7 @@ that wholesale would defeat the gate.
    `docs/research/wpt-harness/promotion-delta-<date>.md`: the WPT status
    movement per test, the changed-document counts, the regressions, and the
    follow-up issues they need.
-4. Reference the record from the promotion commit and the Linear issue.
+4. Reference the record from the promotion change and the project change record.
 
 Record dispositions only for what a reviewer actually examined, and state the
 evidence in the reason. A family-level approval must say that it is family-level
@@ -56,15 +55,13 @@ rather than imply a per-document diff.
 
 ## Prerequisites
 
-- An isolated worktree at the branch point, with the shared WPT checkout linked
-  (`ln -sfn ~/workspace/typeanvil/.wpt <worktree>/.wpt`).
+- An isolated worktree at the branch point, with the shared WPT checkout available at a path you can mount read-only.
 - The dev container (see [dev container](dev-container.md)). Build and test inside
   it, never on the host.
 - Two freshly built binaries:
   - **baseline** — the current release tip, or `main` if you compare against it;
   - **candidate** — your branch.
-- The repo venv python for the harness itself:
-  `~/workspace/typeanvil/.venv/bin/python`.
+- Python and the harness dependencies installed for the repository.
 - The spec: [harness release gate](../specifications/harness-release-gate.spec.md).
 
 ## Steps
@@ -118,7 +115,7 @@ The gate reads captures only; it does not render, so it runs on the host or in
 the container. Run it from the candidate worktree with the host venv python.
 
 ```bash
-~/workspace/typeanvil/.venv/bin/python -m harness gate \
+python3 -m harness gate \
   --baseline gate/captures/baseline-<commit>.json \
   --candidate gate/captures/candidate-<commit>.json \
   --direct harness/direct_manifest.json \
@@ -152,9 +149,7 @@ widen a tolerance or edit expected values to make the gate pass.
 
 ### 6. Record the evidence
 
-Put the commands, both source and binary identities, the report, the review
-record, the measured runtime, and the artifact size on the Linear issue. Follow
-[issue evidence](../conventions/issue-evidence.md).
+Record the commands, source and binary identities, report, review record, runtime, and artifact size in the project's durable change record. Follow [issue evidence](../conventions/issue-evidence.md).
 
 ### 7. Prove the gate on a fault (when the gate itself changes)
 

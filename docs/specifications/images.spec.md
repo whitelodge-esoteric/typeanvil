@@ -3,13 +3,12 @@ title: Images — <img> Decode, Layout, PDF Embedding
 slug: /specifications/images
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-08-21
-updated: 2026-09-15
+updated: 2026-09-27
 sidebar_position: 23
 tags: [engine, pdf, images, layout, determinism]
 spec_id: images
-issue_id: CORE-106
 applies_to: engine 0.x
 dependencies: [fragmentation-core]
 ---
@@ -36,8 +35,8 @@ space directly.
 2. Sources: file paths resolved against `--base-url`, and `data:` URIs
    (base64, percent-encoded).
 3. Formats: PNG and JPEG (krilla's native path), inline SVG (rasterised to
-   PNG at intern time, CORE-131), and GIF (first frame, normalised to PNG at
-   intern time, CORE-186).
+   PNG at intern time), and GIF (first frame, normalised to PNG at intern
+   time).
 4. Sizing follows CSS2.1 replaced-element rules: intrinsic size at 96 dpi,
    `width`/`height` attributes and CSS `width`/`height` scale it, and a
    single specified dimension preserves aspect ratio.
@@ -51,8 +50,7 @@ space directly.
    silently accepted.
 2. **WebP/other formats**: deferred. A document using them gets the
    broken-image placeholder (Behavior 7). Recorded decision, follow-up if
-   needed. (GIF was originally on this list; CORE-186 landed support — see
-   Behavior 4.)
+   needed. GIF is supported as described in Behavior 4.
 3. **Float interaction**: an image participates in float wrapping like any
    other box; float-specific image tuning is out of scope.
 4. **SVG**: deferred entirely (separate ticket if filed).
@@ -79,7 +77,7 @@ space directly.
    - `src="data:image/png;base64,…"` (or `image/jpeg`, `image/gif`) SHALL
      decode to raw bytes directly. The MIME gate is load-bearing: rejecting a
      type here means the bytes never load and the reference is hashed as its
-     URL TEXT instead (CORE-186 found `image/gif` rejected this way).
+     URL TEXT instead.
    - Any other `src` SHALL resolve as a file path relative to the
      `--base-url` CLI argument (same resolution rules as stylesheet paths);
      absolute paths pass through unchanged.
@@ -92,7 +90,7 @@ space directly.
    one entry). The cache SHALL be a `BTreeMap` (deterministic iteration;
    never `HashMap`). Decoding happens lazily at first use during layout.
 
-   **GIF (CORE-186)** SHALL be normalised to PNG at intern time: the FIRST frame
+   **GIF** SHALL be normalised to PNG at intern time: the FIRST frame
    is decoded to RGBA at the GIF's LOGICAL SCREEN size — a frame covering only
    part of the canvas is composed at its own offset — and re-encoded as PNG. The
    cache key therefore stays the SHA-256 of the GIF source bytes while the
@@ -190,7 +188,7 @@ pub struct StoredImage {
 Layout threads `&mut ImageStore` through the same context that carries the
 font/shaping state; pdf.rs reads the store at emit time. `ComputedStyle`
 needs NO new fields — `width`/`height`/`width_percent`/`height_percent`
-already exist (stylo accessors verified in CORE-81/CORE-66 work).
+already exist (stylo accessors verified in the implementation).
 
 The CLI contract is unchanged (`render <in.html> … --base-url -o out.pdf`);
 `--base-url` already exists.
@@ -226,7 +224,7 @@ pure no-op gate).
 - **`<img>` inside margin boxes / generated content**: NOT supported in v1
   (margin-box content pipeline is text-only) — EXCEPT `content: url(<path>)`
   inside a `@page` margin box, which paints the image at its intrinsic size
-  (CORE-141). An `<img>` ELEMENT inside a margin box is still unsupported:
+  An `<img>` ELEMENT inside a margin box is still unsupported:
   margin boxes take generated content, not element subtrees.
 - **Same image, different display sizes**: one cache entry, multiple
   fragments scaling the shared XObject.
@@ -235,7 +233,7 @@ pure no-op gate).
 
 ## References
 
-- Issue: CORE-106 (model: codex `nous/openai/gpt-5.2-codex` — engine work).
+- `engine/src/images.rs` — image interning and format handling.
 - krilla 0.8 image API: `krilla::image::{Image, ImageKind}` (to be verified
   against the vendored source during implementation, same verification
   discipline as the hyperlinks spec).

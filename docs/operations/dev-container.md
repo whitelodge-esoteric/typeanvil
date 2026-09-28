@@ -1,133 +1,76 @@
 ---
-title: Containerized Dev Environment — Rust & Python in Docker
+title: Containerized Development Environment
 type: runbook
 status: approved
-owner: elijah
+owner: maintainers
 created: 2026-09-13
-updated: 2026-09-15
+updated: 2026-09-27
 sidebar_position: 6
 tags: [docker, containers, memory, cargo, harness]
-issue_id: CORE-168
+trigger: When building or testing the Rust engine and Python harness
 ---
 
-# Containerized dev environment — Rust engine + Python harness
+# Containerized development environment
 
-Host builds of `cargo build` / `cargo test` have exhausted system memory on the
-16 GB Mac. All Rust builds/tests and Python tooling runs SHOULD run inside
-Docker. The container caps memory so a runaway build cannot take the host
-down.
+Use the repository's development container for Rust builds, engine tests, and harness runs when host resources are limited or a reproducible environment is required.
 
-## Layout
+## Prerequisites
 
-- `docker/Dockerfile.dev` — image with Rust 1.97, Python 3.11, and the harness
-  Python deps (Pillow, pypdfium2, playwright).
-- `scripts/dev-container.sh` — wrapper. Runs any command in a container with
-  the current (or named) worktree mounted at `/work`.
-- `docker-compose.dev.yml` — the same setup as a compose service.
+- Docker is running.
+- The development image exists. Build it with `docker/Dockerfile.dev` when needed.
+- Run commands from the repository root or pass a worktree directory to the wrapper.
 
-## Usage
+## Steps
+
+Build the image once when it is absent:
 
 ```bash
-# one-off build of the image (first time, ~10 min)
 docker build -f docker/Dockerfile.dev -t typeanvil-dev .
-
-# build + test the engine inside the container (from any worktree root)
-scripts/dev-container.sh cargo build --manifest-path /work/engine/Cargo.toml
-scripts/dev-container.sh cargo test  --manifest-path /work/engine/Cargo.toml
-
-# run the harness against the container-built engine binary
-scripts/dev-container.sh bash -c \
-  '/work/engine/target/debug/typeanvil render --help'
-
-# from main's checkout, mount a different worktree:
-scripts/dev-container.sh ~/workspace/typeanvil.worktrees/core-168 cargo build
 ```
 
-## Memory guardrails
-
-- The container is capped at 6 GB (`--memory 6g`), leaving ~10 GB of host
-  headroom. Docker Desktop's own VM cap (Settings → Resources) is a second
-  ceiling — this machine's is set to 8 GB.
-- If a build hits the cap it fails with an OOM message; do NOT raise it on the
-  host — reduce parallelism instead (`cargo build -j 4`).
-- `cargo` parallelism defaults to the container's CPU count; override with
-  `-j` when memory is tight.
-
-## Caching
-
-Build artifacts live in a **named Docker volume per worktree** (`dev-target-<name>`),
-mounted at `/work/engine/target`. Deleting a worktree does not delete its
-volume — see [Cleanup when an issue closes](#cleanup-when-an-issue-closes).
-
-The cargo registry/git caches are shared via the `dev-cargo-home` volume, so
-dependencies download once, ever.
-
-## Cleanup when an issue closes
-
-The dev container creates these assets for one issue:
-
-| Asset | Name | Holds | Dispose |
-|---|---|---|---|
-| Build volume | `dev-target-<worktree-name>` | ~14 GB | Delete on close |
-| Container | any run of `typeanvil-dev` | — | Delete if left behind |
-| Image | `typeanvil-dev` | 4.1 GB | Keep (shared) |
-| Cargo caches | `dev-cargo-home`, `dev-cargo-git`, `dev-cargo-registry` | 171 MB | Keep (shared) |
-
-`<worktree-name>` is the worktree's directory name, so the `core-184` worktree
-maps to `dev-target-core-184`.
-
-Close an issue in this order. Remove the worktree last.
+Build and test inside the container:
 
 ```bash
-# 1. its build volume (about 14 GB)
-docker volume rm dev-target-core-<N>
-
-# 2. containers left behind by an interrupted run; --rm handles normal runs
-docker ps -a --filter ancestor=typeanvil-dev
-
-# 3. the worktree and branch
-git worktree remove ~/workspace/typeanvil.worktrees/core-<N>
-git branch -D ebboston/<branch>
+scripts/dev-container.sh cargo build --manifest-path /work/engine/Cargo.toml -j 2
+scripts/dev-container.sh cargo test --manifest-path /work/engine/Cargo.toml -j 2
 ```
 
-Two rules:
-
-- Never remove the shared caches (`dev-cargo-*`) or the `typeanvil-dev` image.
-  They serve every worktree, and the image costs a 10-minute rebuild.
-- Never remove a volume whose worktree is still live. Another session may be
-  building in it. A volume with `LINKS 0` in `docker system df -v` has no
-  container attached.
-
-A deleted volume costs a FULL rebuild on the next run, so clean up after the
-issue closes, never while the gate is still open.
-
-## System fonts
-
-The engine's bundled Arial faces are macOS paths
-(`/System/Library/Fonts/Supplemental/...`), and the system-face tests use
-macOS fonts (Georgia, Arial Black). The wrapper mounts `/System/Library/Fonts`
-read-only so containers behave like the host. If Docker rejects the mount
-("path is not shared"), add it once in Docker Desktop → Settings → Resources →
-File Sharing. Unit tests that assert macOS-only system faces are
-`#[cfg(target_os = "macos")]`-gated; everything else runs identically on Linux.
-
-## Harness runs
-
-The WPT fixtures live in main's checkout (`~/workspace/typeanvil/.wpt`), which
-is mounted read-only at `/main`. Harness invocations inside the container use
-`--wpt /main/.wpt`:
+The wrapper also accepts a worktree path:
 
 ```bash
-scripts/dev-container.sh bash -c \
-  'python3 -m harness --wpt /main/.wpt run --engine cli \
-   --cli-cmd "/work/engine/target/debug/typeanvil render" \
-   --filter css-page --report /tmp/report.json'
+scripts/dev-container.sh /path/to/worktree cargo build --manifest-path /work/engine/Cargo.toml -j 2
 ```
 
-Reports write to `/tmp` inside the container (ephemeral) or to a mounted
-worktree path (persistent).
+Run the harness against the container-built binary:
 
-## Do not run builds on the host
+```bash
+scripts/dev-container.sh python3 -m harness --wpt /main/.wpt run \
+  --engine cli \
+  --cli-cmd '/work/engine/target/debug/typeanvil render' \
+  --filter 'css-page/margin-boxes/content-003-print.html' \
+  --workers 1 \
+  --report /work/probe/report.json \
+  --db /work/probe/history.sqlite
+```
 
-If Docker is not running: `open -a Docker`, wait for the daemon, then use the
-wrapper. Host `cargo build` is the failure mode this setup exists to prevent.
+The wrapper mounts the current worktree at `/work`, the main checkout at `/main` read-only, and a per-worktree target volume at `/work/engine/target`. Keep reports under `/work` when they must persist.
+
+## Resource and cache rules
+
+- Use a lower Cargo job count when the linker reaches the container memory limit.
+- Treat a report from an interrupted or failed container as incomplete.
+- Build artifacts use a worktree-specific `dev-target-<worktree-name>` volume.
+- Shared Cargo cache volumes and the `typeanvil-dev` image serve all worktrees. Keep them.
+- A worktree-specific volume can be removed only after the work is closed, no contributor is using it, and required evidence is retained.
+
+## Verification
+
+A successful build or test command exits 0. A harness run must select the expected test IDs, write a report, and distinguish PASS, FAIL, ERROR, and SKIP results. A reproduction is evidence; it is not a release-gate result.
+
+## Troubleshooting
+
+- **Image absent:** rebuild it with the Dockerfile command above.
+- **Linker killed or Docker reports out of memory:** reduce `-j` and stop competing builds.
+- **Harness cannot find WPT:** check that `/main/.wpt` exists and pass `--wpt` before `run`.
+- **Engine command fails:** include the `render` subcommand and use the container path `/work/engine/target/debug/typeanvil`.
+- **Report disappears:** write it under `/work`, not container `/tmp`.

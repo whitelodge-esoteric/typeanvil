@@ -3,19 +3,18 @@ title: Inline-block atomic boxes
 slug: /specifications/inline-block
 type: spec
 status: approved
-owner: Elijah Boston
+owner: maintainers
 created: 2026-08-25
-updated: 2026-09-14
+updated: 2026-09-27
 sidebar_position: 24
-tags: [css-display-3, layout, core-120, core-175]
+tags: [css-display-3, layout]
 spec_id: SPEC-inline-block
-issue_id: CORE-120
 applies_to: engine/src/layout.rs, engine/src/css.rs
 dependencies:
   - SPEC-fragmentation-core
 ---
 
-# Inline-block atomic boxes (CORE-120)
+# Inline-block atomic boxes
 
 ## Overview
 
@@ -61,7 +60,7 @@ this residual.
 7. Surrounding text lines shall wrap around placed inline-blocks using the
    same intrusion mechanism as floats.
 8. The line box shall grow to CONTAIN an atomic box that is taller than the
-   current line (CORE-171). Aligning a tall box's bottom margin edge to a
+   current line. Aligning a tall box's bottom margin edge to a
    short line's baseline places the box above the block's content top: a
    `100px x 50px` empty inline-block as the first line painted only a 13.9pt
    slice at the page edge (Chromium paints it in full from the page top). The
@@ -69,7 +68,7 @@ this residual.
    the box never starts above the line top; boxes that fit the line keep their
    baseline alignment unchanged.
 9. An inline-block that follows bare text on the same line shall start at that
-   text's advance width (CORE-172), not at the line origin. The bare-text path
+   text's advance width, not at the line origin. The bare-text path
    shall hand the end of each placed line to the atomic pen state, and the
    `fits_line`/wrap decision shall use that same pen position. This is what
    `css-page/margin-boxes/content-003`'s reference needs: `Hello` followed by a
@@ -77,7 +76,7 @@ this residual.
    after it (Chromium: 40..139).
 
 10. A line whose atomic box is TALLER than the strut shall move its baseline
-   DOWN to the box's bottom margin edge (CORE-173), and the text fragments
+   DOWN to the box's bottom margin edge, and the text fragments
    already placed on that line shall ride the shift. css2 §10.8.1 gives a
    replaced inline box with no in-flow line boxes its bottom margin edge as the
    baseline, so the line box grows to that ascent: the box spans
@@ -89,7 +88,7 @@ this residual.
 
 11. Collapsible white space before an inline-level atomic on the SAME line shall
     survive: the atomic shall start one space past the text's advance end
-    (CORE-174). css-text-3 §4.1.1 removes white space at a LINE BREAK, and a
+    (css-text-3 §4.1.1). CSS removes white space at a LINE BREAK, and a
     space that the atomic continues past is not at a break. `build_items` leaves
     its word loop as soon as a white-space run reaches the end of the text, before
     pushing the inter-word glue, so that run reached no line's natural width and
@@ -104,7 +103,7 @@ this residual.
     starts at the line origin.
 
 12. Alignment shall move the WHOLE line's content, including an atomic that
-    continues a text line (CORE-175). css2 §16.2: `text-align` positions a
+    continues a text line (css2 §16.2). `text-align` positions a
     line's inline-level content within the line box, and an inline-block
     following the text is part of that content. When an atomic continues a line
     that a text run started, the engine shall re-align the combined line — the
@@ -178,5 +177,4 @@ this residual.
 ## References
 
 - css-display-3 §2.3; CSS 2.1 §9.2.4, §10.3.9 (shrink-to-fit width).
-- Linear CORE-120; classification table in
-  `flexbox-fragmentation.spec.md` (2026-08-24); source issue CORE-114.
+- `flexbox-fragmentation.spec.md` classification table (2026-08-24).

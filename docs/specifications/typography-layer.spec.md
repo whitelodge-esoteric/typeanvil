@@ -3,13 +3,12 @@ title: Typography Layer
 slug: /specifications/typography-layer
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-08-16
-updated: 2026-08-20
+updated: 2026-09-27
 sidebar_position: 4
 tags: [typography, line-breaking, knuth-plass, shaping, engine]
 spec_id: typography-layer
-issue_id: CORE-53
 applies_to: engine 0.x
 dependencies: [wpt-conformance-harness, fragmentation-core, paged-media-css]
 ---
@@ -112,13 +111,13 @@ The engine shall:
    advances may be scaled by a per-line factor in [−2%, +2%] so the line fits
    the content width exactly (a deterministic post-pass on top of glue
    stretching; expansion is applied only when it reduces residual error).
-9. **Honor forced line breaks (`<br>`, CORE-159)**: a `<br>` element folds a
+9. **Honor forced line breaks (`<br>`)**: a `<br>` element folds a
    forced-break sentinel into its text run; the K-P item stream carries it as
    a mandatory penalty (infinite demerit to skip). No line may span a forced
    break, a forced-break line is never justified, leading and trailing forced
    breaks produce real empty lines, and the fragmentation resume path consumes
    the sentinel byte so a run resuming across pages cannot re-break at it.
-10. **Breakpoint glue is consumed by the break (CORE-94)**: the glue at a
+10. **Breakpoint glue is consumed by the break**: the glue at a
    line's break point produces no space glyph and contributes neither its
    natural width nor its stretch/shrink to the line. The DP's
    `adjustment_ratio` measures `items[start..end]` (exclusive of the break
@@ -127,7 +126,7 @@ The engine shall:
    negative expansion — leaving justified lines ~4pt short of the measure
    and diverging from Prince's line counts. Verified 2026-08-20: prose
    justified lines now reach the content edge (spec §Behavior 4), matching
-   Prince to <0.5pt.
+   Prince to within 0.5pt.
 10. **Draw glyphs, not strings**: the PDF backend draws main-text lines via
    krilla's `draw_glyphs` (glyph ids + advances), not the high-level
    `draw_text` string path, so shaped widths, protrusion offsets, and
@@ -137,7 +136,7 @@ The engine shall:
     PDF backend passes those ranges to krilla, which slices the text by them
     to build the font's `/ToUnicode` CMap. Body text must therefore extract,
     copy, and search as the source text (readable strings, no control
-    chars) in every emitted PDF (CORE-85). Empty ranges are prohibited — a
+    chars) in every emitted PDF. Empty ranges are prohibited — a
     glyph with no text mapping yields an empty CMap entry and garbage
     extraction.
 12. **Shape every run**: `TextRun` carries the shaped glyphs and resolved
@@ -145,13 +144,13 @@ The engine shall:
     Margin boxes and generated content (single short lines) are shaped with
     `shape_word` like body text — no run uses the raw `draw_text` string
     path, so non-ASCII (em dash, curly quotes, `·`) always renders as a real
-    glyph with a ToUnicode mapping (CORE-83).
+    glyph with a ToUnicode mapping.
 13. **Stay deterministic**: shaping (fixed font bytes + size), K-P (pure
     function of widths/opportunities), protrusion, and expansion are all
     deterministic; no hash-order dependence; identical input yields
     byte-identical PDF.
-14. **Keep everything else green**: fragmentation (CORE-51) and paged-media
-    (CORE-52) acceptance tests pass unchanged.
+14. **Keep everything else green**: the fragmentation and paged-media
+    acceptance tests pass unchanged.
 15. **Ship the demo**: a fixture (`typography-demo.html`) rendering a
     typography-sensitive paragraph set; a script produces the side-by-side
     spread (Typeanvil + Chromium now; Prince slot reserved).
@@ -168,7 +167,7 @@ ShapedGlyph         // one shaped glyph
   range: Range<usize>         // byte range of the glyph's cluster in the
                               // paired text (word text for ShapeRun glyphs,
                               // line text for LineResult glyphs); feeds the
-                              // PDF /ToUnicode map (CORE-85)
+                              // PDF /ToUnicode map
 
 ShapeRun            // a shaped word/segment
   text: String                // original text (for the PDF text arg)
@@ -218,7 +217,7 @@ TextRun {
   font_size: Scalar,
   color: Color,
   font_family: String,
-  glyphs: Vec<ShapedGlyph>,   // all runs carry shaped glyphs (CORE-83)
+  glyphs: Vec<ShapedGlyph>,   // all runs carry shaped glyphs
   expansion: f64,             // NEW — per-line advance scale (default 0.0)
   protrude_left: Scalar,      // NEW
   protrude_right: Scalar,     // NEW
@@ -232,13 +231,13 @@ TextRun {
 `break-inside: avoid` heuristic) uses the same breaker so measured heights
 match laid-out heights. Text runs produced by generated content (TOC entries,
 margin boxes) are shaped single-line via `shape_word` at their resolved font
-size/face, so non-ASCII maps to a glyph + ToUnicode range (CORE-83); no
+size/face, so non-ASCII maps to a glyph + ToUnicode range; no
 justification/protrusion is applied to them.
 
 **`engine/src/pdf.rs`** — `Line` fragments with non-empty `glyphs` draw via
 `surface.draw_glyphs(start, glyphs, font, text, font_size, outlined=false)`.
 Every run (body text, generated content, margin boxes) carries shaped glyphs
-(CORE-83); the `draw_text` fallback remains only for degenerate empty runs.
+the `draw_text` fallback remains only for degenerate empty runs.
 Protrusion offsets and expansion factors are applied to glyph
 positions/advances at draw time.
 
@@ -279,8 +278,8 @@ Given/When/Then, each mapping to a real test in `engine/tests/typography.rs`:
    (`typography.rs::uax14_opportunities`).
 8. **Determinism** — Given the same typography fixture rendered twice, then the
    PDF bytes are identical (`typography.rs::determinism_typography`).
-9. **Regression: fragmentation + paged-media** — the existing CORE-51/CORE-52
-   tests pass unchanged (they consume `TextRun`).
+9. **Regression: fragmentation + paged-media** — the existing fragmentation
+   and paged-media tests pass unchanged (they consume `TextRun`).
 10. **ToUnicode map** — Given a doc whose body text contains repeated letters,
     ligature-friendly words, and a non-ASCII char (em dash), when rendered,
     then the PDF's `/ToUnicode` CMap maps every distinct source char back to
@@ -289,12 +288,12 @@ Given/When/Then, each mapping to a real test in `engine/tests/typography.rs`:
     word's and line's glyph ranges cover their text exactly
     (`tounicode.rs::shaped_word_ranges_cover_text`,
     `tounicode.rs::line_ranges_cover_line_text`).
-11. **Justified lines fill the measure (CORE-94)** — Given a justified
+11. **Justified lines fill the measure** — Given a justified
     paragraph with no hyphenation, when broken at content width W, then every
     non-final line's ink width equals W within 0.5pt (the breakpoint glue is
     consumed by the break, so the line is not left ~4pt short). Verified
     against Prince 16.2: prose justified lines reach the content edge to
-    <0.5pt, matching Prince's measure.
+    within 0.5pt, matching Prince's measure.
 12. **Demo fixture** — Given `engine/tests/fixtures/typography-demo.html`, when
     rendered, then it is multi-page, deterministic, and a side-by-side spread
     script produces a PNG with Typeanvil's render (`typography.rs::demo_fixture`,
@@ -307,8 +306,8 @@ Given/When/Then, each mapping to a real test in `engine/tests/typography.rs`:
     to readable text with no control chars and no raw-byte mojibake
     (`tounicode.rs::margin_box_runs_are_shaped`,
     `tounicode.rs::margin_box_tounicode_map`). This requires the stylesheet
-    comment stripper to be char-safe (CORE-83 — the old byte-wise stripper
-    mangled every multi-byte UTF-8 char in the stylesheet source).
+    comment stripper to be char-safe (the old byte-wise stripper mangled
+    every multi-byte UTF-8 char in the stylesheet source).
 
 ## Edge Cases
 
@@ -335,12 +334,10 @@ Given/When/Then, each mapping to a real test in `engine/tests/typography.rs`:
 - Research brief: `docs/research/rust-ecosystem/typeanvil-rust-typesetting-research.md`
   (wrap-vs-build: HarfRust, hypher, icu4x, krilla; Typst's linebreak.rs as the
   K-P reference).
-- Vault: `brain/Projects/Typeanvil/Project Overview.md` — "Why LaTeX Output
-  Looks Crisper" section (K-P, protrusion, expansion, glue, determinism).
 - Knuth & Plass, "Breaking Paragraphs into Lines" (1981); Typst
   `typst-layout/src/inline/linebreak.rs` (costs: hyphen 135, runt 100).
-- CORE-51 spec (fragment contract), CORE-52 spec (TextRun consumers, margin
-  boxes, generated content).
+- `fragmentation-core.spec.md` (fragment contract) and `paged-media-css.spec.md`
+  (TextRun consumers, margin boxes, generated content).
 - W3C: css-text-3 (`text-align`, `text-justify`, `hyphens`, `overflow-wrap`),
   UAX #14 (Unicode line breaking).
 - Crates: harfrust 0.13 (complete HarfBuzz port), hypher 0.1.7 (Knuth-Liang),

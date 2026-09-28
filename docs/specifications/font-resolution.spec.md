@@ -3,13 +3,12 @@ title: Font Resolution — @font-face, System Discovery, Family Stacks
 slug: /specifications/font-resolution
 type: spec
 status: approved
-owner: elijah
+owner: maintainers
 created: 2026-08-22
-updated: 2026-08-22
+updated: 2026-09-27
 sidebar_position: 13
 tags: [engine, css-fonts, typography, pdf, determinism]
 spec_id: font-resolution
-issue_id: CORE-103
 applies_to: engine 0.x
 dependencies: [font-weight-style, typography-layer, wpt-conformance-harness]
 ---
@@ -23,7 +22,7 @@ The engine renders every document with a hardcoded 4-face Arial bundle
 `face_for()` bold threshold ≥600). `font-family` is computed by stylo but only
 its FIRST family name survives into `ComputedStyle`, and nothing reads it.
 Any non-Arial stack silently renders Arial. This blocks branded documents and
-gates OpenType feature work (CORE-113).
+gates OpenType feature work.
 
 This issue replaces the closed 4-face enum with a **runtime face registry**:
 system font discovery (macOS first), generic family mapping, full-stack
@@ -189,16 +188,16 @@ full stack, not just the first name. `clone_font_weight().value(): f32`,
   deliberate re-baseline decision.
 - Bundled Arial faces keep FIXED registry ids 0..4. Documents whose
   families resolve to Arial/Helvetica/sans-serif render byte-identical to
-  pre-CORE-103 output.
+  the earlier fixed-face output.
 - @font-face url() sources resolve against the process CWD at cascade time;
   document-relative resolution via `--base-url` rewriting is a follow-up.
 
 ## References
 
 - Probe evidence: `/tmp/fontdb-probe` runs recorded in this spec's Overview
-  (2026-08-22); issue CORE-103.
-- `references/stylo-font-api-notes.md` — verified stylo font accessors.
+  (2026-08-22).
+- `engine/src/css.rs` — stylo font accessors and family conversion.
 - css-fonts-4 §5.2 (font matching algorithm); §4.3 (@font-face descriptors).
-- fontdb 0.23 docs (query semantics, generic family slots).
-- Related: CORE-80 (weight/style faces), CORE-113 (OpenType features,
-  blockedBy this), CORE-86 (corpus font pinning rationale).
+- fontdb 0.23 documentation (query semantics, generic family slots).
+- Weight/style faces: `font-weight-style.spec.md`; OpenType behavior is
+  documented in `opentype-features.spec.md`.

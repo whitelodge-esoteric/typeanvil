@@ -2,21 +2,20 @@
 title: Adjacent Vertical Margin Collapse
 type: spec
 status: approved
-owner: Elijah Boston
+owner: maintainers
 created: 2026-08-24
-updated: 2026-09-15
+updated: 2026-09-27
 slug: /specifications/margin-collapse
 sidebar_position: 42
-tags: [layout, css-box, margins, core-118]
-spec_id: SPEC-CORE-118-margin-collapse
-issue_id: CORE-118
+tags: [layout, css-box, margins]
+spec_id: margin-collapse
 applies_to:
   - engine/src/layout.rs
 dependencies:
-  - SPEC-CORE-51-fragmentation-core
+  - fragmentation-core
 ---
 
-# Adjacent Vertical Margin Collapse (CORE-118)
+# Adjacent Vertical Margin Collapse
 
 ## Overview
 
@@ -27,7 +26,7 @@ blockquote/h2 boundary carried a phantom extra gap (measured 6pt on
 academic-paper p4; +7pt at every h2 boundary). This spec defines the sibling
 collapse the corpus exercises.
 
-Reference finding: `demo/corpus/TRIAGE.md` §CORE-110 (minimal-probe evidence,
+Reference finding: `demo/corpus/TRIAGE.md` (minimal-probe evidence,
 2026-08-24).
 
 ## Goals
@@ -65,8 +64,8 @@ them:
 4. A resumed (!fresh) child SHALL NOT trigger a collapse adjustment: its
    own top margin is already truncated to zero by the fragmentation pass.
 5. The first in-flow box on a fragmentainer KEEPS its top margin at a page
-   start (css-break-3 §3.1 preserves a fresh box's margin; refined in
-   CORE-153 — the old CORE-95 truncation matched Prince, not the spec);
+   start (css-break-3 §3.1 preserves a fresh box's margin; the former
+   comparison-engine truncation did not match the standard);
    no collapse applies.
 
 ## Interfaces
@@ -115,7 +114,8 @@ Each criterion maps to a test in `engine/tests/margin_collapse.rs`.
 
 ## References
 
-- Linear: CORE-118 (finding filed from CORE-110 triage).
+- `engine/src/layout.rs` — the `prev_margin_bottom` tracker and fresh-child
+  adjustment.
 - CSS 2.1 §8.3.1 (collapsing margins).
 - `docs/specifications/fragmentation-core.spec.md` (fragment tree, break
   tokens).

@@ -3,13 +3,12 @@ title: Hyphenation density + line-break parity
 slug: /specifications/hyphenation-line-break-parity
 type: spec
 status: approved
-owner: elijah
+owner: maintainers
 created: 2026-08-20
-updated: 2026-09-15
+updated: 2026-09-27
 sidebar_position: 15
 tags: [engine, typography, hyphenation, line-breaking, parity]
 spec_id: hyphenation-line-break-parity
-issue_id: CORE-97
 applies_to: engine 0.x
 dependencies: [typography-layer, line-height, visual-comparison-demo]
 ---
@@ -22,11 +21,11 @@ Every corpus fixture still diverges from Prince's line breaks. The 2026-08-20
 demo triage (at `5afe57d`) measured the gap: on a packing probe Prince takes 9
 hyphen breaks where TypeAnvil takes 2, and Prince fits 12–14 words/line vs
 TypeAnvil's 10–13 (PR 49 body lines vs TA 56 on the margin-zeroed probe).
-[CORE-90] and [CORE-94] closed the baseline-placement and justification-glue
-halves; the density parity itself was never closed.
+Baseline placement and justification glue are already corrected; the density
+parity itself was never closed.
 
-**CORE-97 probe results (2026-08-20, this branch) — the ticket's hypotheses
-did NOT hold; the real drivers were found by direct measurement:**
+**Probe results (2026-08-20) — the initial hypotheses did NOT hold; the real
+drivers were found by direct measurement:**
 
 1. **Line-box height is NOT a divergence at declared values.** A probe page
    (10pt Arial, justified, `hyphens: auto`, identical text at `line-height`
@@ -61,7 +60,6 @@ did NOT hold; the real drivers were found by direct measurement:**
    ~123pt of p2. Probed: with the float placed-and-fragmented instead, the
    p2 structure matches Prince but the cascade runs +1 page (10 → 11), so
    the change was REVERTED — float fragmentation needs its own ticket.
-   Filed as CORE-101.
 6. **Ragged-right tie-break fixed.** Non-justified lines are all "free" when
    underfull, so in the K-P DP every break tied and the SHORTEST fit won —
    paper's h1 wrapped as `"On the"` + `"Texture…Study"` instead of Prince's
@@ -76,8 +74,7 @@ did NOT hold; the real drivers were found by direct measurement:**
 
 **Path chosen: engine-internal tuning, no stylo dependency.** The `hyphens`
 property is already a manual author-CSS pass (`Hyphens::Auto`, `css.rs`),
-not stylo; `line-height` is stylo (verified CORE-74, 2026-08-18). This issue
-changes only the Knuth-Plass objective, the line-resume bookkeeping, and the
+not stylo; `line-height` is stylo (verified 2026-08-18). This work changes only the Knuth-Plass objective, the line-resume bookkeeping, and the
 widows default in `typography.rs` / `layout.rs` / `css.rs` — no new CSS
 properties, no stylo surface.
 
@@ -105,16 +102,16 @@ properties, no stylo surface.
   We match observable break DENSITY and corpus page counts, not per-word
   dictionary equality.
 - The existing-hyphen double-hyphen bug (`page--` vs `page-`, letterhead
-  p1) — separate ticket [CORE-98].
-- `line-height: normal` used-value parity (CORE-74 fixed `normal → 1.2`;
+  p1) — tracked separately.
+- `line-height: normal` used-value parity (the engine maps `normal → 1.2`;
   corpus fixtures pin explicit values; Prince's `normal` is font-metric-
   derived and differs from 1.2 — out of scope).
-- **Float whole-box deferral → fragmentation parity (CORE-101, filed from
-  this branch).** Prince fragments an over-tall float; TypeAnvil defers the
-  whole box. The placed-and-fragmented experiment matched Prince's p2 but
-  regressed total pages 10 → 11 (the fragmented continuation + pullquote
-  cascade), so it was reverted; float fragmentation is its own ticket. Until
-  CORE-101 lands, float-showcase stays 10 vs Prince 8.
+- **Float whole-box deferral → fragmentation parity.** Prince fragments an
+  over-tall float; TypeAnvil defers the whole box. The placed-and-fragmented
+  experiment matched Prince's p2 but regressed total pages 10 → 11 (the
+  fragmented continuation + pullquote cascade), so it was reverted; float
+  fragmentation is its own work item. Until it lands, float-showcase stays
+  10 vs Prince 8.
 - Non-English hyphenation, non-Latin scripts, `hyphenate-character`,
   hyphenation-quality longhands.
 - A right-hyphenation minimum (`\righthyphenmin`): no probe evidence that
@@ -138,11 +135,11 @@ The engine shall:
    element): declared line-heights scale as `font-size × factor`, which the
    probe verified matches Prince exactly.
 6. Not change the justification glue model (stretch 1/2, shrink 1/3 of the
-   space advance; badness `100·|r|³` clamped; CORE-94's breakpoint-glue and
+   space advance; badness `100·|r|³` clamped; the existing breakpoint-glue and
    measure-fill behavior).
 7. Never consume more lines at a fragmentainer break than were actually
    placed: `apply_orphans_widows`'s result is clamped with `split.min(li)`
-   (CORE-97 orphans/widows text-loss fix).
+   (the orphans/widows text-loss fix).
 8. Default `widows` to 1 for unset paragraphs; any explicit author `widows`
    declaration overrides. **Standards-alignment note:** this deviates from
    the css-break-3 initial value of 2, kept deliberately for Prince parity
@@ -151,7 +148,7 @@ The engine shall:
    toward the CSS initial is acceptable and should be WPT-gated.
 9. Break non-justified lines at the LONGEST equal-cost fit: the K-P DP uses
    `<=` on the tie compare so the last (longest) equal candidate wins
-   (CORE-97 ragged tie-break fix).
+   (the ragged tie-break fix).
 10. Remain deterministic: all changes are pure functions of (text, font,
     width); no new nondeterminism sources.
 
@@ -173,7 +170,7 @@ The penalty was tuned by probe, not by guess — and the probe answered
 3. **Widows probe** (2026-08-20): Prince allows a 1-line widow
    (`[10,10,10,10,1]`); the engine's default moved 2 → 1 (AC 5).
 4. **Corpus acceptance** (fresh `build-demo.sh`): prose 11=11 (MET), float
-   10 vs 8 (NOT met — CORE-101), paper per-page ~22% (NOT met — break
+   10 vs 8 (NOT met — float fragmentation), paper per-page ~22% (NOT met — break
    positions; the structural h1/abstract splits now align).
 
 ## Interfaces
@@ -182,7 +179,7 @@ The penalty was tuned by probe, not by guess — and the probe answered
 
 ```rust
 /// The K-P hyphen penalty (Typst's default, from Knuth-Plass §hyphenation).
-/// CORE-97 swept 5..=135 and found the corpus page counts and per-page diffs
+/// A sweep of 5..=135 found the corpus page counts and per-page diffs
 /// are INSENSITIVE to this value; kept at the documented default.
 const HYPHEN_PENALTY: f64 = 135.0;
 
@@ -203,7 +200,7 @@ become `Item::Penalty` candidates.
 
 ```rust
 // In the run-break branch, after apply_orphans_widows:
-let split = split.min(li); // NEVER consume more lines than were placed (CORE-97)
+let split = split.min(li); // NEVER consume more lines than were placed
 ```
 
 ### `engine/src/css.rs`
@@ -227,15 +224,15 @@ No changes to `ComputedStyle`'s public surface beyond the existing
    opportunity exists with fewer than 2 characters on the left; a
    2-character-left boundary IS still a break (`allowed_hyphenation_breaks`
    invariant).
-3. **Line-box regression (probe script)** — Given the CORE-97 probe page,
+3. **Line-box regression (probe script)** — Given the line-box probe page,
    when rendered by both engines, then line pitch is `font-size × factor`
    for line-heights 1.2/1.4/1.5/1.6 in both (12/14/15/16pt).
 4. **Widows parity (probe script)** — Given a paragraph whose natural split
    leaves a 1-line tail, when rendered by both engines with no explicit
    widows declaration, then both keep the 1-line tail (10+1, not 9+2).
-5. **Done targets (demo pipeline)** — Given a fresh `build-demo.sh` run
-   (`PY=/Users/elijah/workspace/typeanvil/.venv/bin/python`), then: prose
-   11=11 pages (MET); float-showcase 8=8 (NOT met — 10, blocked by CORE-101);
+5. **Done targets (demo pipeline)** — Given a fresh `build-demo.sh` run, then:
+   prose 11=11 pages (MET); float-showcase 8=8 (NOT met — 10, blocked by float
+   fragmentation);
    paper per-page diff < 15% (NOT met — ~22%). The scoreboard regenerated
    with `git add -f demo/corpus/out/`.
 6. **WPT gate** — Given the harness run (full print-reftest suite), then 0
@@ -259,30 +256,24 @@ No changes to `ComputedStyle`'s public surface beyond the existing
 - **Line-end hyphen glyph** extracts as `￾` (U+FFFE placeholder) in both
   engines' text layer — hyphen counting uses the placeholder, never `-`.
 - **A word already containing a hyphen** (`page-margin`): out of scope
-  (CORE-98 double-hyphen bug tracked separately); this spec does not change
+  (double-hyphen bug tracked separately); this spec does not change
   existing-hyphen handling.
 
 ## References
 
 - Triage evidence: `demo/corpus/TRIAGE.md` §Driver 2 (packing probe PR 9 vs TA 2,
   PR 49 vs TA 56 body lines).
-- CORE-94 (justified line breaking — breakpoint glue, measure fill):
+- Justified line breaking — breakpoint glue and measure fill:
   `docs/specifications/typography-layer.spec.md` §Behavior 9/11.
-- CORE-90 (line-box height divergence — baseline placement, slope cross):
+- Line-box height — baseline placement and slope cross:
   `docs/specifications/line-height.spec.md` §Behavior 10, criteria 8–9.
-- CORE-98 (double hyphen at existing hyphen breaks): related ticket,
-  blocked by this spec's fixture evidence.
-- CORE-101 (float fragmentation parity — the float-showcase 8=8 blocker):
-  filed from this branch; Prince fragments an over-tall float, TypeAnvil
-  defers the whole box.
+- Double hyphen at existing hyphen breaks: related work, blocked by this
+  spec's fixture evidence.
+- Float fragmentation parity (the float-showcase 8=8 blocker): Prince
+  fragments an over-tall float, TypeAnvil defers the whole box.
 - Probe artifacts (2026-08-20): `/tmp/core97/probe.html` (line-box +
   density probe), `/tmp/core97/measure.py` (pypdfium2 line/pitch/hyphen
   extraction), `/tmp/hyphertest` (syllable-pattern verification),
   `/tmp/core97/widows.html` (widows behavior probe).
 - TeX hyphenation minima: Knuth, *The TeXbook* — `\lefthyphenmin=2`,
   `\righthyphenmin=3` (left only adopted here; see Non-Goals).
-
-[CORE-90]: https://linear.app/whitelodge/issue/CORE-90
-[CORE-94]: https://linear.app/whitelodge/issue/CORE-94
-[CORE-98]: https://linear.app/whitelodge/issue/CORE-98
-[CORE-101]: https://linear.app/whitelodge/issue/CORE-101

@@ -3,13 +3,12 @@ title: Print-Adapted UA Defaults
 slug: /specifications/ua-print-defaults
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-08-20
-updated: 2026-09-04
+updated: 2026-09-27
 sidebar_position: 12
 tags: [engine, ua-stylesheet, prince-parity, css-break, css-page]
 spec_id: ua-print-defaults
-issue_id: CORE-95
 applies_to: engine 0.x
 dependencies: [fragmentation-core, paged-media-css, typography-layer]
 ---
@@ -20,14 +19,14 @@ dependencies: [fragmentation-core, paged-media-css, typography-layer]
 
 The engine's UA stylesheet (`engine/src/css.rs` `CascadeSession::UA_CSS`) was
 a copy of the HTML4/WHATWG **screen** defaults. In print those defaults are
-wrong: `body { margin: 8px }` inset every line (fixed by CORE-92), and the
+wrong: `body { margin: 8px }` inset every line (fixed by the print UA defaults), and the
 em-based heading sizes and margins scale with body font-size instead of
 matching a print engine's fixed defaults. Prince 16.2 ships its actual UA
 sheet at `lib/prince/style/html.css`; this spec makes the engine's UA block
 defaults match that sheet and adds the css-break-3 margin-truncation rule
 that makes the two render identically at page starts.
 
-The observable bug being fixed (CORE-93 triage driver 1): an unstyled `<h1>`
+The observable bug being fixed (triage driver 1): an unstyled `<h1>`
 at the top of a page pushed content down ~27pt (0.67em × 2em × body font)
 and could defer a float past a page boundary by a few points — Prince
 renders the same heading flush with the content top because (a) its UA
@@ -43,12 +42,12 @@ start are truncated to zero.
 - UA paragraph/list/quote margins match Prince: `1.12em` top/bottom,
   `blockquote` side margins `22.5pt`, `ul`/`ol` `padding-left: 40pt`.
 - The first in-flow box on a fragmentainer KEEPS its top margin at a page
-  start. **Refined (CORE-153):** css-break-3 §3.1 truncates only a
+  start. **Refined (css-break-3 alignment):** css-break-3 §3.1 truncates only a
   fragmented box's CONTINUATION top margin at a fragmentainer edge; a fresh
   box at a page start (document start, after a forced break, or after
   natural pagination) applies its margin. Chromium — the WPT oracle —
   behaves this way (page-box-006, page-left-right-001/002 flip PASS with
-  the change; the suite gates clean). This supersedes the CORE-95
+  the change; the suite gates clean). This supersedes the earlier
   Prince-matching truncation: the CSS specification wins over PrinceXML
   (docs/conventions/css-standards-alignment.md). Parent-child margin
   collapse (body margin + first child margin) is still not modeled —
@@ -95,12 +94,12 @@ The engine SHALL implement the following, stated as "shall" rules:
 6. **Columns are fragmentainers.** Each multicol column SHALL truncate its
    first in-flow box's top margin, and a multicol container that is itself
    first-in-flow on the page SHALL truncate its own top margin.
-7. **Body margin stays zero.** CORE-92's `body { margin: 0 }` SHALL remain.
+7. **Body margin stays zero.** The print `body { margin: 0 }` SHALL remain.
 8. **Bold table headers.** `UA_CSS` SHALL declare `th { font-weight: bold }`
    (Prince 16.2 `html.css` line 482; browsers' UA sheets use `bolder`).
    Without it, header cells measure ~10% narrower than Prince's, the frozen
    header column lands ~0.4pt too narrow, and borderline rows ("Rocket-powered
-   …") wrap to an extra line — the table-stress 43→45 page lever (CORE-96).
+   …") wrap to an extra line — the table-stress 43→45 page lever.
 9. **Comment hygiene.** `UA_CSS` SHALL use `/* */` block comments only.
    `//` line comments are not valid CSS and can poison stylo's rule stream
    for every rule that follows (hit on this ticket).
@@ -189,8 +188,8 @@ Each maps to a real test in `engine/tests/` or a committed probe:
   (`h1..h6` fixed sizes/margins, `p`/`blockquote`/`pre`/`ul`/`ol` 1.12em).
 - css-break-3 §4 "Adjoining margins at breaks" — margin truncation at
   fragmentainer boundaries.
-- CORE-92 (body margin 0, the sibling ticket), CORE-93 (triage that
-  attributed the float page-count gap to UA screen margins), CORE-94
-  (line-breaking parity, tracked separately).
+- The print UA defaults change (body margin 0, the sibling ticket), the triage that
+  attributed the float page-count gap to UA screen margins, and the
+  line-breaking parity work (tracked separately).
 - Probe methodology: `probe/core92_margin.py` (first-baseline measurement),
   this ticket's `probe/core95_ua.py`.

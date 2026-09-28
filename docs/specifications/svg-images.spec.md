@@ -3,13 +3,12 @@ title: SVG Images — resvg Rasterizer Bridge (<img> + inline <svg>)
 slug: /specifications/svg-images
 type: spec
 status: in-review
-owner: elijah
+owner: maintainers
 created: 2026-09-03
-updated: 2026-09-03
+updated: 2026-09-27
 sidebar_position: 24
 tags: [engine, pdf, images, svg, determinism]
 spec_id: svg-images
-issue_id: CORE-131
 applies_to: engine 0.x
 dependencies: [images]
 ---
@@ -19,21 +18,21 @@ dependencies: [images]
 ## Overview
 
 Real documents embed diagrams and icons as SVG: linked files
-(`<img src="chart.svg">`) and inline `<svg>` elements. The CORE-106 image
-pipeline sniffed PNG/JPEG headers only, so both forms rendered as nothing.
+(`<img src="chart.svg">`) and inline `<svg>` elements. The image pipeline now
+sniffs SVG content and routes it through the deterministic rasterizer bridge.
 Prince renders SVG natively; this spec closes the gap with a rasterizer
 bridge: decode SVG with `resvg` (usvg parse + tiny-skia raster, pure Rust,
 no system deps), rasterize once at a fixed deterministic scale, and feed the
 raster through the existing image store so layout, PDF embedding, and
-deduplication keep their CORE-106 contracts unchanged.
+deduplication keep their `images.spec.md` contracts unchanged.
 
 ## Goals
 
 1. `<img src="*.svg">` and inline `<svg>` (shapes + text) render correctly at
    the 96 DPI baseline with correct intrinsic sizing.
-2. SVG output is byte-stable across runs of identical input (CORE-105
-   determinism contract).
-3. Reuse the CORE-106 image store: one intern key per unique SVG, broken
+2. SVG output is byte-stable across runs of identical input (the determinism
+   contract in `docs/specifications/pdf-metadata.spec.md`).
+3. Reuse the `images.spec.md` image store: one intern key per unique SVG, broken
    fallback for unparseable sources, monolithic replaced-element layout.
 
 ## Non-Goals
@@ -61,7 +60,7 @@ deduplication keep their CORE-106 contracts unchanged.
    faces), no timestamps, and no environment reads. Identical SVG bytes
    produce identical raster bytes.
 4. **Intrinsic sizing.** The interned entry carries the intrinsic CSS px
-   size as `width_px`/`height_px`, so CORE-106 replaced-element sizing
+   size as `width_px`/`height_px`, so the replaced-element sizing
    (CSS width/height → attribute → intrinsic ratio → shrink) applies
    unchanged. A `width`/`height`-less SVG sizes from its `viewBox`.
 5. **Inline `<svg>`.** The layout collector serializes an inline `<svg>`
@@ -70,7 +69,7 @@ deduplication keep their CORE-106 contracts unchanged.
    function of the DOM; attribute-name casing survives (html5ever keeps
    camelCase SVG attributes such as `viewBox` on foreign content).
 6. **Layout.** An inline `<svg>` is a replaced element: monolithic
-   block-level box (CORE-106 Behavior 2), sized by the same
+   block-level box (`images.spec.md` Behavior 2), sized by the same
    `image_used_size` path, item-collected as its own item so it never folds
    into a parent text run.
 7. **Embedding.** The PDF emitter embeds the interned bytes as a PNG image
@@ -79,7 +78,7 @@ deduplication keep their CORE-106 contracts unchanged.
 8. **CLI `--base-url`.** The CLI threads `--base-url` into
    `layout_with_images`, so linked relative SVG (and any image) resolves
    against it. (Found during this ticket: the flag was parsed but never
-   consumed — CORE-106 regression in the CLI surface.)
+   consumed — regression in the CLI surface introduced with the image store.)
 
 ## Interfaces
 
@@ -124,7 +123,7 @@ deduplication keep their CORE-106 contracts unchanged.
 
 ## References
 
-- CORE-106 images spec (`docs/specifications/images.spec.md`) — the store,
+- Images spec (`docs/specifications/images.spec.md`) — the store,
   sizing, and embedding contracts this builds on.
 - resvg 0.45 / usvg 0.45 (vendored API surface verified in-source).
-- Linear: CORE-131.
+- `engine/src/images.rs` — SVG sniffing, rasterization, and image interning.

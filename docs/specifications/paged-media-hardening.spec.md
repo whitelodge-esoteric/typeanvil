@@ -3,13 +3,12 @@ title: Paged-Media Hardening
 slug: /specifications/paged-media-hardening
 type: spec
 status: draft
-owner: elijah
+owner: maintainers
 created: 2026-08-18
-updated: 2026-09-10
+updated: 2026-09-27
 sidebar_position: 11
 tags: [engine, css, paged-media, page]
 spec_id: paged-media-hardening
-issue_id: CORE-66
 applies_to: engine 0.x
 dependencies: [paged-media-css, wpt-conformance-harness]
 ---
@@ -18,14 +17,14 @@ dependencies: [paged-media-css, wpt-conformance-harness]
 
 ## Overview
 
-CORE-52 implemented the `@page` layer — size, margins, margin boxes, named
+The `@page` layer — size, margins, margin boxes, named
 pages, `:first`/`:left`/`:right` — well enough for the demo documents. The
-CORE-60 baseline (2026-08-17) shows the layer is **partial**: 46 css-page
+initial WPT conformance baseline (2026-08-17) shows the layer is **partial**: 46 css-page
 print-reftest failures cluster in:
 
 - `page-box-*` — page box background painting
 - `page-margin-*` — margin shorthand (1–4 values), auto margins, `:left` /
-  `:right` margin differences (CORE-52 tested only `margin-top` for
+  `:right` margin differences (the initial implementation tested only `margin-top` for
   `:left`/`:right`)
 - `page-size-006/009/013/014` — `px` lengths and `size` overrides
 - `page-name-*` — named page sizes
@@ -56,7 +55,7 @@ forced-break semantics (Chromium's rule is subtle: flat sibling name
 changes break, nested re-entry chains do not), and (c) harness-level
 reference-padding cases — see Deferred below.
 
-**Fitness function:** the css-page bucket from the CORE-60 baseline via the
+**Fitness function:** the css-page bucket from the initial WPT conformance baseline via the
 harness, with no regression in the previously-passing tests. Satisfied:
 **0 regressions, +12 fixed.**
 
@@ -101,7 +100,7 @@ harness, with no regression in the previously-passing tests. Satisfied:
 **Non-Goals** (deferred; scope stays honest)
 
 - Full inline `style=""` cascade through stylo. Tried and reverted for
-  CORE-66: applying inline `width`/`height`/`background` (e.g. the
+  the fixed-viewport decision: applying inline `width`/`height`/`background` (e.g. the
   `width:100%` tables and `100vw`/`100vh` divs in the fixtures) broke
   self-consistency in the monolithic-overflow/fixedpos suites whose shared
   references are authored against the previous behavior. The engine's
@@ -228,7 +227,7 @@ The engine shall:
 
 ## Acceptance Criteria
 
-Each criterion maps to the named WPT bucket via the harness (CORE-60
+Each criterion maps to the named WPT bucket via the harness (initial WPT conformance
 baseline) and/or unit tests in `engine/tests/paged_media.rs` and
 `tests/test_compare.py`.
 
@@ -288,8 +287,8 @@ baseline) and/or unit tests in `engine/tests/paged_media.rs` and
 
 - css-page-3 (page box, margins, size, orientation):
   https://drafts.csswg.org/css-page-3/
-- Base `@page` layer this hardens: `paged-media-css.spec.md` (CORE-52)
-- CORE-60 baseline (46 css-page failures; 164 passing): Linear CORE-60
+- Base `@page` layer this hardens: `paged-media-css.spec.md`
+- Baseline: 46 css-page failures and 164 passing in the recorded harness run
 - `engine/src/paged.rs` module doc (author-CSS pass; servo build compiles
   neither `@page` nor the paged-media longhands)
 - stylo 0.20.0 `properties/longhands.toml` (verified 2026-08-18): `size`,
