@@ -80,12 +80,11 @@ market.
   367-file suite is a stretch goal, not this issue.
 - `@page :blank`, `:nth()`, or other page pseudo-classes beyond
   first/left/right.
-- Complete vertical margin-box content layout remains unfinished. The parser
-  resolves the box's `writing-mode`, and layout changes the measurement axes
-  and forced-line positions. Glyphs within each line still advance horizontally.
-  A real-font `vertical-rl` margin box containing `ABCD` reproduces that gap.
+- Vertical margin-box content layout is deferred. The incomplete writing-mode
+  parser, inheritance, measurement-axis, and forced-line placement changes
+  were rolled back. Margin-box content uses the prior horizontal layout.
   Independent checks of intrinsic sizes, line placement, and glyph orientation
-  are required before claiming complete writing-mode support.
+  are required before claiming vertical writing-mode support.
 - The `css-page/margin-boxes/dimensions-004/006/013/014` pairs still fail.
   Their references simulate vertical text using horizontal blocks. The Ahem
   square glyphs cannot establish glyph orientation. Page geometry, intrinsic
@@ -638,18 +637,15 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     trailing terminator is dropped
     (`core184_tests::only_one_trailing_break_is_dropped`).
 
-36. **Margin-box writing-mode resolution** — A box-level `vertical-rl`
-    declaration resolves to vertical-rl. A page-level vertical-lr mode is
-    inherited by a box without its own declaration. A box-level horizontal-tb
-    declaration overrides it (`paged.rs::parses_margin_box_writing_mode`,
-    `paged.rs::margin_box_writing_mode_resolves_from_page_context`). These
-    parser and inheritance tests do not establish layout-axis correctness.
-37. **Margin-box writing-mode placement (incomplete)** — Vertical-rl and
+36. **Margin-box writing-mode resolution (deferred)** — A future implementation
+    shall resolve box-level `writing-mode` and page-context inheritance.
+    The incomplete parser and its tests were rolled back; this criterion is
+    not implemented.
+37. **Margin-box writing-mode placement (deferred)** — Vertical-rl and
     vertical-lr margin boxes shall place successive lines along their block
     axis and glyph advances along their inline axis. Independent layout and
-    real-font checks remain required. The current implementation moves forced
-    lines horizontally but still paints glyphs within each run horizontally;
-    it does not satisfy this criterion.
+    real-font checks remain required. The incomplete placement changes were
+    rolled back; this criterion is not implemented.
 
 
 ## Edge Cases
