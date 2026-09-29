@@ -80,26 +80,17 @@ market.
   367-file suite is a stretch goal, not this issue.
 - `@page :blank`, `:nth()`, or other page pseudo-classes beyond
   first/left/right.
-- Side margin-box glyph rotation for real fonts. Margin-box line advance,
-  intrinsic sizing, and placement in `writing-mode` are in scope; the Ahem
-  fixtures cannot verify glyph orientation. A real-font orientation probe is
-  required before claiming rotation coverage.
-- Margin-box intrinsic sizing in the box's own writing mode.
-  **Measured 2026-09-15: this — not writing-mode rotation — is what
-  the four `css-page/margin-boxes/dimensions-004/006/013/014` targets fail on.**
-  `writing-mode` is now parsed and applied inside margin boxes. The remaining
-  scope is direct verification of intrinsic sizing and line placement in the
-  box's own writing mode. The four references simulate vertical text with
-  horizontal `<br>`-separated blocks (e.g. dimensions-013's ref paints
-  `@top-left`'s seven vertical lines as one
-  `<div style="width:17.5em">xxxxxxx</div>`), so a rotation-only change could
-  not match them. What differs is intrinsic sizing in the box's own writing
-  mode (seven lines stack along the block axis → min-content WIDTH 7em, per
-  dimensions-013's own comment). Multi-line margin-box content, which the
-  sizing depends on, landed separately.
-- Margin-box glyph ROTATION for a real font in a vertical writing mode. The
-  `dimensions-*` fixtures use the Ahem font, whose glyph is a solid square, so
-  rotation is invisible to them by construction and the gate cannot measure it.
+- Complete vertical margin-box content layout remains unfinished. The parser
+  resolves the box's `writing-mode`, and layout changes the measurement axes
+  and forced-line positions. Glyphs within each line still advance horizontally.
+  A real-font `vertical-rl` margin box containing `ABCD` reproduces that gap.
+  Independent checks of intrinsic sizes, line placement, and glyph orientation
+  are required before claiming complete writing-mode support.
+- The `css-page/margin-boxes/dimensions-004/006/013/014` pairs still fail.
+  Their references simulate vertical text using horizontal blocks. The Ahem
+  square glyphs cannot establish glyph orientation. Page geometry, intrinsic
+  sizing, and content placement require separate checks; no single cause is
+  established for every remaining difference.
 - Document-interior vertical text layout (rotated glyph runs, vertical line
   boxes). Vertical block geometry is keyed on the writing mode in effect
   at the box, but text still advances along physical +x inside a vertical
@@ -647,19 +638,18 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     trailing terminator is dropped
     (`core184_tests::only_one_trailing_break_is_dropped`).
 
-36. **Margin-box writing-mode axis mapping** — Given a margin box with
-    `writing-mode: vertical-rl` and two forced lines, when resolved, then its
-    `writing_mode` is vertical-rl and its line stack uses the horizontal axis;
-    a page-level vertical-lr mode is inherited by a box without its own
-    declaration, while a box-level horizontal-tb declaration overrides it
-    (`paged.rs::parses_margin_box_writing_mode`,
-    `paged.rs::margin_box_writing_mode_resolves_from_page_context`).
-37. **Margin-box writing-mode placement** — Given vertical-rl and vertical-lr
-    margin boxes with multiple lines, then lines advance right-to-left and
-    left-to-right respectively, with `text-align` on the vertical axis and
-    `vertical-align` on the horizontal axis. The focused raster probe covers
-    the Ahem line-advance invariant; real-font glyph rotation remains an open
-    coverage item.
+36. **Margin-box writing-mode resolution** — A box-level `vertical-rl`
+    declaration resolves to vertical-rl. A page-level vertical-lr mode is
+    inherited by a box without its own declaration. A box-level horizontal-tb
+    declaration overrides it (`paged.rs::parses_margin_box_writing_mode`,
+    `paged.rs::margin_box_writing_mode_resolves_from_page_context`). These
+    parser and inheritance tests do not establish layout-axis correctness.
+37. **Margin-box writing-mode placement (incomplete)** — Vertical-rl and
+    vertical-lr margin boxes shall place successive lines along their block
+    axis and glyph advances along their inline axis. Independent layout and
+    real-font checks remain required. The current implementation moves forced
+    lines horizontally but still paints glyphs within each run horizontally;
+    it does not satisfy this criterion.
 
 
 ## Edge Cases
