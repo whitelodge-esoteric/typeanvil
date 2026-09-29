@@ -1,0 +1,91 @@
+{
+  "schema": "typeanvil.harness.reviews/1",
+  "candidate": {
+    "label": "candidate-78cf0b57a473d0fd6bf1e062ed97ac2dbcdee40c",
+    "source_commit": "78cf0b57a473d0fd6bf1e062ed97ac2dbcdee40c"
+  },
+  "baseline": {
+    "label": "baseline-fea3ec7a13c80060bdcb74ccabe7b7e238b290d1",
+    "source_commit": "fea3ec7a13c80060bdcb74ccabe7b7e238b290d1",
+    "binary_sha256": "98d7a2f7ea3c761dded4399d5cc53bc51d102e38ad762d03d1053c53302814c6"
+  },
+  "dispositions": [
+    {
+      "doc_id": "css/css-page/margin-boxes/dimensions-003-print.html",
+      "change_id": "2f0180cc797f999df260a646f1484c8071a8e83918eb61a9e6a3c0f88c75d5b9",
+      "kind": "correction",
+      "reason": "CORE-184 margin-box line-height + trailing-break measurement fixes changed the TEST side only (the reference was already rendered with the correct arithmetic). The dimensions-* family declares `font: 16px/1 Ahem` and states its expected em arithmetic in fixture comments; the box now stacks at the correct 1em pitch and drops the spurious trailing empty line, so the test side moves toward its own reference.",
+      "provenance": "docs/specifications/paged-media-css.spec.md Behaviour 6 (margin-box line-height, CORE-184); WPT css/css-page/margin-boxes/dimensions-* fixtures' own commented arithmetic; css-inline-3 \u00a75.2; fixture comment in dimensions-004 ('Min/max height for left-top is 3em (three lines)')"
+    },
+    {
+      "doc_id": "css/css-page/margin-boxes/dimensions-004-print.html",
+      "change_id": "766e60de08e236a6c07fbfb3dde6324ae9c44b1afd94b9b14618246a7f764911",
+      "kind": "correction",
+      "reason": "CORE-184 margin-box line-height + trailing-break measurement fixes changed the TEST side only (the reference was already rendered with the correct arithmetic). The dimensions-* family declares `font: 16px/1 Ahem` and states its expected em arithmetic in fixture comments; the box now stacks at the correct 1em pitch and drops the spurious trailing empty line, so the test side moves toward its own reference.",
+      "provenance": "docs/specifications/paged-media-css.spec.md Behaviour 6 (margin-box line-height, CORE-184); WPT css/css-page/margin-boxes/dimensions-* fixtures' own commented arithmetic; css-inline-3 \u00a75.2; fixture comment in dimensions-004 ('Min/max height for left-top is 3em (three lines)')"
+    },
+    {
+      "doc_id": "css/css-page/margin-boxes/dimensions-005-print.html",
+      "change_id": "762c8a7ebac37f5cebc72929eac16fa91d0344ee79370515fdd8bfec179f4378",
+      "kind": "correction",
+      "reason": "CORE-184 margin-box line-height + trailing-break measurement fixes changed the TEST side only (the reference was already rendered with the correct arithmetic). The dimensions-* family declares `font: 16px/1 Ahem` and states its expected em arithmetic in fixture comments; the box now stacks at the correct 1em pitch and drops the spurious trailing empty line, so the test side moves toward its own reference.",
+      "provenance": "docs/specifications/paged-media-css.spec.md Behaviour 6 (margin-box line-height, CORE-184); WPT css/css-page/margin-boxes/dimensions-* fixtures' own commented arithmetic; css-inline-3 \u00a75.2; fixture comment in dimensions-004 ('Min/max height for left-top is 3em (three lines)')"
+    },
+    {
+      "doc_id": "css/css-page/margin-boxes/dimensions-006-print.html",
+      "change_id": "85b4614b7509519afeb64749e5964ff4c1f1314188ef6c3c4039982c542cee51",
+      "kind": "correction",
+      "reason": "CORE-184 margin-box line-height + trailing-break measurement fixes changed the TEST side only (the reference was already rendered with the correct arithmetic). The dimensions-* family declares `font: 16px/1 Ahem` and states its expected em arithmetic in fixture comments; the box now stacks at the correct 1em pitch and drops the spurious trailing empty line, so the test side moves toward its own reference.",
+      "provenance": "docs/specifications/paged-media-css.spec.md Behaviour 6 (margin-box line-height, CORE-184); WPT css/css-page/margin-boxes/dimensions-* fixtures' own commented arithmetic; css-inline-3 \u00a75.2; fixture comment in dimensions-004 ('Min/max height for left-top is 3em (three lines)')"
+    },
+    {
+      "doc_id": "css/css-page/margin-boxes/dimensions-007-print.html",
+      "change_id": "9358108089cb9f937d1bcc4c6fe53fe41a8ae66f2670223412a5051e6d0e3e61",
+      "kind": "correction",
+      "reason": "CORE-184 margin-box line-height + trailing-break measurement fixes changed the TEST side only (the reference was already rendered with the correct arithmetic). The dimensions-* family declares `font: 16px/1 Ahem` and states its expected em arithmetic in fixture comments; the box now stacks at the correct 1em pitch and drops the spurious trailing empty line, so the test side moves toward its own reference.",
+      "provenance": "docs/specifications/paged-media-css.spec.md Behaviour 6 (margin-box line-height, CORE-184); WPT css/css-page/margin-boxes/dimensions-* fixtures' own commented arithmetic; css-inline-3 \u00a75.2; fixture comment in dimensions-004 ('Min/max height for left-top is 3em (three lines)')"
+    },
+    {
+      "doc_id": "css/css-page/margin-boxes/dimensions-008-print.html",
+      "change_id": "d751c6dfa36d6b47105da6d0ab68e4294662e3d4f1c7f40a23750231adc9d888",
+      "kind": "correction",
+      "reason": "CORE-184 margin-box line-height + trailing-break measurement fixes changed the TEST side only (the reference was already rendered with the correct arithmetic). The dimensions-* family declares `font: 16px/1 Ahem` and states its expected em arithmetic in fixture comments; the box now stacks at the correct 1em pitch and drops the spurious trailing empty line, so the test side moves toward its own reference.",
+      "provenance": "docs/specifications/paged-media-css.spec.md Behaviour 6 (margin-box line-height, CORE-184); WPT css/css-page/margin-boxes/dimensions-* fixtures' own commented arithmetic; css-inline-3 \u00a75.2; fixture comment in dimensions-004 ('Min/max height for left-top is 3em (three lines)')"
+    },
+    {
+      "doc_id": "css/css-page/margin-boxes/dimensions-009-print.html",
+      "change_id": "a105509b0941ef222ac93d887b6f106365777bea364bf9b9df780c409b03f6b0",
+      "kind": "correction",
+      "reason": "CORE-184 margin-box line-height + trailing-break measurement fixes changed the TEST side only (the reference was already rendered with the correct arithmetic). The dimensions-* family declares `font: 16px/1 Ahem` and states its expected em arithmetic in fixture comments; the box now stacks at the correct 1em pitch and drops the spurious trailing empty line, so the test side moves toward its own reference.",
+      "provenance": "docs/specifications/paged-media-css.spec.md Behaviour 6 (margin-box line-height, CORE-184); WPT css/css-page/margin-boxes/dimensions-* fixtures' own commented arithmetic; css-inline-3 \u00a75.2; fixture comment in dimensions-004 ('Min/max height for left-top is 3em (three lines)')"
+    },
+    {
+      "doc_id": "css/css-page/margin-boxes/dimensions-011-print.html",
+      "change_id": "b654f1ed88e0786d08e931d003b56d8b73249a9d8064c359df91b01df40e4424",
+      "kind": "correction",
+      "reason": "CORE-184 margin-box line-height + trailing-break measurement fixes changed the TEST side only (the reference was already rendered with the correct arithmetic). The dimensions-* family declares `font: 16px/1 Ahem` and states its expected em arithmetic in fixture comments; the box now stacks at the correct 1em pitch and drops the spurious trailing empty line, so the test side moves toward its own reference.",
+      "provenance": "docs/specifications/paged-media-css.spec.md Behaviour 6 (margin-box line-height, CORE-184); WPT css/css-page/margin-boxes/dimensions-* fixtures' own commented arithmetic; css-inline-3 \u00a75.2; fixture comment in dimensions-004 ('Min/max height for left-top is 3em (three lines)')"
+    },
+    {
+      "doc_id": "css/css-page/margin-boxes/dimensions-012-print.html",
+      "change_id": "6ee46a859d42a6361382d3312fd6a70ed3bc3a5aaaaf2b82a2f3598ee6bbc445",
+      "kind": "correction",
+      "reason": "CORE-184 margin-box line-height + trailing-break measurement fixes changed the TEST side only (the reference was already rendered with the correct arithmetic). The dimensions-* family declares `font: 16px/1 Ahem` and states its expected em arithmetic in fixture comments; the box now stacks at the correct 1em pitch and drops the spurious trailing empty line, so the test side moves toward its own reference.",
+      "provenance": "docs/specifications/paged-media-css.spec.md Behaviour 6 (margin-box line-height, CORE-184); WPT css/css-page/margin-boxes/dimensions-* fixtures' own commented arithmetic; css-inline-3 \u00a75.2; fixture comment in dimensions-004 ('Min/max height for left-top is 3em (three lines)')"
+    },
+    {
+      "doc_id": "css/css-page/margin-boxes/dimensions-013-print.html",
+      "change_id": "22e712d9fd56afa667a9a3295bbf6511ee50729e5c4e3f66a136946f8dc5a57e",
+      "kind": "correction",
+      "reason": "CORE-184 margin-box line-height + trailing-break measurement fixes changed the TEST side only (the reference was already rendered with the correct arithmetic). The dimensions-* family declares `font: 16px/1 Ahem` and states its expected em arithmetic in fixture comments; the box now stacks at the correct 1em pitch and drops the spurious trailing empty line, so the test side moves toward its own reference.",
+      "provenance": "docs/specifications/paged-media-css.spec.md Behaviour 6 (margin-box line-height, CORE-184); WPT css/css-page/margin-boxes/dimensions-* fixtures' own commented arithmetic; css-inline-3 \u00a75.2; fixture comment in dimensions-004 ('Min/max height for left-top is 3em (three lines)')"
+    },
+    {
+      "doc_id": "css/css-page/margin-boxes/dimensions-014-print.html",
+      "change_id": "e93b6cd6286052caf4f22434437cdee36ea065144933c06c4c2712cfa501ed09",
+      "kind": "correction",
+      "reason": "CORE-184 margin-box line-height + trailing-break measurement fixes changed the TEST side only (the reference was already rendered with the correct arithmetic). The dimensions-* family declares `font: 16px/1 Ahem` and states its expected em arithmetic in fixture comments; the box now stacks at the correct 1em pitch and drops the spurious trailing empty line, so the test side moves toward its own reference.",
+      "provenance": "docs/specifications/paged-media-css.spec.md Behaviour 6 (margin-box line-height, CORE-184); WPT css/css-page/margin-boxes/dimensions-* fixtures' own commented arithmetic; css-inline-3 \u00a75.2; fixture comment in dimensions-004 ('Min/max height for left-top is 3em (three lines)')"
+    }
+  ]
+}

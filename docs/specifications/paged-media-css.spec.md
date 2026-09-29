@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-16
-updated: 2026-09-27
+updated: 2026-09-28
 sidebar_position: 3
 tags: [css, paged-media, page, layout, engine]
 spec_id: paged-media-css
@@ -80,14 +80,16 @@ market.
   367-file suite is a stretch goal, not this issue.
 - `@page :blank`, `:nth()`, or other page pseudo-classes beyond
   first/left/right.
-- Side margin boxes (`@left-*`, `@right-*` — vertical writing-mode boxes):
-  parsed and positioned, but content is treated as a single horizontal line
-  (no rotation); vertical writing modes are out of scope.
+- Side margin-box glyph rotation for real fonts. Margin-box line advance,
+  intrinsic sizing, and placement in `writing-mode` are in scope; the Ahem
+  fixtures cannot verify glyph orientation. A real-font orientation probe is
+  required before claiming rotation coverage.
 - Margin-box intrinsic sizing in the box's own writing mode.
   **Measured 2026-09-15: this — not writing-mode rotation — is what
   the four `css-page/margin-boxes/dimensions-004/006/013/014` targets fail on.**
-  `writing-mode` is not even parsed for a margin box today (`MarginBoxSpec`
-  carries no such field), and the four references SIMULATE vertical text with
+  `writing-mode` is now parsed and applied inside margin boxes. The remaining
+  scope is direct verification of intrinsic sizing and line placement in the
+  box's own writing mode. The four references simulate vertical text with
   horizontal `<br>`-separated blocks (e.g. dimensions-013's ref paints
   `@top-left`'s seven vertical lines as one
   `<div style="width:17.5em">xxxxxxx</div>`), so a rotation-only change could
@@ -621,7 +623,7 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     a PDF whose histogram shows cyan only in the bottom band
     (`probe/core201-hist.py`, `core201-before.png` vs `core201-after.png`).
 
-32. **Margin-box `line-height`** — Given
+34. **Margin-box `line-height`** — Given
     `@page { font: 16px/1 Ahem; white-space: pre-wrap; @top-left { content:
     "a\a b" } }`, when laid out, then the two baselines differ by 12pt
     (`layout.rs::core184_tests::page_font_shorthand_line_height_reaches_margin_boxes`);
@@ -634,7 +636,7 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     maps `1`, `150%`, `20pt`, `24px` and `normal` to the corresponding
     multiplier/length/absent forms (`paged.rs::parses_line_height_forms`).
 
-33. **A trailing forced break adds no line** — Given a page area
+35. **A trailing forced break adds no line** — Given a page area
     150pt tall with `@page { font: 16px/1 Ahem; white-space: pre-wrap;` a
     `@left-top` whose content is `"x\ax\ax\a"` and a `@left-bottom` whose
     content is `"x\a"`, when the left edge is distributed by css-page-3
@@ -644,6 +646,21 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     `"x\ax\a\a"` measures the same three lines, because exactly one
     trailing terminator is dropped
     (`core184_tests::only_one_trailing_break_is_dropped`).
+
+36. **Margin-box writing-mode axis mapping** — Given a margin box with
+    `writing-mode: vertical-rl` and two forced lines, when resolved, then its
+    `writing_mode` is vertical-rl and its line stack uses the horizontal axis;
+    a page-level vertical-lr mode is inherited by a box without its own
+    declaration, while a box-level horizontal-tb declaration overrides it
+    (`paged.rs::parses_margin_box_writing_mode`,
+    `paged.rs::margin_box_writing_mode_resolves_from_page_context`).
+37. **Margin-box writing-mode placement** — Given vertical-rl and vertical-lr
+    margin boxes with multiple lines, then lines advance right-to-left and
+    left-to-right respectively, with `text-align` on the vertical axis and
+    `vertical-align` on the horizontal axis. The focused raster probe covers
+    the Ahem line-advance invariant; real-font glyph rotation remains an open
+    coverage item.
+
 
 ## Edge Cases
 

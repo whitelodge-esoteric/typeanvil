@@ -304,6 +304,13 @@ pub struct MarginBoxStyle {
     pub counter_reset: Option<CounterValue>,
     /// Margin-context `counter-increment`.
     pub counter_increment: Option<CounterValue>,
+    /// Margin-box `writing-mode` (css-page-3 Appendix A lists it as
+    /// applicable inside a margin box; css-writing-modes-3 §3.1). `None` =
+    /// not declared (inherit the page context, else `horizontal-tb`).
+    /// CORE-184: without this, `@top-left-corner { writing-mode: vertical-rl }`
+    /// was ignored, so a vertical-rl corner stacked its lines vertically
+    /// instead of horizontally.
+    pub writing_mode: Option<crate::css::PageWritingMode>,
     /// Margin-box `z-index` (css-page-3 §3.1). `z-index` applies to
     /// page-margin boxes as if they were positioned, and each box is its own
     /// stacking context, so this overrides the default paint order among
@@ -373,6 +380,9 @@ impl MarginBoxStyle {
         }
         if other.line_height.is_some() {
             self.line_height = other.line_height;
+        }
+        if other.writing_mode.is_some() {
+            self.writing_mode = other.writing_mode;
         }
         if other.counter_reset.is_some() {
             self.counter_reset = other.counter_reset.clone();
@@ -573,6 +583,11 @@ pub struct MarginBoxSpec {
     pub font_face: crate::fonts::FaceId,
     pub font_fallbacks: Vec<crate::fonts::FaceId>,
     pub line_height: Scalar,
+    /// Resolved `writing-mode` for this box's generated content: the box's
+    /// own declaration, else the page context's, else `horizontal-tb`
+    /// (css-page-3 Appendix A; CORE-184). A vertical box stacks its lines
+    /// along the horizontal axis.
+    pub writing_mode: crate::css::PageWritingMode,
     pub text_align: crate::css::TextAlign,
     pub vertical_align: VerticalAlign,
     /// Resolved `white-space` for this box's generated content: the box's own
@@ -1117,6 +1132,19 @@ fn parse_margin_box_decls(body: &str) -> (Option<Option<Vec<ContentPiece>>>, Mar
             // CORE-178: `white-space` is on the margin-context property list
             // (css-page-3 Appendix A), so it applies inside a margin box.
             "white-space" => style.white_space = parse_white_space(value),
+            // CORE-184: `writing-mode` applies inside a margin box
+            // (css-page-3 Appendix A; css-writing-modes-3 §3.1). A vertical
+            // box stacks its lines along the horizontal axis.
+            "writing-mode" => {
+                style.writing_mode = match value.trim().to_ascii_lowercase().as_str() {
+                    "horizontal-tb" => Some(crate::css::PageWritingMode::HorizontalTb),
+                    "vertical-rl" => Some(crate::css::PageWritingMode::VerticalRl),
+                    "vertical-lr" => Some(crate::css::PageWritingMode::VerticalLr),
+                    "sideways-rl" => Some(crate::css::PageWritingMode::SidewaysRl),
+                    "sideways-lr" => Some(crate::css::PageWritingMode::SidewaysLr),
+                    _ => None,
+                };
+            }
             // Margin-context counters (css-page-3 §8). `inherit` is resolved
             // against the page context at spec-resolution time.
             "counter-reset" => style.counter_reset = Some(parse_counter_value(value, 0)),
@@ -2413,6 +2441,10 @@ pub fn resolve_page_spec(
                     .map(|lh| resolve_line_height(lh, font_size))
                     .unwrap_or(font_size * crate::css::NORMAL_LINE_HEIGHT_FACTOR),
                 white_space: style.white_space.or(page_white_space).unwrap_or_default(),
+                writing_mode: style
+                    .writing_mode
+                    .or(Some(eff_wm))
+                    .unwrap_or(crate::css::PageWritingMode::HorizontalTb),
                 text_align: style
                     .text_align
                     .unwrap_or_else(|| name.default_text_align()),
@@ -2933,6 +2965,46 @@ mod tests {
     }
 
     #[test]
+    fn parses_margin_box_writing_mode() {
+        // CORE-184: `writing-mode` applies inside a margin box
+        // (css-page-3 Appendix A; css-writing-modes-3 §3.1).
+        let rules = parse_page_rules(
+            "@page { @top-left-corner { writing-mode: vertical-rl; content: \"x\\ax\"; } }",
+        );
+        let b = &rules[0].margin_boxes[0];
+        assert_eq!(
+            b.style.writing_mode,
+            Some(crate::css::PageWritingMode::VerticalRl)
+        );
+    }
+
+    #[test]
+    fn margin_box_writing_mode_resolves_from_page_context() {
+        let rules = parse_page_rules(
+            "@page { writing-mode: vertical-lr; @top-left { content: \"x\\ax\"; } \
+             @top-right { writing-mode: horizontal-tb; content: \"x\"; } }",
+        );
+        let cli = PageGeometry {
+            width: Scalar(360.0),
+            height: Scalar(216.0),
+            margin_top: Scalar(36.0),
+            margin_right: Scalar(36.0),
+            margin_bottom: Scalar(36.0),
+            margin_left: Scalar(36.0),
+        };
+        let spec = resolve_page_spec(
+            &rules,
+            None,
+            0,
+            &cli,
+            PageMargins::zero(),
+            false,
+            crate::css::PageWritingMode::HorizontalTb,
+        );
+        assert_eq!(spec.margin_boxes[0].writing_mode, crate::css::PageWritingMode::VerticalLr);
+        assert_eq!(spec.margin_boxes[1].writing_mode, crate::css::PageWritingMode::HorizontalTb);
+    }
+    #[test]
     fn parses_margin_box_background_image() {
         // css-backgrounds-3 §2: `background-image: url(...)` and the url()
         // piece of the `background` shorthand carry an image source; the
@@ -2965,6 +3037,7 @@ mod tests {
         assert_eq!(boxes[3].style.background_image, None, "background-color never sets an image");
         assert_eq!(boxes[3].style.background, Some(Color::rgb(255, 0, 0)));
     }
+
 
     #[test]
     fn margin_box_content_suppression() {

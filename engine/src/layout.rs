@@ -7356,14 +7356,34 @@ fn attach_margin_boxes(
         });
         // The content's block extent: the lines stack at the box's line-height.
         let text_block = Scalar(lines.len() as f64 * mb.line_height.get());
-        let block = if img_h.get() > text_block.get() {
-            img_h
+        // CORE-184: a vertical-rl/lr margin box stacks its lines along the
+        // HORIZONTAL axis, so its inline (text-flow) extent is the line-height
+        // stack and its block extent is the widest line (css-writing-modes-3
+        // §3.1). Swap the two for vertical boxes.
+        let vertical = mb.writing_mode.is_vertical();
+        let (min_inline, max_inline, block) = if vertical {
+            let stack = if img_h.get() > text_block.get() {
+                img_h
+            } else {
+                text_block
+            };
+            let widest = if img_w.get() > text_max.get() {
+                img_w
+            } else {
+                text_max
+            };
+            (stack, stack, widest)
         } else {
-            text_block
+            let block = if img_h.get() > text_block.get() {
+                img_h
+            } else {
+                text_block
+            };
+            (text_min + img_w, text_max + img_w, block)
         };
         metrics.push(crate::margin_box::BoxMetrics {
-            min_inline: text_min + img_w,
-            max_inline: text_max + img_w,
+            min_inline,
+            max_inline,
             block,
         });
         shaped.push(runs);
@@ -7483,32 +7503,65 @@ fn attach_margin_boxes(
         } else {
             text_block_h
         };
-        let line_top = cy + vertical_slot(mb.vertical_align, ch, eff_h);
+        // CORE-184: a vertical box stacks its lines along the horizontal axis
+        // (right-to-left for rl, left-to-right for lr) and each line's text
+        // runs top-to-bottom. `text-align` then positions along the VERTICAL
+        // axis and `vertical-align` along the HORIZONTAL axis.
+        let vertical = mb.writing_mode.is_vertical();
         let strut_baseline = crate::typography::baseline_offset(mb.font_size, lh, mb.font_face);
         // The image rides on the LAST line (the text it follows); a single-line
         // box is unaffected.
         let img_line = line_count - 1;
         let mut last_x = cx;
         let mut last_text_w = Scalar::ZERO;
-        let mut last_baseline = line_top + strut_baseline;
+        let mut last_baseline = cy + strut_baseline;
         for li in 0..line_count {
             let text_w = shaped[i]
                 .get(li)
                 .and_then(|s| s.as_ref())
                 .map(|s| s.width)
                 .unwrap_or(Scalar::ZERO);
-            let x = match mb.text_align {
-                TextAlign::Center => Scalar(cx.get() + (cw.get() - text_w.get()) * 0.5),
-                TextAlign::Right | TextAlign::End => Scalar(cx.get() + cw.get() - text_w.get()),
-                _ => cx,
-            };
             let base_off = if li == img_line && img_box_h.get() > strut_baseline.get() {
                 img_box_h
             } else {
                 strut_baseline
             };
-            let line_y = Scalar(line_top.get() + (li as f64) * lh.get());
-            let baseline = line_y + base_off;
+            let (x, line_y, baseline) = if vertical {
+                // Lines advance horizontally; text runs top-to-bottom.
+                // `vertical-align` picks the horizontal slot of the stack.
+                let stack_w = eff_h;
+                let slot_x = match mb.vertical_align {
+                    VerticalAlign::Middle => Scalar(cx.get() + (cw.get() - stack_w.get()) * 0.5),
+                    VerticalAlign::Bottom => Scalar(cx.get() + cw.get() - stack_w.get()),
+                    _ => cx,
+                };
+                // rl: first line at the right, advancing left; lr: left→right.
+                let line_x = match mb.writing_mode {
+                    crate::css::PageWritingMode::VerticalRl
+                    | crate::css::PageWritingMode::SidewaysRl => {
+                        Scalar(slot_x.get() + stack_w.get() - (li as f64 + 1.0) * lh.get())
+                    }
+                    _ => Scalar(slot_x.get() + (li as f64) * lh.get()),
+                };
+                // `text-align` positions the run along the vertical axis.
+                let y = match mb.text_align {
+                    TextAlign::Center => Scalar(cy.get() + (ch.get() - text_w.get()) * 0.5),
+                    TextAlign::Right | TextAlign::End => {
+                        Scalar(cy.get() + ch.get() - text_w.get())
+                    }
+                    _ => cy,
+                };
+                (line_x, y, y + base_off)
+            } else {
+                let x = match mb.text_align {
+                    TextAlign::Center => Scalar(cx.get() + (cw.get() - text_w.get()) * 0.5),
+                    TextAlign::Right | TextAlign::End => Scalar(cx.get() + cw.get() - text_w.get()),
+                    _ => cx,
+                };
+                let line_top = cy + vertical_slot(mb.vertical_align, ch, eff_h);
+                let line_y = Scalar(line_top.get() + (li as f64) * lh.get());
+                (x, line_y, line_y + base_off)
+            };
             last_x = x;
             last_text_w = text_w;
             last_baseline = baseline;
