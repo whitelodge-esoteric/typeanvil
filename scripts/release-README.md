@@ -1,4 +1,4 @@
-Typeanvil — AI-first HTML/Markdown to PDF typesetting engine
+Typeanvil — AI-first HTML to PDF typesetting engine
 
 This archive contains the standalone `typeanvil` binary for your platform.
 

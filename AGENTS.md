@@ -1,6 +1,6 @@
 # AGENTS.md — Typeanvil
 
-Typeanvil is an AI-first HTML/Markdown → PDF typesetting engine. Rust engine in
+Typeanvil is an AI-first HTML → PDF typesetting engine. Rust engine in
 `engine/`, Python WPT conformance harness in `harness/`, docs in `docs/`.
 
 ## Read this first

@@ -1,6 +1,6 @@
 # typeanvil
 
-AI-first HTML/Markdown → PDF typesetting engine. This npm package wraps the
+AI-first HTML → PDF typesetting engine. This npm package wraps the
 native binary — it works in Node.js (≥ 18) and Bun.
 
 ## Install

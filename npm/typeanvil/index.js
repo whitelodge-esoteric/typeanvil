@@ -15,7 +15,7 @@ const path = require('path');
 const { resolveBinary } = require('./resolve');
 
 /**
- * Render HTML/Markdown to PDF via the typeanvil binary.
+ * Render HTML to PDF via the typeanvil binary.
  *
  * @param {string[]} args - CLI arguments, e.g. ['render', 'in.html',
  *        '--page-width', '8.5in', '--page-height', '11in', '-o', 'out.pdf']

@@ -61,7 +61,7 @@ fn run() -> Result<()> {
 }
 
 const HELP: &str = "\
-typeanvil — AI-first HTML/Markdown to PDF typesetting engine
+typeanvil — AI-first HTML to PDF typesetting engine
 
 Usage: typeanvil render <input.html> [flags] -o <output.pdf>
        typeanvil --version
