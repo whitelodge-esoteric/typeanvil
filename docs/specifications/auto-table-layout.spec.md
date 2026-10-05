@@ -123,12 +123,21 @@ The engine SHALL implement the following, stated as "shall" rules:
    is narrower; this rule deviates to match Prince's observed glue behavior.
    It is a documented exception under
    `docs/conventions/css-standards-alignment.md`.
+   **Replaced content (CORE-210):** a DIRECT replaced child of a cell (an
+   `<img>` / inline `<svg>` / generated-content image) is atomic — its
+   min-content == its max-content == its used box (attr/CSS width, else the
+   intrinsic size; percentages resolve against the intrinsic-cap width). A
+   cell's intrinsic min/max SHALL be the max over (text measure, each
+   replaced child's margin-box width). Without this an image-only cell
+   measures 0, its column collapses, and the image — whose available width
+   then goes negative — resolves to a negative box that never paints.
 2. **Intrinsic max-content.** For each column, the max-content width SHALL be
    the maximum over its cells of (the widest line when the cell text takes
    **no soft breaks** — the whole text on one line, split only at mandatory
    breaks — plus the cell's horizontal padding and borders), measured with
    **no cap** from the available width. (Strict CSS max-content; verified
-   2026-08-20.)
+   2026-08-20.) A replaced child contributes its used-box width to
+   max-content exactly as it does to min-content (rule 1, CORE-210).
 3. **Uncapped measurement.** The intrinsic measures SHALL NOT clamp to the
    available width. The existing `measure_text_width` cap (`max_width =
    avail`) SHALL be removed for the intrinsic pass; the cap applies only to
@@ -270,6 +279,12 @@ pipeline:
 9. **Regression** — Given the existing engine tests (including the table
    baseline), when the change lands, then all stay green; the demo scoreboard
    regenerates and table-stress diff drops from 33.5%.
+10. **Replaced content in cells (CORE-210)** — Given a table whose cell holds
+    an `<img>` with a numeric `width`, when measured, then the column's
+    min/max ≥ the image's used-box width, the row height includes the image,
+    and the image fragment paints at a positive size on page 0 (covered by
+    `image_in_table_cell_paints` in `engine/tests/images.rs`, which also
+    asserts the PDF embeds the image exactly once).
 
 ## Edge Cases
 

@@ -22,6 +22,14 @@ pub struct ColumnWidths {
     pub max_widths: Vec<Scalar>,
 }
 
+/// A provider of a replaced child's used box (w, h) in points — `<img>` /
+/// inline `<svg>` / generated-content images (CORE-210). The table intrinsic
+/// measures call it for each DIRECT element child of a cell, and add the box
+/// to the column intrinsic width / row height. `None` for non-replaced nodes
+/// (the pure table helpers stay image-agnostic; layout.rs supplies the real
+/// sizes through `Ctx::image_intrinsic_box`, tests pass a no-op).
+pub type ImageSizer<'a> = &'a dyn Fn(NodeId) -> Option<(Scalar, Scalar)>;
+
 /// Which rows contribute to the intrinsic measure (CORE-89 first-page freeze).
 ///
 /// Spec: table-first-page-column-freeze §Behavior #1–#3.
@@ -75,6 +83,7 @@ pub fn intrinsic_column_widths(
     styles: &[ComputedStyle],
     table_id: NodeId,
     scope: MeasureScope,
+    img_sizes: ImageSizer<'_>,
 ) -> (Vec<Scalar>, Vec<Scalar>) {
     let rows = scoped_table_rows(dom, styles, table_id, &scope);
     let column_count = rows
@@ -99,7 +108,24 @@ pub fn intrinsic_column_widths(
             let span = cell_colspan(dom, cell);
             let style = &styles[cell];
             let text = dom.text_content(cell);
-            let (cell_min, cell_max) = measure_intrinsics(&text, style);
+            let (mut cell_min, mut cell_max) = measure_intrinsics(&text, style);
+            // CORE-210: a replaced child (`<img>`/inline `<svg>`) is ATOMIC —
+            // its min-content == max-content == its used box. Without this
+            // contribution an image-only cell measures 0 and its column
+            // collapses (the image then painted at a negative rect and was
+            // skipped). Stacked images are the widest one (block flow).
+            for &child in &dom.nodes[cell].children {
+                if let Some((w, _h)) = img_sizes(child) {
+                    let cs = &styles[child];
+                    let box_w = w + cs.margin_left + cs.margin_right;
+                    if box_w.get() > cell_min.get() {
+                        cell_min = box_w;
+                    }
+                    if box_w.get() > cell_max.get() {
+                        cell_max = box_w;
+                    }
+                }
+            }
             let cell_min = cell_min + style.padding_left + style.padding_right;
             let cell_max = cell_max + style.padding_left + style.padding_right;
             // CORE-96: a spanning cell contributes an EQUAL SHARE of its
@@ -248,8 +274,17 @@ pub fn measure_columns(
     table_id: NodeId,
     avail_width: Scalar,
     used_width: Option<Scalar>,
+    img_sizes: ImageSizer<'_>,
 ) -> ColumnWidths {
-    measure_columns_scoped(dom, styles, table_id, avail_width, used_width, MeasureScope::All)
+    measure_columns_scoped(
+        dom,
+        styles,
+        table_id,
+        avail_width,
+        used_width,
+        MeasureScope::All,
+        img_sizes,
+    )
 }
 
 /// [`measure_columns`] with an explicit measure scope (CORE-89).
@@ -263,8 +298,10 @@ pub fn measure_columns_scoped(
     avail_width: Scalar,
     used_width: Option<Scalar>,
     scope: MeasureScope,
+    img_sizes: ImageSizer<'_>,
 ) -> ColumnWidths {
-    let (min_widths, max_widths) = intrinsic_column_widths(dom, styles, table_id, scope);
+    let (min_widths, max_widths) =
+        intrinsic_column_widths(dom, styles, table_id, scope, img_sizes);
     if min_widths.is_empty() {
         return ColumnWidths {
             widths: Vec::new(),
@@ -334,6 +371,7 @@ pub fn resolve_freeze_scope(
     avail_width: Scalar,
     used_width: Option<Scalar>,
     first_fragmentainer_height: Scalar,
+    img_sizes: ImageSizer<'_>,
 ) -> MeasureScope {
     let body = body_rows(dom, styles, table_id);
     if body.is_empty() {
@@ -341,8 +379,24 @@ pub fn resolve_freeze_scope(
     }
     let mut scope = MeasureScope::All;
     for _ in 0..3 {
-        let columns = measure_columns_scoped(dom, styles, table_id, avail_width, used_width, scope.clone());
-        let k = count_first_page_rows(dom, styles, table_id, &columns, avail_width, first_fragmentainer_height);
+        let columns = measure_columns_scoped(
+            dom,
+            styles,
+            table_id,
+            avail_width,
+            used_width,
+            scope.clone(),
+            img_sizes,
+        );
+        let k = count_first_page_rows(
+            dom,
+            styles,
+            table_id,
+            &columns,
+            avail_width,
+            first_fragmentainer_height,
+            img_sizes,
+        );
         if k >= body.len() {
             return MeasureScope::All;
         }
@@ -369,6 +423,7 @@ fn count_first_page_rows(
     columns: &ColumnWidths,
     avail_width: Scalar,
     first_fragmentainer_height: Scalar,
+    img_sizes: ImageSizer<'_>,
 ) -> usize {
     let (header, body, _footer) = collect_table_groups(dom, styles, table_id);
     let header_rows: Vec<NodeId> = header.iter().flat_map(|g| collect_rows(dom, styles, *g)).collect();
@@ -377,13 +432,13 @@ fn count_first_page_rows(
         return 0;
     }
     // Header heights consume the top of the fragmentainer.
-    let (header_heights, _) = measure_rows(dom, styles, &header_rows, columns, avail_width);
+    let (header_heights, _) = measure_rows(dom, styles, &header_rows, columns, avail_width, img_sizes);
     let mut y: f64 = header_heights.iter().map(|h| h.get()).sum();
     let height = first_fragmentainer_height.get();
     let mut k = 0usize;
     while let Some(row) = body_rows.first().copied() {
         body_rows.remove(0);
-        let (heights, _) = measure_rows(dom, styles, &[row], columns, avail_width);
+        let (heights, _) = measure_rows(dom, styles, &[row], columns, avail_width, img_sizes);
         let row_h = heights.first().copied().unwrap_or(Scalar::ZERO).get();
         if y >= height {
             break;
@@ -416,6 +471,7 @@ pub fn measure_rows(
     row_ids: &[NodeId],
     column_widths: &ColumnWidths,
     _avail_width: Scalar,
+    img_sizes: ImageSizer<'_>,
 ) -> (Vec<Scalar>, Vec<Vec<Scalar>>) {
     let mut row_heights = Vec::with_capacity(row_ids.len());
     let mut cell_heights = Vec::with_capacity(row_ids.len());
@@ -441,7 +497,7 @@ pub fn measure_rows(
             let inner_w = if inner_w.get() < 0.0 { Scalar::ZERO } else { inner_w };
             let text = dom.text_content(cell);
             let mut content_h = measure_text_height(&text, style, inner_w);
-            // CORE-235: a cell whose height comes from a BLOCK child — a div,
+// CORE-235: a cell whose height comes from a BLOCK child — a div,
             // an image, a nested box with a declared block-size — is not
             // measured by the text pass. Sum the direct block children's
             // resolved heights (absolute lengths and px runtime, not
@@ -470,6 +526,22 @@ pub fn measure_rows(
             }
             if block_h.get() > content_h.get() {
                 content_h = block_h;
+            }
+            // CORE-210: a replaced child contributes its used box height
+            // (mirrors `measure_block`'s image handling in layout.rs) — an
+            // image-only cell otherwise measures 0 and its row collapses
+            // under the image, so following rows would paint OVER it.
+            for &child in &dom.nodes[cell].children {
+                if let Some((_w, h)) = img_sizes(child) {
+                    let cs = &styles[child];
+                    content_h = content_h
+                        + cs.margin_top
+                        + cs.padding_top
+                        + h
+                        + cs.padding_bottom
+                        + cs.margin_top
+                        + cs.margin_bottom;
+                }
             }
             // CORE-96: a row's height includes its collapsed row-start border
             // (border-collapse: collapse — the row-start border is drawn on

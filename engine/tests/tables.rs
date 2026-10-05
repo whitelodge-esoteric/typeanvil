@@ -5,7 +5,7 @@
 //! fragment tree, mirroring `fragmentation.rs` conventions.
 
 use typeanvil::css::Stylesheet;
-use typeanvil::dom::{Dom, NodeKind};
+use typeanvil::dom::{Dom, NodeId, NodeKind};
 use typeanvil::frag::{Fragment, FragmentContent, Fragmentainer};
 use typeanvil::geom::{PageGeometry, Scalar};
 use typeanvil::layout::{layout, Layout};
@@ -365,6 +365,12 @@ use typeanvil::table::{
     measure_columns_scoped, measure_rows, resolve_freeze_scope, MeasureScope,
 };
 
+/// A no-op image-size provider: the pure table helpers stay image-agnostic
+/// (CORE-210 — real sizes enter through layout's `Ctx::image_intrinsic_box`).
+fn no_images(_: NodeId) -> Option<(Scalar, Scalar)> {
+    None
+}
+
 /// Parse fixture + cascade styles, for the direct table API tests.
 fn parse(html: &str) -> (Dom, Vec<typeanvil::css::ComputedStyle>) {
     let dom = Dom::parse(html).expect("parse html");
@@ -399,7 +405,7 @@ fn test_intrinsic_min_max_uncapped() {
     </style><table><tr><td>Disappearing/reappearing clothes</td><td>Qty</td></tr></table>"#;
     let (dom, styles) = parse(html);
     let tid = table_id_of(&dom);
-    let (mins, maxs) = intrinsic_column_widths(&dom, &styles, tid, MeasureScope::All);
+    let (mins, maxs) = intrinsic_column_widths(&dom, &styles, tid, MeasureScope::All, &no_images);
     assert_eq!(mins.len(), 2);
     // min-content = widest whitespace word ("Disappearing/reappearing", one
     // glued token ≈ 112pt at 9pt Arial) + padding.
@@ -472,9 +478,9 @@ fn test_table_used_width_resolution() {
     let sum = |cw: &typeanvil::table::ColumnWidths| {
         cw.widths.iter().map(|w| w.get()).sum::<f64>()
     };
-    let auto = measure_columns(&dom, &styles, tid, avail, None);
-    let pct100 = measure_columns(&dom, &styles, tid, avail, Some(Scalar(avail.get() * pct)));
-    let fixed400 = measure_columns(&dom, &styles, tid, avail, Some(Scalar(400.0)));
+    let auto = measure_columns(&dom, &styles, tid, avail, None, &no_images);
+    let pct100 = measure_columns(&dom, &styles, tid, avail, Some(Scalar(avail.get() * pct)), &no_images);
+    let fixed400 = measure_columns(&dom, &styles, tid, avail, Some(Scalar(400.0)), &no_images);
     assert!(sum(&auto) < 540.0, "auto sum = {}", sum(&auto));
     assert!(
         (sum(&pct100) - 540.0).abs() < 1.0,
@@ -509,7 +515,7 @@ fn test_table_stress_description_column_wraps() {
     // Direct check: Description column = min-content ≈ 112pt.
     let (dom, styles) = parse(html);
     let tid = table_id_of(&dom);
-    let cols = measure_columns(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)));
+    let cols = measure_columns(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), &no_images);
     let desc = cols.widths[1];
     assert!(
         desc.get() > 100.0 && desc.get() < 135.0,
@@ -575,7 +581,7 @@ fn test_two_column_probe_width() {
     </table>"#;
     let (dom, styles) = parse(html);
     let tid = table_id_of(&dom);
-    let cols = measure_columns(&dom, &styles, tid, Scalar(540.0), Some(Scalar(320.0)));
+    let cols = measure_columns(&dom, &styles, tid, Scalar(540.0), Some(Scalar(320.0)), &no_images);
     let long = cols.widths[0];
     assert!(
         (long.get() - 295.0).abs() / 295.0 <= 0.02,
@@ -623,14 +629,14 @@ fn test_freeze_excludes_late_wide_rows() {
     let tid = table_id_of(&dom);
     // Demo geometry: 5in × 3in page, 0.5in margins → 288pt content width,
     // 144pt content height.
-    let scope = resolve_freeze_scope(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), Scalar(144.0));
+    let scope = resolve_freeze_scope(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), Scalar(144.0), &no_images);
     assert!(
         matches!(scope, MeasureScope::FirstPage { .. }),
         "frozen scope = {:?} (expect FirstPage — the table fragments)",
         scope
     );
-    let frozen = measure_columns_scoped(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), scope);
-    let all = measure_columns(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)));
+    let frozen = measure_columns_scoped(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), scope, &no_images);
+    let all = measure_columns(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), &no_images);
     let desc_frozen = frozen.widths[1];
     let desc_all = all.widths[1];
     assert!(
@@ -666,10 +672,10 @@ fn test_freeze_noop_single_fragmentainer() {
     </table>"#;
     let (dom, styles) = parse(html);
     let tid = table_id_of(&dom);
-    let scope = resolve_freeze_scope(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), Scalar(144.0));
+    let scope = resolve_freeze_scope(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), Scalar(144.0), &no_images);
     assert_eq!(scope, MeasureScope::All, "single-fragmentainer table → All scope");
-    let frozen = measure_columns_scoped(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), scope);
-    let all = measure_columns(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)));
+    let frozen = measure_columns_scoped(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), scope, &no_images);
+    let all = measure_columns(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), &no_images);
     assert_eq!(frozen.widths, all.widths, "frozen widths == All-scope widths");
 }
 
@@ -738,7 +744,7 @@ fn test_freeze_header_only_scope() {
     let tid = table_id_of(&dom);
     // A 5pt fragmentainer is shorter than the header alone (9pt text + padding
     // ≈ 15pt), so the scope degrades to header-only without panic.
-    let scope = resolve_freeze_scope(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), Scalar(5.0));
+    let scope = resolve_freeze_scope(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), Scalar(5.0), &no_images);
     assert_eq!(
         scope,
         MeasureScope::FirstPage { body_rows: 0 },
@@ -819,7 +825,7 @@ fn test_colspan_measure_distributes_spanning_cells() {
         4,
         "footer total cell spans 4 columns"
     );
-    let cols = measure_columns(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)));
+    let cols = measure_columns(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), &no_images);
     // On hand (col 2) is header/data driven, NOT the footer total.
     assert!(
         cols.widths[2].get() < 40.0,
@@ -1009,8 +1015,8 @@ fn test_row_height_includes_collapsed_border() {
     let (dom2, styles2) = parse(&no_border);
     let tid1 = table_id_of(&dom1);
     let tid2 = table_id_of(&dom2);
-    let cols1 = measure_columns(&dom1, &styles1, tid1, Scalar(288.0), Some(Scalar(288.0)));
-    let cols2 = measure_columns(&dom2, &styles2, tid2, Scalar(288.0), Some(Scalar(288.0)));
+    let cols1 = measure_columns(&dom1, &styles1, tid1, Scalar(288.0), Some(Scalar(288.0)), &no_images);
+    let cols2 = measure_columns(&dom2, &styles2, tid2, Scalar(288.0), Some(Scalar(288.0)), &no_images);
     let row1 = dom1
         .nodes
         .iter()
@@ -1025,8 +1031,8 @@ fn test_row_height_includes_collapsed_border() {
         .find(|(_, n)| matches!(&n.kind, NodeKind::Element(el) if el.tag == "tr"))
         .map(|(id, _)| id)
         .unwrap();
-    let (h1, _) = measure_rows(&dom1, &styles1, &[row1], &cols1, Scalar(288.0));
-    let (h2, _) = measure_rows(&dom2, &styles2, &[row2], &cols2, Scalar(288.0));
+    let (h1, _) = measure_rows(&dom1, &styles1, &[row1], &cols1, Scalar(288.0), &no_images);
+    let (h2, _) = measure_rows(&dom2, &styles2, &[row2], &cols2, Scalar(288.0), &no_images);
     let diff = h1.first().unwrap().get() - h2.first().unwrap().get();
     assert!(
         (diff - 0.5).abs() < 0.01,

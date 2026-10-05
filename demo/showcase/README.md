@@ -7,11 +7,11 @@ preamble is hand-maintained.
 
 ## Known issues in these renders (engine gaps, tracked on Linear)
 
-- **Images inside table cells do not paint.** A letterhead logo or signature
-  image placed in a `<td>` renders as blank space, and the cell collapses so
-  the text beside it shifts. The invoice fixture works around it with a
-  block-level image (`display: block`).
-  [CORE-210](https://linear.app/whitelodge/issue/CORE-210).
+- ~~**Images inside table cells do not paint.**~~ **Fixed (CORE-210, 2026-09-21):**
+  images in `<td>` cells now paint — the table intrinsic measure includes the
+  image's used box, so the column and row grow to fit it. The invoice
+  fixture's block-level workaround (`display: block`) is now redundant and
+  may be dropped at the next fixture regeneration.
 
 Three issues previously listed here are fixed. Each was re-checked against the
 renders in this directory, not taken on trust:

@@ -770,3 +770,50 @@ fn margin_box_background_image_tiles_over_border_box() {
         hay.matches("/Subtype/Image").count() + hay.matches("/Subtype /Image").count();
     assert_eq!(image_objects, 1, "background image embeds exactly once");
 }
+
+// --- AC 8: image inside a table cell (CORE-210) -------------------------------
+
+#[test]
+fn image_in_table_cell_paints() {
+    // <img> inside a table cell painted nothing: the cell's intrinsic width
+    // was measured from TEXT ONLY, so the image-only column collapsed to 0,
+    // the cell's inner width went negative, and `image_used_size`'s shrink
+    // clamp resolved the image to a negative box the pdf emitter skips.
+    // Post-fix the column/row measures include the replaced child's used box
+    // and the image fragment is positive-sized and on-page.
+    let dir = TempDir::new().unwrap();
+    let png = make_png(100, 100, [23, 84, 122]);
+    let p = write_fixture(&dir, "mark.png", &png);
+    let html = format!(
+        "<html><head><style>body{{margin:0}} table{{border-collapse:collapse}} td{{border:1px solid #ccc}}</style></head>\
+         <body><table><tr><td><img src=\"{}\" width=\"96\"></td></tr></table></body></html>",
+        p.display()
+    );
+    let mut store = ImageStore::new();
+    let dom = Dom::parse(&html).unwrap();
+    let ss = Stylesheet::parse(&style_text(&dom));
+    let lay = layout_with_images_and_store(&dom, &ss, geometry(), Some(dir.path()), &mut store);
+
+    let frags = image_fragments(&lay);
+    assert_eq!(frags.len(), 1, "exactly one image fragment, got {frags:?}");
+    let (page, x, y, w, h) = frags[0];
+    assert_eq!(page, 0, "the image sits on page 0, got page {page}");
+    // width="96" → 72pt, clamped by the cell's 1px borders (0.75pt each) —
+    // positive either way, far from the pre-fix (-1.5, 0) degenerate box.
+    assert!(
+        w > 60.0 && w < 73.0,
+        "image width = {w} (expect ≈70.5–72pt)"
+    );
+    assert!(
+        h > 60.0 && h < 73.0,
+        "image height = {h} (expect ≈70.5–72pt)"
+    );
+    assert!(x >= 0.0 && y >= 0.0, "image on-page, got ({x},{y})");
+    // The row grew to fit: the fragment tree's image sits inside the cell.
+    // The image embeds in the PDF exactly once.
+    let bytes = typeanvil::pdf::render(&lay).unwrap();
+    let hay = String::from_utf8_lossy(&bytes);
+    let image_objects =
+        hay.matches("/Subtype/Image").count() + hay.matches("/Subtype /Image").count();
+    assert_eq!(image_objects, 1, "image embeds exactly once in the PDF");
+}

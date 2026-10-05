@@ -104,6 +104,13 @@ space directly.
    1/96 in = 0.75 pt. A 192×64 PNG is intrinsically 144 pt × 48 pt.
 
 6. **Sizing algorithm** (CSS2.1 §10.3.2 simplified, no min/max yet):
+   - **Table cells (CORE-210):** the table intrinsic measure includes an
+     image's used box — a cell's column min/max ≥ the image's width, and its
+     row height includes the image's height (an image-only cell otherwise
+     collapses to a 0-width column, the cell's inner width goes negative,
+     and the image resolves to a negative box that never paints). The used
+     size never resolves below zero: a degenerate (≤ 0) available width does
+     NOT shrink the box (it keeps its used size and overflows visibly).
    - CSS `width`/`height` (from `ComputedStyle`) wins over the HTML
      attributes.
    - HTML `width`/`height` attributes are lengths in CSS px (pt = value ×
@@ -209,7 +216,8 @@ fixtures committed.
 | 6 | Broken image: missing file → placeholder box at attribute/default size, alt text drawn, render succeeds | `broken_image_placeholder_box` |
 | 7 | Determinism: rendering the same doc twice → byte-identical PDFs | `image_render_is_deterministic` |
 | 8 | Single embed: two `<img>` tags with the same file → one XObject image stream in the PDF | `duplicate_images_embed_once` |
-| 9 | Full suite green: `cargo test` in `engine/` passes | CI |
+| 9 | Table cell: `<img>` inside a `<td>` paints at a positive size on page 0 and embeds once (CORE-210) | `image_in_table_cell_paints` |
+| 10 | Full suite green: `cargo test` in `engine/` passes | CI |
 
 WPT gate: run the fitness buckets before merge; ship only 0 fixed /
 0 regressed (images appear in no WPT subset today, so this should be a

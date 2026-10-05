@@ -1991,13 +1991,55 @@ impl<'a> Ctx<'a> {
                 ),
             },
         };
-        // Never exceed the available width (shrink, keep ratio).
-        if used_w.get() > avail_width.get() && used_w.get() > 0.0 {
+        // Never exceed the available width (shrink, keep ratio). CORE-210: a
+        // DEGENERATE (zero or negative) available width must not shrink the
+        // box to a negative size — the box keeps its used size and overflows
+        // visibly (table cells whose columns collapsed to 0 previously
+        // produced a negative image rect that pdf.rs skipped entirely).
+        if used_w.get() > avail_width.get() && used_w.get() > 0.0 && avail_width.get() > 0.0 {
             let scale = avail_width.get() / used_w.get();
             (avail_width, Scalar(used_h.get() * scale), true)
         } else {
             (used_w, used_h, false)
         }
+    }
+
+    /// The used box of a replaced child (`<img>`/inline `<svg>`/generated
+    /// image), resolved WITHOUT a concrete available width — the table
+    /// column/row intrinsics (CORE-210). Absolute attribute/CSS sizes pass
+    /// through; percentages and the intrinsic size resolve against the
+    /// image's intrinsic-cap width (its natural maximum). `None` when `id`
+    /// is not replaced content.
+    fn image_intrinsic_box(&self, id: NodeId) -> Option<(Scalar, Scalar)> {
+        if !self.is_replaced_image(id) {
+            return None;
+        }
+        let st = &self.styles[id];
+        let el = self.dom.nodes[id].kind.element();
+        let attr_w = el
+            .and_then(|e| e.attr("width"))
+            .and_then(parse_px_attr)
+            .map(|v| v * 0.75);
+        let iw = self
+            .image_infos
+            .get(&id)
+            .filter(|i| !i.broken)
+            .map(|i| Scalar(i.width_px as f64 * 0.75))
+            .unwrap_or(Scalar::ZERO);
+        // The cap for unresolved (percentage) widths: the widest of the
+        // attribute, intrinsic, and absolute CSS widths. Scalar has no Ord —
+        // explicit comparisons.
+        let mut avail = attr_w.map(Scalar).unwrap_or(Scalar::ZERO);
+        if iw.get() > avail.get() {
+            avail = iw;
+        }
+        if let Some(w) = st.width {
+            if w.get() > avail.get() {
+                avail = w;
+            }
+        }
+        let (w, h, _) = self.image_used_size(id, avail, st);
+        Some((w, h))
     }
 
     /// Greedy height measure of an `<img>` box for break-inside:avoid /
@@ -4897,6 +4939,7 @@ impl<'a> Ctx<'a> {
             cur = self.dom.nodes[n].parent;
         }
         let used = crate::table::table_used_width(self.styles, table_id, avail_width);
+        let img_sizes = |cid| self.image_intrinsic_box(cid);
         let scope = crate::table::resolve_freeze_scope(
             self.dom,
             self.styles,
@@ -4904,6 +4947,7 @@ impl<'a> Ctx<'a> {
             avail_width,
             used,
             self.page_height,
+            &img_sizes,
         );
         let widths = crate::table::measure_columns_scoped(
             self.dom,
@@ -4912,6 +4956,7 @@ impl<'a> Ctx<'a> {
             avail_width,
             used,
             scope.clone(),
+            &img_sizes,
         );
         widths
     }
@@ -5028,7 +5073,14 @@ impl<'a> Ctx<'a> {
                 continue;
             }
             let (heights, _) =
-                measure_rows(self.dom, self.styles, &footer_rows, &columns, avail_width);
+                measure_rows(
+                    self.dom,
+                    self.styles,
+                    &footer_rows,
+                    &columns,
+                    avail_width,
+                    &|cid| self.image_intrinsic_box(cid),
+                );
             for h in heights {
                 footer_height = footer_height + h;
             }
@@ -5447,7 +5499,14 @@ impl<'a> Ctx<'a> {
             })
             .collect();
         let row_ids = [id];
-        let (row_heights, _) = measure_rows(self.dom, self.styles, &row_ids, columns, avail_width);
+        let (row_heights, _) = measure_rows(
+            self.dom,
+            self.styles,
+            &row_ids,
+            columns,
+            avail_width,
+            &|cid| self.image_intrinsic_box(cid),
+        );
         let row_height = row_heights.first().copied().unwrap_or(Scalar::ZERO);
 
         // An UNSTARTED row that cannot fit here defers whole to the next
@@ -5675,7 +5734,14 @@ impl<'a> Ctx<'a> {
 
     fn collect_table_state(&self, table_id: NodeId, avail_width: Scalar) -> TableState {
         let used = crate::table::table_used_width(self.styles, table_id, avail_width);
-        let columns = measure_columns(self.dom, self.styles, table_id, avail_width, used);
+        let columns = measure_columns(
+            self.dom,
+            self.styles,
+            table_id,
+            avail_width,
+            used,
+            &|cid| self.image_intrinsic_box(cid),
+        );
         let mut header: Option<TableGroupState> = None;
         let mut footer: Option<TableGroupState> = None;
         let mut body: Vec<TableGroupState> = Vec::new();
@@ -5724,7 +5790,14 @@ impl<'a> Ctx<'a> {
             })
             .collect();
         let (row_heights, cell_heights) =
-            measure_rows(self.dom, self.styles, &rows, columns, avail_width);
+            measure_rows(
+                self.dom,
+                self.styles,
+                &rows,
+                columns,
+                avail_width,
+                &|cid| self.image_intrinsic_box(cid),
+            );
         let mut out_rows = Vec::new();
         for (idx, row_id) in rows.iter().enumerate() {
             let cells: Vec<NodeId> = self.dom.nodes[*row_id]

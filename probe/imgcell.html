@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head><style>
+  body { margin: 0; }
+  .page { page-break-after: always; }
+  table { border-collapse: collapse; }
+  td { border: 1px solid #ccc; }
+</style></head>
+<body>
+
+<!-- v1: figure + width attribute -->
+<div class="page">
+  <figure><img src="assets/invoice-mark.png" width="1in"></figure>
+</div>
+
+<!-- v2: bare table cell + width attribute -->
+<div class="page">
+  <table><tr><td><img src="assets/invoice-mark.png" width="1in"></td></tr></table>
+</div>
+
+<!-- v3: div + CSS width -->
+<div class="page">
+  <div><img src="assets/invoice-mark.png" style="width:1in"></div>
+</div>
+
+<!-- v4: the fixture pattern: cell width + img CSS width -->
+<div class="page">
+  <table class="head"><tr><td class="mark"><img src="assets/invoice-mark.png" style="width:1in"></td></tr></table>
+</div>
+
+</body>
+</html>
