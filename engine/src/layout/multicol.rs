@@ -759,7 +759,14 @@ impl<'a> Ctx<'a> {
                         break;
                     }
                     let h = self.measure_block(*child, col_w);
-                    let fits = y + h <= col_bottom;
+                    // A block fits if it ends at or before the column bottom,
+                    // within a small epsilon. The balanced target is rounded
+                    // to whole line boxes (balanced_target), while measure_block
+                    // returns the actual laid height, which can exceed the
+                    // rounded estimate by a hair (e.g. 0.005pt) — rejecting a
+                    // block that genuinely fits the balanced column fragments
+                    // the container and spills a page (CORE-246).
+                    let fits = y + h <= col_bottom + Scalar(0.01);
                     let last_resort = !page_placed && y == set_top;
                     if !fits && !last_resort {
                         in_flight = Some(ChildToken {

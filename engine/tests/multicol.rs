@@ -536,3 +536,38 @@ fn bare_text_column_baselines_are_parent_relative() {
         }
     }
 }
+
+/// Test that multicol content that fits on one page doesn't split into sequential sets
+#[test]
+fn multicol_single_page_no_sequential_sets() {
+    let html = r#"<html><head><style>
+        body { font-family: Arial, sans-serif; font-size: 10pt; }
+        .cols { column-count: 2; column-gap: 20pt; }
+        p { margin: 0 0 6pt 0; }
+    </style></head><body>
+    <div class="cols">
+        <p>Alpha one two three four five six seven eight nine ten.</p>
+        <p>Beta one two three four five six seven eight nine ten.</p>
+        <p>Gamma one two three four five six seven eight nine ten.</p>
+        <p>Delta one two three four five six seven eight nine ten.</p>
+    </div>
+    </body></html>"#;
+    
+    let layout = lay(html);
+    
+    // Should render on a single page, not split into sequential sets
+    assert_eq!(layout.pages.len(), 1, "Multicol content should fit on one page");
+    
+    // Check that we have content on the page
+    assert!(!layout.pages[0].root.children.is_empty(), "Page should have content");
+    
+    // Find the multicol container
+    let container = page_mc(&layout, 0);
+        
+    // Should have exactly 2 column children (column-count: 2)
+    let column_children: Vec<_> = container.children.iter()
+        .filter(|c| c.source.is_none() && !c.children.is_empty())
+        .collect();
+        
+    assert_eq!(column_children.len(), 2, "Should have exactly 2 columns");
+}
