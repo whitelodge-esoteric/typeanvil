@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Recurring Billing Statement — October 2026 — Fernwood Cloud</title>
+<style>
+  @page {
+    margin: 0.5in;
+    @top-left { content: "Fernwood Cloud — Billing Statement"; font-family: Arial, Helvetica, sans-serif; font-size: 9pt; color: #555; }
+    @top-right { content: "October 2026"; font-family: Arial, Helvetica, sans-serif; font-size: 9pt; color: #555; }
+    @bottom-right { content: "Page " counter(page); font-family: Arial, Helvetica, sans-serif; font-size: 9pt; }
+  }
+  body { font-family: Arial, Helvetica, "Liberation Sans", sans-serif; font-size: 10pt; line-height: 1.3; color: #222; }
+  h1 { font-size: 17pt; color: #1d3557; margin: 0 0 2pt 0; }
+  h2 { font-size: 11pt; color: #457b9d; margin: 10pt 0 3pt 0; }
+  .meta { font-size: 9pt; color: #555; margin: 0 0 8pt 0; }
+  table { border-collapse: collapse; width: 100%; margin: 4pt 0; }
+  th, td { border: 0.5pt solid #999; padding: 2pt 5pt; font-size: 9pt; text-align: left; }
+  thead th { background-color: #a8dadc; color: #1d3557; }
+  .num { text-align: right; }
+  tr.total td { background-color: #457b9d; color: #fff; font-weight: bold; }
+  tr.period td { background-color: #eef3f7; font-weight: bold; color: #1d3557; }
+  .note { font-size: 8.5pt; color: #666; margin-top: 8pt; }
+  .sum { width: 100%; border-collapse: collapse; margin: 6pt 0; }
+  .sum td { border: 0.5pt solid #999; padding: 4pt 6pt; font-size: 9pt; }
+  .sum .l { color: #555; }
+</style>
+</head>
+<body>
+  <h1>Recurring Billing Statement</h1>
+  <div class="meta">Fernwood Cloud Services · Account FCC-8890 · Statement period 1–31 October 2026 · Next charge 1 November 2026</div>
+
+  <table class="sum">
+    <tr>
+      <td class="l">Opening balance</td><td class="num">$0.00</td>
+      <td class="l">Charges this period</td><td class="num">$4,318.40</td>
+    </tr>
+    <tr>
+      <td class="l">Payments received</td><td class="num">$0.00</td>
+      <td class="l">Amount due 1 Nov</td><td class="num">$4,318.40</td>
+    </tr>
+  </table>
+
+  <p>This statement lists every recurring charge on account FCC-8890 for the
+  October 2026 period. Subscriptions renew automatically on the first of each
+  month unless changed at least three business days in advance. Usage lines
+  are metered from the first to the last day of the period and billed in
+  arrears.</p>
+
+  <h2>Subscription lines</h2>
+  <table>
+    <thead>
+      <tr><th>Plan</th><th>Seats / units</th><th class="num">Unit price</th><th class="num">Period</th><th class="num">Amount</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Fernwood Cloud — Business</td><td>40 seats</td><td class="num">$24.00</td><td class="num">1 month</td><td class="num">$960.00</td></tr>
+      <tr><td>Fernwood Cloud — Business (contract)</td><td>85 seats</td><td class="num">$21.50</td><td class="num">1 month</td><td class="num">$1,827.50</td></tr>
+      <tr><td>Fernwood Cloud — Starter</td><td>12 seats</td><td class="num">$9.00</td><td class="num">1 month</td><td class="num">$108.00</td></tr>
+      <tr><td>Archive add-on</td><td>137 seats</td><td class="num">$3.00</td><td class="num">1 month</td><td class="num">$411.00</td></tr>
+      <tr><td>Advanced audit log</td><td>1 account</td><td class="num">$180.00</td><td class="num">1 month</td><td class="num">$180.00</td></tr>
+      <tr><td>Single sign-on (SAML)</td><td>1 account</td><td class="num">$120.00</td><td class="num">1 month</td><td class="num">$120.00</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Metered usage</h2>
+  <table>
+    <thead>
+      <tr><th>Meter</th><th class="num">Included</th><th class="num">Used</th><th class="num">Overage</th><th class="num">Rate</th><th class="num">Amount</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Render minutes</td><td class="num">50,000</td><td class="num">68,420</td><td class="num">18,420</td><td class="num">$0.012</td><td class="num">$221.04</td></tr>
+      <tr><td>API requests (millions)</td><td class="num">25</td><td class="num">41.6</td><td class="num">16.6</td><td class="num">$8.00</td><td class="num">$132.80</td></tr>
+      <tr><td>Stored documents (thousands)</td><td class="num">200</td><td class="num">312</td><td class="num">112</td><td class="num">$0.45</td><td class="num">$50.40</td></tr>
+      <tr><td>Egress (GB)</td><td class="num">500</td><td class="num">1,204</td><td class="num">704</td><td class="num">$0.09</td><td class="num">$63.36</td></tr>
+      <tr><td>Webhook deliveries (thousands)</td><td class="num">100</td><td class="num">148</td><td class="num">48</td><td class="num">$0.60</td><td class="num">$28.80</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Period summary</h2>
+  <table>
+    <thead>
+      <tr><th>Category</th><th class="num">Amount</th></tr>
+    </thead>
+    <tbody>
+      <tr class="period"><td>Subscription lines</td><td class="num">$3,606.50</td></tr>
+      <tr class="period"><td>Metered usage</td><td class="num">$496.40</td></tr>
+      <tr><td>Credits applied</td><td class="num">($84.50)</td></tr>
+      <tr><td>Tax (where applicable)</td><td class="num">$300.00</td></tr>
+      <tr class="total"><td>Amount due</td><td class="num">$4,318.40</td></tr>
+    </tbody>
+  </table>
+  <div class="note">A credit of $84.50 was applied for the short service
+  interruption on 12 October. Charges continue month to month until cancelled;
+  cancellation takes effect at the end of the current billing period. This
+  statement is a record of recurring charges and is not a tax invoice in every
+  jurisdiction.</div>
+</body>
+</html>

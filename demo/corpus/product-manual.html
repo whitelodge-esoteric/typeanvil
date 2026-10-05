@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Northwind 2400 Pallet Truck — Operating Manual</title>
+<style>
+  @page {
+    margin: 0.5in;
+    @top-left { content: "Northwind 2400 Pallet Truck"; font-family: Arial, Helvetica, sans-serif; font-size: 8pt; color: #555; }
+    @top-right { content: string(section); font-family: Arial, Helvetica, sans-serif; font-size: 8pt; color: #555; }
+    @bottom-right { content: "Page " counter(page); font-family: Arial, Helvetica, sans-serif; font-size: 9pt; }
+  }
+  body { font-family: Arial, Helvetica, "Liberation Sans", sans-serif; font-size: 10pt; line-height: 1.35; color: #222; }
+  h1 { font-size: 16pt; color: #1d3557; margin: 0 0 2pt 0; }
+  h2 { font-size: 12pt; color: #457b9d; margin: 10pt 0 4pt 0; string-set: section content(); }
+  h3 { font-size: 10.5pt; margin: 8pt 0 3pt 0; }
+  p { margin: 0 0 6pt 0; }
+  .meta { font-size: 9pt; color: #555; margin: 0 0 10pt 0; }
+  table { border-collapse: collapse; width: 100%; margin: 4pt 0 8pt 0; }
+  th, td { border: 0.5pt solid #bbb; padding: 2pt 5pt; font-size: 9pt; text-align: left; }
+  thead th { background-color: #e9f0f5; color: #1d3557; }
+  .num { text-align: right; }
+  .warn { float: right; width: 130pt; margin: 0 0 4pt 8pt; border: 1pt solid #b23a2e; background-color: #fbeceb; color: #7a1f17; padding: 5pt 7pt; font-size: 8.5pt; }
+  .warn .h { font-weight: bold; display: block; margin-bottom: 2pt; }
+  .steps { margin: 0 0 8pt 0; }
+  .steps li { margin-bottom: 3pt; }
+  figure { margin: 6pt 0 8pt 0; text-align: center; }
+  figcaption { font-size: 8pt; color: #555; text-align: left; margin-top: 3pt; }
+  img.part { width: 240pt; height: 104pt; }
+</style>
+</head>
+<body>
+  <h1>Operating Manual — Northwind 2400 Pallet Truck</h1>
+  <div class="meta">Document NW-2400-OM Rev. C · Applies to serial numbers 2400-10000 and above · Read before use</div>
+
+  <div class="warn"><span class="h">Safety notice</span>Never place any part
+  of the body under a raised load. Lower the forks fully before leaving the
+  truck unattended.</div>
+
+  <p>This manual describes the safe operation and routine maintenance of the
+  Northwind 2400 hand pallet truck. It is written for operators who have
+  completed the site induction and for maintenance staff performing the
+  checks in section 4. Keep the manual with the truck.</p>
+
+  <h2>1. Description</h2>
+  <p>The 2400 is a manually propelled pallet truck with a hydraulic lift, a
+  2,500 kg rated capacity, and forks 1,150 mm long. The tiller folds for
+  storage and the pump releases through a trigger on the handle.</p>
+  <figure>
+    <img class="part" src="assets/mark.png"
+         alt="Line drawing of the pallet truck showing forks, tiller, and pump unit">
+    <figcaption>Figure 1 — Principal parts. The load is carried on the forks;
+    the pump unit is at the base of the tiller.</figcaption>
+  </figure>
+
+  <h2>2. Specification</h2>
+  <table>
+    <thead>
+      <tr><th>Parameter</th><th class="num">Value</th><th class="num">Tolerance</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Rated capacity</td><td class="num">2,500 kg</td><td class="num">—</td></tr>
+      <tr><td>Fork length</td><td class="num">1,150 mm</td><td class="num">±5 mm</td></tr>
+      <tr><td>Fork width (pair)</td><td class="num">540 mm</td><td class="num">±3 mm</td></tr>
+      <tr><td>Lowered fork height</td><td class="num">85 mm</td><td class="num">±2 mm</td></tr>
+      <tr><td>Raised fork height</td><td class="num">205 mm</td><td class="num">±3 mm</td></tr>
+      <tr><td>Steering wheel diameter</td><td class="num">200 mm</td><td class="num">±1 mm</td></tr>
+      <tr><td>Service weight</td><td class="num">78 kg</td><td class="num">±2 kg</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Operation</h2>
+  <p>Approach the pallet squarely, with the forks level and lowered. Push the
+  forks fully under the pallet before pumping. Pump the tiller until the load
+  clears the floor by the amount needed, then move the truck at walking pace.</p>
+  <ol class="steps">
+    <li>Check that the pallet is sound and the load is stable on it.</li>
+    <li>Lower the forks fully and align the truck with the pallet entry.</li>
+    <li>Push the forks under the pallet until the tiller is close to the load.</li>
+    <li>Pump the tiller to raise the load; do not exceed the rated capacity.</li>
+    <li>Hold the tiller in the neutral position and move the truck slowly.</li>
+    <li>Lower the load by pressing the release trigger; lower fully before storage.</li>
+  </ol>
+
+  <h2>4. Maintenance</h2>
+  <p>Carry out the daily checks before each shift and the monthly checks as
+  scheduled. Record every check in the maintenance log. A truck that fails a
+  daily check must be withdrawn from service until it is repaired.</p>
+  <table>
+    <thead>
+      <tr><th>Check</th><th>Interval</th><th>Action if it fails</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Hydraulic oil level</td><td>Monthly</td><td>Top up with the specified grade</td></tr>
+      <tr><td>Fork and frame distortion</td><td>Daily</td><td>Withdraw from service</td></tr>
+      <tr><td>Wheel wear and debris</td><td>Daily</td><td>Remove debris; replace worn wheels</td></tr>
+      <tr><td>Pump seal leakage</td><td>Monthly</td><td>Replace the seal kit</td></tr>
+      <tr><td>Tiller return spring</td><td>Monthly</td><td>Replace the spring</td></tr>
+    </tbody>
+  </table>
+  <p>Spare parts are listed in the parts catalogue supplied separately. Use
+  only approved parts; unapproved parts may void the warranty and create a
+  safety hazard.</p>
+</body>
+</html>

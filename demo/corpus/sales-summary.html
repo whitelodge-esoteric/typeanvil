@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sales Summary by Region — FY2026</title>
+<style>
+  @page {
+    margin: 0.5in;
+    @top-left { content: "Sales Summary by Region"; font-family: Arial, Helvetica, sans-serif; font-size: 9pt; color: #555; }
+    @top-right { content: "FY2026"; font-family: Arial, Helvetica, sans-serif; font-size: 9pt; color: #555; }
+    @bottom-center { content: counter(page); font-family: Arial, Helvetica, sans-serif; font-size: 10pt; }
+  }
+  body { font-family: Arial, Helvetica, "Liberation Sans", sans-serif; font-size: 10pt; line-height: 1.3; color: #222; }
+  h1 { font-size: 17pt; color: #1d3557; margin: 0 0 2pt 0; }
+  h2 { font-size: 12pt; color: #457b9d; margin: 12pt 0 4pt 0; }
+  p { margin: 0 0 6pt 0; }
+  .meta { font-size: 9pt; color: #555; margin: 0 0 8pt 0; }
+  table { border-collapse: collapse; width: 100%; margin: 3pt 0 8pt 0; }
+  th, td { border: 0.5pt solid #bbb; padding: 2pt 5pt; font-size: 9pt; text-align: left; }
+  thead th { background-color: #e9f0f5; color: #1d3557; }
+  tbody th.group { background-color: #dde9f1; color: #1d3557; text-align: left; }
+  .num { text-align: right; }
+  tr.total td { font-weight: bold; background-color: #f4f8fb; }
+  .indent td:first-child { padding-left: 14pt; }
+</style>
+</head>
+<body>
+  <h1>Sales Summary by Region</h1>
+  <div class="meta">Northwind Systems · Fiscal year 2026 · Grouped by region and channel · Amounts in kUSD</div>
+
+  <p>This summary groups bookings by region and, within each region, by
+  channel, so that the sales leadership can compare performance on a
+  like-for-like basis. Group subtotals appear at the end of each region and a
+  grand total closes the statement.</p>
+
+  <h2>Americas</h2>
+  <table>
+    <thead>
+      <tr><th>Channel</th><th class="num">Q1</th><th class="num">Q2</th><th class="num">Q3</th><th class="num">Q4</th><th class="num">FY2026</th></tr>
+    </thead>
+    <tbody>
+      <tr><th class="group" colspan="6">Direct sales</th></tr>
+      <tr class="indent"><td>Enterprise</td><td class="num">1,120</td><td class="num">1,204</td><td class="num">1,388</td><td class="num">1,512</td><td class="num">5,224</td></tr>
+      <tr class="indent"><td>Mid-market</td><td class="num">812</td><td class="num">846</td><td class="num">904</td><td class="num">968</td><td class="num">3,530</td></tr>
+      <tr class="indent"><td>SMB</td><td class="num">388</td><td class="num">402</td><td class="num">421</td><td class="num">438</td><td class="num">1,649</td></tr>
+      <tr><th class="group" colspan="6">Partner and channel</th></tr>
+      <tr class="indent"><td>Resellers</td><td class="num">224</td><td class="num">241</td><td class="num">268</td><td class="num">286</td><td class="num">1,019</td></tr>
+      <tr class="indent"><td>Marketplaces</td><td class="num">96</td><td class="num">104</td><td class="num">118</td><td class="num">131</td><td class="num">449</td></tr>
+      <tr class="total"><td>Americas total</td><td class="num">2,640</td><td class="num">2,797</td><td class="num">3,099</td><td class="num">3,335</td><td class="num">11,871</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Europe, Middle East and Africa</h2>
+  <table>
+    <thead>
+      <tr><th>Channel</th><th class="num">Q1</th><th class="num">Q2</th><th class="num">Q3</th><th class="num">Q4</th><th class="num">FY2026</th></tr>
+    </thead>
+    <tbody>
+      <tr><th class="group" colspan="6">Direct sales</th></tr>
+      <tr class="indent"><td>Enterprise</td><td class="num">640</td><td class="num">688</td><td class="num">742</td><td class="num">804</td><td class="num">2,874</td></tr>
+      <tr class="indent"><td>Mid-market</td><td class="num">512</td><td class="num">538</td><td class="num">566</td><td class="num">598</td><td class="num">2,214</td></tr>
+      <tr class="indent"><td>SMB</td><td class="num">286</td><td class="num">294</td><td class="num">308</td><td class="num">318</td><td class="num">1,206</td></tr>
+      <tr><th class="group" colspan="6">Partner and channel</th></tr>
+      <tr class="indent"><td>Resellers</td><td class="num">168</td><td class="num">181</td><td class="num">196</td><td class="num">211</td><td class="num">756</td></tr>
+      <tr class="indent"><td>Marketplaces</td><td class="num">74</td><td class="num">81</td><td class="num">88</td><td class="num">96</td><td class="num">339</td></tr>
+      <tr class="total"><td>EMEA total</td><td class="num">1,680</td><td class="num">1,782</td><td class="num">1,900</td><td class="num">2,027</td><td class="num">7,389</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Asia Pacific</h2>
+  <table>
+    <thead>
+      <tr><th>Channel</th><th class="num">Q1</th><th class="num">Q2</th><th class="num">Q3</th><th class="num">Q4</th><th class="num">FY2026</th></tr>
+    </thead>
+    <tbody>
+      <tr><th class="group" colspan="6">Direct sales</th></tr>
+      <tr class="indent"><td>Enterprise</td><td class="num">288</td><td class="num">312</td><td class="num">344</td><td class="num">372</td><td class="num">1,316</td></tr>
+      <tr class="indent"><td>Mid-market</td><td class="num">204</td><td class="num">218</td><td class="num">236</td><td class="num">252</td><td class="num">910</td></tr>
+      <tr class="indent"><td>SMB</td><td class="num">112</td><td class="num">118</td><td class="num">126</td><td class="num">134</td><td class="num">490</td></tr>
+      <tr><th class="group" colspan="6">Partner and channel</th></tr>
+      <tr class="indent"><td>Resellers</td><td class="num">88</td><td class="num">94</td><td class="num">102</td><td class="num">110</td><td class="num">394</td></tr>
+      <tr class="indent"><td>Marketplaces</td><td class="num">36</td><td class="num">40</td><td class="num">44</td><td class="num">48</td><td class="num">168</td></tr>
+      <tr class="total"><td>APAC total</td><td class="num">728</td><td class="num">782</td><td class="num">852</td><td class="num">916</td><td class="num">3,278</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Consolidated</h2>
+  <table>
+    <thead>
+      <tr><th>Region</th><th class="num">Q1</th><th class="num">Q2</th><th class="num">Q3</th><th class="num">Q4</th><th class="num">FY2026</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Americas</td><td class="num">2,640</td><td class="num">2,797</td><td class="num">3,099</td><td class="num">3,335</td><td class="num">11,871</td></tr>
+      <tr><td>EMEA</td><td class="num">1,680</td><td class="num">1,782</td><td class="num">1,900</td><td class="num">2,027</td><td class="num">7,389</td></tr>
+      <tr><td>Asia Pacific</td><td class="num">728</td><td class="num">782</td><td class="num">852</td><td class="num">916</td><td class="num">3,278</td></tr>
+      <tr class="total"><td>Total bookings</td><td class="num">5,048</td><td class="num">5,361</td><td class="num">5,851</td><td class="num">6,278</td><td class="num">22,538</td></tr>
+    </tbody>
+  </table>
+  <p>Bookings grew 24.4% year over year, led by the Americas. The grouped
+  presentation above is the format used in the monthly sales review; the
+  quarterly board report presents the same figures aggregated by product
+  line instead of by channel.</p>
+</body>
+</html>

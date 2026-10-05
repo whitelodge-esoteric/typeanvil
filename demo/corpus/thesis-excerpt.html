@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Thesis Excerpt — Sediment Transport in Lowland Catchments</title>
+<style>
+  @page {
+    margin: 0.5in;
+    @top-left { content: "Sediment Transport in Lowland Catchments"; font-family: Arial, Helvetica, sans-serif; font-size: 9pt; color: #555; }
+    @top-right { content: string(section); font-family: Arial, Helvetica, sans-serif; font-size: 9pt; color: #555; }
+    @bottom-center { content: counter(page); font-family: Arial, Helvetica, sans-serif; font-size: 10pt; }
+  }
+  body { font-family: Arial, Helvetica, "Liberation Sans", sans-serif; font-size: 10pt; line-height: 1.45; color: #1a1a1a; }
+  h1 { font-size: 15pt; color: #1b263b; margin: 0 0 2pt 0; }
+  h2 { font-size: 11.5pt; color: #415a77; margin: 12pt 0 4pt 0; string-set: section content(); }
+  h3 { font-size: 10pt; color: #333; margin: 8pt 0 3pt 0; }
+  p { text-align: justify; hyphens: auto; margin: 0 0 6pt 0; }
+  .meta { font-size: 9pt; color: #555; margin: 0 0 10pt 0; }
+  .fn { float: footnote; font-size: 8pt; color: #444; }
+  table { border-collapse: collapse; width: 100%; margin: 4pt 0 8pt 0; }
+  th, td { border: 0.5pt solid #bbb; padding: 2pt 5pt; font-size: 9pt; text-align: left; }
+  thead th { background-color: #e7ecf2; color: #1b263b; }
+  .num { text-align: right; }
+  caption { caption-side: top; text-align: left; font-size: 8.5pt; color: #555; padding: 2pt 0; }
+  .eq { text-align: center; margin: 6pt 0; font-style: italic; }
+</style>
+</head>
+<body>
+  <h1>Sediment Transport in Lowland Catchments</h1>
+  <div class="meta">Excerpt from Chapter 3 — Methods and Field Data · Submitted for the degree of Doctor of Philosophy · 2026</div>
+
+  <h2 id="s1">3.1  Sampling design</h2>
+  <p>The sampling design followed the stratified protocol described in the
+  methods chapter. Six reaches were selected across three lowland catchments,
+  each reach subdivided into five cross-sections, and each cross-section
+  sampled at three points across the channel.<span class="fn">Reach
+  selection was constrained by access; the three catchments were chosen
+  because their land use spans the range from pasture to arable.</span> The
+  design yields ninety sampling points per campaign, which is sufficient to
+  estimate the suspended-sediment load with the precision reported in
+  section 3.4.</p>
+  <p>Samples were collected during baseflow and during the falling limb of
+  storm events, because the transport regime differs between the two and a
+  design that samples only baseflow underestimates the annual load by a wide
+  margin.<span class="fn">The falling limb carries the bulk of the coarse
+  fraction in these catchments; sampling it is the single most important
+  methodological decision in the study.</span></p>
+
+  <h2 id="s2">3.2  Instrumentation</h2>
+  <p>Discharge was measured at each cross-section with an acoustic Doppler
+  current profiler, and suspended-sediment concentration was determined by
+  filtration of depth-integrated samples. Turbidity was logged continuously
+  at the downstream end of each reach and calibrated against the filtered
+  samples. The instrumentation is summarized below.</p>
+  <table>
+    <caption>Table 3.1 — Instruments and their nominal accuracy.</caption>
+    <thead>
+      <tr><th>Instrument</th><th>Quantity</th><th class="num">Accuracy</th><th class="num">Sampling</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Acoustic Doppler profiler</td><td>Velocity profile</td><td class="num">±1.5%</td><td class="num">0.5 Hz</td></tr>
+      <tr><td>Depth-integrated sampler</td><td>Suspended sediment</td><td class="num">±3%</td><td class="num">Per point</td></tr>
+      <tr><td>Optical turbidity probe</td><td>Turbidity</td><td class="num">±5%</td><td class="num">1 min</td></tr>
+      <tr><td>Pressure transducer</td><td>Stage</td><td class="num">±0.1%</td><td class="num">5 min</td></tr>
+      <tr><td>Automatic pump sampler</td><td>Suspended sediment</td><td class="num">±4%</td><td class="num">Event-driven</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="s3">3.3  Laboratory procedure</h2>
+  <p>Each sample was filtered through a pre-weighed glass-fibre filter,
+  dried at 105 degrees Celsius for two hours, and re-weighed to the nearest
+  tenth of a milligram. The difference in mass, divided by the filtered
+  volume, gives the suspended-sediment concentration. The procedure was
+  repeated in triplicate for one sample in twenty as a quality check.<span
+  class="fn">The triplicate check is the only direct estimate of laboratory
+  precision in the dataset; it is reported in the appendix.</span></p>
+
+  <h2 id="s4">3.4  Derived quantities</h2>
+  <p>Suspended-sediment load was computed as the product of concentration and
+  discharge, integrated over the measurement interval. Where the interval was
+  longer than the sampling cadence, the load was estimated by the
+  flow-weighted interpolation described in the appendix. The results for the
+  three catchments are summarized below.</p>
+  <table>
+    <caption>Table 3.2 — Annual suspended-sediment load by catchment.</caption>
+    <thead>
+      <tr><th>Catchment</th><th class="num">Area (km²)</th><th class="num">Load (t/yr)</th><th class="num">Yield (t/km²/yr)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Ashfield</td><td class="num">182.4</td><td class="num">4,120</td><td class="num">22.6</td></tr>
+      <tr><td>Barrow Vale</td><td class="num">241.9</td><td class="num">6,884</td><td class="num">28.5</td></tr>
+      <tr><td>Caldon</td><td class="num">96.2</td><td class="num">2,655</td><td class="num">27.6</td></tr>
+      <tr><td>Combined</td><td class="num">520.5</td><td class="num">13,659</td><td class="num">26.2</td></tr>
+    </tbody>
+  </table>
+  <p>The yields are consistent with the range reported for comparable
+  lowland catchments, and the variation between catchments tracks the
+  proportion of arable land in each.<span class="fn">Arable cover is 31% at
+  Ashfield, 44% at Barrow Vale, and 40% at Caldon, which explains most of the
+  spread in yield.</span> The combined yield of 26.2 tonnes per square
+  kilometre per year is the figure used in the regional budget presented in
+  the next chapter.</p>
+</body>
+</html>

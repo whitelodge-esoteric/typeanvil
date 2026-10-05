@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Conference Paper — Ashfield, 2026 — Sparse Sampling of Channel Bedload</title>
+<style>
+  @page {
+    margin: 0.5in;
+    @top-left { content: "Riverine Systems Conference 2026"; font-family: Arial, Helvetica, sans-serif; font-size: 8pt; color: #555; }
+    @top-right { content: string(section); font-family: Arial, Helvetica, sans-serif; font-size: 8pt; color: #555; }
+    @bottom-center { content: counter(page); font-family: Arial, Helvetica, sans-serif; font-size: 9pt; }
+  }
+  body { font-family: Arial, Helvetica, "Liberation Sans", sans-serif; font-size: 9.5pt; line-height: 1.4; color: #111; }
+  h1 { font-size: 15pt; margin: 0 0 2pt 0; }
+  h2 { font-size: 11pt; color: #264653; margin: 10pt 0 3pt 0; string-set: section content(); }
+  p { text-align: justify; hyphens: auto; margin: 0 0 6pt 0; }
+  .authors { font-size: 9pt; color: #555; margin: 0 0 8pt 0; }
+  .abstract { font-size: 8.5pt; background-color: #f4f4f4; padding: 5pt 7pt; margin: 0 0 8pt 0; }
+  .abstract .h { font-weight: bold; }
+  table { border-collapse: collapse; width: 100%; margin: 4pt 0 8pt 0; }
+  th, td { border: 0.5pt solid #bbb; padding: 2pt 4pt; font-size: 8.5pt; text-align: left; }
+  thead th { background-color: #e7ecef; }
+  .num { text-align: right; }
+  caption { caption-side: top; text-align: left; font-size: 8pt; color: #555; padding: 2pt 0; }
+  figure { margin: 6pt 0 8pt 0; text-align: center; }
+  figcaption { font-size: 8pt; color: #555; text-align: left; margin-top: 3pt; }
+  img.chart { width: 300pt; height: 130pt; }
+  .fn { float: footnote; font-size: 8pt; color: #444; }
+  .floatbox { float: right; width: 118pt; margin: 0 0 4pt 8pt; border: 0.5pt solid #264653; background-color: #eef4f2; padding: 4pt 6pt; font-size: 8pt; color: #264653; }
+  .floatbox .h { font-weight: bold; display: block; margin-bottom: 2pt; }
+</style>
+</head>
+<body>
+  <h1>Sparse sampling of channel bedload: how few samples are enough?</h1>
+  <div class="authors">L. Ashcroft, R. Menon, and P. Ilves · Institute of Hydrology, Caldon</div>
+
+  <div class="abstract"><span class="h">Abstract.</span> Bedload sampling in
+  gravel-bed rivers is expensive, and the number of samples needed for a
+  stable estimate is contested. We resample a two-year bedload dataset to
+  estimate the minimum sample count that reproduces the annual load within
+  ten percent, and we report how that count varies with the sampling method
+  and the flow regime. The result is a practical rule for field campaigns.</div>
+
+  <h2>1. Introduction</h2>
+  <div class="floatbox"><span class="h">Key result</span>A campaign of about
+  one hundred event-targeted samples reproduces the annual bedload load
+  within ten percent.</div>
+  <p>Bedload is the coarse fraction of sediment transport and the fraction
+  most often ignored, because it is the hardest to measure. A Helley-Smith
+  sampler deployed at a cross-section returns a noisy estimate, and the
+  annual load is the sum of many such estimates. The number of samples that
+  makes the sum stable is the practical question this paper addresses.</p>
+
+  <h2>2. Data</h2>
+  <p>The dataset comprises 1,240 bedload samples collected across three
+  gravel-bed reaches over two years. Discharge was measured simultaneously,
+  so each sample can be placed in its flow context. The reaches span a
+  fifteen-fold range in median discharge.</p>
+
+  <h2>3. Method</h2>
+  <p>For each reach we drew random subsets of increasing size from the full
+  sample set and computed the implied annual load. The subset size at which
+  ninety percent of draws fell within ten percent of the full-set load was
+  taken as the minimum sample count.<span class="fn">The resampling used a
+  fixed seed so the result is reproducible; the seed and the draw count are
+  recorded in the supplement.</span></p>
+  <table>
+    <caption>Table 1 — Minimum sample count by reach and flow regime.</caption>
+    <thead>
+      <tr><th>Reach</th><th class="num">Q50 (m³/s)</th><th class="num">Baseflow</th><th class="num">High flow</th><th class="num">Combined</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Ashfield</td><td class="num">1.82</td><td class="num">38</td><td class="num">86</td><td class="num">104</td></tr>
+      <tr><td>Barrow Vale</td><td class="num">3.10</td><td class="num">42</td><td class="num">94</td><td class="num">118</td></tr>
+      <tr><td>Caldon</td><td class="num">0.64</td><td class="num">31</td><td class="num">72</td><td class="num">88</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4. Results</h2>
+  <p>The minimum count is driven by the high-flow samples: a majority of the
+  annual load moves in a handful of events, so the estimate stabilizes only
+  when those events are sampled well. The figure below shows the load
+  estimate against subset size for the three reaches.</p>
+  <figure>
+    <img class="chart" src="assets/report-q3-revenue.png"
+         alt="Cumulative load estimate against subset size, rising to the full-set value">
+    <figcaption>Figure 1 — Implied annual load against subset size for each
+    reach. The dashed line marks the ten-percent band around the full-set
+    value; all three curves enter it between eighty and one hundred
+    twenty samples.</figcaption>
+  </figure>
+
+  <h2>5. Discussion</h2>
+  <p>The practical rule is that a campaign should target high-flow events
+  rather than spread samples evenly. A hundred samples concentrated on
+  events gives the same stability as several hundred spread uniformly, and
+  the concentration is achievable because the events can be forecast a day
+  ahead.<span class="fn">A monitoring rule based on forecast flow is
+  described in the field protocol; it assumes the sampler can be deployed
+  within a working day.</span></p>
+
+  <h2>6. Conclusion</h2>
+  <p>Between eighty and a hundred twenty well-placed samples reproduce the
+  annual bedload load within ten percent. The count is set by the high-flow
+  events, and campaigns that ignore them will under-sample the load however
+  many baseflow samples they collect.</p>
+</body>
+</html>

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Data Sheet — Fernwood Cloud Platform, Enterprise Tier</title>
+<style>
+  @page {
+    margin: 0.5in;
+    @top-left { content: "Data Sheet — Fernwood Cloud, Enterprise Tier"; font-family: Arial, Helvetica, sans-serif; font-size: 8pt; color: #555; }
+    @top-right { content: string(section); font-family: Arial, Helvetica, sans-serif; font-size: 8pt; color: #555; }
+    @bottom-right { content: "Page " counter(page); font-family: Arial, Helvetica, sans-serif; font-size: 9pt; }
+  }
+  body { font-family: Arial, Helvetica, "Liberation Sans", sans-serif; font-size: 9.5pt; line-height: 1.35; color: #222; }
+  h1 { font-size: 16pt; color: #1d3557; margin: 0 0 2pt 0; }
+  h2 { font-size: 11.5pt; color: #457b9d; margin: 10pt 0 4pt 0; string-set: section content(); }
+  p { margin: 0 0 6pt 0; }
+  .meta { font-size: 8.5pt; color: #555; margin: 0 0 10pt 0; }
+  table { border-collapse: collapse; width: 100%; margin: 3pt 0 8pt 0; }
+  th, td { border: 0.5pt solid #bbb; padding: 1.5pt 4pt; font-size: 8.5pt; text-align: left; }
+  thead th { background-color: #e9f0f5; color: #1d3557; }
+  .num { text-align: right; }
+  .callout { float: right; width: 140pt; margin: 0 0 4pt 8pt; border: 0.5pt solid #457b9d; background-color: #f4f8fb; padding: 5pt 7pt; font-size: 8.5pt; color: #1d3557; }
+  .callout .h { font-weight: bold; display: block; margin-bottom: 2pt; }
+  figure { margin: 6pt 0 8pt 0; text-align: center; }
+  figcaption { font-size: 8pt; color: #555; text-align: left; margin-top: 3pt; }
+  img.chart { width: 300pt; height: 130pt; }
+</style>
+</head>
+<body>
+  <h1>Data Sheet — Fernwood Cloud Platform</h1>
+  <div class="meta">Enterprise tier · Rev. 4, October 2026 · For technical evaluation · All figures are service-level targets, not guarantees</div>
+
+  <div class="callout"><span class="h">At a glance</span>99.95% availability
+  target · 1 TB included storage · SAML and SCIM · regional data residency in
+  three regions.</div>
+
+  <p>The Fernwood Cloud Platform is a managed document-infrastructure service
+  with a documented API for rendering, storage, and retrieval. The enterprise
+  tier adds single sign-on, audit logging, and a contractual data-residency
+  commitment. This sheet states the technical characteristics a buyer needs
+  to evaluate the service.</p>
+
+  <h2>Platform limits</h2>
+  <table>
+    <thead>
+      <tr><th>Resource</th><th class="num">Starter</th><th class="num">Business</th><th class="num">Enterprise</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Included storage</td><td class="num">10 GB</td><td class="num">200 GB</td><td class="num">1 TB</td></tr>
+      <tr><td>Render minutes / month</td><td class="num">2,000</td><td class="num">50,000</td><td class="num">Unmetered</td></tr>
+      <tr><td>API requests / minute</td><td class="num">60</td><td class="num">600</td><td class="num">6,000</td></tr>
+      <tr><td>Concurrent renders</td><td class="num">2</td><td class="num">16</td><td class="num">64</td></tr>
+      <tr><td>Retention window</td><td class="num">30 days</td><td class="num">1 year</td><td class="num">Custom</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Service levels</h2>
+  <table>
+    <thead>
+      <tr><th>Metric</th><th class="num">Target</th><th class="num">Measurement</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Availability</td><td class="num">99.95%</td><td class="num">Monthly</td></tr>
+      <tr><td>Render latency, p95</td><td class="num">1.2 s</td><td class="num">Rolling 5 min</td></tr>
+      <tr><td>Render latency, p99</td><td class="num">3.5 s</td><td class="num">Rolling 5 min</td></tr>
+      <tr><td>API latency, p95</td><td class="num">180 ms</td><td class="num">Rolling 5 min</td></tr>
+      <tr><td>Support response, P1</td><td class="num">30 min</td><td class="num">Per incident</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Throughput profile</h2>
+  <p>Render throughput scales with the number of concurrent renders and holds
+  up to the platform limit. The figure shows measured throughput against
+  concurrency on the enterprise tier.</p>
+  <figure>
+    <img class="chart" src="assets/report-q3-revenue.png"
+         alt="Throughput rising with concurrency up to the platform limit">
+    <figcaption>Figure 1 — Render throughput against concurrent renders.
+    Throughput is linear to 48 concurrent renders and flattens to the
+    platform limit at 64.</figcaption>
+  </figure>
+
+  <h2>Security and compliance</h2>
+  <table>
+    <thead>
+      <tr><th>Control</th><th class="num">Starter</th><th class="num">Business</th><th class="num">Enterprise</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>SSO (SAML 2.0)</td><td class="num">—</td><td class="num">—</td><td class="num">Yes</td></tr>
+      <tr><td>SCIM provisioning</td><td class="num">—</td><td class="num">—</td><td class="num">Yes</td></tr>
+      <tr><td>Audit log retention</td><td class="num">7 days</td><td class="num">90 days</td><td class="num">2 years</td></tr>
+      <tr><td>Encryption at rest</td><td class="num">Yes</td><td class="num">Yes</td><td class="num">Yes, BYOK</td></tr>
+      <tr><td>Data residency choice</td><td class="num">—</td><td class="num">—</td><td class="num">Yes</td></tr>
+      <tr><td>Penetration-test report</td><td class="num">—</td><td class="num">Summary</td><td class="num">Full</td></tr>
+    </tbody>
+  </table>
+  <p>Enterprise customers receive the full penetration-test report under
+  NDA and may request an annual architecture review. The platform is hosted
+  in three regions; residency is selected at account creation and can be
+  changed with a documented migration procedure.</p>
+</body>
+</html>

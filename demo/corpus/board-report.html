@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Board Report — Northwind Systems, Q4 FY2026</title>
+<style>
+  @page {
+    margin: 0.5in;
+    @top-left { content: string(chapter); font-family: Arial, Helvetica, sans-serif; font-size: 9pt; color: #555; }
+    @top-right { content: "Board Report · Q4 FY2026"; font-family: Arial, Helvetica, sans-serif; font-size: 9pt; color: #555; }
+    @bottom-center { content: counter(page); font-family: Arial, Helvetica, sans-serif; font-size: 10pt; }
+  }
+  body { font-family: Arial, Helvetica, "Liberation Sans", sans-serif; font-size: 10pt; line-height: 1.3; color: #222; }
+  h1 { font-size: 17pt; color: #1d3557; margin: 0 0 4pt 0; }
+  h2 { font-size: 13pt; color: #457b9d; margin: 0 0 5pt 0; string-set: chapter content(); }
+  p { margin: 0 0 6pt 0; }
+  .cover { margin-bottom: 14pt; }
+  .toc { display: block; margin-bottom: 8pt; }
+  .toc h1 { string-set: chapter content(); }
+  .toc a { display: block; color: #222; text-decoration: none; font-size: 10pt; }
+  .toc .sec { margin: 3pt 0; }
+  .e1 { content: "1  Executive summary " leader('.') target-counter(attr(href), page); }
+  .e2 { content: "2  Financial performance " leader('.') target-counter(attr(href), page); }
+  .e3 { content: "3  Operating review " leader('.') target-counter(attr(href), page); }
+  .e4 { content: "4  Risk and outlook " leader('.') target-counter(attr(href), page); }
+  .chapter { display: block; break-before: page; }
+  .xref { color: #1d3557; text-decoration: underline; }
+  table { border-collapse: collapse; width: 100%; margin: 4pt 0 8pt 0; }
+  th, td { border: 0.5pt solid #bbb; padding: 2pt 5pt; font-size: 9pt; text-align: left; }
+  thead th { background-color: #e9f0f5; color: #1d3557; }
+  .num { text-align: right; }
+  tr.total td { font-weight: bold; background-color: #f4f8fb; }
+  .callout { border-left: 3pt solid #457b9d; background-color: #f4f8fb; padding: 5pt 8pt; margin: 6pt 0; font-size: 9pt; }
+</style>
+</head>
+<body>
+  <div class="cover">
+    <h1>Board Report</h1>
+    <div style="font-size:9pt;color:#555">Northwind Systems, Inc. · Fourth quarter, fiscal year 2026 · Prepared for the board of directors · Confidential</div>
+  </div>
+
+  <div class="toc">
+    <h1>Contents</h1>
+    <a class="e1 sec" href="#s1">Executive summary</a>
+    <a class="e2 sec" href="#s2">Financial performance</a>
+    <a class="e3 sec" href="#s3">Operating review</a>
+    <a class="e4 sec" href="#s4">Risk and outlook</a>
+  </div>
+
+  <div class="chapter">
+    <h2 id="s1">1  Executive summary</h2>
+    <p>The company closed the fourth quarter ahead of plan on both revenue
+    and operating margin. Full-year revenue grew 23.9% to 17,455 kUSD, and
+    operating income more than doubled as the cost structure absorbed the
+    growth without a proportional increase in headcount.</p>
+    <p>Three themes dominated the quarter: continued expansion within the
+    Business and Enterprise tiers; the successful launch of the reporting
+    workspace, which lifted engagement across every plan; and a disciplined
+    approach to research spending that kept the gross margin trend positive
+    while the roadmap stayed on schedule.</p>
+    <div class="callout"><strong>Summary for the board.</strong> The quarter
+    confirmed the plan's central assumption — that the wedge features drive
+    retention — and the operating review in section 3 sets out where the next
+    increment of investment should go.</div>
+    <p>Management recommends approving the FY2027 operating plan, which holds
+    the current cost base and redirects a portion of the savings from the
+    restructuring completed in FY2025 into the enterprise go-to-market
+    program.</p>
+  </div>
+
+  <div class="chapter">
+    <h2 id="s2">2  Financial performance</h2>
+    <p>Revenue for the quarter was 4,880 kUSD against a plan of 4,610 kUSD,
+    a favorable variance of 5.9%. The full-year figures below restate the
+    prior year on the same basis used in the audited statements.</p>
+    <table>
+      <thead>
+        <tr><th>Metric</th><th class="num">Q3 FY2026</th><th class="num">Q4 FY2026</th><th class="num">Full year</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Revenue (kUSD)</td><td class="num">4,461</td><td class="num">4,880</td><td class="num">17,455</td></tr>
+        <tr><td>Gross margin</td><td class="num">63.8%</td><td class="num">64.4%</td><td class="num">63.8%</td></tr>
+        <tr><td>Operating margin</td><td class="num">11.4%</td><td class="num">13.9%</td><td class="num">12.5%</td></tr>
+        <tr><td>Free cash flow (kUSD)</td><td class="num">612</td><td class="num">741</td><td class="num">2,187</td></tr>
+        <tr><td>Headcount (FTE)</td><td class="num">184</td><td class="num">191</td><td class="num">191</td></tr>
+        <tr class="total"><td>Net revenue retention</td><td class="num">108.1%</td><td class="num">109.3%</td><td class="num">108.6%</td></tr>
+      </tbody>
+    </table>
+    <p>The balance sheet remains strong, with 7,204 kUSD in cash and
+    short-term investments and no near-term refinancing requirement. The
+    board is asked to note the treasury policy review scheduled for the
+    February meeting.</p>
+  </div>
+
+  <div class="chapter">
+    <h2 id="s3">3  Operating review</h2>
+    <p>Operating performance improved across all three product lines. The
+    platform line grew fastest, benefiting from the reporting workspace and
+    from the expansion of the enterprise agreements signed in the first half
+    of the year.</p>
+    <table>
+      <thead>
+        <tr><th>Product line</th><th class="num">FY2025</th><th class="num">FY2026</th><th class="num">Growth</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Platform subscriptions</td><td class="num">8,204</td><td class="num">10,988</td><td class="num">+33.9%</td></tr>
+        <tr><td>Professional services</td><td class="num">3,610</td><td class="num">3,902</td><td class="num">+8.1%</td></tr>
+        <tr><td>Support and maintenance</td><td class="num">2,268</td><td class="num">2,565</td><td class="num">+13.1%</td></tr>
+        <tr class="total"><td>Total revenue</td><td class="num">14,082</td><td class="num">17,455</td><td class="num">+23.9%</td></tr>
+      </tbody>
+    </table>
+    <p>The reporting workspace shipped in the second week of the quarter and
+    was adopted by 61% of Business-tier accounts within thirty days. The
+    sales team closed four enterprise agreements, each with a multi-year
+    term, and the pipeline entering the new year is the strongest on record.</p>
+    <p>The operating review continues in the section on risk and outlook,
+    which sets out the assumptions behind the FY2027 plan and the principal
+    risks to it. Management's view is that the largest single risk remains
+    the concentration of revenue in the platform line, which now represents
+    63% of total revenue, up from 58% a year earlier.</p>
+  </div>
+
+  <div class="chapter">
+    <h2 id="s4">4  Risk and outlook</h2>
+    <p>The outlook for FY2027 assumes revenue growth of 18% to 22% and a
+    modest expansion of operating margin. The plan holds headcount flat in
+    the first half and adds capacity only where the pipeline justifies it.</p>
+    <table>
+      <thead>
+        <tr><th>Risk</th><th>Likelihood</th><th>Impact</th><th>Mitigation</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Revenue concentration in platform line</td><td>Medium</td><td>High</td><td>Diversify into services and partner channels</td></tr>
+        <tr><td>Enterprise sales cycle lengthening</td><td>Medium</td><td>Medium</td><td>Invest in the enterprise go-to-market program</td></tr>
+        <tr><td>Key-person dependency in engineering</td><td>Low</td><td>High</td><td>Documentation and succession planning</td></tr>
+        <tr><td>Currency exposure on overseas revenue</td><td>High</td><td>Low</td><td>Hedge the largest exposures quarterly</td></tr>
+      </tbody>
+    </table>
+    <p>Management is confident that the plan is achievable and recommends
+    that the board approve it as presented. The next scheduled update is the
+    first-quarter report, which will be circulated ahead of the May meeting
+    with a full variance analysis against this plan.</p>
+  </div>
+</body>
+</html>

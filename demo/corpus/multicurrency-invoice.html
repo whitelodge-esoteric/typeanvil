@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Multi-Currency Invoice — MC-2026-7731 — Orbis Freight</title>
+<style>
+  @page {
+    margin: 0.5in;
+    @top-left { content: "Orbis Freight Ltd — Invoice MC-2026-7731"; font-family: Arial, Helvetica, sans-serif; font-size: 9pt; color: #555; }
+    @top-right { content: "Multi-currency"; font-family: Arial, Helvetica, sans-serif; font-size: 9pt; color: #555; }
+    @bottom-right { content: "Page " counter(page); font-family: Arial, Helvetica, sans-serif; font-size: 9pt; }
+  }
+  body { font-family: Arial, Helvetica, "Liberation Sans", sans-serif; font-size: 10pt; line-height: 1.3; color: #222; }
+  h1 { font-size: 17pt; color: #1d3557; margin: 0 0 2pt 0; }
+  h2 { font-size: 11pt; color: #457b9d; margin: 10pt 0 3pt 0; }
+  .meta { font-size: 9pt; color: #555; margin: 0 0 8pt 0; }
+  table { border-collapse: collapse; width: 100%; margin: 4pt 0; }
+  th, td { border: 0.5pt solid #999; padding: 2pt 5pt; font-size: 9pt; text-align: left; }
+  thead th { background-color: #a8dadc; color: #1d3557; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .cur { text-align: right; white-space: nowrap; }
+  tr.total td { background-color: #457b9d; color: #fff; font-weight: bold; }
+  tr.sub td { font-weight: bold; background-color: #f4f8fb; }
+  .fx { font-size: 8.5pt; color: #666; margin-top: 8pt; }
+</style>
+</head>
+<body>
+  <h1>Invoice — Multi-Currency Settlement</h1>
+  <div class="meta">Reference MC-2026-7731 · Issued 2026-10-03 · Due 2026-11-02 · Settlement account: ORB-MC-01</div>
+
+  <p>Orbis Freight Ltd issues this invoice for freight and handling services
+  delivered across three operating regions. Each region is billed in its
+  local currency; the grand total is shown in EUR at the reference rates
+  below. Currency amounts are right-aligned so that the decimal points line
+  up in every column.</p>
+
+  <h2>Region 1 — Eurozone (EUR)</h2>
+  <table>
+    <thead>
+      <tr><th>Reference</th><th>Service</th><th class="num">Qty</th><th class="cur">Unit</th><th class="cur">Amount</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>EU-4410</td><td>Line-haul, Rotterdam → Munich</td><td class="num">18</td><td class="cur">€ 640.00</td><td class="cur">€ 11,520.00</td></tr>
+      <tr><td>EU-4412</td><td>Line-haul, Antwerp → Lyon</td><td class="num">11</td><td class="cur">€ 512.50</td><td class="cur">€ 5,637.50</td></tr>
+      <tr><td>EU-4420</td><td>Customs brokerage, per declaration</td><td class="num">64</td><td class="cur">€ 38.00</td><td class="cur">€ 2,432.00</td></tr>
+      <tr><td>EU-4430</td><td>Warehousing, pallet-day</td><td class="num">1,240</td><td class="cur">€ 4.20</td><td class="cur">€ 5,208.00</td></tr>
+      <tr class="sub"><td colspan="4" class="cur">Eurozone subtotal</td><td class="cur">€ 24,797.50</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Region 2 — United Kingdom (GBP)</h2>
+  <table>
+    <thead>
+      <tr><th>Reference</th><th>Service</th><th class="num">Qty</th><th class="cur">Unit</th><th class="cur">Amount</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>UK-5520</td><td>Line-haul, Felixstowe → Manchester</td><td class="num">22</td><td class="cur">£ 480.00</td><td class="cur">£ 10,560.00</td></tr>
+      <tr><td>UK-5522</td><td>Line-haul, Southampton → Glasgow</td><td class="num">9</td><td class="cur">£ 725.00</td><td class="cur">£ 6,525.00</td></tr>
+      <tr><td>UK-5530</td><td>Customs brokerage, per declaration</td><td class="num">41</td><td class="cur">£ 42.00</td><td class="cur">£ 1,722.00</td></tr>
+      <tr><td>UK-5540</td><td>Pallet handling, per pallet</td><td class="num">860</td><td class="cur">£ 6.50</td><td class="cur">£ 5,590.00</td></tr>
+      <tr class="sub"><td colspan="4" class="cur">UK subtotal</td><td class="cur">£ 24,397.00</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Region 3 — United States (USD)</h2>
+  <table>
+    <thead>
+      <tr><th>Reference</th><th>Service</th><th class="num">Qty</th><th class="cur">Unit</th><th class="cur">Amount</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>US-6610</td><td>Line-haul, Newark → Chicago</td><td class="num">27</td><td class="cur">$ 590.00</td><td class="cur">$ 15,930.00</td></tr>
+      <tr><td>US-6614</td><td>Line-haul, Savannah → Dallas</td><td class="num">14</td><td class="cur">$ 815.00</td><td class="cur">$ 11,410.00</td></tr>
+      <tr><td>US-6630</td><td>Customs brokerage, per entry</td><td class="num">58</td><td class="cur">$ 51.00</td><td class="cur">$ 2,958.00</td></tr>
+      <tr><td>US-6640</td><td>Drayage, per container</td><td class="num">96</td><td class="cur">$ 210.00</td><td class="cur">$ 20,160.00</td></tr>
+      <tr class="sub"><td colspan="4" class="cur">US subtotal</td><td class="cur">$ 50,458.00</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Consolidated total in EUR</h2>
+  <table>
+    <thead>
+      <tr><th>Region</th><th class="cur">Local subtotal</th><th class="cur">Rate to EUR</th><th class="cur">EUR equivalent</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Eurozone</td><td class="cur">€ 24,797.50</td><td class="cur">1.0000</td><td class="cur">€ 24,797.50</td></tr>
+      <tr><td>United Kingdom</td><td class="cur">£ 24,397.00</td><td class="cur">1.1720</td><td class="cur">€ 28,593.28</td></tr>
+      <tr><td>United States</td><td class="cur">$ 50,458.00</td><td class="cur">0.9185</td><td class="cur">€ 46,345.67</td></tr>
+      <tr class="total"><td>Total due</td><td class="cur">—</td><td class="cur">—</td><td class="cur">€ 99,736.45</td></tr>
+    </tbody>
+  </table>
+  <div class="fx">Reference rates are the mid-market rates published on the
+  issue date and are applied to the local subtotals for presentation only.
+  Payment may be made in any of the three currencies; the EUR equivalent
+  above is the amount that clears the account in full. Bank charges are the
+  payer's responsibility.</div>
+</body>
+</html>

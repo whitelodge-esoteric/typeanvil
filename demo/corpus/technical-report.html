@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Technical Report TR-2026-14 — Capacity Planning for the Render Cluster</title>
+<style>
+  @page {
+    margin: 0.5in;
+    @top-left { content: "Northwind Systems · Technical Report TR-2026-14"; font-family: Arial, Helvetica, sans-serif; font-size: 8pt; color: #555; }
+    @top-right { content: string(section); font-family: Arial, Helvetica, sans-serif; font-size: 8pt; color: #555; }
+    @bottom-right { content: "Page " counter(page); font-family: Arial, Helvetica, sans-serif; font-size: 9pt; }
+  }
+  body { font-family: Arial, Helvetica, "Liberation Sans", sans-serif; font-size: 10pt; line-height: 1.35; color: #222; }
+  h1 { font-size: 16pt; color: #1d3557; margin: 0 0 2pt 0; }
+  h2 { font-size: 12pt; color: #457b9d; margin: 10pt 0 4pt 0; string-set: section content(); }
+  h3 { font-size: 10.5pt; margin: 8pt 0 3pt 0; }
+  p { margin: 0 0 6pt 0; }
+  .meta { font-size: 9pt; color: #555; margin: 0 0 10pt 0; }
+  table { border-collapse: collapse; width: 100%; margin: 4pt 0 8pt 0; }
+  th, td { border: 0.5pt solid #bbb; padding: 2pt 5pt; font-size: 9pt; text-align: left; }
+  thead th { background-color: #e9f0f5; color: #1d3557; }
+  .num { text-align: right; }
+  tr.total td { font-weight: bold; background-color: #f4f8fb; }
+  caption { caption-side: top; text-align: left; font-size: 8.5pt; color: #555; padding: 2pt 0; }
+  figure { margin: 6pt 0 8pt 0; text-align: center; }
+  figcaption { font-size: 8pt; color: #555; text-align: left; margin-top: 3pt; }
+  img.chart { width: 300pt; height: 130pt; }
+  .callout { border-left: 3pt solid #457b9d; background-color: #f4f8fb; padding: 5pt 8pt; margin: 6pt 0; font-size: 9pt; }
+</style>
+</head>
+<body>
+  <h1>Capacity Planning for the Render Cluster</h1>
+  <div class="meta">Technical Report TR-2026-14 · Northwind Systems · Prepared by the infrastructure group · October 2026</div>
+
+  <p>This report models the compute capacity required to render the
+  projected document volume for the next four quarters. It uses the observed
+  render cost per document from the production cluster and scales it against
+  the demand forecast from the sales plan. The recommendation is stated in
+  the final section.</p>
+
+  <h2>1. Workload</h2>
+  <p>The production cluster renders three classes of document: statements and
+  invoices, long-form reports, and catalogues. Each class has a different
+  cost profile, driven by page count and by the density of tables. The
+  observed averages over the last quarter are summarized below.</p>
+  <table>
+    <caption>Table 1 — Observed render cost by document class.</caption>
+    <thead>
+      <tr><th>Class</th><th class="num">Docs / month</th><th class="num">Avg. pages</th><th class="num">CPU-s / doc</th><th class="num">Monthly CPU-h</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Statements and invoices</td><td class="num">184,000</td><td class="num">4.2</td><td class="num">0.31</td><td class="num">15.8</td></tr>
+      <tr><td>Long-form reports</td><td class="num">42,000</td><td class="num">28.5</td><td class="num">1.92</td><td class="num">22.4</td></tr>
+      <tr><td>Catalogues</td><td class="num">18,000</td><td class="num">64.0</td><td class="num">4.10</td><td class="num">20.5</td></tr>
+      <tr class="total"><td>Total</td><td class="num">244,000</td><td class="num">—</td><td class="num">—</td><td class="num">58.7</td></tr>
+    </tbody>
+  </table>
+
+  <h2>2. Cost model</h2>
+  <p>Render cost scales with page count, not with document count, and the
+  scaling is close to linear above a dozen pages. The figure below plots the
+  observed cost against page count with the fitted line.</p>
+  <figure>
+    <img class="chart" src="assets/report-q3-revenue.png"
+         alt="Render cost against page count, showing a linear trend">
+    <figcaption>Figure 1 — Render cost against page count. The fitted line is
+    linear above twelve pages; below that the fixed startup cost dominates
+    and the line over-predicts.</figcaption>
+  </figure>
+  <div class="callout"><strong>Model.</strong> Monthly CPU-hours are
+  estimated as the product of document count and fitted cost, plus a
+  fifteen-percent safety margin for retries and spikes.</div>
+
+  <h2>3. Demand forecast</h2>
+  <p>The demand forecast applies the sales plan's growth rates to the current
+  volume. Statements grow with the account base; reports and catalogues grow
+  faster because they are concentrated in the expanding enterprise segment.
+  The forecast is shown for the next four quarters.</p>
+  <table>
+    <caption>Table 2 — Forecast document volume and CPU-hours by quarter.</caption>
+    <thead>
+      <tr><th>Quarter</th><th class="num">Docs / month</th><th class="num">CPU-h / month</th><th class="num">Peak CPU-h / day</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Q1 2027</td><td class="num">262,000</td><td class="num">63.1</td><td class="num">2.6</td></tr>
+      <tr><td>Q2 2027</td><td class="num">284,000</td><td class="num">68.5</td><td class="num">2.9</td></tr>
+      <tr><td>Q3 2027</td><td class="num">310,000</td><td class="num">74.8</td><td class="num">3.2</td></tr>
+      <tr><td>Q4 2027</td><td class="num">342,000</td><td class="num">82.6</td><td class="num">3.6</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4. Headroom and recommendation</h2>
+  <p>The current cluster provides 140 CPU-hours per month of burstable
+  capacity, which is comfortable against the forecast but leaves little room
+  for a simultaneous peak across all three classes. The peak day in Q4 2027
+  is projected at 3.6 CPU-hours; with a cluster that serves three classes
+  concurrently, the practical limit is the number of parallel renders, not
+  the total CPU budget.</p>
+  <table>
+    <caption>Table 3 — Cluster utilization against the Q4 2027 peak.</caption>
+    <thead>
+      <tr><th>Resource</th><th class="num">Capacity</th><th class="num">Q4 peak</th><th class="num">Utilization</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>CPU-hours / month</td><td class="num">140.0</td><td class="num">82.6</td><td class="num">59%</td></tr>
+      <tr><td>Peak CPU-hours / day</td><td class="num">6.0</td><td class="num">3.6</td><td class="num">60%</td></tr>
+      <tr><td>Parallel renders</td><td class="num">48</td><td class="num">31</td><td class="num">65%</td></tr>
+      <tr><td>Object storage (TB)</td><td class="num">90</td><td class="num">54</td><td class="num">60%</td></tr>
+    </tbody>
+  </table>
+  <p>The recommendation is to add capacity only for the parallel-render
+  dimension, where utilization is highest and where a single hot document can
+  saturate the queue. No CPU or storage expansion is required within the
+  forecast horizon. The infrastructure group will revisit the model when the
+  Q2 2027 actuals are available.</p>
+</body>
+</html>

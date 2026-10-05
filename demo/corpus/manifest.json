@@ -2,7 +2,10 @@
   {
     "name": "Invoice",
     "file": "invoice.html",
-    "wedge_features": ["tables-fragmentation", "paged-media-css"],
+    "wedge_features": [
+      "tables-fragmentation",
+      "paged-media-css"
+    ],
     "known_limitations": [
       "border-collapse: separate + border-spacing unsupported (collapse only)",
       "rowspan unsupported (not used)"
@@ -16,7 +19,11 @@
   {
     "name": "Quarterly Report",
     "file": "report.html",
-    "wedge_features": ["paged-media-css", "fragmentation-core", "tables-fragmentation"],
+    "wedge_features": [
+      "paged-media-css",
+      "fragmentation-core",
+      "tables-fragmentation"
+    ],
     "known_limitations": [
       "string-set limited to the content() of h1"
     ],
@@ -29,7 +36,11 @@
   {
     "name": "Academic Paper",
     "file": "paper.html",
-    "wedge_features": ["typography-layer", "fragmentation-core", "footnotes"],
+    "wedge_features": [
+      "typography-layer",
+      "fragmentation-core",
+      "footnotes"
+    ],
     "known_limitations": [
       "footnote styling is fixed (9pt marker-hang layout; fixture pins color/size via .fn)",
       "CSS float placement unsupported (known gap; no floats used)"
@@ -44,7 +55,10 @@
   {
     "name": "Letterhead",
     "file": "letterhead.html",
-    "wedge_features": ["paged-media-css", "fragmentation-core"],
+    "wedge_features": [
+      "paged-media-css",
+      "fragmentation-core"
+    ],
     "known_limitations": [],
     "expected_deltas": [
       "Margin-box fonts pinned to Arial 10pt (CORE-86); cover page margin boxes are content: none",
@@ -54,7 +68,11 @@
   {
     "name": "Inventory Ledger — Table Fragmentation Stress",
     "file": "table-stress.html",
-    "wedge_features": ["tables-fragmentation", "fragmentation-core", "paged-media-css"],
+    "wedge_features": [
+      "tables-fragmentation",
+      "fragmentation-core",
+      "paged-media-css"
+    ],
     "known_limitations": [
       "border-collapse: separate + border-spacing unsupported (collapse only)",
       "rowspan unsupported (not used)"
@@ -68,7 +86,11 @@
   {
     "name": "Float Showcase — Figure & Pull Quote",
     "file": "float-showcase.html",
-    "wedge_features": ["css-floats", "fragmentation-core", "typography-layer"],
+    "wedge_features": [
+      "css-floats",
+      "fragmentation-core",
+      "typography-layer"
+    ],
     "known_limitations": [
       "clear unsupported (floats spec Non-Goals; no clear declarations used)",
       "one float per side per y-band (simplified stacking; fixture uses at most one per side)"
@@ -83,7 +105,10 @@
   {
     "name": "Prose Showcase",
     "file": "prose.html",
-    "wedge_features": ["typography-layer", "fragmentation-core"],
+    "wedge_features": [
+      "typography-layer",
+      "fragmentation-core"
+    ],
     "known_limitations": [
       "none for the demonstrated features"
     ],
@@ -97,7 +122,11 @@
   {
     "name": "Invoice — Statement of Account",
     "file": "invoice-statement.html",
-    "wedge_features": ["tables-fragmentation", "paged-media-css", "fragmentation-core"],
+    "wedge_features": [
+      "tables-fragmentation",
+      "paged-media-css",
+      "fragmentation-core"
+    ],
     "known_limitations": [
       "border-collapse: separate + border-spacing unsupported (collapse only)",
       "rowspan unsupported (not used)",
@@ -108,6 +137,436 @@
       "Running-header font pinned to Arial 8pt in both engines; residual header diffs are layout-metric or structural",
       "Section B's running balance is static text, not a computed counter, so both engines print identical digits",
       "Currency symbols and accented glyphs (Zürich, Säntis) exercise the ToUnicode path; a glyph-substitution difference would show as per-page pixel noise"
+    ]
+  },
+  {
+    "name": "Consolidated Financial Statements",
+    "file": "financial-statement.html",
+    "wedge_features": [
+      "tables-fragmentation",
+      "paged-media-css",
+      "fragmentation-core"
+    ],
+    "known_limitations": [
+      "border-collapse: separate + border-spacing unsupported (collapse only)",
+      "rowspan unsupported (not used)",
+      "three fragmenting tables in one document; each repeats its own header row per page"
+    ],
+    "expected_deltas": [
+      "Prince may resolve a different system font for the sans-serif stack",
+      "Running-header font pinned to Arial 9pt in both engines; residual header diffs are layout-metric or structural",
+      "Page-break positions may differ where a row's height differs between engines",
+      "Total rows are ordinary body rows (no repeated tfoot), so both engines print identical digits"
+    ]
+  },
+  {
+    "name": "Monthly Analytics Digest",
+    "file": "analytics-digest.html",
+    "wedge_features": [
+      "tables-fragmentation",
+      "paged-media-css",
+      "typography-layer"
+    ],
+    "known_limitations": [
+      "the embedded chart is a static PNG; the engine does not generate charts",
+      "border-collapse: separate + border-spacing unsupported (collapse only)"
+    ],
+    "expected_deltas": [
+      "Prince may resolve a different system font for the sans-serif stack",
+      "The KPI band uses fixed table-cell padding; Prince's default cell metrics may differ slightly",
+      "Chart image scaling is identical (both engines honor the explicit width/height)",
+      "Prince may hyphenate differently in table cells"
+    ]
+  },
+  {
+    "name": "Board Report — Q4 FY2026",
+    "file": "board-report.html",
+    "wedge_features": [
+      "paged-media-css",
+      "fragmentation-core",
+      "typography-layer"
+    ],
+    "known_limitations": [
+      "string-set limited to the content() of the h2 section headings",
+      "TOC entries require display: block on the anchor"
+    ],
+    "expected_deltas": [
+      "TOC dotted leaders may use slightly different dot spacing",
+      "Running-header font pinned to Arial 9pt in both engines; residual header diffs are layout-metric or structural",
+      "One chapter begins on a different page (TA 12 vs PR 13) from accumulated line-break differences; per-page diffs remain in the cosmetic band"
+    ]
+  },
+  {
+    "name": "Sales Summary by Region",
+    "file": "sales-summary.html",
+    "wedge_features": [
+      "tables-fragmentation",
+      "fragmentation-core"
+    ],
+    "known_limitations": [
+      "border-collapse: separate + border-spacing unsupported (collapse only)",
+      "group header rows are ordinary table rows, not thead groups"
+    ],
+    "expected_deltas": [
+      "Prince may resolve a different system font for the sans-serif stack",
+      "Grouped subtotal rows carry an explicit background color; fill rendering matches but sub-pixel edges may differ",
+      "Page-break positions may differ where a row's height differs between engines"
+    ]
+  },
+  {
+    "name": "Pro-Forma Invoice",
+    "file": "proforma-invoice.html",
+    "wedge_features": [
+      "tables-fragmentation",
+      "paged-media-css",
+      "fragmentation-core"
+    ],
+    "known_limitations": [
+      "border-collapse: separate + border-spacing unsupported (collapse only)",
+      "rowspan unsupported (not used)",
+      "the PRO-FORMA stamp is a bordered inline-block, not a rotated watermark"
+    ],
+    "expected_deltas": [
+      "Prince may resolve a different system font for the sans-serif stack",
+      "Running-header font pinned to Arial 9pt in both engines; residual header diffs are layout-metric or structural",
+      "Page-count gap (TA 18 vs PR 15) from accumulated line-break and table-row-height differences; per-page diffs remain in the cosmetic band",
+      "The tfoot totals repeat at the bottom of every fragment in both engines"
+    ]
+  },
+  {
+    "name": "Credit Note",
+    "file": "credit-note.html",
+    "wedge_features": [
+      "tables-fragmentation",
+      "paged-media-css"
+    ],
+    "known_limitations": [
+      "border-collapse: separate + border-spacing unsupported (collapse only)"
+    ],
+    "expected_deltas": [
+      "Prince may resolve a different system font for the sans-serif stack",
+      "GBP glyph and VAT number exercise the ToUnicode path; a glyph-substitution difference would show as per-page pixel noise",
+      "Page-count gap (TA 12 vs PR 10) from accumulated line-break differences; per-page diffs remain in the cosmetic band"
+    ]
+  },
+  {
+    "name": "Multi-Currency Invoice",
+    "file": "multicurrency-invoice.html",
+    "wedge_features": [
+      "tables-fragmentation",
+      "paged-media-css",
+      "typography-layer"
+    ],
+    "known_limitations": [
+      "border-collapse: separate + border-spacing unsupported (collapse only)",
+      "currency symbols (€ £ $) rely on the bundled font set; no locale-specific currency shaping"
+    ],
+    "expected_deltas": [
+      "Prince may resolve a different system font for the sans-serif stack",
+      "Currency symbols and right-aligned numeric columns exercise the ToUnicode path; a glyph-substitution difference would show as per-page pixel noise",
+      "font-variant-numeric: tabular-nums is not honored, so digit advance is the natural shaped width in both engines"
+    ]
+  },
+  {
+    "name": "Recurring Billing Statement",
+    "file": "recurring-billing.html",
+    "wedge_features": [
+      "tables-fragmentation",
+      "paged-media-css",
+      "fragmentation-core"
+    ],
+    "known_limitations": [
+      "border-collapse: separate + border-spacing unsupported (collapse only)",
+      "the summary band is a plain two-column table, not a CSS grid"
+    ],
+    "expected_deltas": [
+      "Prince may resolve a different system font for the sans-serif stack",
+      "Page-count gap (TA 6 vs PR 7) from accumulated line-break differences; per-page diffs remain in the cosmetic band",
+      "Parenthesized negative amounts render as literal text in both engines"
+    ]
+  },
+  {
+    "name": "Book Chapter — The Cartography of Rivers",
+    "file": "book-chapter.html",
+    "wedge_features": [
+      "typography-layer",
+      "fragmentation-core",
+      "footnotes"
+    ],
+    "known_limitations": [
+      "footnote styling is fixed (9pt marker-hang layout); the fixture pins size/color via .fn",
+      "CSS float placement unsupported (known gap; no floats used)"
+    ],
+    "expected_deltas": [
+      "Hyphenation points may differ (different hyphenation dictionaries)",
+      "Justification glue distribution may differ slightly at identical widths",
+      "Footnote band height may differ where note text wraps differently (CORE-107)",
+      "The drop-cap first letter is a floated first-letter pseudo-element; Prince and TypeAnvil may size the cap differently"
+    ]
+  },
+  {
+    "name": "Whitepaper — Deterministic Document Rendering",
+    "file": "whitepaper.html",
+    "wedge_features": [
+      "paged-media-css",
+      "fragmentation-core",
+      "typography-layer"
+    ],
+    "known_limitations": [
+      "string-set limited to the content() of the h2 headings",
+      "TOC entries require display: block on the anchor"
+    ],
+    "expected_deltas": [
+      "TOC dotted leaders may use slightly different dot spacing",
+      "Page-count gap (TA 10 vs PR 12) from accumulated line-break differences; per-page diffs remain in the cosmetic band",
+      "Hyphenation points may differ (different hyphenation dictionaries)"
+    ]
+  },
+  {
+    "name": "Thesis Excerpt — Sediment Transport",
+    "file": "thesis-excerpt.html",
+    "wedge_features": [
+      "footnotes",
+      "tables-fragmentation",
+      "typography-layer"
+    ],
+    "known_limitations": [
+      "footnote styling is fixed (9pt marker-hang layout)",
+      "table captions use caption-side: top; caption box metrics may differ",
+      "border-collapse: separate + border-spacing unsupported (collapse only)"
+    ],
+    "expected_deltas": [
+      "Hyphenation points may differ (different hyphenation dictionaries)",
+      "Footnote band height may differ where note text wraps differently (CORE-107)",
+      "Table caption placement and spacing may differ slightly between engines"
+    ]
+  },
+  {
+    "name": "Annual Operations Report — Long Report",
+    "file": "long-report.html",
+    "wedge_features": [
+      "paged-media-css",
+      "fragmentation-core",
+      "tables-fragmentation"
+    ],
+    "known_limitations": [
+      "string-set limited to the content() of the h1/h2 headings"
+    ],
+    "expected_deltas": [
+      "Running-header font pinned to Arial 9pt in both engines; residual header diffs are layout-metric or structural",
+      "Page-break positions may differ where a row's height differs between engines",
+      "Prince may hyphenate differently in table cells"
+    ]
+  },
+  {
+    "name": "Journal Paper — Stage–discharge hysteresis",
+    "file": "journal-paper.html",
+    "wedge_features": [
+      "typography-layer",
+      "fragmentation-core",
+      "footnotes"
+    ],
+    "known_limitations": [
+      "two-column layout is a single-row table per page band (multicol is broken under print, CORE-246); each band is kept short enough to fit one page because a table row taller than the fragmentainer mis-fragments",
+      "footnotes are not used inside the two-column bands"
+    ],
+    "expected_deltas": [
+      "Two-column band width is fixed at 144pt per column; Prince may distribute the column gap slightly differently",
+      "Page-count gap (TA 5 vs PR 6) from accumulated line-break differences; per-page diffs remain in the cosmetic band",
+      "Hyphenation points may differ (different hyphenation dictionaries)"
+    ]
+  },
+  {
+    "name": "Conference Paper — Sparse Sampling of Bedload",
+    "file": "conference-paper.html",
+    "wedge_features": [
+      "tables-fragmentation",
+      "typography-layer",
+      "footnotes"
+    ],
+    "known_limitations": [
+      "one right float is used (a boxed key result); clear is unsupported and float stacking is simplified to one float per side per y-band",
+      "footnote styling is fixed (9pt marker-hang layout)"
+    ],
+    "expected_deltas": [
+      "Float placement may differ by a line where line-box heights diverge (CORE-90)",
+      "The figure image scales identically (both engines honor the explicit width/height)",
+      "Prince hyphenation dictionary may differ inside float-wrapped segments"
+    ]
+  },
+  {
+    "name": "Preprint — Convergence of Iterative Page Breaking",
+    "file": "preprint.html",
+    "wedge_features": [
+      "paged-media-css",
+      "fragmentation-core",
+      "footnotes"
+    ],
+    "known_limitations": [
+      "footnote styling is fixed (9pt marker-hang layout)",
+      "cross-references use static anchors; target-counter/target-text are not used in this fixture"
+    ],
+    "expected_deltas": [
+      "Footnote band height may differ where note text wraps differently (CORE-107)",
+      "Justification glue distribution may differ slightly at identical widths",
+      "Hyphenation points may differ (different hyphenation dictionaries)"
+    ]
+  },
+  {
+    "name": "Technical Report — Capacity Planning",
+    "file": "technical-report.html",
+    "wedge_features": [
+      "tables-fragmentation",
+      "paged-media-css",
+      "fragmentation-core"
+    ],
+    "known_limitations": [
+      "the figures are static PNGs in block context (an img inside a table cell paints nothing, CORE-210)",
+      "table captions use caption-side: top"
+    ],
+    "expected_deltas": [
+      "Figure images scale identically (both engines honor the explicit width/height)",
+      "Page-break positions may differ where a row's height differs between engines",
+      "Table caption placement and spacing may differ slightly between engines"
+    ]
+  },
+  {
+    "name": "Product Manual — Northwind 2400 Pallet Truck",
+    "file": "product-manual.html",
+    "wedge_features": [
+      "tables-fragmentation",
+      "paged-media-css",
+      "fragmentation-core"
+    ],
+    "known_limitations": [
+      "one right float is used (a boxed safety notice); clear is unsupported and float stacking is simplified to one float per side per y-band",
+      "the parts figure is a PNG in block context; an img inside a table cell paints nothing (CORE-210)"
+    ],
+    "expected_deltas": [
+      "Float placement may differ by a line where line-box heights diverge (CORE-90)",
+      "The figure image scales identically (both engines honor the explicit width/height)",
+      "Page-break positions may differ where a row's height differs between engines"
+    ]
+  },
+  {
+    "name": "Spec Sheet — Northwind 2400 Series",
+    "file": "spec-sheet.html",
+    "wedge_features": [
+      "tables-fragmentation",
+      "paged-media-css"
+    ],
+    "known_limitations": [
+      "border-collapse: separate + border-spacing unsupported (collapse only)",
+      "rowspan unsupported (not used; each parameter is its own row)"
+    ],
+    "expected_deltas": [
+      "Prince may resolve a different system font for the sans-serif stack",
+      "Four dense tables fragment across pages; row-boundary breaks may land on a different page where a row's height differs",
+      "Header rows repeat on every fragment in both engines"
+    ]
+  },
+  {
+    "name": "Price Catalog 2026 — Meridian Trading",
+    "file": "price-catalog.html",
+    "wedge_features": [
+      "tables-fragmentation",
+      "paged-media-css",
+      "fragmentation-core"
+    ],
+    "known_limitations": [
+      "two-column layout is a single-row table per page band (multicol is broken under print, CORE-246); a nested price table sits in each column, and each band is kept short enough to fit one page",
+      "nested tables inside table cells add a second level of row measurement"
+    ],
+    "expected_deltas": [
+      "Two-column band width is fixed at 144pt per column; Prince may distribute the column gap slightly differently",
+      "Nested price tables may measure header widths within a few tenths of a point between engines",
+      "Prince may hyphenate differently in narrow cells"
+    ]
+  },
+  {
+    "name": "Data Sheet — Fernwood Cloud Platform",
+    "file": "data-sheet.html",
+    "wedge_features": [
+      "tables-fragmentation",
+      "paged-media-css",
+      "fragmentation-core"
+    ],
+    "known_limitations": [
+      "one right float is used (an at-a-glance callout); clear is unsupported and float stacking is simplified to one float per side per y-band",
+      "the throughput figure is a PNG in block context (an img inside a table cell paints nothing, CORE-210)"
+    ],
+    "expected_deltas": [
+      "Float placement may differ by a line where line-box heights diverge (CORE-90)",
+      "The figure image scales identically (both engines honor the explicit width/height)",
+      "Page-break positions may differ where a row's height differs between engines"
+    ]
+  },
+  {
+    "name": "Business Letter — Meridian Trading Co.",
+    "file": "business-letter.html",
+    "wedge_features": [
+      "paged-media-css",
+      "fragmentation-core"
+    ],
+    "known_limitations": [
+      "string-set limited to the content() of the letter title",
+      "no floats, tables, or footnotes (simple flow, by design)"
+    ],
+    "expected_deltas": [
+      "Margin-box fonts pinned to Arial in both engines; cover-page margin boxes are content: none",
+      "Prince may apply default margins to the @page cover differently",
+      "Justification glue distribution may differ slightly at identical widths"
+    ]
+  },
+  {
+    "name": "Internal Memo — Platform Migration",
+    "file": "memo.html",
+    "wedge_features": [
+      "paged-media-css",
+      "typography-layer"
+    ],
+    "known_limitations": [
+      "the memo header is a plain table, not a grid",
+      "no footnotes (a memo is short by nature)"
+    ],
+    "expected_deltas": [
+      "Running-header font pinned to Arial in both engines",
+      "Prince may hyphenate differently in the header table cells",
+      "Bulleted lists use the UA list styling; marker spacing may differ slightly"
+    ]
+  },
+  {
+    "name": "Cover Letter — Application",
+    "file": "cover-letter.html",
+    "wedge_features": [
+      "paged-media-css",
+      "fragmentation-core",
+      "typography-layer"
+    ],
+    "known_limitations": [
+      "simple flow; no tables, floats, or footnotes"
+    ],
+    "expected_deltas": [
+      "Hyphenation points may differ (different hyphenation dictionaries)",
+      "Justification glue distribution may differ slightly at identical widths",
+      "Margin-box page number is pinned to Arial in both engines"
+    ]
+  },
+  {
+    "name": "Formal Notice — Service of Notice",
+    "file": "formal-notice.html",
+    "wedge_features": [
+      "paged-media-css",
+      "fragmentation-core",
+      "typography-layer"
+    ],
+    "known_limitations": [
+      "string-set limited to the content() of the notice heading"
+    ],
+    "expected_deltas": [
+      "Running-header font pinned to Arial in both engines; residual header diffs are layout-metric or structural",
+      "The numbered clauses are an ordered list; marker indentation may differ slightly between engines",
+      "Page-count parity expected; a one-page difference would come from accumulated line-break differences"
     ]
   }
 ]

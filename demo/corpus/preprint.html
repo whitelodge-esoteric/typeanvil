@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Preprint — A note on the convergence of iterative page breaking</title>
+<style>
+  @page {
+    margin: 0.5in;
+    @top-center { content: "Preprint — not peer reviewed"; font-family: Arial, Helvetica, sans-serif; font-size: 8pt; color: #999; }
+    @bottom-center { content: counter(page); font-family: Arial, Helvetica, sans-serif; font-size: 9pt; }
+  }
+  body { font-family: Arial, Helvetica, "Liberation Sans", sans-serif; font-size: 10pt; line-height: 1.45; color: #111; }
+  h1 { font-size: 15pt; margin: 0 0 2pt 0; }
+  h2 { font-size: 11pt; color: #333; margin: 10pt 0 3pt 0; }
+  h3 { font-size: 10pt; font-style: italic; margin: 8pt 0 2pt 0; }
+  p { text-align: justify; hyphens: auto; margin: 0 0 6pt 0; }
+  .meta { font-size: 9pt; color: #555; margin: 0 0 8pt 0; }
+  .fn { float: footnote; font-size: 8pt; color: #444; }
+  .xref { color: #1d3557; text-decoration: underline; }
+  .thm { border-left: 2pt solid #888; padding: 4pt 8pt; margin: 6pt 0; font-style: italic; }
+  table { border-collapse: collapse; width: 100%; margin: 4pt 0 8pt 0; }
+  th, td { border: 0.5pt solid #bbb; padding: 2pt 5pt; font-size: 9pt; text-align: left; }
+  .num { text-align: right; }
+  .eq { text-align: center; margin: 6pt 0; font-style: italic; }
+</style>
+</head>
+<body>
+  <h1>A note on the convergence of iterative page breaking</h1>
+  <div class="meta">Preprint · 2026-10-02 · Comments welcome · DOI pending</div>
+
+  <h2>1. Summary</h2>
+  <p>When a page's layout depends on the total page count, the layout must be
+  computed more than once: the first pass supplies a provisional count and
+  the second pass consumes it. This note observes that the iteration
+  terminates after two passes for the class of documents whose total count
+  does not depend on the count itself, and it gives a bound for the remaining
+  cases.</p>
+
+  <h2>2. The problem</h2>
+  <p>Consider a document that prints <em>page i of n</em> in the footer, where
+  <em>n</em> is the total page count. The footer's width does not affect
+  pagination,<span class="fn">This is the assumption that carries the proof;
+  it holds whenever the footer lives in a margin box whose size is fixed by
+  the page geometry rather than by its content.</span> so the count computed
+  from the first pass is already correct. A second pass renders the correct
+  number, and a third would change nothing.</p>
+  <div class="thm">Observation. If the only dependence of layout on the total
+  count is through content that does not feed back into pagination, the
+  iteration converges in exactly two passes.</div>
+
+  <h2>3. The general case</h2>
+  <p>The interesting case is a document whose content depends on the page
+  count in a way that changes pagination. A cross-reference that expands to a
+  longer string on a later page, for example, can push a later line over a
+  boundary and add a page, which changes the reference again. The iteration
+  is then a fixed-point search, and it may cycle.</p>
+  <p>The behaviour is governed by the structure of the mapping from a
+  candidate count to the count it produces. Three outcomes are possible, and
+  the table lists them with the example that exhibits each.</p>
+  <table>
+    <thead>
+      <tr><th>Outcome</th><th>Condition</th><th class="num">Passes</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Converges</td><td>Mapping is contractive</td><td class="num">2</td></tr>
+      <tr><td>Oscillates</td><td>Mapping has a 2-cycle</td><td class="num">Bounded by cap</td></tr>
+      <tr><td>Diverges</td><td>Mapping is expansive</td><td class="num">Bounded by cap</td></tr>
+    </tbody>
+  </table>
+  <p>The practical resolution for a production engine is a hard cap on the
+  number of passes, after which the last result is used. A cap of three is
+  sufficient for every document in our test corpus and bounds the worst case
+  at a small constant.<span class="fn">The corpus and the pass counts for
+  every document are published alongside this note.</span></p>
+
+  <h2>4. Relation to earlier work</h2>
+  <p>The two-pass structure is described in <a class="xref"
+  href="#refs">[2]</a>, and the oscillation example is the one given in
+  <a class="xref" href="#refs">[4]</a>. The contribution here is the
+  observation that the common case converges in two passes, which makes the
+  cap a safety net rather than a routine part of the algorithm.</p>
+
+  <h2 id="refs">References</h2>
+  <p>[1] Ashcroft, L. and Menon, R. <em>Paged media and the single-pass
+  assumption.</em> Journal of Typesetting, 12(2), 2024.</p>
+  <p>[2] Ilves, P. <em>Two-pass layout for counted references.</em> In
+  Proceedings of the Document Engineering Symposium, 2025.</p>
+  <p>[3] Okonkwo, A. <em>Fixed points in iterative pagination.</em> Caldon
+  Technical Reports, 2025.</p>
+  <p>[4] Rennick, M. <em>Cycles and caps in counted references.</em>
+  Preprint, 2026.</p>
+</body>
+</html>

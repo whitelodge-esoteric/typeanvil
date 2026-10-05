@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Whitepaper — Deterministic Document Rendering at Scale</title>
+<style>
+  @page {
+    margin: 0.5in;
+    @top-left { content: string(chapter); font-family: Arial, Helvetica, sans-serif; font-size: 9pt; color: #555; }
+    @top-right { content: "Northwind Whitepaper"; font-family: Arial, Helvetica, sans-serif; font-size: 9pt; color: #555; }
+    @bottom-center { content: counter(page); font-family: Arial, Helvetica, sans-serif; font-size: 10pt; }
+  }
+  body { font-family: Arial, Helvetica, "Liberation Sans", sans-serif; font-size: 10pt; line-height: 1.4; color: #222; }
+  h1 { font-size: 17pt; color: #1d3557; margin: 0 0 3pt 0; }
+  h2 { font-size: 12.5pt; color: #457b9d; margin: 0 0 4pt 0; string-set: chapter content(); }
+  p { text-align: justify; hyphens: auto; margin: 0 0 6pt 0; }
+  .subtitle { font-size: 11pt; color: #555; margin: 0 0 10pt 0; }
+  .toc { display: block; margin-bottom: 10pt; }
+  .toc h1 { string-set: chapter content(); }
+  .toc a { display: block; color: #222; text-decoration: none; font-size: 10pt; margin: 3pt 0; }
+  .e1 { content: "Executive summary " leader('.') target-counter(attr(href), page); }
+  .e2 { content: "The determinism problem " leader('.') target-counter(attr(href), page); }
+  .e3 { content: "A total-fit approach " leader('.') target-counter(attr(href), page); }
+  .e4 { content: "Results and limits " leader('.') target-counter(attr(href), page); }
+  .chapter { display: block; break-before: page; }
+  .xref { color: #1d3557; text-decoration: underline; }
+  table { border-collapse: collapse; width: 100%; margin: 4pt 0 8pt 0; }
+  th, td { border: 0.5pt solid #bbb; padding: 2pt 5pt; font-size: 9pt; text-align: left; }
+  thead th { background-color: #e9f0f5; color: #1d3557; }
+  .num { text-align: right; }
+  .callout { border-left: 3pt solid #457b9d; background-color: #f4f8fb; padding: 5pt 8pt; margin: 6pt 0; font-size: 9pt; }
+</style>
+</head>
+<body>
+  <h1>Deterministic Document Rendering at Scale</h1>
+  <div class="subtitle">Why byte-identical output is a product feature, not a test detail</div>
+
+  <div class="toc">
+    <h1>Contents</h1>
+    <a class="e1" href="#s1">Executive summary</a>
+    <a class="e2" href="#s2">The determinism problem</a>
+    <a class="e3" href="#s3">A total-fit approach</a>
+    <a class="e4" href="#s4">Results and limits</a>
+  </div>
+
+  <div class="chapter">
+    <h2 id="s1">Executive summary</h2>
+    <p>Documents that a business sends to its customers must be reproducible.
+    When a customer receives a statement in March and asks for the same
+    statement again in June, the two copies must match, byte for byte, or the
+    business has a compliance problem and the customer has a reason to
+    distrust the record. This paper argues that determinism should be treated
+    as a first-class product feature, describes the sources of non-determinism
+    that a rendering engine must eliminate, and reports the results of a
+    total-fit approach applied to a corpus of real documents.</p>
+    <div class="callout"><strong>Key finding.</strong> Every source of
+    non-determinism we found was a design decision rather than an intrinsic
+    property of rendering — a hash iteration order, a wall-clock timestamp, a
+    random tie-break. Removing them cost nothing in output quality and
+    everything in trust.</div>
+  </div>
+
+  <div class="chapter">
+    <h2 id="s2">The determinism problem</h2>
+    <p>An engine that renders the same input to different bytes on successive
+    runs is failing a contract that most of its users never wrote down. The
+    contract is implicit in the way documents are used: a statement is a
+    record, a contract is evidence, an invoice is a demand. Each of these has
+    a legal weight that depends on reproducibility.</p>
+    <p>The sources of non-determinism are few but persistent. Iteration order
+    over an unordered map changes between runs and between builds. A creation
+    timestamp written into the file's metadata changes every time the file is
+    produced. A tie-break that consults a random number generator changes the
+    layout of a page. Each of these is easy to remove once it is found, and
+    each is easy to miss because the output looks right.</p>
+    <p>The discipline that catches them is a byte comparison between two runs
+    on an unchanged input. The comparison is cheap, it is unambiguous, and it
+    catches every class of defect at once, because any difference at all is a
+    failure.</p>
+  </div>
+
+  <div class="chapter">
+    <h2 id="s3">A total-fit approach</h2>
+    <p>The layout algorithm is the second place where determinism can be
+    lost. A greedy line breaker that fills each line in turn is deterministic
+    by construction, but it produces poor spacing. A total-fit breaker that
+    evaluates the whole paragraph at once produces better spacing, but only if
+    its cost function is deterministic and its ties are broken by a fixed
+    rule.</p>
+    <p>The approach described here uses a dynamic program over the paragraph,
+    with a cost function that combines the badness of each line's spacing with
+    a penalty for each hyphen. Where two break sequences have equal cost, the
+    earlier one wins, which is a fixed rule and therefore deterministic. The
+    same program runs on every paragraph, so the same input always produces
+    the same breaks.</p>
+    <table>
+      <thead>
+        <tr><th>Property</th><th>Greedy first-fit</th><th>Total-fit</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Deterministic by construction</td><td class="num">Yes</td><td class="num">Yes, with a fixed tie-break</td></tr>
+        <tr><td>Inter-word spacing variance</td><td class="num">Baseline</td><td class="num">−38%</td></tr>
+        <tr><td>Hyphenation points used</td><td class="num">More</td><td class="num">Fewer, better placed</td></tr>
+        <tr><td>Cost per paragraph</td><td class="num">Linear</td><td class="num">Quadratic, bounded</td></tr>
+      </tbody>
+    </table>
+    <p>The quadratic cost is bounded in practice because a paragraph is short;
+    the bound is what keeps the approach practical for a document with
+    thousands of paragraphs.</p>
+  </div>
+
+  <div class="chapter">
+    <h2 id="s4">Results and limits</h2>
+    <p>Across the corpus, byte-identical output was achieved on every document
+    after the sources of non-determinism were removed. Spacing quality
+    improved measurably against a greedy baseline, and page counts were stable
+    across repeated runs. The limits are honest: determinism is a property of
+    a fixed input, a fixed engine version, and a fixed environment, and a
+    change to any of the three may legitimately change the output.</p>
+    <p>The recommendation for a production deployment is therefore narrow and
+    practical. Pin the engine version, record the input hash alongside the
+    output hash, and re-render when either changes. The record is what matters,
+    not the belief that nothing will ever change.</p>
+  </div>
+</body>
+</html>

@@ -1,8 +1,459 @@
 {
-  "generated": "2026-09-22T17:16:35Z",
-  "typeanvil_version": "5803952",
+  "generated": "2026-10-04T20:04:49Z",
+  "typeanvil_version": "768fde9",
   "prince_version": "Prince 16.2",
   "docs": [
+    {
+      "name": "Monthly Analytics Digest",
+      "file": "analytics-digest.html",
+      "typeanvil_pages": 8,
+      "prince_pages": 8,
+      "page_count_mismatch": false,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 26.318721064814817
+        },
+        {
+          "page": 2,
+          "diff_percent": 14.167390046296296
+        },
+        {
+          "page": 3,
+          "diff_percent": 24.714265046296298
+        },
+        {
+          "page": 4,
+          "diff_percent": 30.377604166666668
+        },
+        {
+          "page": 5,
+          "diff_percent": 22.019675925925927
+        },
+        {
+          "page": 6,
+          "diff_percent": 14.878472222222221
+        },
+        {
+          "page": 7,
+          "diff_percent": 25.694444444444443
+        },
+        {
+          "page": 8,
+          "diff_percent": 24.32146990740741
+        }
+      ],
+      "overall_diff_percent": 22.811505353009263,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "text content mismatch"
+      ]
+    },
+    {
+      "name": "Board Report — Q4 FY2026",
+      "file": "board-report.html",
+      "typeanvil_pages": 12,
+      "prince_pages": 13,
+      "page_count_mismatch": true,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 14.991319444444445
+        },
+        {
+          "page": 2,
+          "diff_percent": 15.575810185185185
+        },
+        {
+          "page": 3,
+          "diff_percent": 35.045572916666664
+        },
+        {
+          "page": 4,
+          "diff_percent": 30.248119212962965
+        },
+        {
+          "page": 5,
+          "diff_percent": 20.07667824074074
+        },
+        {
+          "page": 6,
+          "diff_percent": 31.22612847222222
+        },
+        {
+          "page": 7,
+          "diff_percent": 34.39019097222222
+        },
+        {
+          "page": 8,
+          "diff_percent": 34.87340856481482
+        },
+        {
+          "page": 9,
+          "diff_percent": 26.405526620370374
+        },
+        {
+          "page": 10,
+          "diff_percent": 23.10980902777778
+        },
+        {
+          "page": 11,
+          "diff_percent": 26.470630787037035
+        },
+        {
+          "page": 12,
+          "diff_percent": 19.55005787037037
+        }
+      ],
+      "overall_diff_percent": 25.996937692901238,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "page count mismatch",
+        "text content mismatch"
+      ]
+    },
+    {
+      "name": "Book Chapter — The Cartography of Rivers",
+      "file": "book-chapter.html",
+      "typeanvil_pages": 9,
+      "prince_pages": 8,
+      "page_count_mismatch": true,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 24.84736689814815
+        },
+        {
+          "page": 2,
+          "diff_percent": 25.211950231481485
+        },
+        {
+          "page": 3,
+          "diff_percent": 25.675636574074073
+        },
+        {
+          "page": 4,
+          "diff_percent": 20.50853587962963
+        },
+        {
+          "page": 5,
+          "diff_percent": 27.75679976851852
+        },
+        {
+          "page": 6,
+          "diff_percent": 24.037181712962962
+        },
+        {
+          "page": 7,
+          "diff_percent": 24.07913773148148
+        },
+        {
+          "page": 8,
+          "diff_percent": 22.235966435185187
+        }
+      ],
+      "overall_diff_percent": 24.294071903935187,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "page count mismatch",
+        "text content mismatch"
+      ]
+    },
+    {
+      "name": "Business Letter — Meridian Trading Co.",
+      "file": "business-letter.html",
+      "typeanvil_pages": 6,
+      "prince_pages": 6,
+      "page_count_mismatch": false,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 15.029658564814815
+        },
+        {
+          "page": 2,
+          "diff_percent": 13.186487268518517
+        },
+        {
+          "page": 3,
+          "diff_percent": 15.616319444444443
+        },
+        {
+          "page": 4,
+          "diff_percent": 21.668836805555554
+        },
+        {
+          "page": 5,
+          "diff_percent": 27.764033564814817
+        },
+        {
+          "page": 6,
+          "diff_percent": 15.243778935185185
+        }
+      ],
+      "overall_diff_percent": 18.084852430555557,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "text content mismatch"
+      ]
+    },
+    {
+      "name": "Conference Paper — Sparse Sampling of Bedload",
+      "file": "conference-paper.html",
+      "typeanvil_pages": 8,
+      "prince_pages": 9,
+      "page_count_mismatch": true,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 34.39308449074074
+        },
+        {
+          "page": 2,
+          "diff_percent": 18.31958912037037
+        },
+        {
+          "page": 3,
+          "diff_percent": 12.826967592592592
+        },
+        {
+          "page": 4,
+          "diff_percent": 24.74320023148148
+        },
+        {
+          "page": 5,
+          "diff_percent": 20.697337962962965
+        },
+        {
+          "page": 6,
+          "diff_percent": 18.580005787037038
+        },
+        {
+          "page": 7,
+          "diff_percent": 27.156394675925927
+        },
+        {
+          "page": 8,
+          "diff_percent": 21.14945023148148
+        }
+      ],
+      "overall_diff_percent": 22.233253761574076,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "page count mismatch",
+        "text content mismatch"
+      ]
+    },
+    {
+      "name": "Cover Letter — Application",
+      "file": "cover-letter.html",
+      "typeanvil_pages": 6,
+      "prince_pages": 6,
+      "page_count_mismatch": false,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 11.496672453703702
+        },
+        {
+          "page": 2,
+          "diff_percent": 16.73900462962963
+        },
+        {
+          "page": 3,
+          "diff_percent": 21.179832175925924
+        },
+        {
+          "page": 4,
+          "diff_percent": 21.63917824074074
+        },
+        {
+          "page": 5,
+          "diff_percent": 20.849971064814817
+        },
+        {
+          "page": 6,
+          "diff_percent": 2.435619212962963
+        }
+      ],
+      "overall_diff_percent": 15.723379629629628,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "heading positions mismatch",
+        "text content mismatch"
+      ]
+    },
+    {
+      "name": "Credit Note",
+      "file": "credit-note.html",
+      "typeanvil_pages": 11,
+      "prince_pages": 10,
+      "page_count_mismatch": true,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 18.94241898148148
+        },
+        {
+          "page": 2,
+          "diff_percent": 15.343605324074074
+        },
+        {
+          "page": 3,
+          "diff_percent": 31.626880787037038
+        },
+        {
+          "page": 4,
+          "diff_percent": 20.64380787037037
+        },
+        {
+          "page": 5,
+          "diff_percent": 20.72048611111111
+        },
+        {
+          "page": 6,
+          "diff_percent": 20.71831597222222
+        },
+        {
+          "page": 7,
+          "diff_percent": 20.81886574074074
+        },
+        {
+          "page": 8,
+          "diff_percent": 20.66912615740741
+        },
+        {
+          "page": 9,
+          "diff_percent": 33.722511574074076
+        },
+        {
+          "page": 10,
+          "diff_percent": 19.011863425925927
+        }
+      ],
+      "overall_diff_percent": 22.221788194444446,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "page count mismatch",
+        "text content mismatch"
+      ]
+    },
+    {
+      "name": "Data Sheet — Fernwood Cloud Platform",
+      "file": "data-sheet.html",
+      "typeanvil_pages": 7,
+      "prince_pages": 7,
+      "page_count_mismatch": false,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 25.374710648148145
+        },
+        {
+          "page": 2,
+          "diff_percent": 19.72366898148148
+        },
+        {
+          "page": 3,
+          "diff_percent": 22.486979166666668
+        },
+        {
+          "page": 4,
+          "diff_percent": 17.764033564814817
+        },
+        {
+          "page": 5,
+          "diff_percent": 13.196614583333332
+        },
+        {
+          "page": 6,
+          "diff_percent": 24.871961805555557
+        },
+        {
+          "page": 7,
+          "diff_percent": 17.526765046296298
+        }
+      ],
+      "overall_diff_percent": 20.13496197089947,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "text content mismatch"
+      ]
+    },
+    {
+      "name": "Consolidated Financial Statements",
+      "file": "financial-statement.html",
+      "typeanvil_pages": 11,
+      "prince_pages": 11,
+      "page_count_mismatch": false,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 25.308883101851855
+        },
+        {
+          "page": 2,
+          "diff_percent": 29.19849537037037
+        },
+        {
+          "page": 3,
+          "diff_percent": 24.70992476851852
+        },
+        {
+          "page": 4,
+          "diff_percent": 40.91218171296296
+        },
+        {
+          "page": 5,
+          "diff_percent": 24.228877314814813
+        },
+        {
+          "page": 6,
+          "diff_percent": 34.22236689814815
+        },
+        {
+          "page": 7,
+          "diff_percent": 27.947048611111114
+        },
+        {
+          "page": 8,
+          "diff_percent": 30.260416666666668
+        },
+        {
+          "page": 9,
+          "diff_percent": 39.602864583333336
+        },
+        {
+          "page": 10,
+          "diff_percent": 29.247685185185183
+        },
+        {
+          "page": 11,
+          "diff_percent": 25.09765625
+        }
+      ],
+      "overall_diff_percent": 30.066945496632993,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "text content mismatch"
+      ]
+    },
     {
       "name": "Float Showcase — Figure & Pull Quote",
       "file": "float-showcase.html",
@@ -48,6 +499,46 @@
       "structure_match": false,
       "structure_reasons": [
         "line count mismatch",
+        "text content mismatch"
+      ]
+    },
+    {
+      "name": "Formal Notice — Service of Notice",
+      "file": "formal-notice.html",
+      "typeanvil_pages": 7,
+      "prince_pages": 6,
+      "page_count_mismatch": true,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 13.754340277777777
+        },
+        {
+          "page": 2,
+          "diff_percent": 16.40552662037037
+        },
+        {
+          "page": 3,
+          "diff_percent": 19.327256944444443
+        },
+        {
+          "page": 4,
+          "diff_percent": 19.890046296296298
+        },
+        {
+          "page": 5,
+          "diff_percent": 20.125868055555557
+        },
+        {
+          "page": 6,
+          "diff_percent": 17.83492476851852
+        }
+      ],
+      "overall_diff_percent": 17.88966049382716,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "page count mismatch",
         "text content mismatch"
       ]
     },
@@ -120,6 +611,43 @@
       "structure_reasons": []
     },
     {
+      "name": "Journal Paper — Stage–discharge hysteresis",
+      "file": "journal-paper.html",
+      "typeanvil_pages": 5,
+      "prince_pages": 6,
+      "page_count_mismatch": true,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 26.242766203703706
+        },
+        {
+          "page": 2,
+          "diff_percent": 17.241030092592595
+        },
+        {
+          "page": 3,
+          "diff_percent": 15.47092013888889
+        },
+        {
+          "page": 4,
+          "diff_percent": 14.156539351851851
+        },
+        {
+          "page": 5,
+          "diff_percent": 13.851996527777777
+        }
+      ],
+      "overall_diff_percent": 17.392650462962962,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "page count mismatch",
+        "text content mismatch"
+      ]
+    },
+    {
       "name": "Letterhead",
       "file": "letterhead.html",
       "typeanvil_pages": 8,
@@ -160,6 +688,142 @@
         }
       ],
       "overall_diff_percent": 12.258210358796296,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "text content mismatch"
+      ]
+    },
+    {
+      "name": "Annual Operations Report — Long Report",
+      "file": "long-report.html",
+      "typeanvil_pages": 9,
+      "prince_pages": 9,
+      "page_count_mismatch": false,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 29.772858796296298
+        },
+        {
+          "page": 2,
+          "diff_percent": 33.97352430555556
+        },
+        {
+          "page": 3,
+          "diff_percent": 21.42795138888889
+        },
+        {
+          "page": 4,
+          "diff_percent": 19.60431134259259
+        },
+        {
+          "page": 5,
+          "diff_percent": 26.77806712962963
+        },
+        {
+          "page": 6,
+          "diff_percent": 21.46339699074074
+        },
+        {
+          "page": 7,
+          "diff_percent": 29.66507523148148
+        },
+        {
+          "page": 8,
+          "diff_percent": 36.291232638888886
+        },
+        {
+          "page": 9,
+          "diff_percent": 12.942708333333334
+        }
+      ],
+      "overall_diff_percent": 25.76879179526749,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "text content mismatch"
+      ]
+    },
+    {
+      "name": "Internal Memo — Platform Migration",
+      "file": "memo.html",
+      "typeanvil_pages": 6,
+      "prince_pages": 6,
+      "page_count_mismatch": false,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 16.453993055555554
+        },
+        {
+          "page": 2,
+          "diff_percent": 19.655671296296294
+        },
+        {
+          "page": 3,
+          "diff_percent": 14.109519675925927
+        },
+        {
+          "page": 4,
+          "diff_percent": 11.846788194444445
+        },
+        {
+          "page": 5,
+          "diff_percent": 23.093894675925927
+        },
+        {
+          "page": 6,
+          "diff_percent": 15.50564236111111
+        }
+      ],
+      "overall_diff_percent": 16.77758487654321,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "text content mismatch"
+      ]
+    },
+    {
+      "name": "Multi-Currency Invoice",
+      "file": "multicurrency-invoice.html",
+      "typeanvil_pages": 7,
+      "prince_pages": 7,
+      "page_count_mismatch": false,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 23.80787037037037
+        },
+        {
+          "page": 2,
+          "diff_percent": 21.19212962962963
+        },
+        {
+          "page": 3,
+          "diff_percent": 20.83550347222222
+        },
+        {
+          "page": 4,
+          "diff_percent": 14.538483796296298
+        },
+        {
+          "page": 5,
+          "diff_percent": 20.93460648148148
+        },
+        {
+          "page": 6,
+          "diff_percent": 38.37818287037037
+        },
+        {
+          "page": 7,
+          "diff_percent": 22.71267361111111
+        }
+      ],
+      "overall_diff_percent": 23.199921461640212,
       "render_error": null,
       "structure_match": false,
       "structure_reasons": [
@@ -229,6 +893,215 @@
       ]
     },
     {
+      "name": "Preprint — Convergence of Iterative Page Breaking",
+      "file": "preprint.html",
+      "typeanvil_pages": 8,
+      "prince_pages": 8,
+      "page_count_mismatch": false,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 20.93315972222222
+        },
+        {
+          "page": 2,
+          "diff_percent": 19.870515046296298
+        },
+        {
+          "page": 3,
+          "diff_percent": 13.192274305555557
+        },
+        {
+          "page": 4,
+          "diff_percent": 17.26128472222222
+        },
+        {
+          "page": 5,
+          "diff_percent": 20.96064814814815
+        },
+        {
+          "page": 6,
+          "diff_percent": 19.422743055555554
+        },
+        {
+          "page": 7,
+          "diff_percent": 20.54181134259259
+        },
+        {
+          "page": 8,
+          "diff_percent": 2.1766493055555554
+        }
+      ],
+      "overall_diff_percent": 16.79488570601852,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "text content mismatch"
+      ]
+    },
+    {
+      "name": "Price Catalog 2026 — Meridian Trading",
+      "file": "price-catalog.html",
+      "typeanvil_pages": 4,
+      "prince_pages": 4,
+      "page_count_mismatch": false,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 18.91131365740741
+        },
+        {
+          "page": 2,
+          "diff_percent": 21.40118634259259
+        },
+        {
+          "page": 3,
+          "diff_percent": 22.22294560185185
+        },
+        {
+          "page": 4,
+          "diff_percent": 23.776041666666668
+        }
+      ],
+      "overall_diff_percent": 21.57787181712963,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch"
+      ]
+    },
+    {
+      "name": "Product Manual — Northwind 2400 Pallet Truck",
+      "file": "product-manual.html",
+      "typeanvil_pages": 9,
+      "prince_pages": 9,
+      "page_count_mismatch": false,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 26.68330439814815
+        },
+        {
+          "page": 2,
+          "diff_percent": 16.197193287037038
+        },
+        {
+          "page": 3,
+          "diff_percent": 18.156828703703702
+        },
+        {
+          "page": 4,
+          "diff_percent": 20.925202546296294
+        },
+        {
+          "page": 5,
+          "diff_percent": 20.148292824074073
+        },
+        {
+          "page": 6,
+          "diff_percent": 15.470196759259258
+        },
+        {
+          "page": 7,
+          "diff_percent": 21.685474537037035
+        },
+        {
+          "page": 8,
+          "diff_percent": 18.407841435185183
+        },
+        {
+          "page": 9,
+          "diff_percent": 5.245225694444445
+        }
+      ],
+      "overall_diff_percent": 18.102173353909464,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "image positions mismatch",
+        "line count mismatch",
+        "text content mismatch"
+      ]
+    },
+    {
+      "name": "Pro-Forma Invoice",
+      "file": "proforma-invoice.html",
+      "typeanvil_pages": 17,
+      "prince_pages": 15,
+      "page_count_mismatch": true,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 16.260850694444446
+        },
+        {
+          "page": 2,
+          "diff_percent": 21.59722222222222
+        },
+        {
+          "page": 3,
+          "diff_percent": 32.750289351851855
+        },
+        {
+          "page": 4,
+          "diff_percent": 28.234230324074073
+        },
+        {
+          "page": 5,
+          "diff_percent": 22.805266203703702
+        },
+        {
+          "page": 6,
+          "diff_percent": 25.744357638888886
+        },
+        {
+          "page": 7,
+          "diff_percent": 21.59722222222222
+        },
+        {
+          "page": 8,
+          "diff_percent": 21.478587962962965
+        },
+        {
+          "page": 9,
+          "diff_percent": 21.438078703703702
+        },
+        {
+          "page": 10,
+          "diff_percent": 21.61892361111111
+        },
+        {
+          "page": 11,
+          "diff_percent": 21.46122685185185
+        },
+        {
+          "page": 12,
+          "diff_percent": 21.75636574074074
+        },
+        {
+          "page": 13,
+          "diff_percent": 21.50028935185185
+        },
+        {
+          "page": 14,
+          "diff_percent": 16.50101273148148
+        },
+        {
+          "page": 15,
+          "diff_percent": 31.278211805555557
+        }
+      ],
+      "overall_diff_percent": 23.068142361111107,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "heading positions mismatch",
+        "line count mismatch",
+        "page count mismatch",
+        "text content mismatch"
+      ]
+    },
+    {
       "name": "Prose Showcase",
       "file": "prose.html",
       "typeanvil_pages": 11,
@@ -289,6 +1162,47 @@
       ]
     },
     {
+      "name": "Recurring Billing Statement",
+      "file": "recurring-billing.html",
+      "typeanvil_pages": 6,
+      "prince_pages": 7,
+      "page_count_mismatch": true,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 22.50217013888889
+        },
+        {
+          "page": 2,
+          "diff_percent": 26.79398148148148
+        },
+        {
+          "page": 3,
+          "diff_percent": 16.57986111111111
+        },
+        {
+          "page": 4,
+          "diff_percent": 29.475549768518515
+        },
+        {
+          "page": 5,
+          "diff_percent": 28.51851851851852
+        },
+        {
+          "page": 6,
+          "diff_percent": 38.51273148148148
+        }
+      ],
+      "overall_diff_percent": 27.063802083333332,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "page count mismatch",
+        "text content mismatch"
+      ]
+    },
+    {
       "name": "Quarterly Report",
       "file": "report.html",
       "typeanvil_pages": 11,
@@ -345,6 +1259,85 @@
       "structure_match": false,
       "structure_reasons": [
         "heading positions mismatch"
+      ]
+    },
+    {
+      "name": "Sales Summary by Region",
+      "file": "sales-summary.html",
+      "typeanvil_pages": 7,
+      "prince_pages": 7,
+      "page_count_mismatch": false,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 22.955729166666668
+        },
+        {
+          "page": 2,
+          "diff_percent": 24.946469907407405
+        },
+        {
+          "page": 3,
+          "diff_percent": 24.889322916666668
+        },
+        {
+          "page": 4,
+          "diff_percent": 35.48394097222222
+        },
+        {
+          "page": 5,
+          "diff_percent": 37.439236111111114
+        },
+        {
+          "page": 6,
+          "diff_percent": 36.41710069444444
+        },
+        {
+          "page": 7,
+          "diff_percent": 23.310185185185187
+        }
+      ],
+      "overall_diff_percent": 29.348854993386247,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "text content mismatch"
+      ]
+    },
+    {
+      "name": "Spec Sheet — Northwind 2400 Series",
+      "file": "spec-sheet.html",
+      "typeanvil_pages": 5,
+      "prince_pages": 5,
+      "page_count_mismatch": false,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 24.46903935185185
+        },
+        {
+          "page": 2,
+          "diff_percent": 21.26663773148148
+        },
+        {
+          "page": 3,
+          "diff_percent": 30.046296296296298
+        },
+        {
+          "page": 4,
+          "diff_percent": 34.13483796296296
+        },
+        {
+          "page": 5,
+          "diff_percent": 31.138599537037038
+        }
+      ],
+      "overall_diff_percent": 28.211082175925924,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch"
       ]
     },
     {
@@ -536,6 +1529,171 @@
         }
       ],
       "overall_diff_percent": 21.59466628086419,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "page count mismatch",
+        "text content mismatch"
+      ]
+    },
+    {
+      "name": "Technical Report — Capacity Planning",
+      "file": "technical-report.html",
+      "typeanvil_pages": 10,
+      "prince_pages": 10,
+      "page_count_mismatch": false,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 25.439814814814817
+        },
+        {
+          "page": 2,
+          "diff_percent": 15.825376157407408
+        },
+        {
+          "page": 3,
+          "diff_percent": 29.087818287037038
+        },
+        {
+          "page": 4,
+          "diff_percent": 25.574363425925927
+        },
+        {
+          "page": 5,
+          "diff_percent": 13.663917824074073
+        },
+        {
+          "page": 6,
+          "diff_percent": 15.827546296296296
+        },
+        {
+          "page": 7,
+          "diff_percent": 25.946903935185183
+        },
+        {
+          "page": 8,
+          "diff_percent": 37.915219907407405
+        },
+        {
+          "page": 9,
+          "diff_percent": 31.42216435185185
+        },
+        {
+          "page": 10,
+          "diff_percent": 11.652199074074074
+        }
+      ],
+      "overall_diff_percent": 23.23553240740741,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "text content mismatch"
+      ]
+    },
+    {
+      "name": "Thesis Excerpt — Sediment Transport",
+      "file": "thesis-excerpt.html",
+      "typeanvil_pages": 9,
+      "prince_pages": 9,
+      "page_count_mismatch": false,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 20.736400462962962
+        },
+        {
+          "page": 2,
+          "diff_percent": 22.158564814814817
+        },
+        {
+          "page": 3,
+          "diff_percent": 22.668547453703702
+        },
+        {
+          "page": 4,
+          "diff_percent": 22.884114583333336
+        },
+        {
+          "page": 5,
+          "diff_percent": 17.857349537037038
+        },
+        {
+          "page": 6,
+          "diff_percent": 19.192708333333332
+        },
+        {
+          "page": 7,
+          "diff_percent": 27.139756944444443
+        },
+        {
+          "page": 8,
+          "diff_percent": 23.002748842592595
+        },
+        {
+          "page": 9,
+          "diff_percent": 5.642361111111112
+        }
+      ],
+      "overall_diff_percent": 20.142505787037038,
+      "render_error": null,
+      "structure_match": false,
+      "structure_reasons": [
+        "line count mismatch",
+        "text content mismatch"
+      ]
+    },
+    {
+      "name": "Whitepaper — Deterministic Document Rendering",
+      "file": "whitepaper.html",
+      "typeanvil_pages": 10,
+      "prince_pages": 12,
+      "page_count_mismatch": true,
+      "pages": [
+        {
+          "page": 1,
+          "diff_percent": 14.335937500000002
+        },
+        {
+          "page": 2,
+          "diff_percent": 17.526765046296298
+        },
+        {
+          "page": 3,
+          "diff_percent": 34.65784143518518
+        },
+        {
+          "page": 4,
+          "diff_percent": 33.917824074074076
+        },
+        {
+          "page": 5,
+          "diff_percent": 27.63961226851852
+        },
+        {
+          "page": 6,
+          "diff_percent": 28.561921296296294
+        },
+        {
+          "page": 7,
+          "diff_percent": 31.61675347222222
+        },
+        {
+          "page": 8,
+          "diff_percent": 33.65523726851852
+        },
+        {
+          "page": 9,
+          "diff_percent": 31.496672453703706
+        },
+        {
+          "page": 10,
+          "diff_percent": 6.894531249999999
+        }
+      ],
+      "overall_diff_percent": 26.030309606481485,
       "render_error": null,
       "structure_match": false,
       "structure_reasons": [

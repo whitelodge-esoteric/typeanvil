@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Internal Memo — Platform Migration, Phase 2</title>
+<style>
+  @page {
+    margin: 0.5in;
+    @top-left { content: "Internal memo"; font-family: Arial, Helvetica, sans-serif; font-size: 8pt; color: #888; }
+    @top-right { content: "Northwind Systems"; font-family: Arial, Helvetica, sans-serif; font-size: 8pt; color: #888; }
+    @bottom-center { content: "Page " counter(page); font-family: Arial, Helvetica, sans-serif; font-size: 8pt; color: #888; }
+  }
+  body { font-family: Arial, Helvetica, "Liberation Sans", sans-serif; font-size: 10pt; line-height: 1.4; color: #222; }
+  h1 { font-size: 15pt; color: #1d3557; margin: 0 0 2pt 0; }
+  .memohead { margin: 0 0 12pt 0; border-bottom: 1pt solid #ccc; padding-bottom: 8pt; }
+  table.hdr { border-collapse: collapse; width: 100%; }
+  table.hdr th { text-align: left; width: 64pt; font-size: 9pt; color: #555; vertical-align: top; padding: 1pt 0; font-weight: normal; }
+  table.hdr td { font-size: 9.5pt; padding: 1pt 0; }
+  h2 { font-size: 11pt; color: #457b9d; margin: 10pt 0 4pt 0; }
+  p { margin: 0 0 7pt 0; }
+  ul, ol { margin: 0 0 8pt 16pt; }
+  li { margin-bottom: 3pt; }
+  .action { border-left: 3pt solid #457b9d; background-color: #f4f8fb; padding: 5pt 8pt; margin: 6pt 0; font-size: 9pt; }
+</style>
+</head>
+<body>
+  <h1>Internal Memo</h1>
+  <div class="memohead">
+    <table class="hdr">
+      <tr><th>To</th><td>Platform engineering, infrastructure, and support leads</td></tr>
+      <tr><th>From</th><td>Priya Raman, Director of Platform</td></tr>
+      <tr><th>Date</th><td>3 October 2026</td></tr>
+      <tr><th>Subject</th><td>Platform migration, phase 2 — scope, schedule, and asks</td></tr>
+    </table>
+  </div>
+
+  <p>This memo sets out the scope and schedule for phase 2 of the platform
+  migration and the decisions I need from each of you by the end of next
+  week. It supersedes the verbal plan circulated after the September
+  offsite; where the two differ, this memo governs.</p>
+
+  <h2>Where we are</h2>
+  <p>Phase 1 closed on schedule. The rendering service now runs on the new
+  runtime in production, and the error rate has held below the target for
+  four weeks. The remaining work is the storage and retrieval layer and the
+  cutover of the legacy scheduler.</p>
+
+  <h2>Phase 2 scope</h2>
+  <ol>
+    <li>Migrate the document store to the new object layout, with a
+    dual-write period of two weeks and a verified back-fill.</li>
+    <li>Replace the legacy scheduler with the queue-based dispatcher already
+    validated in staging.</li>
+    <li>Cut over the support tooling to the new admin API and retire read
+    access to the old console.</li>
+    <li>Complete the runbook updates and the on-call training.</li>
+  </ol>
+
+  <h2>Schedule</h2>
+  <ul>
+    <li><strong>Week 41:</strong> document-store dual write begins; back-fill
+    runs in the background.</li>
+    <li><strong>Week 43:</strong> scheduler cutover; legacy path disabled.</li>
+    <li><strong>Week 44:</strong> support tooling cutover and on-call
+    training.</li>
+    <li><strong>Week 45:</strong> decommission the legacy components and
+    close the migration.</li>
+  </ul>
+
+  <h2>Asks</h2>
+  <div class="action"><strong>From platform engineering:</strong> confirm the
+  dual-write compatibility matrix by Wednesday. <strong>From
+  infrastructure:</strong> reserve the extra storage capacity for the
+  back-fill window. <strong>From support:</strong> nominate two people for
+  the on-call training in week 44.</div>
+
+  <p>If any dependency is at risk, raise it in the migration channel before
+  Friday so we can re-plan while there is still slack in the schedule. I will
+  hold a short sync every Monday until the migration closes.</p>
+</body>
+</html>
