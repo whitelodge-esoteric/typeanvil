@@ -4,7 +4,7 @@ type: lesson
 status: approved
 owner: maintainers
 created: 2026-09-16
-updated: 2026-09-27
+updated: 2026-10-05
 sidebar_position: 1
 tags: [engine, layout, fragmentation, paint]
 ---
@@ -80,6 +80,7 @@ Layout changes often cross measurement, fragmentation, fragment assembly, and pa
 - **NEVER hand-type base64 constants in tests** (verified): a single dropped character silently corrupts LZW — `is_gif` (first 6 bytes) still passes and the decode fails with a 0x0 result, so the failure message points at the code, not the constant. Generate the constant from the fixture programmatically (regex the data URI out, write it with `re.subn`, assert the exact length) — hardcoding by eye dropped one char (287 vs 288) and cost a false-red cycle.
 - **Moving a fragment kind OUT of the content tree breaks every test helper that reached it through `root`** (verified): taking margin boxes out of `Fragmentainer::root` (they are their own stacking contexts) failed 15 tests across FIVE files whose helpers walked `page.root` looking for them (the baseline helper in `layout.rs`, plus paged_media, images, print_media_queries, tounicode). Fix shape: expose the ordering ONCE on the fragmentainer (`margin_boxes_in_paint_order()`, `paint_roots()`) and have emitter and tests both consume it. Before changing a tree shape, grep the test suite for the walker — and expect the suite to abort at the FIRST failing binary, so run `cargo test --no-fail-fast` to see all of them (43/43 green).
 - **The page-wide paint passes cannot express stacking order** (verified): because the emitter collects ALL backgrounds, then ALL borders, then ALL text into separate vectors, a later sibling's background paints under an earlier sibling's text. Any box that must be painted as ONE stacking context (background → border → content) needs its own unit painter (`paint_margin_box()` is the pattern), not the global passes. Related layer trap: a page-anchored out-of-flow box attaches AFTER the in-flow content, so a NEGATIVE `z-index` still painted on top; CSS2.1 Appendix E requires attaching it BEFORE the content (insert at the front, in REVERSE so the negative run keeps ascending z-order).
+- **Multicol balanced fill rejects a block that fits by a sub-point rounding gap** (verified, 2026-10-05): `balanced_target` rounds the balanced column height UP to the nearest whole line box (`lh * ceil(total/lh/n)`), but `measure_block` returns the block's ACTUAL laid height, which can exceed that rounded estimate by a fraction of a point. The per-block fit check `y + h <= col_bottom` then rejects a block that genuinely fits, fragments it onto a second page, and a single-page balanced multicol renders as two pages. Signature: `multicol_single_page_no_sequential_sets` — a short multicol that should fill one page comes out two, and the second page holds only the tail block. Root-cause numbers: col0 col_bottom=113.97, Alpha 29.99 + Beta 29.99 = 71.99; col1 Gamma 41.99 at y=42 → 83.99, Delta 29.99 → 113.9766 vs col_bottom 113.9719 — Delta rejected by 0.0047pt. Fix: add a small epsilon to the fit check (`y + h <= col_bottom + Scalar(0.01)`) in `fill_one_column` (`engine/src/layout/multicol.rs`). Rejected alternatives: an epsilon on the `balanced_target` computation, or changing the loop bound (that produced 3 columns instead of 2).
 
 ## Verification
 
