@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""benchmark.py — TypeAnvil vs PrinceXML performance benchmark (CORE-123).
+"""benchmark.py — TypeAnvil vs PrinceXML vs WeasyPrint performance benchmark (CORE-123, CORE-318).
 
-Renders every demo-corpus fixture through both engines at the standard demo
+Renders every demo-corpus fixture through all engines at the standard demo
 geometry and records, per fixture and engine:
 
   * wall-clock time (median of N timed runs, after warmup runs)
@@ -11,9 +11,11 @@ geometry and records, per fixture and engine:
 On-demand only — this is NOT part of CI or pre-commit.
 
 Usage:
-    python3 scripts/benchmark.py                     # full corpus, defaults
+    python3 scripts/benchmark.py                     # full corpus, all engines
     python3 scripts/benchmark.py --runs 3            # fewer timed runs
     python3 scripts/benchmark.py --engine ta         # only TypeAnvil
+    python3 scripts/benchmark.py --engine weasy      # only WeasyPrint
+    python3 scripts/benchmark.py --engine both       # TypeAnvil + Prince (legacy)
     python3 scripts/benchmark.py --filter invoice    # substring match
 
 Outputs (written next to this script's repo root):
@@ -26,7 +28,6 @@ fallback otherwise).
 
 import argparse
 import json
-import os
 import platform
 import re
 import shutil
@@ -48,6 +49,11 @@ GEOM_TA = [
 ]
 PAGE_SIZE_PRINCE = "360pt 216pt"
 PAGE_MARGIN_PRINCE = "36pt 36pt 36pt 36pt"
+# WeasyPrint's CLI has no page-size flags; geometry comes from an @page rule
+# built by scripts/render-weasyprint.sh. The wrapper also (re)exports
+# DYLD_FALLBACK_LIBRARY_PATH for Homebrew Pango/GLib: this interpreter's
+# posix_spawn strips DYLD_* vars from children, so they cannot be inherited.
+WEASY_WRAPPER = REPO_ROOT / "scripts" / "render-weasyprint.sh"
 
 MANIFEST = REPO_ROOT / "demo/corpus/manifest.json"
 OUT_DIR = REPO_ROOT / "benchmarks"
@@ -67,6 +73,11 @@ def engine_version_ta(binary: Path) -> str:
 
 def engine_version_prince() -> str:
     r = subprocess.run(["prince", "--version"], capture_output=True, text=True)
+    return (r.stdout or r.stderr).strip().splitlines()[0] if (r.stdout or r.stderr) else "unknown"
+
+
+def engine_version_weasy(binary: str = "weasyprint") -> str:
+    r = subprocess.run([binary, "--version"], capture_output=True, text=True)
     return (r.stdout or r.stderr).strip().splitlines()[0] if (r.stdout or r.stderr) else "unknown"
 
 
@@ -113,6 +124,20 @@ def timed_run(argv: list[str], cwd: Path) -> dict:
 def render_once(engine: str, html: Path, out_pdf: Path, ta_bin: Path) -> list[str]:
     if engine == "ta":
         return [str(ta_bin), "render", str(html)] + GEOM_TA + ["-o", str(out_pdf)]
+    if engine == "weasy":
+        # Geometry via scripts/render-weasyprint.sh, which translates the
+        # per-side flags into an @page stylesheet AND (re)exports
+        # DYLD_FALLBACK_LIBRARY_PATH so Homebrew Pango/GLib load. The wrapper
+        # is needed because this interpreter strips DYLD_* vars from spawned
+        # children; its bash startup (~10 ms) is negligible against WeasyPrint
+        # render times.
+        return [
+            str(WEASY_WRAPPER), str(html),
+            "--page-width", "5in", "--page-height", "3in",
+            "--margin-top", "0.5in", "--margin-right", "0.5in",
+            "--margin-bottom", "0.5in", "--margin-left", "0.5in",
+            "-o", str(out_pdf),
+        ]
     # Prince directly (same translation scripts/render-prince.sh does),
     # so no wrapper-script overhead lands in the timing.
     return [
@@ -188,20 +213,21 @@ def machine_info() -> dict:
 def write_results_md(data: dict, path: Path) -> None:
     lines = []
     env = data["environment"]
-    lines.append("# Engine benchmark — TypeAnvil vs PrinceXML")
+    lines.append("# Engine benchmark — TypeAnvil vs PrinceXML vs WeasyPrint")
     lines.append("")
     lines.append(f"Generated {env['date_utc']} · TypeAnvil `{data['typeanvil_version']}` "
-                 f"(release profile) · {data['prince_version']}")
+                 f"(release profile) · {data['prince_version']} · {data['weasy_version']}")
     lines.append("")
     lines.append(f"Environment: {env.get('cpu', env['platform'])}, "
                  f"{round(env.get('ram_bytes', 0) / (1024**3))} GB RAM, "
                  f"macOS ({env['platform'].split()[0]} {env['platform'].split()[1] if len(env['platform'].split()) > 1 else ''})")
     lines.append("")
     lines.append("Method: each fixture rendered at the standard demo geometry "
-                 "(5in x 3in pages, 0.5in margins); 1 warmup run discarded, then "
+                 "(5in x 3in pages, 0.5in margins; WeasyPrint via a matching "
+                 "@page stylesheet); 1 warmup run discarded, then "
                  f"{data['config']['timed_runs']} timed runs; wall-clock is the median, "
                  "memory is the max peak RSS across timed runs (`/usr/bin/time -l`). "
-                 "Process spawn cost included for both engines.")
+                 "Process spawn cost included for all engines.")
     lines.append("")
     for metric, unit, key, fmt in (
         ("Render speed (median wall-clock)", "s", "median_s", ".3f"),
@@ -248,13 +274,21 @@ def main() -> int:
     ap.add_argument("--runs", type=int, default=5, help="timed runs per fixture/engine")
     ap.add_argument("--warmup", type=int, default=1)
     ap.add_argument("--ta-binary", default="engine/target/release/typeanvil")
-    ap.add_argument("--engine", choices=["ta", "prince", "both"], default="both")
+    ap.add_argument("--engine", choices=["ta", "prince", "weasy", "both", "all"], default="all",
+                    help="which engines to run (default: all; 'both' = TypeAnvil + Prince)")
     ap.add_argument("--filter", default="", help="substring match on fixture name")
     ap.add_argument("--out-dir", default=str(OUT_DIR))
     args = ap.parse_args()
 
+    engine_sel = args.engine
+    if engine_sel == "both":
+        engine_sel = "ta,prince"
+    elif engine_sel == "all":
+        engine_sel = "ta,prince,weasy"
+    wanted = [e.strip() for e in engine_sel.split(",") if e.strip()]
+
     ta_bin = (REPO_ROOT / args.ta_binary).resolve()
-    if args.engine in ("ta", "both") and not ta_bin.exists():
+    if "ta" in wanted and not ta_bin.exists():
         print(f"error: TypeAnvil binary not found at {ta_bin}. "
               f"Build it: cargo build --release --manifest-path engine/Cargo.toml", file=sys.stderr)
         return 2
@@ -271,12 +305,20 @@ def main() -> int:
     workdir = out_dir / ".work"
     workdir.mkdir(exist_ok=True)
 
-    engines = {"ta": "typeanvil"}
-    if args.engine in ("prince", "both"):
+    engines: dict[str, str] = {}
+    if "ta" in wanted:
+        engines["ta"] = "typeanvil"
+    if "prince" in wanted:
         if not shutil.which("prince"):
             print("error: prince binary not found on PATH", file=sys.stderr)
             return 2
         engines["prince"] = "prince"
+    if "weasy" in wanted:
+        if not shutil.which("weasyprint"):
+            print("error: weasyprint binary not found on PATH "
+                  "(install: uv tool install weasyprint)", file=sys.stderr)
+            return 2
+        engines["weasy"] = "weasyprint"
 
     print(f"corpus: {len(corpus)} fixture(s) · engines: {'+'.join(engines)} · "
           f"{args.warmup} warmup + {args.runs} timed runs each")
@@ -287,6 +329,7 @@ def main() -> int:
         "environment": machine_info(),
         "typeanvil_version": engine_version_ta(ta_bin),
         "prince_version": engine_version_prince(),
+        "weasy_version": engine_version_weasy(),
         "typeanvil_profile": "debug" if "/debug/" in str(ta_bin) else "release",
         "config": {"warmup_runs": args.warmup, "timed_runs": args.runs},
         "corpus": corpus,

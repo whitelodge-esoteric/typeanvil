@@ -4,9 +4,9 @@ type: convention
 status: approved
 owner: maintainers
 created: 2026-08-24
-updated: 2026-09-09
+updated: 2026-10-11
 sidebar_position: 3
-tags: [css, engine, compatibility, prince]
+tags: [css, engine, compatibility, prince, weasyprint]
 ---
 
 # CSS Standards Alignment
@@ -49,19 +49,23 @@ deviations as our own behavior.
 
 Our demo corpus compares Typeanvil against Prince output: `scripts/build-demo.sh`
 renders every corpus document through both engines and scores the pixel diff.
+WeasyPrint is a second independent comparison engine (CORE-318): free,
+open-source, and reproducible, so the performance benchmark and the WPT triage
+can run without a Prince license. It is a comparison target, not an oracle,
+exactly like Prince.
 
 Our WPT harness does **not** compare against Prince. It scores test-versus-
 reference through a single engine, and Chromium (via Playwright) is its built-in
 oracle — WPT references are authored by browser engineers to encode browser
 behavior, so a browser is the ground truth for a WPT reftest by construction.
-For three-way triage on a failing test, `python -m harness triage <filter>` runs
-the same filter through our engine, Chromium, and Prince and reports who is the
-odd one out. Two readings matter most:
+For four-way triage on a failing test, `python -m harness triage <filter>` runs
+the same filter through our engine, Chromium, Prince, and WeasyPrint and
+reports who is the odd one out. Two readings matter most:
 
-- **Our engine fails where both Chromium and Prince pass** — we are the odd one
-  out, and two real engines satisfy the reference. Treat it as our bug.
-- **Our engine fails where Prince passes but Chromium fails** (or the reverse) —
-  the pair may be contradictory. Check whether another test pins the opposite
+- **Our engine fails where several other engines pass** — we are the odd one
+  out, and real engines satisfy the reference. Treat it as our bug.
+- **Our engine fails where one print engine passes but Chromium fails** — the
+  pair may be contradictory. Check whether another test pins the opposite
   reference before investing; `page-name-003` and `page-name-abspos-002` are
   structurally identical with opposite references, so no engine can pass both.
 

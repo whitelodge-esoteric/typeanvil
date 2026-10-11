@@ -1,21 +1,30 @@
-"""Three-way WPT triage: our engine vs Chromium vs PrinceXML.
+"""Four-way WPT triage: our engine vs Chromium vs PrinceXML vs WeasyPrint.
 
-Runs the same WPT filter through up to three render legs and reports who is the
-odd one out on each failing test. See
+Runs the same WPT filter through up to four render legs and reports who is the
+odd one out on each failing test. The first leg is our engine; the rest are
+independent comparison engines. See
 ``docs/conventions/css-standards-alignment.md`` for when to use it.
 
 Each leg is scored by the harness the same way: it renders the test AND its
 reference through that one engine and compares them. A leg PASSES only if that
 engine renders the pair identically. So:
 
-  engine FAIL + chromium PASS + prince PASS  -> our bug; a real engine
-                                                satisfies the reference
-  engine FAIL + chromium PASS + prince FAIL  -> contradictory pair; no engine
-                                                passes both sides
-  engine PASS + chromium FAIL + prince FAIL  -> suspect two-wrongs-matching;
-                                                our pair may agree for the
-                                                wrong reason
-  all legs PASS                              -> consistent
+  engine FAIL + (several other legs PASS) -> our bug; real engines
+                                             satisfy the reference
+  engine FAIL + (one other leg PASS)      -> that engine satisfies it, the
+                                             rest do not -- check the pair
+                                             for contradiction, or check
+                                             browser ground truth (wpt.fyi)
+  engine FAIL + (no other leg PASS)       -> contradictory pair; no engine
+                                             passes both sides
+  engine PASS + (all other legs FAIL)     -> suspect two-wrongs-matching;
+                                             our pair may agree for the
+                                             wrong reason
+  all legs PASS                           -> consistent
+
+Chromium is the browser oracle (WPT reftests are browser-authored), Prince and
+WeasyPrint are independent print engines. When Chromium disagrees with both
+print engines, browser ground truth decides.
 """
 
 from __future__ import annotations
@@ -25,22 +34,25 @@ import subprocess
 import sys
 from pathlib import Path
 
-LEGS = ("engine", "chromium", "prince")
+LEGS = ("engine", "chromium", "prince", "weasy")
 
 #: One-line triage reading for a row. Empty string means "nothing to flag".
-_FAILED_CHROMIUM_ONLY = (
-    "Chromium satisfies it, Prince does not -- check the pair for contradiction"
+_FAILED_BOTH = (
+    "OUR BUG -- several engines satisfy the reference; our engine is the odd one out"
 )
-_FAILED_PRINCE_ONLY = (
-    "Prince satisfies it, Chromium does not -- check browser ground truth (wpt.fyi)"
-)
-_FAILED_BOTH = "OUR BUG -- both Chromium and Prince satisfy the reference"
 _FAILED_NEITHER = (
     "no engine satisfies the reference -- contradictory or unimplementable"
 )
 _PASSED_BUT_ALONE = (
-    "engine PASSES but BOTH other legs disagree -- suspect two-wrongs-matching"
+    "engine PASSES but ALL other legs disagree -- suspect two-wrongs-matching"
 )
+
+_ENGINE_NAMES = {
+    "engine": "the engine",
+    "chromium": "Chromium",
+    "prince": "Prince",
+    "weasy": "WeasyPrint",
+}
 
 
 def verdict(leg_status: dict[str, str]) -> str:
@@ -50,27 +62,43 @@ def verdict(leg_status: dict[str, str]) -> str:
     legs are ignored, so a two-leg run still reads sensibly.
     """
     eng = leg_status.get("engine")
-    chr_ = leg_status.get("chromium")
-    pri = leg_status.get("prince")
+    others = [
+        (leg, st) for leg, st in leg_status.items()
+        if leg != "engine" and st is not None
+    ]
 
     if eng == "PASS":
-        others = [s for leg, s in (("chromium", chr_), ("prince", pri)) if s is not None]
-        if others and all(s != "PASS" for s in others):
+        if others and all(st != "PASS" for _, st in others):
             return _PASSED_BUT_ALONE
         return ""
+    if not others:
+        return ""
 
-    if chr_ == "PASS" and pri == "PASS":
+    passers = [leg for leg, st in others if st == "PASS"]
+    if len(passers) >= 2:
         return _FAILED_BOTH
-    if chr_ == "PASS" and pri is not None and pri != "PASS":
-        return _FAILED_CHROMIUM_ONLY
-    if pri == "PASS" and chr_ is not None and chr_ != "PASS":
-        return _FAILED_PRINCE_ONLY
-    if chr_ is not None and pri is not None:
-        return _FAILED_NEITHER
-    # Only one comparison leg available; that leg is the sole witness.
-    if chr_ == "PASS" or pri == "PASS":
-        return _FAILED_BOTH.replace("both Chromium and Prince", "the comparison engine")
-    return ""
+    if len(others) == 1:
+        # Only one comparison leg available; that leg is the sole witness.
+        if others[0][1] == "PASS":
+            return _FAILED_BOTH.replace(
+                "several engines satisfy",
+                "the single comparison engine satisfies")
+        return ""
+    if len(passers) == 1:
+        leg = passers[0]
+        nonpassers = [n for n, st in others if st != "PASS"]
+        who = " and ".join(_ENGINE_NAMES[n] for n in nonpassers)
+        aux = "does not" if len(nonpassers) == 1 else "do not"
+        if leg == "chromium":
+            return (
+                f"Chromium satisfies it, {who} {aux} -- "
+                "check the pair for contradiction"
+            )
+        return (
+            f"{_ENGINE_NAMES[leg]} satisfies it, {who} {aux} -- "
+            "check browser ground truth (wpt.fyi)"
+        )
+    return _FAILED_NEITHER
 
 
 def resolve_wpt(repo_root: Path) -> Path:
@@ -111,6 +139,7 @@ def leg_argv(
     workers: int,
     engine_cmd: str,
     prince_cmd: str,
+    weasy_cmd: str | None = None,
 ) -> list[str]:
     """Build the harness argv for one leg."""
     cmd = [
@@ -130,6 +159,10 @@ def leg_argv(
         cmd += ["--engine", "cli", "--cli-cmd", engine_cmd]
     elif leg == "prince":
         cmd += ["--engine", "cli", "--cli-cmd", prince_cmd]
+    elif leg == "weasy":
+        if not weasy_cmd:
+            raise ValueError("the weasy leg needs weasy_cmd")
+        cmd += ["--engine", "cli", "--cli-cmd", weasy_cmd]
     elif leg == "chromium":
         cmd += ["--engine", "chromium"]
     else:
@@ -203,17 +236,19 @@ def main(argv: list[str] | None = None) -> int:
 
     p = argparse.ArgumentParser(
         prog="harness triage",
-        description="Run a filter through our engine, Chromium, and Prince; report the odd one out.",
+        description="Run a filter through our engine, Chromium, Prince, and WeasyPrint; report the odd one out.",
     )
     p.add_argument("filter", help="harness --filter substring (e.g. page-name-002)")
-    p.add_argument("--legs", default="engine,chromium,prince",
-                   help="comma-separated subset of engine,chromium,prince")
+    p.add_argument("--legs", default="engine,chromium,prince,weasy",
+                   help="comma-separated subset of engine,chromium,prince,weasy")
     p.add_argument("--limit", type=int, default=None, help="max tests per leg")
     p.add_argument("--workers", type=int, default=2, help="harness workers per leg")
     p.add_argument("--engine-cmd", default=None,
                    help="command for the engine leg (default: <repo>/engine/target/debug/typeanvil render)")
     p.add_argument("--prince-cmd", default=None,
                    help="command for the prince leg (default: <repo>/scripts/render-prince.sh)")
+    p.add_argument("--weasy-cmd", default=None,
+                   help="command for the weasy leg (default: <repo>/scripts/render-weasyprint.sh)")
     p.add_argument("--python", default=None,
                    help="interpreter for the harness legs (default: this interpreter)")
     p.add_argument("--wpt", type=Path, default=None,
@@ -230,6 +265,7 @@ def main(argv: list[str] | None = None) -> int:
 
     engine_cmd = args.engine_cmd or f"{repo_root / 'engine' / 'target' / 'debug' / 'typeanvil'} render"
     prince_cmd = args.prince_cmd or str(repo_root / "scripts" / "render-prince.sh")
+    weasy_cmd = args.weasy_cmd or str(repo_root / "scripts" / "render-weasyprint.sh")
     wpt_root = args.wpt if args.wpt is not None else resolve_wpt(repo_root)
 
     outdir = args.outdir or Path("/tmp/triage-three-way") / args.filter.replace("/", "_")
@@ -239,11 +275,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: no WPT checkout at {wpt_root}. Run `python -m harness fetch` first.",
               file=sys.stderr)
         return 2
-    if "prince" in legs:
-        prince_bin = prince_cmd.split()[0]
+    for leg, cmd in (("prince", prince_cmd), ("weasy", weasy_cmd)):
+        if leg not in legs:
+            continue
+        exe = cmd.split()[0]
         from shutil import which
-        if not Path(prince_bin).exists() and which(prince_bin) is None:
-            print(f"error: Prince not found ({prince_bin}). Drop it from --legs or install it.",
+        if not Path(exe).exists() and which(exe) is None:
+            print(f"error: {leg} engine not found ({exe}). Drop it from --legs or install it.",
                   file=sys.stderr)
             return 2
 
@@ -263,6 +301,7 @@ def main(argv: list[str] | None = None) -> int:
             workers=args.workers,
             engine_cmd=engine_cmd,
             prince_cmd=prince_cmd,
+            weasy_cmd=weasy_cmd,
         )
 
     if not any(results.values()):

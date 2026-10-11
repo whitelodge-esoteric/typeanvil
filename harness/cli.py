@@ -369,7 +369,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # `triage` owns its own arguments (see harness/triage.py); it is delegated
     # wholesale so the two command surfaces stay in step.
-    sub.add_parser("triage", help="run a filter through engine + Chromium + Prince and report the odd one out",
+    sub.add_parser("triage", help="run a filter through engine + Chromium + Prince + WeasyPrint and report the odd one out",
                    add_help=False)
 
     return p
