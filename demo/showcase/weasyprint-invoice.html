@@ -1,0 +1,252 @@
+<html lang="en">
+  <head>
+  <style>
+/* Adapted from CourtBouillon/weasyprint-samples (public domain).
+   See assets/weasyprint-samples/NOTICE.md for provenance + adaptations. */
+@page {
+  size: 210mm 297mm;
+}
+/* Fonts */
+
+@font-face {
+  font-family: Pacifico;
+  src: url("assets/weasyprint-samples/invoice/pacifico.ttf");
+}
+
+@font-face {
+  font-family: Source Sans Pro;
+  font-weight: 400;
+  src: url("assets/weasyprint-samples/invoice/SourceSans3-Regular.ttf");
+}
+
+@font-face {
+  font-family: Source Sans Pro;
+  font-weight: 700;
+  src: url("assets/weasyprint-samples/invoice/SourceSans3-Bold.ttf");
+}
+
+
+/* Variables */
+
+
+
+
+/* Page rules */
+
+@page {
+  font-family: Pacifico;
+  margin: 3cm;
+
+  @bottom-left {
+    color: #1ee494;
+    content: '♥ Thank you!';
+  }
+
+  @bottom-right {
+    color: #a9a;
+    content: 'contact@courtbouillon.org | courtbouillon.org';
+    font-size: 9pt;
+  }
+}
+
+
+/* Style */
+
+html {
+  color: #14213d;
+  font-family: Source Sans Pro;
+  font-size: 11pt;
+  line-height: 1.6;
+}
+
+body {
+  margin: 0;
+}
+
+h1 {
+  color: #1ee494;
+  font-family: Pacifico;
+  font-size: 40pt;
+  margin: 0;
+}
+
+aside {
+  display: flex;
+  margin: 2em 0 4em;
+}
+
+aside address {
+    font-style: normal;
+    white-space: pre-line;
+  }
+
+aside address#from {
+      color: #a9a;
+      flex: 1;
+    }
+
+aside address#to {
+      text-align: right;
+    }
+
+dl {
+  position: absolute;
+  right: 0;
+  text-align: right;
+  top: 0;
+}
+
+dl dt, dl dd {
+    display: inline;
+    margin: 0;
+  }
+
+dl dt {
+    color: #a9a;
+  }
+
+dl dt::before {
+      content: '';
+      display: block;
+    }
+
+dl dt::after {
+      content: ':';
+    }
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+table#total {
+    background: #f6f6f6;
+    border-color: #f6f6f6;
+    border-style: solid;
+    border-width: 2cm 3cm;
+    bottom: 0;
+    font-size: 20pt;
+    margin: 0 -3cm;
+    position: absolute;
+    width: 18cm;
+  }
+
+table th {
+    border-bottom: .2mm solid #a9a;
+    color: #a9a;
+    font-size: 10pt;
+    font-weight: 400;
+    padding-bottom: .25cm;
+    text-transform: uppercase;
+  }
+
+table td {
+    padding-top: 7mm;
+  }
+
+table td:last-of-type {
+      color: #1ee494;
+      font-weight: bold;
+      text-align: right;
+    }
+
+table th, table td {
+    text-align: center;
+  }
+
+table th:first-of-type, table td:first-of-type {
+      text-align: left;
+    }
+
+table th:last-of-type, table td:last-of-type {
+      text-align: right;
+    }
+
+footer {
+  content: '';
+  display: block;
+  height: 6cm;
+}
+
+</style>
+    <meta charset="utf-8">
+    <title>Invoice</title>
+    <meta name="description" content="Invoice demo sample">
+  </head>
+
+  <body>
+    <h1>Invoice</h1>
+
+    <aside>
+      <address id="from">
+        WeasyPrint
+        26 rue Emile Decorps
+        69100 Villeurbanne
+        France
+      </address>
+
+      <address id="to">
+        Our awesome developers
+        From all around the world
+        Earth
+      </address>
+    </aside>
+
+    <dl id="informations">
+      <dt>Invoice number</dt>
+      <dd>12345</dd>
+      <dt>Date</dt>
+      <dd>March 31, 2018</dd>
+    </dl>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th>Price</th>
+          <th>Quantity</th>
+          <th>Subtotal</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Website design</td>
+          <td>€34.20</td>
+          <td>100</td>
+          <td>€3,420.00</td>
+        </tr>
+        <tr>
+          <td>Website development</td>
+          <td>€45.50</td>
+          <td>100</td>
+          <td>€4,550.00</td>
+        </tr>
+        <tr>
+          <td>Website integration</td>
+          <td>€25.75</td>
+          <td>100</td>
+          <td>€2,575.00</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <footer>
+      <table id="total">
+        <thead>
+          <tr>
+            <th>Due by</th>
+            <th>Account number</th>
+            <th>Total due</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>May 10, 2018</td>
+            <td>132 456 789 012</td>
+            <td>€10,545.00</td>
+          </tr>
+        </tbody>
+      </table>
+    </footer>
+  </body>
+</html>

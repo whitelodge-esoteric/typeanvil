@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-09-08
-updated: 2026-09-27
+updated: 2026-10-11
 sidebar_position: 6
 tags: [demo, showcase, print-resolution, gallery]
 spec_id: showcase-render
@@ -29,6 +29,12 @@ This spec adds an ADDITIVE showcase render target: realistic page sizes
 pipeline is untouched. A Prince side-by-side is out of scope (the showcase
 is not a diff target).
 
+The showcase also vendors five documents from the WeasyPrint samples
+repository (CourtBouillon/weasyprint-samples, public domain) as
+`weasyprint-*.html` fixtures. These render at their designed page sizes
+(A4, A4 landscape, or the poster's 278mm × 388mm) via fixture-internal
+`@page { size }`, which overrides the CLI geometry.
+
 ## Goals
 
 - Five showcase fixtures that demonstrate the wedge at real print geometry:
@@ -49,6 +55,11 @@ is not a diff target).
      page, a totals block, and remittance / payment-terms sections. This is
      the invoice half of the wedge ("reports and invoices") and it was
      previously absent from both demo pipelines.
+- Five WeasyPrint sample fixtures (vendored from
+  CourtBouillon/weasyprint-samples, public domain) that exercise the wedge
+  on real-world documents at their designed page sizes: invoice, letter,
+  poster, report, ticket. These are the shared test bed for the future
+  WeasyPrint comparison (CORE-318).
 - Output committed like the comparison gallery: per-page PNGs plus the
   gallery written into `demo/showcase/README.md`, viewable directly on
   GitHub. Each track's README is its own gallery, and neither build touches
@@ -72,7 +83,11 @@ is not a diff target).
    `demo/showcase/manifest.json` through the TypeAnvil binary at US Letter
    (`8.5in × 11in`) with `0.75in` margins, from `demo/showcase/` as the
    process CWD (relative `url()`/`src` resolution matches the comparison
-   pipeline's corpus-dir pattern; `--base-url` threading is shared).
+   pipeline's corpus-dir pattern; `--base-url` threading is shared). A
+   fixture-internal `@page { size }` SHALL override the CLI geometry (the
+   WeasyPrint fixtures render at their designed A4 / A4-landscape / poster
+   sizes); a fixture-internal `@page { margin }` SHALL override the CLI
+   margins.
 2. The renderer SHALL rasterize each render's pages to PNG at 300 DPI into
    `demo/showcase/out/images/<fixture>/page-NNN-ta.png`.
 3. The build SHALL write the showcase gallery into
@@ -136,17 +151,20 @@ is not a diff target).
 ## Acceptance Criteria
 
 - **AC1 (render)** — Given the built engine binary, When
-  `scripts/build-showcase.sh` runs, Then all five fixtures render, each
-  producing a sane page count (≥ 3 pages for report/paper/book/invoice,
-  ≥ 1 for rich-media), and the build exits 0. For the invoice, its
+  `scripts/build-showcase.sh` runs, Then every fixture in the manifest
+  renders, each producing a sane page count (≥ 3 pages for
+  report/paper/book/invoice, ≥ 1 for rich-media and the WeasyPrint
+  fixtures), and the build exits 0. For the invoice, its
   line-item table SHALL span a page boundary with the header row repeated
   on the continuation page, and every page SHALL carry a running footer
   built from `counter(page)` and `counter(pages)`.
 - **AC2 (raster)** — Given a rendered PDF, When rasterized, Then each page
-  PNG exists under `demo/showcase/out/images/` and measures 2550 × 3301 px.
+  PNG exists under `demo/showcase/out/images/` and measures the fixture's
+  declared page size at 300 DPI. US-Letter fixtures measure 2550 × 3301 px
   (Letter @ 300 DPI is 2550 × 3300; the rasterizer rounds the height up by
-  one pixel. The committed baseline has always been 3301, so this criterion
-  now states the measured value.)
+  one pixel — the committed baseline has always been 3301). WeasyPrint
+  fixtures measure their designed sizes: A4 2480 × 3508 px, A4 landscape
+  3508 × 2480 px, poster 3283 × 4583 px.
 - **AC3 (gallery)** — Given a completed build, Then
   `demo/showcase/README.md` contains the generated showcase section with
   `<img>` tags whose `src` paths resolve from `demo/showcase/` on GitHub, no
@@ -190,6 +208,11 @@ is not a diff target).
   ≈ 8.1 MB committed (book 1.92, invoice 1.85, journal 2.31, poster 0.35,
   report 1.69). Still roughly 5× under the cap, so no page caps, no JPEG
   conversion, and no palette reduction were needed.
+- **Size after the WeasyPrint fixtures (2026-10-11):** the five vendored
+  fixtures add their fonts (3.8 MB) and images; the poster renders at
+  278mm × 388mm (3283 × 4583 px @ 300 DPI) and the ticket at A4 landscape,
+  so per-page PNGs are larger than Letter. Total committed stays well under
+  the 40 MB cap; record the exact figure when landing.
 - **Engine facts this spec relies on** (verified during implementation):
 - `docs/operations/visual-qa.md` runs the four geometry checks over showcase
   renders; the inspection page feeds both TypeAnvil and Prince sides into the

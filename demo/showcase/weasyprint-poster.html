@@ -1,0 +1,182 @@
+<html>
+  <head>
+  <style>
+/* Adapted from CourtBouillon/weasyprint-samples (public domain).
+   See assets/weasyprint-samples/NOTICE.md for provenance + adaptations. */
+/* Fonts */
+
+@font-face {
+  font-family: ArchivoBlack;
+  src: url("assets/weasyprint-samples/poster/archivoblack-regular.ttf");
+}
+
+
+/* Style */
+
+html {
+  background: url("assets/weasyprint-samples/poster/img/background.jpg");
+  background-size: cover;
+  font-family: ArchivoBlack;
+  color: white;
+  text-transform: uppercase;
+}
+
+#logo {
+  position: absolute;
+  z-index: -1;
+}
+
+#main-title p {
+  background-color: black;
+  display: inline;
+}
+
+#date {
+  border: 4px solid white;
+  padding-top: 0.5cm;
+  padding-bottom: 0.5cm;
+}
+
+#date article {
+    display: inline-block;
+  }
+
+#date article p {
+      margin: 0;
+    }
+
+#sponsors ul {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  list-style: none;
+  padding: 0;
+}
+
+#sponsors ul li {
+    margin: 0 1em;
+  }
+
+#address {
+  letter-spacing: 0.15rem;
+  text-transform: none;
+}
+
+
+
+/* Page rules */
+
+@page {
+  margin: 10mm;
+  size: 278mm 388mm;
+}
+
+
+/* Style */
+
+#logo {
+  left: 1.8cm;
+  top: 2cm;
+  width: 87%;
+}
+
+#top-line {
+  font-size: 2.9em;
+  margin-top: 0.6cm;
+}
+
+#main-title {
+  font-size: 2.5em;
+  margin-top: 20cm;
+}
+
+#main-title p {
+    padding: 0.35cm;
+  }
+
+#main-title p:last-of-type {
+      margin-left: 0.3cm;
+    }
+
+#description {
+  font-size: 1.5em;
+  letter-spacing: 0.1em;
+  margin: 2cm auto 0.2cm 1cm;
+}
+
+#date article {
+  margin-left: 1cm;
+}
+
+#date article:first-child > p:first-child {
+      font-size: 4.4em;
+    }
+
+#date article:first-child > p:last-of-type {
+      font-size: 7em;
+    }
+
+#date article:last-of-type > p:first-child {
+      font-size: 3.2em;
+    }
+
+#date article:last-of-type > p:last-of-type {
+      font-size: 8em;
+    }
+
+#sponsors{
+  margin-top: 1.2cm;
+}
+
+#sponsors img {
+    max-height: 60px;
+    max-width: 150px;
+  }
+
+#address {
+  font-weight: lighter;
+  margin-left: 0.8cm;
+}
+
+</style>
+    <meta charset="utf-8">
+    <!-- -->
+    <title>Poster</title>
+    <meta name="description" content="Poster">
+  </head>
+
+  <body>
+    <img id="logo" src="assets/weasyprint-samples/poster/img/gaming-affiche-logo.png" />
+
+    <p id="top-line">En live dans 50 villes de France</p>
+
+    <section id="main-title">
+      <p>e-sport live</p>
+      <p>Tournoi retro-gaming</p>
+    </section>
+
+    <p id="description">Participez à la première édition près de chez vous</p>
+
+    <section id="date">
+      <article>
+        <p>25 juin</p><p>2021</p>
+      </article>
+      <article>
+        <p>La souris verte</p><p>Épinal</p>
+      </article>
+    </section>
+
+    <section id="sponsors">
+      <ul>
+        <li><img src="assets/weasyprint-samples/poster/img/logo-mc.png" /></li>
+        <li><img src="assets/weasyprint-samples/poster/img/logo-stella.png" /></li>
+        <li><img src="assets/weasyprint-samples/poster/img/logo-rhino.png" /></li>
+        <li><img src="assets/weasyprint-samples/poster/img/logo-fleurexpo.png" /></li>
+        <li><img src="assets/weasyprint-samples/poster/img/logo-fiac.png" /></li>
+      </ul>
+    </section>
+
+    <p id="address">La Souris Verte — 17 rue des États-Unis, 88000 Épinal — www.ticketrocknight.org</p>
+  </body>
+</html>

@@ -36,7 +36,7 @@ The bar-chart bars-outside-plot issue (first/last bar crossing the axis,
 
 ## Showcase — print-resolution renders (US Letter @ 300 DPI)
 
-Realistic-size pages rendered by the TypeAnvil engine only (commit `5803952`). The side-by-side comparison gallery lives in [the comparison README](../corpus/README.md) and runs at 5in × 3in @ 96 DPI so diffs stay cheap; these pages show the same engine at the geometry documents actually print at. Prince renders only the comparison pipeline — the showcase is a TypeAnvil output gallery, not a diff target.
+Realistic-size pages rendered by the TypeAnvil engine only (commit `76dde8d`). The side-by-side comparison gallery lives in [the comparison README](../corpus/README.md) and runs at 5in × 3in @ 96 DPI so diffs stay cheap; these pages show the same engine at the geometry documents actually print at. Prince renders only the comparison pipeline — the showcase is a TypeAnvil output gallery, not a diff target.
 
 ### Book Sample
 
@@ -80,3 +80,47 @@ Realistic-size pages rendered by the TypeAnvil engine only (commit `5803952`). T
 <img src="out/images/report/page-001-ta.png" alt="Technical Report — page-001-ta" width="420">
 <img src="out/images/report/page-002-ta.png" alt="Technical Report — page-002-ta" width="420">
 <img src="out/images/report/page-003-ta.png" alt="Technical Report — page-003-ta" width="420">
+
+### WeasyPrint Invoice
+
+*Exercises:* paged-media-css, tables-fragmentation, fragmentation-core, typography-layer
+
+<img src="out/images/weasyprint-invoice/page-001-ta.png" alt="WeasyPrint Invoice — page-001-ta" width="420">
+
+### WeasyPrint Letter
+
+*Exercises:* paged-media-css, typography-layer, fragmentation-core
+
+<img src="out/images/weasyprint-letter/page-001-ta.png" alt="WeasyPrint Letter — page-001-ta" width="420">
+
+### WeasyPrint Poster
+
+*Exercises:* paged-media-css, images, fragmentation-core
+
+<img src="out/images/weasyprint-poster/page-001-ta.png" alt="WeasyPrint Poster — page-001-ta" width="420">
+<img src="out/images/weasyprint-poster/page-002-ta.png" alt="WeasyPrint Poster — page-002-ta" width="420">
+<img src="out/images/weasyprint-poster/page-003-ta.png" alt="WeasyPrint Poster — page-003-ta" width="420">
+
+### WeasyPrint Report
+
+*Exercises:* paged-media-css, fragmentation-core, cross-references, typography-layer
+
+<img src="out/images/weasyprint-report/page-001-ta.png" alt="WeasyPrint Report — page-001-ta" width="420">
+<img src="out/images/weasyprint-report/page-002-ta.png" alt="WeasyPrint Report — page-002-ta" width="420">
+<img src="out/images/weasyprint-report/page-003-ta.png" alt="WeasyPrint Report — page-003-ta" width="420">
+<img src="out/images/weasyprint-report/page-004-ta.png" alt="WeasyPrint Report — page-004-ta" width="420">
+<img src="out/images/weasyprint-report/page-005-ta.png" alt="WeasyPrint Report — page-005-ta" width="420">
+<img src="out/images/weasyprint-report/page-006-ta.png" alt="WeasyPrint Report — page-006-ta" width="420">
+<img src="out/images/weasyprint-report/page-007-ta.png" alt="WeasyPrint Report — page-007-ta" width="420">
+<img src="out/images/weasyprint-report/page-008-ta.png" alt="WeasyPrint Report — page-008-ta" width="420">
+<img src="out/images/weasyprint-report/page-009-ta.png" alt="WeasyPrint Report — page-009-ta" width="420">
+<img src="out/images/weasyprint-report/page-010-ta.png" alt="WeasyPrint Report — page-010-ta" width="420">
+<img src="out/images/weasyprint-report/page-011-ta.png" alt="WeasyPrint Report — page-011-ta" width="420">
+<img src="out/images/weasyprint-report/page-012-ta.png" alt="WeasyPrint Report — page-012-ta" width="420">
+<img src="out/images/weasyprint-report/page-013-ta.png" alt="WeasyPrint Report — page-013-ta" width="420">
+
+### WeasyPrint Ticket
+
+*Exercises:* paged-media-css, fragmentation-core, typography-layer
+
+<img src="out/images/weasyprint-ticket/page-001-ta.png" alt="WeasyPrint Ticket — page-001-ta" width="420">

@@ -56,3 +56,57 @@ TypeAnvil 3 page(s) / Prince 3 page(s)
 | <img src="images/report/page-001-ta.png" alt="Technical Report — page-001-ta" width="420"> | <img src="images/report/page-001-pr.png" alt="Technical Report — page-001-pr" width="420"> |
 | <img src="images/report/page-002-ta.png" alt="Technical Report — page-002-ta" width="420"> | <img src="images/report/page-002-pr.png" alt="Technical Report — page-002-pr" width="420"> |
 | <img src="images/report/page-003-ta.png" alt="Technical Report — page-003-ta" width="420"> | <img src="images/report/page-003-pr.png" alt="Technical Report — page-003-pr" width="420"> |
+
+### WeasyPrint Invoice
+
+TypeAnvil 1 page(s) / Prince 1 page(s)
+
+| TypeAnvil | Prince (reference) |
+| --- | --- |
+| <img src="images/weasyprint-invoice/page-001-ta.png" alt="WeasyPrint Invoice — page-001-ta" width="420"> | <img src="images/weasyprint-invoice/page-001-pr.png" alt="WeasyPrint Invoice — page-001-pr" width="420"> |
+
+### WeasyPrint Letter
+
+TypeAnvil 1 page(s) / Prince 1 page(s)
+
+| TypeAnvil | Prince (reference) |
+| --- | --- |
+| <img src="images/weasyprint-letter/page-001-ta.png" alt="WeasyPrint Letter — page-001-ta" width="420"> | <img src="images/weasyprint-letter/page-001-pr.png" alt="WeasyPrint Letter — page-001-pr" width="420"> |
+
+### WeasyPrint Poster
+
+TypeAnvil 3 page(s) / Prince 1 page(s)
+
+| TypeAnvil | Prince (reference) |
+| --- | --- |
+| <img src="images/weasyprint-poster/page-001-ta.png" alt="WeasyPrint Poster — page-001-ta" width="420"> | <img src="images/weasyprint-poster/page-001-pr.png" alt="WeasyPrint Poster — page-001-pr" width="420"> |
+| <img src="images/weasyprint-poster/page-002-ta.png" alt="WeasyPrint Poster — page-002-ta" width="420"> | *(no page)* |
+| <img src="images/weasyprint-poster/page-003-ta.png" alt="WeasyPrint Poster — page-003-ta" width="420"> | *(no page)* |
+
+### WeasyPrint Report
+
+TypeAnvil 13 page(s) / Prince 8 page(s)
+
+| TypeAnvil | Prince (reference) |
+| --- | --- |
+| <img src="images/weasyprint-report/page-001-ta.png" alt="WeasyPrint Report — page-001-ta" width="420"> | <img src="images/weasyprint-report/page-001-pr.png" alt="WeasyPrint Report — page-001-pr" width="420"> |
+| <img src="images/weasyprint-report/page-002-ta.png" alt="WeasyPrint Report — page-002-ta" width="420"> | <img src="images/weasyprint-report/page-002-pr.png" alt="WeasyPrint Report — page-002-pr" width="420"> |
+| <img src="images/weasyprint-report/page-003-ta.png" alt="WeasyPrint Report — page-003-ta" width="420"> | <img src="images/weasyprint-report/page-003-pr.png" alt="WeasyPrint Report — page-003-pr" width="420"> |
+| <img src="images/weasyprint-report/page-004-ta.png" alt="WeasyPrint Report — page-004-ta" width="420"> | <img src="images/weasyprint-report/page-004-pr.png" alt="WeasyPrint Report — page-004-pr" width="420"> |
+| <img src="images/weasyprint-report/page-005-ta.png" alt="WeasyPrint Report — page-005-ta" width="420"> | <img src="images/weasyprint-report/page-005-pr.png" alt="WeasyPrint Report — page-005-pr" width="420"> |
+| <img src="images/weasyprint-report/page-006-ta.png" alt="WeasyPrint Report — page-006-ta" width="420"> | <img src="images/weasyprint-report/page-006-pr.png" alt="WeasyPrint Report — page-006-pr" width="420"> |
+| <img src="images/weasyprint-report/page-007-ta.png" alt="WeasyPrint Report — page-007-ta" width="420"> | <img src="images/weasyprint-report/page-007-pr.png" alt="WeasyPrint Report — page-007-pr" width="420"> |
+| <img src="images/weasyprint-report/page-008-ta.png" alt="WeasyPrint Report — page-008-ta" width="420"> | <img src="images/weasyprint-report/page-008-pr.png" alt="WeasyPrint Report — page-008-pr" width="420"> |
+| <img src="images/weasyprint-report/page-009-ta.png" alt="WeasyPrint Report — page-009-ta" width="420"> | *(no page)* |
+| <img src="images/weasyprint-report/page-010-ta.png" alt="WeasyPrint Report — page-010-ta" width="420"> | *(no page)* |
+| <img src="images/weasyprint-report/page-011-ta.png" alt="WeasyPrint Report — page-011-ta" width="420"> | *(no page)* |
+| <img src="images/weasyprint-report/page-012-ta.png" alt="WeasyPrint Report — page-012-ta" width="420"> | *(no page)* |
+| <img src="images/weasyprint-report/page-013-ta.png" alt="WeasyPrint Report — page-013-ta" width="420"> | *(no page)* |
+
+### WeasyPrint Ticket
+
+TypeAnvil 1 page(s) / Prince 1 page(s)
+
+| TypeAnvil | Prince (reference) |
+| --- | --- |
+| <img src="images/weasyprint-ticket/page-001-ta.png" alt="WeasyPrint Ticket — page-001-ta" width="420"> | <img src="images/weasyprint-ticket/page-001-pr.png" alt="WeasyPrint Ticket — page-001-pr" width="420"> |

@@ -1,0 +1,162 @@
+<html lang="fr">
+
+<head>
+  <style>
+/* Adapted from CourtBouillon/weasyprint-samples (public domain).
+   See assets/weasyprint-samples/NOTICE.md for provenance + adaptations. */
+@page {
+  size: 210mm 297mm;
+}
+/* Fonts */
+
+@font-face {
+  font-family: "pacifico";
+  src: url("assets/weasyprint-samples/letter/Pacifico-Regular.ttf") format('truetype');
+}
+
+@font-face {
+  font-family: "soon";
+  src: url("assets/weasyprint-samples/letter/ComingSoon-Regular.ttf") format('truetype');
+}
+
+
+/* Page rule */
+
+@page {
+  margin: 0;
+}
+
+
+/* Style */
+
+body {
+  font-family: "soon";
+  margin: 0;
+}
+
+body > div {
+    margin: 0 auto;
+    padding: 0 12mm;
+  }
+
+body > div:first-of-type, body > div:last-of-type {
+      margin: 2cm 0 1cm 0;
+    }
+
+header {
+  background: no-repeat top left / 125% url("assets/weasyprint-samples/letter/img/image-couleurs.png");
+}
+
+header div {
+    height: 3cm;
+    padding: 5mm 5mm 12mm 5mm;
+  }
+
+header img {
+    width: 5cm;
+  }
+
+hr {
+  border-top: 3px dashed gray;
+  border-bottom: none;
+  margin: 5mm 0;
+}
+
+p {
+  font-family: serif;
+  line-height: 18pt;
+  margin-top: 5mm;
+}
+
+
+label {
+  display: block;
+  margin-bottom: 2mm;
+}
+
+legend {
+  font-family: "pacifico", serif;
+  font-size: 18pt;
+  margin-bottom: 5mm;
+}
+
+input {
+  height: 1.5em;
+}
+
+textarea {
+  height: 4em;
+}
+
+input, textarea {
+  border: none;
+  display: block;
+  width: 100%;
+}
+
+input::before,
+textarea::before,
+textarea::after {
+  content: leader(dotted);
+  display: block;
+}
+
+footer p {
+  text-align: center;
+}
+
+@media print {
+  input[type="submit"] {
+    display: none;
+  }
+}
+
+</style>
+  <meta charset="utf-8">
+  <title>Bon de commande</title>
+  <meta name="description" content="Letter demo sample">
+</head>
+
+<body>
+  <header>
+    <div>
+      <img src="assets/weasyprint-samples/letter/img/logo-couleurs.png" alt="Logo de Des Couleurs Dans l’Assiette">
+    </div>
+  </header>
+
+  <div>
+    <p>Cher Aurélien Leno,</p>
+    <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute
+      irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+    <p>Estelle Carotte</p>
+  </div>
+
+  <hr>
+
+  <div>
+    <form method="post">
+      <fieldset>
+        <legend>Bon de commande</legend>
+        <label for="name">Nom :</label>
+        <input type="text" name="name" id="name">
+
+        <label for="firstname">Prénom :</label>
+        <input type="text" name="firstname" id="firstname">
+
+        <label for="address">Adresse :</label>
+        <textarea name="address" id="address" rows="2" cols="40"></textarea>
+
+        <label for="products">Produits souhaités :</label>
+        <textarea name="products" id="products" rows="4" cols="40"></textarea>
+      </fieldset>
+      <input type="submit" name="submit" value="Envoyer">
+    </form>
+  </div>
+
+  <footer>
+    <p>AMAP - Des couleurs dans l'assiette - 53 Avenue du Panier Rouge - 69005 Lyon</p>
+  </footer>
+
+</body>
+
+</html>

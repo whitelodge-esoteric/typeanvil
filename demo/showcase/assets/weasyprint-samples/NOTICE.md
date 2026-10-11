@@ -3,13 +3,14 @@
 These fonts are vendored from the
 [WeasyPrint samples repository](https://github.com/CourtBouillon/weasyprint-samples)
 (CourtBouillon, public-domain samples; fonts carry their own licenses). They are
-used by the adopted WeasyPrint sample documents in this corpus.
+used by the adopted WeasyPrint sample documents in the showcase
+(`demo/showcase/weasyprint-*.html`).
 
 Every font below is **open source** and redistributable. Each is available on
 Google Fonts under the stated license. The Madcats "All Cats Are Beautiful"
-book example is **excluded** from this corpus — its text is Madcats' property,
-not public domain — so its fonts (OpenDyslexic, Source Serif Pro) are not
-vendored here.
+book example is **excluded** from this collection — its text is Madcats'
+property, not public domain — so its fonts (OpenDyslexic, Source Serif Pro)
+are not vendored here.
 
 | Sample | Font file(s) | Family | License | Google Fonts |
 |---|---|---|---|---|
@@ -40,3 +41,36 @@ vendored here.
   excluded.
 - License determination was made against Google Fonts (2026-10-11): every
   family listed above is hosted there under the stated license.
+
+## Fixture adaptations
+
+The five showcase fixtures (`weasyprint-invoice.html`, `weasyprint-letter.html`,
+`weasyprint-poster.html`, `weasyprint-report.html`, `weasyprint-ticket.html`)
+are adapted from the public-domain samples so the TypeAnvil engine can render
+them. The HTML body and document structure are unchanged; the CSS is adapted:
+
+1. **CSS nesting flattened** — the samples use modern CSS nesting (`&`,
+   nested rules), which the engine does not parse. Nesting is flattened to
+   plain selectors via `postcss-nested`.
+2. **`var()` custom properties inlined** — the samples define colors in
+   `:root { --x: ... }` and reference them as `var(--x)`. The engine has no
+   custom-property support, so each `var(--x)` is replaced with its literal
+   value and the `:root` block is dropped.
+3. **Explicit `@page { size }` added** — the samples relied on WeasyPrint's
+   A4 default page size. The engine's CLI default is US Letter, so
+   `@page { size: 210mm 297mm }` is prepended to invoice/letter/report and
+   `@page { size: 297mm 210mm }` (A4 landscape) to ticket. The poster keeps
+   its declared `size: 278mm 388mm`.
+4. **`@page :blank` rules dropped** — the engine has no `:blank` page
+   pseudo-class; the rules are removed (behavior-preserving: they only
+   suppressed margin boxes on blank pages).
+5. **Asset URLs rewritten** — `url(...)` and `<img src>` refs point at
+   `assets/weasyprint-samples/<sample>/...` so the fixtures resolve from
+   `demo/showcase/` as CWD.
+
+Known rendering limitations (recorded in `demo/showcase/manifest.json`):
+- **Element-level `background-image` is not rendered** (CORE-319) — the
+  letter's header skyline and the report's cover image do not paint. The
+  report's `@page :first` background is a page-level image; the page canvas
+  paints color only, so the cover image is also absent.
+- **SVG figure icons** in the report wait for SVG rasterization (CORE-131).
