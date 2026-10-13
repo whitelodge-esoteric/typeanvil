@@ -287,34 +287,6 @@ impl<'a> Ctx<'a> {
         // --- Phase A (pure): resolve main sizes + build lines. ------------
         for item in &mut items {
             item.main_size = self.row_item_main_size(item.id, inner_width);
-            // Natural cross size: the item's content height at its main size.
-            // Deliberately mirrors the BLOCK path, which ignores `height`
-            // (CORE-66 auto-height self-consistency) — WPT references render
-            // through the same engine, so flex must match, or every
-            // height-authored ref diverges (the CORE-66 trap).
-            item.cross_size = {
-                let natural = self.measure_block(item.id, item.main_size);
-                // CORE-122: a resumed item (child token break_before:false)
-                // already consumed part of its block size on an earlier
-                // fragmentainer. Only the remainder occupies THIS
-                // fragmentainer; counting the full measure inflates the
-                // line's cross size and shifts following siblings (WPT 046).
-                let child_tok = self.child_incoming(token, item.block_index);
-                let placed = if child_tok.is_break_before() {
-                    natural
-                } else {
-                    Scalar((natural.get() - child_tok.consumed_block_size.get()).max(0.0))
-                };
-                // css-flexbox-1 §4.3: a DECLARED cross size (height on a row)
-                // sizes the item before align-self/stretch — an empty styled
-                // div (background box) measures 0 naturally but paints at its
-                // declared height. Take the max so content never shrinks.
-                let declared = self.resolved_height(&self.styles[item.id]);
-                match declared {
-                    Some(d) if d.get() > placed.get() => d,
-                    _ => placed,
-                }
-            };
         }
 
         // Grow/shrink resolution (nowrap only; wrap packs raw bases): free
@@ -354,6 +326,44 @@ impl<'a> Ctx<'a> {
                     }
                 }
             }
+        }
+
+        // Hypothetical cross size (css-flexbox-1 §9.4 step 7): lay out each
+        // item at its USED main size — after grow/shrink above, not at its
+        // flex basis. A `flex: 1` item has basis 0, so measuring before
+        // grow wrapped its text against a zero (or negative, after margins)
+        // width; the line breaker's old one-line dead-end fallback masked
+        // that until CORE-348 made overlong words wrap per css-text-3
+        // (page-margin-auto-and-non-zero ref p1 lost its stretch).
+        for item in &mut items {
+            // Natural cross size: the item's content height at its main size.
+            // Deliberately mirrors the BLOCK path, which ignores `height`
+            // (CORE-66 auto-height self-consistency) — WPT references render
+            // through the same engine, so flex must match, or every
+            // height-authored ref diverges (the CORE-66 trap).
+            item.cross_size = {
+                let natural = self.measure_block(item.id, item.main_size);
+                // CORE-122: a resumed item (child token break_before:false)
+                // already consumed part of its block size on an earlier
+                // fragmentainer. Only the remainder occupies THIS
+                // fragmentainer; counting the full measure inflates the
+                // line's cross size and shifts following siblings (WPT 046).
+                let child_tok = self.child_incoming(token, item.block_index);
+                let placed = if child_tok.is_break_before() {
+                    natural
+                } else {
+                    Scalar((natural.get() - child_tok.consumed_block_size.get()).max(0.0))
+                };
+                // css-flexbox-1 §4.3: a DECLARED cross size (height on a row)
+                // sizes the item before align-self/stretch — an empty styled
+                // div (background box) measures 0 naturally but paints at its
+                // declared height. Take the max so content never shrinks.
+                let declared = self.resolved_height(&self.styles[item.id]);
+                match declared {
+                    Some(d) if d.get() > placed.get() => d,
+                    _ => placed,
+                }
+            };
         }
 
         // Pack items into lines. Greedy wrap: an item that does not fit the

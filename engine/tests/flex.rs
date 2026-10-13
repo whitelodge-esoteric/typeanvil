@@ -694,3 +694,36 @@ fn row_flex_single_item_fragments_across_pages() {
     assert!(!p2.is_empty(), "item must continue on page 2");
 }
 
+
+// ---------------------------------------------------------------------------
+// CORE-348 — hypothetical cross size is measured at the USED main size
+// ---------------------------------------------------------------------------
+
+/// css-flexbox-1 §9.4 step 7: a `flex: 1` item (basis 0) is measured for its
+/// cross size AFTER it grows. Measuring at the basis wrapped "alpha beta
+/// gamma" one word per line (against a negative width once margins are
+/// subtracted): three lines measured taller than the 0.5in container, so the
+/// single line was not stretched to the container's definite cross size and
+/// the item collapsed to its one-line content height
+/// (page-margin-auto-and-non-zero-print-ref page 1).
+#[test]
+fn flex1_item_cross_size_uses_grown_width() {
+    let html = r#"
+    <style>
+      @page { size: 5in 3in; margin: 0.5in; }
+      body { margin: 0; }
+      .flex { display: flex; height: 0.5in; }
+      .item { flex: 1; margin: 0 30px; }
+    </style>
+    <div class="flex"><div class="item a">alpha beta gamma</div></div>
+    "#;
+    let out = lay(html);
+    let dom = dom_of(html);
+    let a = node_id_by_class(&dom, "a");
+    let (_, _, aw, ah) = box_of(&out, 0, a);
+    assert!(aw > inches(3.0).get(), "item grew to the row width: {aw}");
+    assert!(
+        (ah - inches(0.5).get()).abs() < 0.5,
+        "single-line row stretches the auto-height item to the 0.5in container: {ah}"
+    );
+}

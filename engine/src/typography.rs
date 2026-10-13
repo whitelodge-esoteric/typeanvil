@@ -56,6 +56,22 @@ use crate::geom::Scalar;
 /// driver was breakpoint choice (glue model) + page-break placement (see
 /// the CORE-97 spec's Calibration section).
 const HYPHEN_PENALTY: f64 = 135.0;
+/// Penalty for breaking after an EXPLICIT hyphen already in the text
+/// (TeX's `\exhyphenpenalty` default; CORE-348).
+const EXPLICIT_HYPHEN_PENALTY: f64 = 50.0;
+
+/// Byte offsets inside `word` (never 0 or `word.len()`) after which a line may
+/// break because the preceding character is an explicit hyphen (U+002D or
+/// U+2010) AND UAX #14 allows a break there (so "-5" and "--" stay whole).
+fn explicit_hyphen_breaks(word: &str) -> Vec<usize> {
+    if !word.contains(['-', '\u{2010}']) {
+        return Vec::new();
+    }
+    line_break_opportunities(word)
+        .into_iter()
+        .filter(|&i| i > 1 && (word[..i].ends_with('-') || word[..i].ends_with('\u{2010}')))
+        .collect()
+}
 
 /// Minimum characters that must precede a hyphenation break (TeX
 /// `\lefthyphenmin`; Prince's smallest observed hyphenation prefix on the
@@ -812,6 +828,42 @@ fn push_word(
     face: FaceId,
     features: &[(u32, u32)],
 ) {
+    // CORE-348: an explicit hyphen inside a word is a soft wrap opportunity
+    // (UAX #14 HY/BA; browsers break "Rocket-/powered" under the default
+    // `hyphens: manual`). Split there first and lay out each segment through
+    // the normal path. The break carries no glyph and no width (the hyphen
+    // is already in the text, like CORE-98's existing-hyphen penalty) and
+    // TeX's \exhyphenpenalty (50), so it is taken only when it helps. Other
+    // UAX #14 in-word opportunities (e.g. after `/`) are deliberately NOT
+    // added: Chromium keeps "Disappearing/reappearing" and URLs whole.
+    let cuts = explicit_hyphen_breaks(word);
+    if !cuts.is_empty() {
+        let mut seg_start = 0usize;
+        for (idx, &cut) in cuts.iter().chain(std::iter::once(&word.len())).enumerate() {
+            if idx > 0 {
+                items.push(Item::Penalty {
+                    penalty: EXPLICIT_HYPHEN_PENALTY,
+                    width: Scalar::ZERO,
+                    hyphen: None,
+                    forced: false,
+                });
+                box_ends.push(0);
+            }
+            push_word(
+                items,
+                box_ends,
+                &word[seg_start..cut],
+                start + seg_start,
+                font_size,
+                hyphenate,
+                hyphen_run,
+                face,
+                features,
+            );
+            seg_start = cut;
+        }
+        return;
+    }
     if !hyphenate || word.chars().count() < 5 {
         items.push(Item::Box(shape_word_with_features(word, font_size, face, features)));
         box_ends.push(start + word.len());
@@ -996,8 +1048,19 @@ fn knuth_plass(items: &[Item], max_width: f64, justify: bool) -> Vec<usize> {
             if forced_prefix[brk] > forced_prefix[line_start] {
                 continue;
             }
+            // CORE-348 (css-text-3 §5): an overfull line is legal ONLY when it
+            // holds no interior break point — a lone unbreakable word (or
+            // syllable) wider than the line. It overflows on its own line at
+            // maximum badness; every other line must still fit. Previously
+            // every overfull line was rejected, so one overlong word left no
+            // viable break set and the dead-end fallback below set the WHOLE
+            // paragraph on one line (table-stress cells overprinting the next
+            // column). Lines spanning a skipped break point stay rejected, so
+            // the overlong word never drags its neighbours past the edge.
+            let minimal = if pred == k { k == 0 } else { pred + 1 == k };
             let ratio = match adjustment_ratio(items, line_start, brk, max_width) {
                 Some(r) => r,
+                None if minimal => f64::NEG_INFINITY,
                 None => continue,
             };
             // A justified intermediate line pays the full spacing badness; the

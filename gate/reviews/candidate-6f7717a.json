@@ -1,0 +1,29 @@
+{
+ "schema": "typeanvil.harness.reviews/1",
+ "candidate": {
+  "label": "candidate-6f7717a",
+  "source_commit": "6f7717a",
+  "binary_sha256": "0384fbe18082b411cdb29c98d75c53647a231665d701b286adb107c2b8e8a806"
+ },
+ "baseline": {
+  "label": "baseline-f0030cb",
+  "source_commit": "f0030cb",
+  "binary_sha256": "2baa3ce5d04c954a75c176f479b0f6d24888f4342d7a07449d42aa32f6a18276"
+ },
+ "dispositions": [
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-008-print-ref.html",
+   "change_id": "f3e85812acbafac7f7e8fe16c7354e0761ef41e878b31a3842251503c1d7c920",
+   "kind": "correction",
+   "reason": "The ref sets 'xxxxxxxxxxxxxxxxxx x' in a 15em box and 'xxxxxx xxx' in a 5em box (Ahem): each has one word wider than its line. Baseline set each whole paragraph on ONE line (Knuth-Plass dead-end fallback), so the yellow 5em box painted nothing (0 yellow px). Candidate overflows the long word alone and wraps the rest: yellow box now paints (bbox 385,65-415,79 at 96 DPI). Examined by pixel bbox vs Chromium's print of the same ref (Chromium's page box differs: our engine ignores the @page width/height descriptors, a separate gap). Owning test FAIL -> FAIL.",
+   "provenance": "css-text-3 section 5 (soft wrap opportunities; unbreakable content overflows on its own line); CORE-348"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-009-print-ref.html",
+   "change_id": "a50501ddd447fdd8e47330d28d243272d571bbf3ab1b40ee6ea9658096bcfae1",
+   "kind": "correction",
+   "reason": "Same overlong-word wrapping as dimensions-008-ref. Candidate yellow box bbox (296,64)-(415,95) is IDENTICAL to Chromium's print of this ref (296,64)-(415,95); baseline was (393,64)-(415,79). Examined by pixel bbox against the Chromium oracle. Owning test FAIL -> FAIL.",
+   "provenance": "css-text-3 section 5; CORE-348"
+  }
+ ]
+}

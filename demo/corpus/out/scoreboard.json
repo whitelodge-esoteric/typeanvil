@@ -1,6 +1,6 @@
 {
-  "generated": "2026-10-13T07:51:02Z",
-  "typeanvil_version": "f0030cb",
+  "generated": "2026-10-13T08:09:23Z",
+  "typeanvil_version": "4a69720",
   "prince_version": "Prince 16.2",
   "docs": [
     {
@@ -242,10 +242,10 @@
         },
         {
           "page": 8,
-          "diff_percent": 21.14945023148148
+          "diff_percent": 21.160300925925927
         }
       ],
-      "overall_diff_percent": 22.233253761574076,
+      "overall_diff_percent": 22.23461009837963,
       "render_error": null,
       "structure_match": false,
       "structure_reasons": [
@@ -267,11 +267,11 @@
         },
         {
           "page": 2,
-          "diff_percent": 16.73900462962963
+          "diff_percent": 16.710792824074076
         },
         {
           "page": 3,
-          "diff_percent": 21.179832175925924
+          "diff_percent": 20.812355324074076
         },
         {
           "page": 4,
@@ -286,7 +286,7 @@
           "diff_percent": 2.435619212962963
         }
       ],
-      "overall_diff_percent": 15.723379629629628,
+      "overall_diff_percent": 15.65743152006173,
       "render_error": null,
       "structure_match": false,
       "structure_reasons": [
@@ -656,11 +656,11 @@
       "pages": [
         {
           "page": 1,
-          "diff_percent": 16.220341435185183
+          "diff_percent": 16.32378472222222
         },
         {
           "page": 2,
-          "diff_percent": 18.640046296296298
+          "diff_percent": 18.49320023148148
         },
         {
           "page": 3,
@@ -687,7 +687,7 @@
           "diff_percent": 5.640914351851852
         }
       ],
-      "overall_diff_percent": 12.258210358796296,
+      "overall_diff_percent": 12.252785011574074,
       "render_error": null,
       "structure_match": false,
       "structure_reasons": [
@@ -909,11 +909,11 @@
         },
         {
           "page": 3,
-          "diff_percent": 13.192274305555557
+          "diff_percent": 13.254484953703704
         },
         {
           "page": 4,
-          "diff_percent": 17.26128472222222
+          "diff_percent": 17.703269675925924
         },
         {
           "page": 5,
@@ -932,7 +932,7 @@
           "diff_percent": 2.1766493055555554
         }
       ],
-      "overall_diff_percent": 16.79488570601852,
+      "overall_diff_percent": 16.85791015625,
       "render_error": null,
       "structure_match": false,
       "structure_reasons": [
@@ -1343,125 +1343,125 @@
     {
       "name": "Inventory Ledger — Table Fragmentation Stress",
       "file": "table-stress.html",
-      "typeanvil_pages": 50,
+      "typeanvil_pages": 52,
       "prince_pages": 45,
       "page_count_mismatch": true,
       "pages": [
         {
           "page": 1,
-          "diff_percent": 26.200810185185187
+          "diff_percent": 26.202980324074076
         },
         {
           "page": 2,
-          "diff_percent": 23.30150462962963
+          "diff_percent": 23.255931712962962
         },
         {
           "page": 3,
-          "diff_percent": 21.705005787037038
+          "diff_percent": 23.509837962962962
         },
         {
           "page": 4,
-          "diff_percent": 22.491319444444443
+          "diff_percent": 23.211805555555557
         },
         {
           "page": 5,
-          "diff_percent": 23.49609375
+          "diff_percent": 23.57421875
         },
         {
           "page": 6,
-          "diff_percent": 21.32450810185185
+          "diff_percent": 21.236979166666668
         },
         {
           "page": 7,
-          "diff_percent": 15.996817129629628
+          "diff_percent": 21.925636574074073
         },
         {
           "page": 8,
-          "diff_percent": 23.039641203703702
+          "diff_percent": 23.24508101851852
         },
         {
           "page": 9,
-          "diff_percent": 20.31032986111111
+          "diff_percent": 23.94024884259259
         },
         {
           "page": 10,
-          "diff_percent": 20.33203125
+          "diff_percent": 24.422743055555557
         },
         {
           "page": 11,
-          "diff_percent": 23.04542824074074
+          "diff_percent": 15.691550925925926
         },
         {
           "page": 12,
-          "diff_percent": 21.19502314814815
+          "diff_percent": 22.02763310185185
         },
         {
           "page": 13,
-          "diff_percent": 24.657118055555554
+          "diff_percent": 15.664785879629632
         },
         {
           "page": 14,
-          "diff_percent": 22.14409722222222
+          "diff_percent": 20.51142939814815
         },
         {
           "page": 15,
-          "diff_percent": 19.955150462962962
+          "diff_percent": 21.07494212962963
         },
         {
           "page": 16,
-          "diff_percent": 22.474681712962962
+          "diff_percent": 19.017650462962962
         },
         {
           "page": 17,
-          "diff_percent": 17.46527777777778
+          "diff_percent": 19.48857060185185
         },
         {
           "page": 18,
-          "diff_percent": 24.80324074074074
+          "diff_percent": 17.688078703703702
         },
         {
           "page": 19,
-          "diff_percent": 22.88845486111111
+          "diff_percent": 19.66941550925926
         },
         {
           "page": 20,
-          "diff_percent": 25.274884259259263
+          "diff_percent": 20.15118634259259
         },
         {
           "page": 21,
-          "diff_percent": 20.31032986111111
+          "diff_percent": 25.00144675925926
         },
         {
           "page": 22,
-          "diff_percent": 19.85821759259259
+          "diff_percent": 19.78081597222222
         },
         {
           "page": 23,
-          "diff_percent": 23.039641203703702
+          "diff_percent": 19.717881944444443
         },
         {
           "page": 24,
-          "diff_percent": 19.39019097222222
+          "diff_percent": 24.00824652777778
         },
         {
           "page": 25,
-          "diff_percent": 21.30787037037037
+          "diff_percent": 24.563078703703702
         },
         {
           "page": 26,
-          "diff_percent": 25.12008101851852
+          "diff_percent": 24.793836805555554
         },
         {
           "page": 27,
-          "diff_percent": 21.748408564814813
+          "diff_percent": 20.847077546296298
         },
         {
           "page": 28,
-          "diff_percent": 19.248408564814813
+          "diff_percent": 19.403211805555557
         },
         {
           "page": 29,
-          "diff_percent": 23.979311342592595
+          "diff_percent": 21.200810185185183
         },
         {
           "page": 30,
@@ -1469,66 +1469,66 @@
         },
         {
           "page": 31,
-          "diff_percent": 22.351707175925924
+          "diff_percent": 16.04021990740741
         },
         {
           "page": 32,
-          "diff_percent": 16.046006944444443
+          "diff_percent": 22.49493634259259
         },
         {
           "page": 33,
-          "diff_percent": 15.983072916666666
+          "diff_percent": 23.763744212962962
         },
         {
           "page": 34,
-          "diff_percent": 23.25665509259259
+          "diff_percent": 22.84794560185185
         },
         {
           "page": 35,
-          "diff_percent": 23.111979166666664
+          "diff_percent": 21.963252314814817
         },
         {
           "page": 36,
-          "diff_percent": 21.260850694444443
+          "diff_percent": 21.438078703703702
         },
         {
           "page": 37,
-          "diff_percent": 25.31394675925926
+          "diff_percent": 24.04224537037037
         },
         {
           "page": 38,
-          "diff_percent": 21.27242476851852
+          "diff_percent": 24.302662037037038
         },
         {
           "page": 39,
-          "diff_percent": 20.363859953703702
+          "diff_percent": 21.260127314814813
         },
         {
           "page": 40,
-          "diff_percent": 22.61574074074074
+          "diff_percent": 22.11154513888889
         },
         {
           "page": 41,
-          "diff_percent": 24.12398726851852
+          "diff_percent": 22.374131944444446
         },
         {
           "page": 42,
-          "diff_percent": 23.41869212962963
+          "diff_percent": 22.36038773148148
         },
         {
           "page": 43,
-          "diff_percent": 24.76417824074074
+          "diff_percent": 21.81785300925926
         },
         {
           "page": 44,
-          "diff_percent": 16.35127314814815
+          "diff_percent": 24.069010416666668
         },
         {
           "page": 45,
-          "diff_percent": 19.20355902777778
+          "diff_percent": 20.51070601851852
         }
       ],
-      "overall_diff_percent": 21.59466628086419,
+      "overall_diff_percent": 21.609825102880656,
       "render_error": null,
       "structure_match": false,
       "structure_reasons": [
@@ -1618,7 +1618,7 @@
         },
         {
           "page": 5,
-          "diff_percent": 17.857349537037038
+          "diff_percent": 17.881944444444446
         },
         {
           "page": 6,
@@ -1637,7 +1637,7 @@
           "diff_percent": 5.642361111111112
         }
       ],
-      "overall_diff_percent": 20.142505787037038,
+      "overall_diff_percent": 20.14523855452675,
       "render_error": null,
       "structure_match": false,
       "structure_reasons": [
