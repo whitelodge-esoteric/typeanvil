@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-08-17
-updated: 2026-09-27
+updated: 2026-10-13
 sidebar_position: 4
 tags: [layout, tables, fragmentation, css-tables, engine]
 spec_id: tables-fragmentation
@@ -71,8 +71,12 @@ tests in `engine/tests/` and the existing 36 engine tests as regression guard.
   spans deferred.
 - `border-collapse: separate` + `border-spacing` — see §Behavior 16–18.
   The separate model (CSS initial) is supported.
-- Captions (`<caption>`), table in table (nested tables), tables inside
-  multicol, RTL tables.
+- Table in table (nested tables), tables inside multicol, RTL tables.
+  (Captions moved into scope by CORE-351 — §Behavior 19.)
+- Caption contribution to the table's min/max width (css-tables-3 §3.9.3):
+  the caption is laid out at the table's used width and never widens it.
+- `caption-side` logical values beyond `top`/`bottom` and a PDF `Caption`
+  structure tag (captions tag as `Div` inside `Table`).
 - Full css-tables WPT suite — only the css-break table print-reftests are the
   fitness gate.
 
@@ -84,9 +88,14 @@ The engine SHALL implement the following, stated as "shall" rules:
    `TableHeaderGroup`, `TableFooterGroup`, `TableRow`, `TableCell` variants,
    mapped from the CSS display longhands (`table`, `table-row-group`,
    `table-header-group`, `table-footer-group`, `table-row`, `table-cell`).
-   Unknown/other table display values (`table-column`, `table-caption`,
-   `inline-table`, `table-column-group`) SHALL resolve to `Block` with a
-   documented limitation, never a panic.
+   Unknown/other table display values (`table-column`, `inline-table`,
+   `table-column-group`) SHALL resolve to `Block` with a documented
+   limitation, never a panic. `table-caption` SHALL resolve to `Block` that
+   is MARKED as a caption (with its computed `caption-side`), so a caption
+   that is a child of a table is placed by Behavior 19 and a caption outside
+   any table lays out as an ordinary block. The UA stylesheet SHALL give
+   `caption` the WHATWG rendering defaults: `display: table-caption;
+   text-align: center`.
 2. **Anonymous table boxes.** A `table-row-group/header/footer` without a
    `table` ancestor, or a `table-row`/`table-cell` without its group/row
    ancestor, SHALL be wrapped in anonymous table/row-group/row boxes per
@@ -197,6 +206,26 @@ The engine SHALL implement the following, stated as "shall" rules:
     first fragment and its bottom band only on its last fragment (side
     bands on every fragment).
 
+19. **Captions (CORE-351).** A `table-caption` child of a table SHALL be
+    laid out as a block in the table wrapper box, outside the table grid
+    (css-tables-3 §2.1, CSS 2.1 §17.4), at the table's used border-box
+    width:
+    - All `caption-side: top` captions SHALL be placed above the grid, in
+      document order; all `caption-side: bottom` captions SHALL be placed
+      below the grid (after any footer), in document order — regardless of
+      where the caption elements sit among the row groups.
+    - The table's own border, padding, and border-spacing chrome SHALL wrap
+      the grid only; captions sit outside the table border.
+    - Captions SHALL fragment like ordinary blocks (a caption taller than
+      the remaining space continues on the next fragmentainer and the grid
+      follows it); captions SHALL NOT repeat on continuation fragments.
+    - A top caption SHALL stay with the table's first row: when the caption
+      fits on the current fragmentainer but no grid content does, the whole
+      table (caption included) SHALL move to the next fragmentainer —
+      at most once (the `deferred_once` bound of Behavior 14).
+    - A table WITHOUT captions SHALL lay out exactly as before (no change to
+      its fragments).
+
 ## Acceptance Criteria
 
 Each maps to a real test in `engine/tests/tables.rs` (new) or the WPT harness:
@@ -259,6 +288,15 @@ Each maps to a real test in `engine/tests/tables.rs` (new) or the WPT harness:
     as their references. The table's own border box, the cell borders
     (including border-bottom), the border-spacing gaps, and the slice
     border bands on continuation fragments all render.
+
+13. **Captions** — Given a table with a `<caption>`, when rendered, then
+    the caption text appears above the table's first row and inside the
+    table's width; with `caption-side: bottom` it appears below the last
+    row; captions in mixed DOM order render tops-then-grid-then-bottoms; a
+    caption that fits at a page bottom while the first row does not moves to
+    the next page with the table (`tests/table_caption.rs`). The corpus
+    fixtures thesis-excerpt, technical-report and conference-paper show
+    their captions in the text layer.
 
 ## Edge Cases
 

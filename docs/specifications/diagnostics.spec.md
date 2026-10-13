@@ -72,8 +72,10 @@ true statements about the render even though it runs as a separate pass.
    skipped as supported constructs.
 5. The scanner SHALL emit `display-fallback` when a `display` declaration's
    value is one of the engine's documented fallbacks: `inline-table`,
-   `table-column`, `table-column-group`, `table-caption`, `inline-flex`
+   `table-column`, `table-column-group`, `inline-flex`
    (each renders via a defined fallback; see `css.rs::convert`).
+   `table-caption` is supported (tables-fragmentation §Behavior 19,
+   CORE-351) and emits no event.
 6. The scanner SHALL emit `malformed-declaration` for a declaration fragment
    that has no `:` separator or an empty property name.
 7. The CLI SHALL accept `--diagnostics <json|text>`. In `json` mode it SHALL

@@ -636,6 +636,13 @@ pub enum BorderCollapse {
     Separate,
     Collapse,
 }
+/// The computed `caption-side` of a `table-caption` box (css-tables-3 §2.1,
+/// CORE-351): which side of the table grid the caption is placed on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CaptionSide {
+    Top,
+    Bottom,
+}
 /// The computed `column-span` value (css-multicol-1 §4).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum ColumnSpan {
@@ -955,6 +962,11 @@ pub struct ComputedStyle {
     /// Points; `Scalar::ZERO` when `border-collapse: collapse`.
     pub border_spacing_h: Scalar,
     pub border_spacing_v: Scalar,
+    /// `Some(side)` when the box is `display: table-caption` (CORE-351).
+    /// Captions compute to `Display::Block` so every block path lays them
+    /// out; the table wrapper reads this marker to place a caption child
+    /// above (`Top`) or below (`Bottom`) the grid. `None` for every other box.
+    pub table_caption: Option<CaptionSide>,
     pub font_size: Scalar,
     /// The resolved line box height in points (`line-height` property).
     pub line_height: Scalar,
@@ -1176,6 +1188,7 @@ impl ComputedStyle {
             border_collapse: BorderCollapse::Separate,
             border_spacing_h: Scalar::ZERO,
             border_spacing_v: Scalar::ZERO,
+            table_caption: None,
             font_size: px_to_pt(16.0),
             line_height: px_to_pt(16.0) * NORMAL_LINE_HEIGHT_FACTOR,
             font_weight: 400.0,
@@ -1503,6 +1516,8 @@ impl CascadeSession {
         tbody { display: table-row-group; }
         tfoot { display: table-footer-group; }
         tr { display: table-row; }
+        /* CORE-351: WHATWG rendering defaults for captions (HTML 15.3.8). */
+        caption { display: table-caption; text-align: center; }
         td, th { display: table-cell; }
         /* Prince 16.2 html.css bolds th (line 482); browsers' UA sheets do
            too (th { font-weight: bolder }). Without it, header cells measure
@@ -1776,6 +1791,19 @@ impl CascadeSession {
             TextAlignKeyword::End => TextAlign::End,
         };
 
+        // CORE-351: `table-caption` lays out as a block, marked with its
+        // `caption-side` so the table wrapper can place it outside the grid.
+        let table_caption = {
+            let d = box_.clone_display();
+            if !d.is_none() && matches!(d.outside(), DisplayOutside::TableCaption) {
+                Some(match values.clone_caption_side() {
+                    style::values::computed::table::CaptionSide::Top => CaptionSide::Top,
+                    style::values::computed::table::CaptionSide::Bottom => CaptionSide::Bottom,
+                })
+            } else {
+                None
+            }
+        };
         let display = match box_.clone_display() {
             d if d.is_none() => Display::None,
             d => match d.inside() {
@@ -2186,6 +2214,7 @@ impl CascadeSession {
             border_collapse,
             border_spacing_h,
             border_spacing_v,
+            table_caption,
             font_size,
             line_height,
             font_family,

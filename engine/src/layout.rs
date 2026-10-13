@@ -4961,6 +4961,17 @@ impl<'a> Ctx<'a> {
         widths
     }
 
+    /// CORE-351 (tables-fragmentation §Behavior 19): the table WRAPPER box.
+    /// A table's `table-caption` children sit outside the grid
+    /// (css-tables-3 §2.1): every top caption above it and every bottom
+    /// caption below it, in document order, at the table's used width. A
+    /// table without captions is exactly its grid — delegated untouched.
+    ///
+    /// Resume encoding: the wrapper token carries ONE child token, the
+    /// resume point. A caption resumes at its own child index; the grid at
+    /// the virtual slot `children.len()` (no element child has that index).
+    /// The phase (top captions / grid / bottom captions) follows from which
+    /// index the token names.
     fn layout_table_block(
         &self,
         id: NodeId,
@@ -4971,6 +4982,225 @@ impl<'a> Ctx<'a> {
         page_has_content: bool,
         token: &BreakToken,
         flow: &mut Flow,
+    ) -> BlockResult {
+        use crate::css::CaptionSide;
+        let children: Vec<NodeId> = self.dom.nodes[id]
+            .children
+            .iter()
+            .copied()
+            .filter(|c| matches!(self.dom.nodes[*c].kind, NodeKind::Element(_)))
+            .collect();
+        let side_indices = |side: CaptionSide| -> Vec<usize> {
+            children
+                .iter()
+                .enumerate()
+                .filter(|(_, c)| self.styles[**c].table_caption == Some(side))
+                .map(|(i, _)| i)
+                .collect()
+        };
+        let tops = side_indices(CaptionSide::Top);
+        let bottoms = side_indices(CaptionSide::Bottom);
+        if tops.is_empty() && bottoms.is_empty() {
+            return self.layout_table_grid(
+                id,
+                origin_x,
+                avail_width,
+                top,
+                bottom_limit,
+                page_has_content,
+                token,
+                flow,
+                true,
+            );
+        }
+        let fresh = token.is_break_before();
+        if !fresh && token.seen_all_children && token.child_tokens.is_empty() {
+            return BlockResult {
+                fragment: Fragment::block(Point::new(origin_x, top), (avail_width, Scalar::ZERO)),
+                used: Scalar::ZERO,
+                outgoing: None,
+                empty: true,
+            };
+        }
+        let grid_slot = children.len();
+        let has_token = |i: usize| token.child_tokens.iter().any(|c| c.index == i);
+        // Where this fragment starts: (first top caption to lay out, whether
+        // the grid still runs, first bottom caption to lay out).
+        let (top_from, run_grid, bottom_from) = if fresh {
+            (0, true, 0)
+        } else if let Some(p) = tops.iter().position(|&i| has_token(i)) {
+            (p, true, 0)
+        } else if has_token(grid_slot) {
+            (tops.len(), true, 0)
+        } else {
+            let p = bottoms.iter().position(|&i| has_token(i)).unwrap_or(bottoms.len());
+            (tops.len(), false, p)
+        };
+        // Caption width = the table grid's border-box width (css-tables-3
+        // §2.1: the wrapper is as wide as the grid), so a centered caption
+        // centers over the table. A declared width is the border-box width;
+        // an auto table is its frozen columns plus border, padding and
+        // border-spacing chrome. Clamped to the available width.
+        let table_w = match crate::table::table_used_width(self.styles, id, avail_width) {
+            Some(w) => w,
+            None => {
+                let ts = &self.styles[id];
+                let columns = self.frozen_table_columns(id, avail_width);
+                let mut w = ts.border_left + ts.border_right + ts.padding_left + ts.padding_right;
+                for cw in &columns.widths {
+                    w = w + *cw;
+                }
+                if ts.border_collapse == crate::css::BorderCollapse::Separate {
+                    w = w + ts.border_spacing_h * ((columns.widths.len() + 1) as f64);
+                }
+                w
+            }
+        };
+        let table_w = if table_w.get() < avail_width.get() { table_w } else { avail_width };
+
+        let mut y = top;
+        let mut frags: Vec<Fragment> = Vec::new();
+        let mut placed = page_has_content;
+        let mut resume: Option<ChildToken> = None;
+        let mut top_caption_placed = false;
+
+        for &ci in &tops[top_from..] {
+            let tok = self.child_incoming(token, ci);
+            let res = self.layout_box(children[ci], origin_x, table_w, y, bottom_limit, placed, &tok, flow);
+            if !res.empty {
+                y += res.used;
+                placed = true;
+                top_caption_placed = true;
+                frags.push(res.fragment);
+            }
+            if let Some(t) = res.outgoing {
+                resume = Some(ChildToken { index: ci, token: t });
+                break;
+            }
+        }
+
+        let mut grid_done = !run_grid;
+        if resume.is_none() && run_grid {
+            // The grid starts fresh unless the token resumes it.
+            let grid_tok = if has_token(grid_slot) {
+                self.child_incoming(token, grid_slot)
+            } else {
+                BreakToken::break_before()
+            };
+            let res = self.layout_table_grid(
+                id,
+                origin_x,
+                avail_width,
+                y,
+                bottom_limit,
+                placed,
+                &grid_tok,
+                flow,
+                false,
+            );
+            // A top caption stays with the first row: the caption fit here
+            // but no grid content did, so move the whole table (caption
+            // included) to the next fragmentainer — once (`deferred_once`,
+            // §Behavior 14), and only when this page already holds content
+            // (at a page top the row would not fit a fresh page either).
+            // "No grid content" = every grid child is zero-height: a
+            // deferred first row still leaves its (empty, token-carrying)
+            // row-group fragment behind.
+            if fresh
+                && top_caption_placed
+                && page_has_content
+                && !token.deferred_once
+                && res.outgoing.is_some()
+                && res.fragment.children.iter().all(|c| c.size.1.get() <= 0.0)
+            {
+                return BlockResult {
+                    fragment: Fragment::block(Point::new(origin_x, top), (avail_width, Scalar::ZERO)),
+                    used: Scalar::ZERO,
+                    outgoing: Some(BreakToken::break_before_deferred()),
+                    empty: true,
+                };
+            }
+            if !res.empty {
+                y += res.used;
+                placed = true;
+                frags.push(res.fragment);
+            }
+            match res.outgoing {
+                Some(t) => resume = Some(ChildToken { index: grid_slot, token: t }),
+                None => grid_done = true,
+            }
+        }
+
+        if resume.is_none() && grid_done {
+            for &ci in &bottoms[bottom_from..] {
+                let tok = self.child_incoming(token, ci);
+                let res = self.layout_box(children[ci], origin_x, table_w, y, bottom_limit, placed, &tok, flow);
+                if !res.empty {
+                    y += res.used;
+                    placed = true;
+                    frags.push(res.fragment);
+                }
+                if let Some(t) = res.outgoing {
+                    resume = Some(ChildToken { index: ci, token: t });
+                    break;
+                }
+            }
+        }
+
+        // Rebase children to be wrapper-relative (same as the grid does for
+        // its rows).
+        let origin = Point::new(origin_x, top);
+        for child in &mut frags {
+            child.offset = Point::new(child.offset.x - origin.x, child.offset.y - origin.y);
+            if let FragmentContent::Text(run) = &mut child.content {
+                run.baseline = Point::new(run.baseline.x - origin.x, run.baseline.y - origin.y);
+            }
+        }
+        let height = y - top;
+        let mut fragment = Fragment::block(origin, (table_w, height));
+        fragment.children = frags;
+        fragment.source = Some(id);
+        let outgoing = resume.map(|ct| {
+            let tok = BreakToken {
+                consumed_block_size: token.consumed_block_size + height,
+                seen_all_children: false,
+                child_tokens: vec![ct],
+                break_before: false,
+                consumed_chars: None,
+                flex: None,
+                deferred_once: false,
+                cross_override: None,
+            };
+            fragment.break_token = Some(tok.clone());
+            tok
+        });
+        let empty = height.get() <= 0.0 && outgoing.is_none();
+        // css-position-3 §6.2: the relative shift moves the whole wrapper
+        // (captions and grid together); the grid was laid out unshifted.
+        RelativeInsetShift::resolve(&self.styles[id], self.icb_width, self.icb_height).apply(&mut fragment);
+        BlockResult {
+            fragment,
+            used: height,
+            outgoing,
+            empty,
+        }
+    }
+
+    /// The table GRID box: rows, row groups, the table's own border /
+    /// padding / border-spacing chrome. Captions are placed around it by
+    /// [`Self::layout_table_block`]. `apply_relative` is false when the
+    /// wrapper applies the `position: relative` shift itself.
+    fn layout_table_grid(
+        &self,
+        id: NodeId,
+        origin_x: Scalar,
+        avail_width: Scalar,
+        top: Scalar,
+        bottom_limit: Scalar,
+        page_has_content: bool,
+        token: &BreakToken,
+        flow: &mut Flow,
+        apply_relative: bool,
     ) -> BlockResult {
         let fresh = token.is_break_before();
         // Resume bookkeeping (mirrors layout_box): child_tokens are positional
@@ -5329,7 +5559,9 @@ impl<'a> Ctx<'a> {
         let empty = height.get() <= 0.0 && outgoing.is_none();
         // css-position-3 §6.2: paint-only shift; the parent cursor advanced
         // via `used`, so rows and following content keep their flow spots.
-        RelativeInsetShift::resolve(&self.styles[id], self.icb_width, self.icb_height).apply(&mut fragment);
+        if apply_relative {
+            RelativeInsetShift::resolve(&self.styles[id], self.icb_width, self.icb_height).apply(&mut fragment);
+        }
         BlockResult {
             fragment,
             used: height,

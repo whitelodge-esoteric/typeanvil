@@ -188,7 +188,6 @@ const DISPLAY_FALLBACKS: &[(&str, &str)] = &[
         "table-column-group",
         "table-column-group falls back to block",
     ),
-    ("table-caption", "table-caption falls back to block"),
     (
         "inline-flex",
         "inline-flex is treated as a block-level flex container",

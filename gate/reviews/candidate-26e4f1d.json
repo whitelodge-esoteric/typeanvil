@@ -1,0 +1,29 @@
+{
+  "schema": "typeanvil.harness.reviews/1",
+  "candidate": {
+    "label": "candidate-26e4f1d",
+    "source_commit": "26e4f1d",
+    "binary_sha256": "749aa7281647a5e8b4457014a26905aed08b833c37c2f61019b780b178892a47"
+  },
+  "baseline": {
+    "label": "baseline-8231ac7",
+    "source_commit": "8231ac7",
+    "binary_sha256": "0384fbe18082b411cdb29c98d75c53647a231665d701b286adb107c2b8e8a806"
+  },
+  "dispositions": [
+    {
+      "doc_id": "css/css-page/page-name-table-001-print-ref.html",
+      "change_id": "84490b214760c6941aa3d2be4cfd14e0bc0132ee3a38988dc504481cd42f9bf2",
+      "kind": "correction",
+      "reason": "CORE-351: the fixture's <caption>This should all be on one page.</caption> was never painted at 8231ac7; it now renders above the table. Examined per document by PDF text layer and page geometry (probe render at 5in x 3in harness geometry, page box from @page square = 360x360pt): baseline text = 'The width and height... / I.e. it should be a square. / There should also be no red.' (caption missing); candidate text adds 'This should all be on one page.' as the first line, centered over the table (glyphs x 96.9-262.2, mid 179.6), still 1 page, 360x360pt. Test and reference move to the same image (both sides identical fingerprints), status PASS -> PASS.",
+      "provenance": "css-tables-3 \u00a72.1 (table wrapper box: captions outside the grid), CSS 2.1 \u00a717.4 caption-side; WHATWG HTML \u00a715.3.8 caption { display: table-caption; text-align: center }; docs/specifications/tables-fragmentation.spec.md \u00a7Behavior 19"
+    },
+    {
+      "doc_id": "css/css-page/page-name-table-001-print.html",
+      "change_id": "0bddf66db5489b35275ce658ff7bd79be879255646fef3c39cd0785fc667794e",
+      "kind": "correction",
+      "reason": "CORE-351: the fixture's <caption>This should all be on one page.</caption> was never painted at 8231ac7; it now renders above the table. Examined per document by PDF text layer and page geometry (probe render at 5in x 3in harness geometry, page box from @page square = 360x360pt): baseline text = 'The width and height... / I.e. it should be a square. / There should also be no red.' (caption missing); candidate text adds 'This should all be on one page.' as the first line, centered over the table (glyphs x 96.9-262.2, mid 179.6), still 1 page, 360x360pt. Test and reference move to the same image (both sides identical fingerprints), status PASS -> PASS.",
+      "provenance": "css-tables-3 \u00a72.1 (table wrapper box: captions outside the grid), CSS 2.1 \u00a717.4 caption-side; WHATWG HTML \u00a715.3.8 caption { display: table-caption; text-align: center }; docs/specifications/tables-fragmentation.spec.md \u00a7Behavior 19"
+    }
+  ]
+}

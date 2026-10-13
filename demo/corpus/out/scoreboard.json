@@ -1,6 +1,6 @@
 {
-  "generated": "2026-10-13T14:26:17Z",
-  "typeanvil_version": "b01cffc",
+  "generated": "2026-10-13T17:08:38Z",
+  "typeanvil_version": "26e4f1d",
   "prince_version": "Prince 16.2",
   "docs": [
     {
@@ -226,11 +226,11 @@
         },
         {
           "page": 4,
-          "diff_percent": 24.74320023148148
+          "diff_percent": 25.66840277777778
         },
         {
           "page": 5,
-          "diff_percent": 20.697337962962965
+          "diff_percent": 25.559895833333336
         },
         {
           "page": 6,
@@ -245,7 +245,7 @@
           "diff_percent": 21.160300925925927
         }
       ],
-      "overall_diff_percent": 22.23461009837963,
+      "overall_diff_percent": 22.958080150462965,
       "render_error": null,
       "structure_match": false,
       "structure_reasons": [
@@ -1554,11 +1554,11 @@
         },
         {
           "page": 3,
-          "diff_percent": 29.087818287037038
+          "diff_percent": 22.09129050925926
         },
         {
           "page": 4,
-          "diff_percent": 25.574363425925927
+          "diff_percent": 12.18605324074074
         },
         {
           "page": 5,
@@ -1570,25 +1570,26 @@
         },
         {
           "page": 7,
-          "diff_percent": 25.946903935185183
+          "diff_percent": 23.093171296296298
         },
         {
           "page": 8,
-          "diff_percent": 37.915219907407405
+          "diff_percent": 32.350260416666664
         },
         {
           "page": 9,
-          "diff_percent": 31.42216435185185
+          "diff_percent": 31.070601851851855
         },
         {
           "page": 10,
-          "diff_percent": 11.652199074074074
+          "diff_percent": 12.14988425925926
         }
       ],
-      "overall_diff_percent": 23.23553240740741,
+      "overall_diff_percent": 20.369791666666664,
       "render_error": null,
       "structure_match": false,
       "structure_reasons": [
+        "heading positions mismatch",
         "line count mismatch",
         "text content mismatch"
       ]
@@ -1614,7 +1615,7 @@
         },
         {
           "page": 4,
-          "diff_percent": 22.884114583333336
+          "diff_percent": 23.828125
         },
         {
           "page": 5,
@@ -1626,7 +1627,7 @@
         },
         {
           "page": 7,
-          "diff_percent": 27.139756944444443
+          "diff_percent": 23.175636574074073
         },
         {
           "page": 8,
@@ -1637,7 +1638,7 @@
           "diff_percent": 5.642361111111112
         }
       ],
-      "overall_diff_percent": 20.14523855452675,
+      "overall_diff_percent": 19.809670781893004,
       "render_error": null,
       "structure_match": false,
       "structure_reasons": [
