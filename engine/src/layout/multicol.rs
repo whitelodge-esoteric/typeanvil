@@ -14,10 +14,11 @@
 //! spanner spans the full content width, content after starts a new set.
 //!
 //! **Multicol under print (sequential sets).** When the container's balanced
-//! extent does not fit the remaining page, the page fills as many sets (and
-//! columns) as fit; the container breaks with the in-flight items' tokens,
-//! and the next page re-balances the remaining content as a fresh set — a
-//! column never slices a line.
+//! extent does not fit the remaining page, the page's columns fill to the
+//! page bottom (a splittable block breaks between lines at a column bottom);
+//! the container breaks with the in-flight items' tokens, and the next page
+//! re-balances only the REMAINING content (CORE-360) — a column never slices
+//! a line.
 //!
 //! Non-goals this pass (see the spec): `column-rule-*` painting, floats
 //! inside columns (laid as plain blocks), `column-fill: auto` (the servo
@@ -106,12 +107,20 @@ impl<'a> Ctx<'a> {
         let mut spanners: Vec<(usize, Scalar)> = Vec::new(); // (index, measured h)
         let mut seg_start = start_index;
         let mut i = start_index;
+        // A resumed container's first item can be a PARTIALLY laid block or
+        // text run (columns split blocks between lines, CORE-360): measure
+        // only its remainder, or the balanced target over-counts the lines
+        // already placed on the previous page (the final page's first column
+        // ran ~2 lines taller than Chromium).
+        let resume_delta = self.resumed_item_delta(&items, start_index, token, col_w, style, flow);
+        let mut pending_delta = resume_delta;
         while i < items.len() {
             if let Item::Block(child) = &items[i] {
                 let cs = &self.styles[*child];
                 if cs.column_span == ColumnSpan::All {
                     if i > seg_start {
-                        let h = self.measure_items(&items[seg_start..i], col_w, style);
+                        let h = self.measure_items(&items[seg_start..i], col_w, style)
+                            + std::mem::replace(&mut pending_delta, Scalar::ZERO);
                         sets.push((seg_start, i, self.balanced_target(h, n, style)));
                     }
                     let sh = self.measure_block(*child, inner_width);
@@ -122,7 +131,7 @@ impl<'a> Ctx<'a> {
             i += 1;
         }
         if seg_start < items.len() {
-            let h = self.measure_items(&items[seg_start..], col_w, style);
+            let h = self.measure_items(&items[seg_start..], col_w, style) + pending_delta;
             sets.push((seg_start, items.len(), self.balanced_target(h, n, style)));
         }
 
@@ -391,6 +400,64 @@ impl<'a> Ctx<'a> {
             }
         }
         h
+    }
+
+    /// Height correction for a resumed container's first item: (remaining
+    /// height) − (full fresh measure). Zero when the item starts fresh, is a
+    /// spanner/out-of-flow, or the container itself is fresh. The remainder is
+    /// laid once against an unbounded limit in a scratch `Flow` clone, so no
+    /// side effect (counters, footnotes, abspos) escapes the measure.
+    fn resumed_item_delta(
+        &self,
+        items: &[Item],
+        start: usize,
+        token: &BreakToken,
+        col_w: Scalar,
+        style: &ComputedStyle,
+        flow: &Flow,
+    ) -> Scalar {
+        if token.is_break_before() || start >= items.len() {
+            return Scalar::ZERO;
+        }
+        let tok = self.child_incoming(token, start);
+        if tok.is_break_before() {
+            return Scalar::ZERO;
+        }
+        match &items[start] {
+            Item::Text(text, _, _) => match tok.consumed_chars {
+                Some(off) => {
+                    let lh = style.line_height;
+                    let full = self.break_paragraph(text, col_w, style).len();
+                    let rest = self
+                        .break_paragraph(&text[off.min(text.len())..], col_w, style)
+                        .len();
+                    lh * rest as f64 - lh * full as f64
+                }
+                None => Scalar::ZERO,
+            },
+            Item::Block(child) => {
+                let cs = &self.styles[*child];
+                if cs.column_span == ColumnSpan::All
+                    || cs.float != crate::css::Float::None
+                    || matches!(cs.position, Position::Absolute | Position::Fixed)
+                {
+                    return Scalar::ZERO;
+                }
+                let mut scratch = flow.clone();
+                let res = self.layout_box(
+                    *child,
+                    Scalar::ZERO,
+                    col_w,
+                    Scalar::ZERO,
+                    Scalar(f64::MAX),
+                    true,
+                    &tok,
+                    &mut scratch,
+                );
+                res.used - self.measure_block(*child, col_w)
+            }
+            Item::Atomic(_) => Scalar::ZERO,
+        }
     }
 
     /// The tallest unsplittable in-flow item in a set, at the column width.
@@ -748,9 +815,15 @@ impl<'a> Ctx<'a> {
                     // Forced break before: start a new column (or page, when
                     // this is the last column — the break_before token makes
                     // the container fragment and the item resumes fresh).
-                    // Only when the CONTAINER is resuming: a fresh container
-                    // hands every item a default break_before token.
-                    if !token.is_break_before() && child_tok.is_break_before() && !broke && y > set_top {
+                    // The child's FRESH token alone is not a forced break:
+                    // `child_incoming` hands every item without a nested
+                    // continuation a default break_before token, so keying on
+                    // the token put one item per column on every continuation
+                    // page (CORE-360). Require the computed `break-before`,
+                    // as the block path does. (Still only when the CONTAINER
+                    // is resuming — forced breaks in a fresh container are
+                    // unchanged here.)
+                    if !token.is_break_before() && child_tok.is_break_before() && cs.break_before.is_forced() && !broke && y > set_top {
                         in_flight = Some(ChildToken {
                             index: i,
                             token: BreakToken::break_before(),
@@ -768,7 +841,17 @@ impl<'a> Ctx<'a> {
                     // the container and spills a page (CORE-246).
                     let fits = y + h <= col_bottom + Scalar(0.01);
                     let last_resort = !page_placed && y == set_top;
-                    if !fits && !last_resort {
+                    // A block that does not fit may still SPLIT at the column
+                    // bottom (css-multicol-1 §8 / css-break-3 §4: columns are
+                    // fragmentainers, so a paragraph breaks between lines like
+                    // it does at a page edge). Only an unsplittable block —
+                    // `break-inside: avoid`, a declared height (monolithic,
+                    // CORE-236), or an atomic inline — moves whole to the next
+                    // column (CORE-360).
+                    let splittable = matches!(items[i], Item::Block(_))
+                        && cs.break_inside == crate::frag::BreakInside::Auto
+                        && self.specified_extent(*child, cs).is_none();
+                    if !fits && !last_resort && !splittable {
                         in_flight = Some(ChildToken {
                             index: i,
                             token: BreakToken::break_before(),

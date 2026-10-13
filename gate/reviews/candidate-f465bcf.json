@@ -1,0 +1,22 @@
+{
+  "schema": "typeanvil.harness.reviews/1",
+  "candidate": {
+    "label": "candidate-f465bcf",
+    "source_commit": "f465bcf",
+    "binary_sha256": "b5765c01081a942eb33f688da4c3a0541a18c1d1114758fa73e411de4c85ef84"
+  },
+  "baseline": {
+    "label": "baseline-e1c7359",
+    "source_commit": "e1c7359",
+    "binary_sha256": "749aa7281647a5e8b4457014a26905aed08b833c37c2f61019b780b178892a47"
+  },
+  "dispositions": [
+    {
+      "doc_id": "css/css-multicol/moz-multicol3-column-balancing-break-inside-avoid-1-ref.html",
+      "change_id": "a73e790c66730fc7ed5c3c8ac8de25875ea46d1519ef6606f40f26231e6a5b5d",
+      "kind": "correction",
+      "reason": "Reference renders closer to Chromium. Chromium print-to-PDF fits all four 3-column colsets on page 1. Baseline fit only colset 1 on page 1 and pushed colsets 2-4 to page 2 (the whole-paragraph push at a column bottom). Candidate fits colsets 1-3 on page 1 and splits colset 3's single paragraph across columns and the page, leaving 'four five' plus colset 4 on page 2 (words dumped with pypdfium2: base p1=5 words, cand p1=13 words, Chromium p1=20 words). Owning test moz-multicol3-column-balancing-break-inside-avoid-1.html is byte-identical between sides and stays FAIL -> FAIL. The remaining gap is the uncollapsed-margin/line-height residual recorded in multicol.spec.md Edge Cases. Re-keyed after rebasing onto e1c7359 (CORE-351): the change_id is unchanged, so the examined output is identical.",
+      "provenance": "CORE-360; docs/specifications/multicol.spec.md Behavior 7/8 (columns are fragmentainers: splittable blocks break between lines at the column bottom); css-multicol-1 section 8, css-break-3 section 4"
+    }
+  ]
+}

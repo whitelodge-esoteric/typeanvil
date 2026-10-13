@@ -571,3 +571,92 @@ fn multicol_single_page_no_sequential_sets() {
         
     assert_eq!(column_children.len(), 2, "Should have exactly 2 columns");
 }
+
+// --- CORE-360: multicol across pages ---------------------------------------
+// Geometry: 5x3in page, 0.5in margins → 288x144pt content; 2 columns of
+// 138pt; 12pt font at line-height 1.2 → 14.4pt lines, 10 lines per column.
+
+/// The column fragments of the multicol container on `page`.
+fn columns_on(layout: &Layout, page: usize) -> Vec<&Fragment> {
+    page_mc_any(layout, page)
+        .children
+        .iter()
+        .filter(|c| c.source.is_none() && c.kind == FragmentKind::Block)
+        .collect()
+}
+
+#[test]
+fn continuation_page_packs_many_items_per_column() {
+    // 30 one-line paragraphs: 20 fill page 1, 10 balance 5/5 on page 2.
+    // Before CORE-360 every item on a continuation page was treated as a
+    // forced column break (its default fresh token), so page 2 held ONE
+    // paragraph per column and the container ran to 6 pages.
+    let items: String = (1..=30).map(|k| format!("<p>Item {k}</p>")).collect();
+    let html = format!(
+        r#"<html><head><style>
+        body {{ margin: 0; font-size: 12pt; line-height: 1.2; }}
+        p, div {{ margin: 0; padding: 0; }}
+        .mc {{ column-count: 2; }}
+    </style></head><body><div class="mc">{items}</div></body></html>"#
+    );
+    let layout = lay(&html);
+    assert_eq!(layout.pages.len(), 2, "30 lines = one full page + one balanced page");
+    let cols = columns_on(&layout, 1);
+    for (k, c) in cols.iter().enumerate() {
+        assert!(
+            c.children.len() > 1,
+            "page-2 column {k} holds several paragraphs, got {}",
+            c.children.len()
+        );
+    }
+}
+
+#[test]
+fn paragraph_splits_at_the_column_bottom() {
+    // A one-line paragraph, then a paragraph longer than a column. The long
+    // paragraph must break between lines at column 0's bottom (css-break-3:
+    // a column is a fragmentainer), not move whole to column 1 and leave
+    // column 0 holding one line.
+    let long = "filler ".repeat(120);
+    let html = format!(
+        r#"<html><head><style>
+        body {{ margin: 0; font-size: 12pt; line-height: 1.2; }}
+        p, div {{ margin: 0; padding: 0; }}
+        .mc {{ column-count: 2; }}
+    </style></head><body><div class="mc"><p>Lead.</p><p>{long}</p></div></body></html>"#
+    );
+    let layout = lay(&html);
+    let cols = columns_on(&layout, 0);
+    let lh = 14.4;
+    assert!(
+        cols[0].size.1.get() >= 144.0 - lh + EPS,
+        "column 0 fills to the page bottom: height {}",
+        cols[0].size.1.get()
+    );
+}
+
+#[test]
+fn final_page_balances_only_the_remaining_content() {
+    // One paragraph split across pages: page 2's balanced set must measure
+    // only the REMAINING lines. Measuring the whole paragraph overestimated
+    // the target, so column 0 swallowed the remainder and column 1 sat empty
+    // (or ran several lines shorter).
+    let long = "filler ".repeat(110);
+    let html = format!(
+        r#"<html><head><style>
+        body {{ margin: 0; font-size: 12pt; line-height: 1.2; }}
+        p, div {{ margin: 0; padding: 0; }}
+        .mc {{ column-count: 2; }}
+    </style></head><body><div class="mc"><p>{long}</p></div></body></html>"#
+    );
+    let layout = lay(&html);
+    assert_eq!(layout.pages.len(), 2, "paragraph spans two pages");
+    let cols = columns_on(&layout, 1);
+    assert_eq!(cols.len(), 2, "page 2 uses both columns");
+    let lh = 14.4;
+    let (a, b) = (cols[0].size.1.get(), cols[1].size.1.get());
+    assert!(
+        (a - b).abs() <= lh + EPS,
+        "final-page columns differ by at most one line: {a} vs {b}"
+    );
+}
