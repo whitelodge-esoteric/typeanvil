@@ -886,7 +886,7 @@ fn white_space_normal_still_collapses() {
 #[test]
 fn white_space_pre_wrap_soft_wraps() {
     let style = p_style(
-        "<html><body><style>p { white-space: pre-wrap; }</style><p>t</p></body></html>",
+        "<html><body><style>p { white-space: pre-wrap; font-family: Arial; }</style><p>t</p></body></html>",
     );
     assert_eq!(style.white_space, typeanvil::css::WhiteSpace::PreWrap);
     // One long source line (no newlines) must still soft-wrap at 50pt.
