@@ -230,10 +230,11 @@ Each criterion maps to a test in `engine/tests/multicol.rs` (helpers mirror
   the laid columns instead of fragmenting with an empty resume token (a
   trailing blank page) or re-laying the same set with no cursor advance
   (infinite pagination).
-- Known gap: adjoining sibling margins inside a column do not collapse (the
-  column filler and the balance measure both sum each block's full margins),
-  so headings sit a few points lower than in Chromium and a final page can
-  balance about one line taller in its first column (CORE-360 residual).
+- Adjoining sibling margins inside a column collapse to the larger margin
+  (CSS 2.1 §8.3.1), exactly as in block flow: the column filler and the
+  balance measure apply the same rule, so balancing stays consistent. A
+  text run between blocks breaks the adjacency, and each column starts with
+  no carried margin (CORE-364).
 
 ## References
 

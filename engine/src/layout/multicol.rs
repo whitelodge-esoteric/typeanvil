@@ -382,10 +382,18 @@ impl<'a> Ctx<'a> {
         style: &ComputedStyle,
     ) -> Scalar {
         let mut h = Scalar::ZERO;
+        // CORE-364: adjoining sibling margins collapse (CSS 2.1 §8.3.1), as
+        // `fill_one_column` lays them — measure and fill must agree or the
+        // balanced target is wrong. A text run between blocks breaks the
+        // adjacency; out-of-flow boxes do not.
+        let mut prev_margin_bottom = Scalar::ZERO;
         for item in items {
             match item {
                 Item::Text(text, _, _) => {
                     let lines = self.break_paragraph(text, col_w, style);
+                    if !lines.is_empty() {
+                        prev_margin_bottom = Scalar::ZERO;
+                    }
                     h = h + style.line_height * lines.len() as f64;
                 }
                 Item::Atomic(child) | Item::Block(child) => {
@@ -395,7 +403,9 @@ impl<'a> Ctx<'a> {
                     {
                         continue;
                     }
-                    h = h + self.measure_block(*child, col_w);
+                    h = h + self.measure_block(*child, col_w)
+                        - collapse_overlap(prev_margin_bottom, cs.margin_top);
+                    prev_margin_bottom = cs.margin_bottom;
                 }
             }
         }
@@ -698,6 +708,11 @@ impl<'a> Ctx<'a> {
         // whose first line did not fit returns a resume-at-zero token, not
         // a fresh one: the column loop has no empty-first-fragment defer).
         let mut broke_empty = false;
+        // CORE-364: the previous in-flow block sibling's margin-bottom in
+        // THIS column (the cursor already includes it). A fresh next sibling
+        // collapses against it, like the block path (CORE-118). Starts at
+        // zero: each column is its own fragmentainer.
+        let mut prev_margin_bottom = Scalar::ZERO;
 
         while i < end {
             let fallback = self.child_incoming(token, i);
@@ -720,6 +735,7 @@ impl<'a> Ctx<'a> {
                         i += 1;
                         continue;
                     }
+                    prev_margin_bottom = Scalar::ZERO;
                     let mut li = consumed_lines;
                     let mut run_broke = false;
                     while li < lines.len() {
@@ -866,6 +882,16 @@ impl<'a> Ctx<'a> {
                             flow: flow.clone(),
                         });
                     }
+                    // CORE-364: a fresh sibling's margin-top collapses with
+                    // the previous sibling's margin-bottom already in `y`.
+                    // Kept separate from `y` until the block is laid, so a
+                    // block that moves to the next column leaves this
+                    // column's height untouched.
+                    let block_y = if child_tok.is_break_before() && y > set_top {
+                        y - collapse_overlap(prev_margin_bottom, cs.margin_top)
+                    } else {
+                        y
+                    };
                     let h = self.measure_block(*child, col_w);
                     // A block fits if it ends at or before the column bottom,
                     // within a small epsilon. The balanced target is rounded
@@ -874,7 +900,7 @@ impl<'a> Ctx<'a> {
                     // rounded estimate by a hair (e.g. 0.005pt) — rejecting a
                     // block that genuinely fits the balanced column fragments
                     // the container and spills a page (CORE-246).
-                    let fits = y + h <= col_bottom + Scalar(0.01);
+                    let fits = block_y + h <= col_bottom + Scalar(0.01);
                     let last_resort = !page_placed && y == set_top;
                     // A block that does not fit may still SPLIT at the column
                     // bottom (css-multicol-1 §8 / css-break-3 §4: columns are
@@ -898,14 +924,15 @@ impl<'a> Ctx<'a> {
                         *child,
                         x,
                         col_w,
-                        y,
+                        block_y,
                         col_bottom,
                         page_placed,
                         &child_tok,
                         flow,
                     );
                     children.push(res.fragment);
-                    y = y + res.used;
+                    y = block_y + res.used;
+                    prev_margin_bottom = cs.margin_bottom;
                     page_placed = true;
                     if res.outgoing.is_some() {
                         broke_empty = res.used.get() <= 0.0;
@@ -968,5 +995,17 @@ impl<'a> Ctx<'a> {
         let mut frag = Fragment::block(origin, (col_w, height));
         frag.children = children;
         (frag, i, in_flight)
+    }
+}
+
+/// The part of a fresh sibling's `margin_top` that collapses into the
+/// previous sibling's `margin_bottom` (CSS 2.1 §8.3.1, positive margins:
+/// the gap becomes max(prev, top), so min(prev, top) is removed).
+fn collapse_overlap(prev_margin_bottom: Scalar, margin_top: Scalar) -> Scalar {
+    let m = prev_margin_bottom.get().min(margin_top.get());
+    if m > 0.0 {
+        Scalar(m)
+    } else {
+        Scalar::ZERO
     }
 }

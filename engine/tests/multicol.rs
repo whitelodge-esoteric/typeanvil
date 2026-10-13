@@ -729,3 +729,62 @@ fn final_page_balances_only_the_remaining_content() {
         "final-page columns differ by at most one line: {a} vs {b}"
     );
 }
+
+// --- CORE-364: sibling margins collapse inside a column -------------------
+
+/// Text line fragments anywhere under `f`.
+fn count_lines(f: &Fragment) -> usize {
+    let own = usize::from(matches!(f.content, FragmentContent::Text(_)));
+    own + f.children.iter().map(count_lines).sum::<usize>()
+}
+
+#[test]
+fn adjoining_sibling_margins_collapse_in_a_column() {
+    // CSS 2.1 §8.3.1: a 5pt margin-bottom followed by a 12pt margin-top
+    // leaves a 12pt gap, not 17pt, inside a column just as in block flow.
+    let fill: String = (1..=6).map(|k| format!("<p>Fill {k}</p>")).collect();
+    let html = format!(
+        r#"<html><head><style>
+        body {{ margin: 0; font-size: 12pt; line-height: 1.2; }}
+        p, div {{ margin: 0; padding: 0; }}
+        .mc {{ column-count: 2; }}
+        p.a {{ margin-bottom: 5pt; }}
+        p.b {{ margin-top: 12pt; }}
+    </style></head><body><div class="mc"><p class="a">Alpha</p><p class="b">Beta</p>{fill}</div></body></html>"#
+    );
+    let dom = dom_of(&html);
+    let layout = lay(&html);
+    let (a_id, b_id) = (node_id_by_class(&dom, "a"), node_id_by_class(&dom, "b"));
+    let mc = page_mc(&layout, 0);
+    let (ca, col) = column_containing(mc, a_id).expect("a laid in a column");
+    let (cb, _) = column_containing(mc, b_id).expect("b laid in a column");
+    assert_eq!(ca, cb, "a and b share column {ca}");
+    let (mut fa, mut fb) = (Vec::new(), Vec::new());
+    find_source(col, a_id, &mut fa);
+    find_source(col, b_id, &mut fb);
+    let a_bottom = fa[0].offset.y.get() + fa[0].size.1.get();
+    let gap = fb[0].offset.y.get() - a_bottom;
+    assert!((gap - 12.0).abs() < 0.01, "collapsed gap is max(5, 12) = 12pt, got {gap}");
+}
+
+#[test]
+fn balance_measure_collapses_margins_like_the_fill() {
+    // Eight one-line paragraphs with 10pt top+bottom margins. Collapsed, a
+    // column of four is 10 + 4 x 24.4 = 107.6pt, so the set balances 4/4.
+    // A measure that sums margins (275.2pt total) sets a 144pt target and
+    // the collapsing fill then packs five into column 0 and three into 1.
+    let items: String = (1..=8).map(|k| format!("<p>Item {k}</p>")).collect();
+    let html = format!(
+        r#"<html><head><style>
+        body {{ margin: 0; font-size: 12pt; line-height: 1.2; }}
+        div {{ margin: 0; padding: 0; }}
+        p {{ margin: 10pt 0; padding: 0; }}
+        .mc {{ column-count: 2; }}
+    </style></head><body><div class="mc">{items}</div></body></html>"#
+    );
+    let layout = lay(&html);
+    assert_eq!(layout.pages.len(), 1);
+    let cols = columns_on(&layout, 0);
+    let lines: Vec<usize> = cols.iter().map(|c| count_lines(c)).collect();
+    assert_eq!(lines, vec![4, 4], "balanced 4/4 lines per column, got {lines:?}");
+}
