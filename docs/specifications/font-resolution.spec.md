@@ -84,7 +84,9 @@ fontdb itself uses ttf-parser/skrifa-family parsing and adds no C FFI.
    §5.2: if target weight < 400, check weights ≤ target descending first;
    otherwise check weights ≥ target ascending first; then the remaining
    direction. Italic desired → italic/oblique faces first; normal desired →
-   normal faces first.
+   normal faces first. Width is matched before both (§5.2 step 4a): the
+   engine requests `normal` width, so when a family has any normal-width
+   face, its condensed/expanded faces are not candidates (CORE-361).
 5. Generic families SHALL resolve through the engine-owned generic table
    (CORE-361), NOT fontdb's generic slots: each generic lists concrete
    family names in order and the first installed family wins; when none is

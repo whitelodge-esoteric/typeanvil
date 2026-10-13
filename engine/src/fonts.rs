@@ -440,13 +440,22 @@ fn system_family_candidates(key: &str) -> Vec<FaceId> {
     if key == "arial" || key == "helvetica" {
         return BUNDLED_FACES.to_vec();
     }
-    FONTDB
+    let faces: Vec<&fontdb::FaceInfo> = FONTDB
         .faces()
         .filter(|face| {
             face.families
                 .iter()
                 .any(|(name, _)| name.to_ascii_lowercase() == key)
         })
+        .collect();
+    // css-fonts-4 §5.2 matches font-stretch BEFORE style and weight. The
+    // engine always wants `normal` width, so when the family has any
+    // normal-width face, condensed/expanded faces are not candidates
+    // (e.g. Papyrus vs Papyrus-Condensed, both 400 upright — CORE-361).
+    let has_normal = faces.iter().any(|f| f.stretch == fontdb::Stretch::Normal);
+    faces
+        .into_iter()
+        .filter(|f| !has_normal || f.stretch == fontdb::Stretch::Normal)
         .map(register_system_face)
         .fold(Vec::new(), |mut out, id| {
             if !out.contains(&id) {
@@ -712,6 +721,21 @@ mod tests {
             generic_table_candidates(&["no such family qz"]),
             BUNDLED_FACES.to_vec()
         );
+    }
+
+    // css-fonts-4 §5.2: normal width is matched before weight/style, so a
+    // family's condensed cut never wins over its normal cut (CORE-361).
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn normal_width_face_beats_condensed_cut() {
+        let r = resolve_font(&[FamilySpec::Name("Papyrus".into())], 400.0, FontStyle::Normal);
+        assert_eq!(face_postscript_name(r.primary), "Papyrus");
+        let r = resolve_font(
+            &[FamilySpec::Name("Helvetica Neue".into())],
+            700.0,
+            FontStyle::Normal,
+        );
+        assert_eq!(face_postscript_name(r.primary), "HelveticaNeue-Bold");
     }
 
     #[cfg(target_os = "macos")]

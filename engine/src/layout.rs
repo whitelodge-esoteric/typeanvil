@@ -760,13 +760,17 @@ fn attach_footnotes(
     const MARKER_HANG: f64 = 8.5;
     let font_size = Scalar(9.0);
     let lh_note = Scalar(13.45);
-    let face = crate::fonts::FACE_REGULAR;
     let mut y = content_bottom - area_height;
     for (num, id) in notes {
         let style = &styles[*id];
         if style.display == Display::None {
             continue;
         }
+        // The note's own resolved face: `break_paragraph` shapes the lines
+        // with `style.font_face`, so the run must draw with that same face.
+        // A fixed bundled face here drew one font's glyph ids/advances
+        // through another once generics resolved to real faces (CORE-361).
+        let face = style.font_face;
         let text = dom.text_content(*id);
         let inner = content_width - style.margin_left - style.margin_right;
         // First line reserves room for the "N. " prefix.
