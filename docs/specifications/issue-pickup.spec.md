@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-09-21
-updated: 2026-09-27
+updated: 2026-10-13
 sidebar_position: 2
 tags: [workflow, evidence, tooling, harness, docker]
 spec_id: issue-pickup
@@ -75,9 +75,13 @@ The pickup command shall:
 
 ### A. Resolve the branch point
 
-1. Accept an explicit release ref (default `release/2026.9`) and resolve it to
-   an exact source SHA with `git rev-parse origin/<ref>` after `git fetch
-   origin`. Fail clearly when the ref does not resolve.
+1. Accept an explicit release ref and resolve it to an exact source SHA with
+   `git rev-parse origin/<ref>` after `git fetch origin`. Without
+   `--release-ref`, use the ACTIVE release branch: the newest
+   `origin/release/*` by numeric version (`release/2026.10` is newer than
+   `release/2026.9`), and print the chosen ref. A hardcoded default goes stale
+   the moment a new release branch opens. Fail clearly when the ref does not
+   resolve or no `origin/release/*` branch exists.
 2. Accept an explicit worktree path. If the worktree exists, verify its HEAD
    equals the resolved SHA (or an explicitly supplied `--source-commit`).
    Fail on a mismatch rather than silently reusing a stale tree.
@@ -139,7 +143,7 @@ The pickup command shall:
 | Flag | Purpose |
 |---|---|
 | `--worktree` | path to the worktree (required) |
-| `--release-ref` | release ref to resolve (default `release/2026.9`) |
+| `--release-ref` | release ref to resolve (default: newest `origin/release/*` by version) |
 | `--source-commit` | explicit source SHA override (optional) |
 | `--issue` | issue identifier, used in the evidence directory name |
 | `--html` | concrete HTML input to render (exactly one of `--html`/`--wpt-id`) |
@@ -176,7 +180,8 @@ Each criterion maps to a test in `tests/test_pickup.py` or a recorded real run.
 
 1. **Branch point resolved** — Given a resolvable release ref, the command
    records the exact SHA; given an unresolvable ref, it exits 2 with a clear
-   message.
+   message. Without `--release-ref`, it picks the newest `origin/release/*`
+   by numeric version (`latest_release_ref`), and exits 2 when none exists.
 2. **Worktree ownership checked** — Given a worktree whose HEAD differs from
    the resolved SHA, the command fails rather than reusing it; given a dirty
    worktree without `--allow-dirty`, it fails and records the dirty state.

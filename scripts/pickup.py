@@ -15,7 +15,7 @@ Usage::
         --worktree ~/workspace/typeanvil.worktrees/core-238 \\
         --issue CORE-238 \\
         --wpt-id css-page/margin-boxes/content-003-print.html \\
-        [--release-ref release/2026.9] [--source-commit <sha>] \\
+        [--release-ref release/<version>] [--source-commit <sha>] \\
         [--html path/to/repro.html] [--out probe/issue-evidence] \\
         [--allow-dirty] [--no-engine] [--wpt /main/.wpt]
 
@@ -37,7 +37,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 PICKUP_SCHEMA = "typeanvil.pickup/1"
-DEFAULT_RELEASE_REF = "release/2026.9"
 DEFAULT_OUT = "probe/issue-evidence"
 DEFAULT_WPT = "/main/.wpt"
 BINARY_IN_CONTAINER = "/work/engine/target/debug/typeanvil"
@@ -205,8 +204,34 @@ def git_dirty(repo_root: Path) -> tuple[bool, str]:
         return True, "unknown"
 
 
-def resolve_release_sha(repo_root: Path, release_ref: str) -> str:
-    """Resolve ``origin/<release_ref>`` to a SHA after fetching origin."""
+def latest_release_ref(remote_refs: list[str]) -> str | None:
+    """Return the newest ``release/*`` among ``origin/...`` ref names.
+
+    Sorted by numeric version, not lexically: ``release/2026.10`` is newer
+    than ``release/2026.9``. A non-numeric suffix sorts below every numeric
+    one. ``None`` when no release branch exists.
+    """
+    prefix = "origin/release/"
+
+    def key(version: str) -> tuple:
+        parts = version.split(".")
+        if all(p.isdigit() for p in parts):
+            return (1, tuple(int(p) for p in parts))
+        return (0, tuple(parts))
+
+    versions = [r[len(prefix):] for r in remote_refs if r.startswith(prefix)]
+    if not versions:
+        return None
+    return f"release/{max(versions, key=key)}"
+
+
+def resolve_release_sha(repo_root: Path, release_ref: str | None) -> tuple[str, str]:
+    """Fetch origin and resolve ``origin/<release_ref>`` to ``(ref, sha)``.
+
+    ``release_ref=None`` selects the active release branch: the newest
+    ``origin/release/*`` (a hardcoded default goes stale when a new release
+    branch opens).
+    """
     try:
         subprocess.run(
             ["git", "fetch", "origin"],
@@ -218,6 +243,17 @@ def resolve_release_sha(repo_root: Path, release_ref: str) -> str:
         )
     except Exception as exc:  # noqa: BLE001
         raise PickupError(f"git fetch failed: {exc}") from exc
+    if release_ref is None:
+        proc = subprocess.run(
+            ["git", "for-each-ref", "--format=%(refname:short)", "refs/remotes/origin/release/"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=10.0,
+        )
+        release_ref = latest_release_ref((proc.stdout or "").split())
+        if release_ref is None:
+            raise PickupError("no origin/release/* branch found; pass --release-ref")
     ref = f"origin/{release_ref}"
     try:
         proc = subprocess.run(
@@ -230,7 +266,7 @@ def resolve_release_sha(repo_root: Path, release_ref: str) -> str:
         sha = (proc.stdout or "").strip()
         if proc.returncode != 0 or not sha:
             raise PickupError(f"release ref {ref!r} does not resolve")
-        return sha
+        return release_ref, sha
     except PickupError:
         raise
     except Exception as exc:  # noqa: BLE001
@@ -366,7 +402,11 @@ def main(argv: list[str] | None = None) -> int:
         prog="pickup", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--worktree", required=True, help="path to the worktree")
-    parser.add_argument("--release-ref", default=DEFAULT_RELEASE_REF)
+    parser.add_argument(
+        "--release-ref",
+        default=None,
+        help="release branch to resolve (default: newest origin/release/*)",
+    )
     parser.add_argument("--source-commit", default=None, help="explicit source SHA override")
     parser.add_argument("--issue", required=True, help="issue identifier, e.g. CORE-238")
     parser.add_argument("--html", default=None, help="concrete HTML input to render")
@@ -391,7 +431,11 @@ def main(argv: list[str] | None = None) -> int:
 
     # A. Resolve branch point + check ownership/dirty state.
     try:
-        sha = args.source_commit or resolve_release_sha(worktree, args.release_ref)
+        if args.source_commit:
+            sha = args.source_commit
+        else:
+            release_ref, sha = resolve_release_sha(worktree, args.release_ref)
+            print(f"release ref: {release_ref} @ {sha[:12]}")
     except PickupError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

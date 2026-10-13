@@ -14,8 +14,61 @@ from scripts.pickup import (
     evidence_dir,
     git_dirty,
     git_head,
+    latest_release_ref,
     validate_wpt_selection,
 )
+
+
+# ---------------------------------------------------------------------------
+# Release ref resolution
+# ---------------------------------------------------------------------------
+
+
+def test_latest_release_ref_sorts_numerically_not_lexically():
+    # Lexically "2026.9" > "2026.10"; the active branch is 2026.10.
+    refs = ["origin/release/2026.9", "origin/release/2026.10", "origin/release/2026.8"]
+    assert latest_release_ref(refs) == "release/2026.10"
+
+
+def test_latest_release_ref_ignores_non_release_and_head():
+    refs = ["origin/main", "origin/HEAD", "origin/release/2026.9", "origin/ebboston/x"]
+    assert latest_release_ref(refs) == "release/2026.9"
+
+
+def test_latest_release_ref_none_when_no_release_branch():
+    assert latest_release_ref(["origin/main"]) is None
+
+
+def test_default_release_ref_resolves_newest_remote_branch(tmp_path):
+    import subprocess
+
+    def git(*a, cwd):
+        subprocess.run(["git", "-C", str(cwd), *a], check=True, capture_output=True)
+
+    origin, clone = tmp_path / "origin", tmp_path / "clone"
+    subprocess.run(["git", "init", "-q", str(origin)], check=True)
+    git("config", "user.email", "t@t", cwd=origin)
+    git("config", "user.name", "t", cwd=origin)
+    (origin / "a.txt").write_text("x")
+    git("add", "a.txt", cwd=origin)
+    git("commit", "-qm", "init", cwd=origin)
+    git("branch", "release/2026.9", cwd=origin)
+    (origin / "a.txt").write_text("y")
+    git("commit", "-qam", "next", cwd=origin)
+    git("branch", "release/2026.10", cwd=origin)
+    subprocess.run(["git", "clone", "-q", str(origin), str(clone)], check=True)
+
+    from scripts.pickup import resolve_release_sha
+
+    sha_10 = subprocess.run(
+        ["git", "-C", str(origin), "rev-parse", "release/2026.10"],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip()
+    ref, sha = resolve_release_sha(clone, None)
+    assert (ref, sha) == ("release/2026.10", sha_10)
+    # An explicit ref still wins.
+    ref, _ = resolve_release_sha(clone, "release/2026.9")
+    assert ref == "release/2026.9"
 
 
 # ---------------------------------------------------------------------------
