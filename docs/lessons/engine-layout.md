@@ -91,6 +91,10 @@ Layout changes often cross measurement, fragmentation, fragment assembly, and pa
 
 Use focused engine tests and direct PDF measurements for the changed invariant. Run the full relevant test suite after composition changes, because a clean reftest status can hide a uniform change.
 
+- **A uniform default font hides face mismatches; lifting it exposes them** (verified CORE-361, 2026-10-13): while every generic resolved to bundled Arial, code that hard-wired `FACE_REGULAR` (footnote runs) or a `sans-serif` fallback (margin boxes) agreed with the cascade by accident. Once `serif` resolved to Times, footnotes drew Times-shaped advances through Arial and ten margin-box WPT tests failed. Before changing font resolution, grep for `FACE_REGULAR` and hard-coded `FamilySpec` defaults, and render a serif document with footnotes and margin boxes. A text-extraction check cannot see this class of bug (ToUnicode stays correct); look at pixels or compare run faces.
+- **Do not trust fontdb's generic slots on Linux** (verified CORE-361): with its default `fontconfig` feature, fontdb takes the first `prefer` name from fontconfig aliases, which in the dev container gave FreeSerif/FreeMono and two uninstalled faces, disagreeing with `fc-match`. Generics resolve through the engine-owned table in `fonts.rs` (font-resolution spec Behavior 5).
+- **Classify a mass re-baseline by measurement, per document** (verified CORE-361): 429 gate changes were triaged by re-rendering each with both binaries and comparing page count, embedded fonts, and the word sequence per page (`probe/classify.py` pattern). "Same words on the same pages, font switched" separates glyph-only variation from real reflow, which then gets individual inspection.
+
 ## References
 
 - [CSS standards alignment](../conventions/css-standards-alignment.md)
