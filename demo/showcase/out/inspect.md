@@ -85,7 +85,7 @@ TypeAnvil 3 page(s) / Prince 1 page(s)
 
 ### WeasyPrint Report
 
-TypeAnvil 13 page(s) / Prince 8 page(s)
+TypeAnvil 14 page(s) / Prince 8 page(s)
 
 | TypeAnvil | Prince (reference) |
 | --- | --- |
@@ -102,6 +102,7 @@ TypeAnvil 13 page(s) / Prince 8 page(s)
 | <img src="images/weasyprint-report/page-011-ta.png" alt="WeasyPrint Report — page-011-ta" width="420"> | *(no page)* |
 | <img src="images/weasyprint-report/page-012-ta.png" alt="WeasyPrint Report — page-012-ta" width="420"> | *(no page)* |
 | <img src="images/weasyprint-report/page-013-ta.png" alt="WeasyPrint Report — page-013-ta" width="420"> | *(no page)* |
+| <img src="images/weasyprint-report/page-014-ta.png" alt="WeasyPrint Report — page-014-ta" width="420"> | *(no page)* |
 
 ### WeasyPrint Ticket
 

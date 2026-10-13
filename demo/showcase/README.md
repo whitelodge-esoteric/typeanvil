@@ -36,7 +36,7 @@ The bar-chart bars-outside-plot issue (first/last bar crossing the axis,
 
 ## Showcase — print-resolution renders (US Letter @ 300 DPI)
 
-Realistic-size pages rendered by the TypeAnvil engine only (commit `76dde8d`). The side-by-side comparison gallery lives in [the comparison README](../corpus/README.md) and runs at 5in × 3in @ 96 DPI so diffs stay cheap; these pages show the same engine at the geometry documents actually print at. Prince renders only the comparison pipeline — the showcase is a TypeAnvil output gallery, not a diff target.
+Realistic-size pages rendered by the TypeAnvil engine only (commit `b01cffc`). The side-by-side comparison gallery lives in [the comparison README](../corpus/README.md) and runs at 5in × 3in @ 96 DPI so diffs stay cheap; these pages show the same engine at the geometry documents actually print at. Prince renders only the comparison pipeline — the showcase is a TypeAnvil output gallery, not a diff target.
 
 ### Book Sample
 
@@ -118,6 +118,7 @@ Realistic-size pages rendered by the TypeAnvil engine only (commit `76dde8d`). T
 <img src="out/images/weasyprint-report/page-011-ta.png" alt="WeasyPrint Report — page-011-ta" width="420">
 <img src="out/images/weasyprint-report/page-012-ta.png" alt="WeasyPrint Report — page-012-ta" width="420">
 <img src="out/images/weasyprint-report/page-013-ta.png" alt="WeasyPrint Report — page-013-ta" width="420">
+<img src="out/images/weasyprint-report/page-014-ta.png" alt="WeasyPrint Report — page-014-ta" width="420">
 
 ### WeasyPrint Ticket
 
