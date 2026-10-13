@@ -253,6 +253,44 @@ impl PlacedFloat {
     }
 }
 
+/// CORE-365: a rollback point for between-sibling break avoidance, taken
+/// before laying a fresh in-flow block child whose boundary with the next
+/// sibling is `break-after`/`break-before: avoid`. Restoring it un-lays that
+/// child (and every later sibling) exactly: children, outgoing tokens, cursor,
+/// `Flow` bookkeeping, and the link sink — the same mechanism as the
+/// footnote-area re-lay.
+struct AvoidSnap {
+    /// Item index of the child the snapshot precedes.
+    index: usize,
+    /// Content precedes this child on the fragmentainer and the child starts
+    /// fresh here, so a break before it is a real (earlier) breakpoint.
+    can_back_up: bool,
+    children_len: usize,
+    outgoing_len: usize,
+    y: Scalar,
+    links_len: usize,
+    flow: Flow,
+}
+
+/// CORE-365: whether the boundary between in-flow block item `i` and the
+/// next item is an avoid boundary (css-break-3 §3.1): both items are adjacent
+/// in-flow blocks, one side declares `avoid`, and neither side declares a
+/// forced value (page or column — forced wins).
+fn avoid_boundary_after(styles: &[ComputedStyle], items: &[Item], i: usize) -> bool {
+    let (Some(Item::Block(a)), Some(Item::Block(b))) = (items.get(i), items.get(i + 1)) else {
+        return false;
+    };
+    let (a, b) = (&styles[*a], &styles[*b]);
+    let in_flow = |s: &ComputedStyle| {
+        s.float == Float::None && matches!(s.position, Position::Static | Position::Relative)
+    };
+    in_flow(a)
+        && in_flow(b)
+        && !a.break_after.forces_any_break()
+        && !b.break_before.forces_any_break()
+        && (a.break_after.is_avoid() || b.break_before.is_avoid())
+}
+
 impl Flow {
     fn page_number(&self) -> i32 {
         self.page_counter
@@ -2684,6 +2722,9 @@ impl<'a> Ctx<'a> {
         // alignment offset is meaningful; a line started by an atomic is
         // packed from the segment origin with no realignment).
         let mut atomic_line_from_text = false;
+        // CORE-365: rollback points for the current run of consecutive avoid
+        // boundaries (see `AvoidSnap`).
+        let mut avoid_chain: Vec<AvoidSnap> = Vec::new();
         let mut i = start_index;
         while i < items.len() {
             // A deferred page-change break fires when the loop reaches the
@@ -4168,6 +4209,24 @@ impl<'a> Ctx<'a> {
                         i += 1;
                         continue;
                     }
+                    // CORE-365: between-sibling break avoidance. Keep the
+                    // rollback chain contiguous, then snapshot BEFORE the
+                    // margin collapse when this child's boundary with the
+                    // next sibling is avoid.
+                    if avoid_chain.last().is_some_and(|s| s.index + 1 != i) {
+                        avoid_chain.clear();
+                    }
+                    if avoid_boundary_after(self.styles, &items, i) {
+                        avoid_chain.push(AvoidSnap {
+                            index: i,
+                            can_back_up: placed && child_tok.is_break_before(),
+                            children_len: children.len(),
+                            outgoing_len: outgoing_children.len(),
+                            y,
+                            links_len: self.links.borrow().len(),
+                            flow: flow.clone(),
+                        });
+                    }
                     // CORE-118 margin collapse: the cursor already carries
                     // the previous sibling's margin-bottom; a fresh sibling
                     // adds its own full margin-top inside layout_box. Remove
@@ -4490,6 +4549,33 @@ impl<'a> Ctx<'a> {
                 }
             }
             i += 1;
+        }
+
+        // CORE-365: the loop broke because item `i` was pushed WHOLE to the
+        // next fragmentainer (a fresh token: nothing of it placed here) right
+        // after an avoid chain ending at `i - 1`. Break before the chain's
+        // first sibling instead when content precedes it on this
+        // fragmentainer; otherwise keep the natural break (avoid is a
+        // preference, and the latest break wins when every one violates it).
+        // A page-context break (`deferred_break_at`) is forced: never undone.
+        if broke
+            && deferred_break_at != Some(i)
+            && avoid_chain.last().is_some_and(|s| s.index + 1 == i)
+            && avoid_chain[0].can_back_up
+            && outgoing_children
+                .last()
+                .is_some_and(|c| c.index == i && c.token.is_break_before())
+        {
+            let snap = avoid_chain.swap_remove(0);
+            children.truncate(snap.children_len);
+            outgoing_children.truncate(snap.outgoing_len);
+            self.links.borrow_mut().truncate(snap.links_len);
+            *flow = snap.flow;
+            y = snap.y;
+            outgoing_children.push(ChildToken {
+                index: snap.index,
+                token: BreakToken::break_before(),
+            });
         }
 
         flow.abspos_cb = saved_abspos_cb;

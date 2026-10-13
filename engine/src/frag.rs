@@ -44,13 +44,35 @@ pub enum BreakBetween {
     Left,
     /// Force a break to the next right page (treated as a page break here).
     Right,
+    /// Avoid a break at the adjoining boundary (`avoid` / `avoid-page` /
+    /// `avoid-column`, legacy `page-break-*: avoid`). A preference, not a
+    /// forced break: layout backs up to the previous sibling boundary when one
+    /// exists (CORE-365, fragmentation-core spec, between-sibling avoidance).
+    Avoid,
+    /// Force a column break (`column`). v1 does not break for it (it was
+    /// dropped as unparsed before CORE-365), but as a forced value it still
+    /// defeats an `avoid` on the other side of the boundary.
+    Column,
 }
 
 impl BreakBetween {
     /// Whether this value forces a page break at the adjoining boundary.
     #[inline]
     pub fn is_forced(self) -> bool {
-        !matches!(self, BreakBetween::Auto)
+        matches!(self, BreakBetween::Page | BreakBetween::Left | BreakBetween::Right)
+    }
+
+    /// Whether this value forces a break of ANY fragmentainer type (page or
+    /// column) — forced values beat `avoid` at a boundary (css-break-3 §3.1).
+    #[inline]
+    pub fn forces_any_break(self) -> bool {
+        self.is_forced() || matches!(self, BreakBetween::Column)
+    }
+
+    /// Whether this value asks to avoid a break at the adjoining boundary.
+    #[inline]
+    pub fn is_avoid(self) -> bool {
+        matches!(self, BreakBetween::Avoid)
     }
 }
 

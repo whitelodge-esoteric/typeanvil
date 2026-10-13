@@ -4,7 +4,7 @@ type: lesson
 status: approved
 owner: maintainers
 created: 2026-09-16
-updated: 2026-09-27
+updated: 2026-10-13
 sidebar_position: 3
 tags: [harness, wpt, testing, evidence]
 ---
@@ -66,6 +66,8 @@ Probe scripts named below (`probe-render.py`, `oracle-mb.py`, `page-counts.py`, 
 - **Piping `cargo test` through `grep`/`tail` MASKS its exit code** (verified): the pipeline reports the filter's status, so a run can look green while a binary failed. Redirect to a file and read the real code — `cargo test ... > /work/test-out.txt 2>&1; echo "cargo exit=$?"; grep -c "test result: ok" /work/test-out.txt; grep -c "test result: FAILED" /work/test-out.txt` — the suite is 42 binaries, so expect 42 result lines.
 - **A ticket's stated root cause is a HYPOTHESIS — disprove it against the fixtures before writing code** (verified, 2026-09-15): a ticket blamed "per-side border colours" for `paint-order-001/002`, but those fixtures declare only `border: solid thin`; the real blocker was paint order/`z-index`, and `grep -rl 'border-(top|right|bottom|left)-color'` over the whole bucket returned ZERO fixtures. Three cheap checks settle it: grep the NAMED fixtures for the property the ticket blames, read the harness message (a page-count mismatch and a pixel diff are different bugs), and check wpt.fyi for the fixture's validity. When the blamed property appears in no target fixture, the ticket is mis-scoped: take the re-scope to the user (they chose it) and file the disproven-but-real bug as its own issue rather than silently dropping it.
 - **Probe the REFERENCE before blaming your own side, and read the DIFF SIZE as a signal** (verified): a diff covering 63% of the page is a LAYOUT failure, not a paint-order near-miss. Rendering the fixture's ref through our own engine and reporting per-colour pixel counts plus bounding boxes (`probe/regions.py`) showed `paint-order-001`'s ref paints NO pink and NO yellow box at all — its grid/flex plus inline `z-index` simulation does not lay out, so no amount of test-side correctness can match it. That finding turned an unbounded "fix the fixture" job into a clean, bounded one (`003` passed; `001/002` filed as a ref-side issue).
+- **A clean gate can mean the feature is not in the selection** (verified CORE-365): break-between avoid passed the gate with 0 of 522 documents changed because only ONE gated doc used it (and as forced-wins). An out-of-gate A/B over the 92 WPT tests that use the property (render test with base and candidate in one container loop, byte-compare, then score changed ones) found three over-eager backups the gate could not see. For a new CSS capability, grep the WPT tree for the property and A/B those files too. The local `.wpt` checkout is sparse (no `css/reference/`), so score green-square references by counting red/green pixels.
+- **The Chromium print oracle drops backgrounds on screen reftests** (verified CORE-365): `flex-container-fragmentation-003` printed through playwright shows 0 green and 0 red pixels, so it cannot judge a colour-square test. Record such a change as unverified rather than claiming it matches Chromium.
 
 ## Verification
 

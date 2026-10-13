@@ -572,6 +572,7 @@ impl<'a> Ctx<'a> {
                 resume,
                 flow,
                 style,
+                false,
             );
             cols.push(col_frag);
             i = consumed;
@@ -638,6 +639,7 @@ impl<'a> Ctx<'a> {
                 resume,
                 flow,
                 style,
+                true,
             );
             cols.push(col_frag);
             i = consumed;
@@ -659,6 +661,12 @@ impl<'a> Ctx<'a> {
     /// Fill one column fragment with items starting at `start`, breaking at
     /// `col_bottom`. Returns (column fragment, consumed_upto, in-flight
     /// child token when the content did not finish in this column).
+    ///
+    /// `honor_avoid` enables the CORE-365 between-sibling avoid backup. Only
+    /// page-filling columns honor it: a balanced set fixes its column height
+    /// before filling, so a backup there would spill the set's tail past the
+    /// last column onto a new page (v1 limitation; Chromium grows the
+    /// balanced height instead).
     #[allow(clippy::too_many_arguments)]
     fn fill_one_column(
         &self,
@@ -675,6 +683,7 @@ impl<'a> Ctx<'a> {
         resume: Option<(usize, BreakToken)>,
         flow: &mut Flow,
         style: &ComputedStyle,
+        honor_avoid: bool,
     ) -> (Fragment, usize, Option<ChildToken>) {
         let mut children: Vec<Fragment> = Vec::new();
         let mut y = set_top;
@@ -682,6 +691,13 @@ impl<'a> Ctx<'a> {
         let mut page_placed = placed;
         let mut in_flight: Option<ChildToken> = None;
         let mut broke = false;
+        // CORE-365: rollback points for consecutive avoid boundaries in this
+        // column (the block path's `AvoidSnap` model, column-scoped).
+        let mut avoid_chain: Vec<AvoidSnap> = Vec::new();
+        // The block that broke the column took no space in it (a paragraph
+        // whose first line did not fit returns a resume-at-zero token, not
+        // a fresh one: the column loop has no empty-first-fragment defer).
+        let mut broke_empty = false;
 
         while i < end {
             let fallback = self.child_incoming(token, i);
@@ -831,6 +847,25 @@ impl<'a> Ctx<'a> {
                         broke = true;
                         break;
                     }
+                    // CORE-365: snapshot before a block whose boundary with
+                    // the next sibling is avoid. The column is the
+                    // fragmentainer here: a break before this block is an
+                    // earlier breakpoint only when content sits above it IN
+                    // THIS column (`page_placed` restarts per column).
+                    if avoid_chain.last().is_some_and(|s| s.index + 1 != i) {
+                        avoid_chain.clear();
+                    }
+                    if honor_avoid && avoid_boundary_after(self.styles, items, i) {
+                        avoid_chain.push(AvoidSnap {
+                            index: i,
+                            can_back_up: y > set_top && child_tok.is_break_before(),
+                            children_len: children.len(),
+                            outgoing_len: 0,
+                            y,
+                            links_len: self.links.borrow().len(),
+                            flow: flow.clone(),
+                        });
+                    }
                     let h = self.measure_block(*child, col_w);
                     // A block fits if it ends at or before the column bottom,
                     // within a small epsilon. The balanced target is rounded
@@ -873,6 +908,7 @@ impl<'a> Ctx<'a> {
                     y = y + res.used;
                     page_placed = true;
                     if res.outgoing.is_some() {
+                        broke_empty = res.used.get() <= 0.0;
                         in_flight = Some(ChildToken {
                             index: i,
                             token: res.outgoing.unwrap(),
@@ -883,6 +919,28 @@ impl<'a> Ctx<'a> {
                     i += 1;
                 }
             }
+        }
+        // CORE-365: block `i` was pushed whole to the next column right after
+        // an avoid chain ending at `i - 1`: break before the chain's first
+        // sibling instead when content precedes it in this column.
+        if honor_avoid
+            && broke
+            && avoid_chain.last().is_some_and(|s| s.index + 1 == i)
+            && avoid_chain[0].can_back_up
+            && in_flight
+                .as_ref()
+                .is_some_and(|c| c.index == i && (c.token.is_break_before() || broke_empty))
+        {
+            let snap = avoid_chain.swap_remove(0);
+            children.truncate(snap.children_len);
+            self.links.borrow_mut().truncate(snap.links_len);
+            *flow = snap.flow;
+            y = snap.y;
+            i = snap.index;
+            in_flight = Some(ChildToken {
+                index: snap.index,
+                token: BreakToken::break_before(),
+            });
         }
         let _ = id;
 

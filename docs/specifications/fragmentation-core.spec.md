@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-08-16
-updated: 2026-09-27
+updated: 2026-10-13
 sidebar_position: 2
 tags: [layout, fragmentation, css-break, engine]
 spec_id: fragmentation-core
@@ -55,6 +55,10 @@ break optimization pass — start greedy + appeal.
   the EarlyBreak chain: one abort-and-relayout per fragmentation flow when
   space runs out at a bad point, stopping deterministically at the recorded
   break.
+- `break-before`/`break-after: avoid` (and `avoid-page`, `avoid-column`, the
+  legacy `page-break-*: avoid`) honored between adjacent in-flow block
+  siblings by backing up to the previous sibling boundary (see the Addendum
+  "Between-Sibling Break Avoidance").
 - Monolithic content taller than a fragmentainer **overflows, never slices**.
   EXCEPTION: a PINNED abspos whose used inset lands at/past the
   fragmentainer bottom is deferred to the page CONTAINING its offset
@@ -188,7 +192,7 @@ pub fn layout(dom: &Dom, stylesheet: &Stylesheet, geometry: PageGeometry)
 converted from stylo computed values:
 
 ```text
-break_before:  BreakBetween   // auto | page | always | left | right
+break_before:  BreakBetween   // auto | avoid | page | always | left | right
 break_after:   BreakBetween
 break_inside:  BreakInside    // auto | avoid
 orphans: u32                   // default 2
@@ -360,3 +364,87 @@ makes no progress, so the page loop still terminates.
 A forced break itself never marks the box finished while
 `declared − consumed > 0`; the next page continues the remaining extent.
 
+## Addendum: Between-Sibling Break Avoidance
+
+`updated: 2026-10-13` (CORE-365). Narrowed slice: `break-before: avoid` and
+`break-after: avoid` between adjacent in-flow block siblings, in the block
+path (`layout_box` item loop) and the multicol column loop.
+
+### Problem
+
+`parse_between` folded `avoid` into `auto`, so a heading with
+`break-after: avoid` (or the legacy `page-break-after: avoid`) that lands on
+the last line of a page stays there while its paragraph starts the next page.
+Chromium and Prince move the heading to the next page with its text
+(css-break-3 §3.1, §4.4).
+
+### Behavior
+
+1. `break-before` / `break-after` values `avoid`, `avoid-page`, and
+   `avoid-column`, and the legacy `page-break-before` / `page-break-after:
+   avoid`, SHALL compute to `BreakBetween::Avoid`. `Avoid` is not a forced
+   break (`is_forced()` stays false). v1 deviation: the three keywords are not
+   distinguished by fragmentainer type (a column break and a page break are
+   both avoided by any of them). `column` SHALL compute to
+   `BreakBetween::Column`: v1 does not break for it (unchanged from when it
+   was dropped as unparsed), but it is a forced value for rule 2.
+2. The boundary between two ADJACENT in-flow block siblings A then B (both
+   non-floated and `static`/`relative`; no text run, float, or abspos item
+   between them) is an **avoid boundary** when A's `break-after` or B's
+   `break-before` is `Avoid`, and neither value is a forced value (`page`,
+   `always`, `left`, `right`, `column`).
+3. When B places nothing on the current fragmentainer and is pushed whole to
+   the next one (any defer path: does not fit, empty first fragment, declared
+   extent, `break-inside: avoid`; in a column, also a block that broke having
+   used zero block size), and the A|B boundary is an avoid boundary, the
+   engine SHALL break before A instead: A is removed from the current
+   fragmentainer and starts the next one, with B following it.
+4. Chains: when the boundary before A is also an avoid boundary, the backup
+   goes to the FIRST sibling of the consecutive avoid chain.
+5. Avoidance is a preference: when that first sibling did not start fresh on
+   this fragmentainer, or nothing precedes it there (on a page: anything
+   placed on the fragmentainer; in a column: anything above it in that
+   column), no earlier non-violating break exists and the engine SHALL break
+   at the natural point (B moves, A stays). Every candidate violates an
+   avoid, so the latest one wins, as in Chromium.
+6. Forced breaks win: a forced `break-before` on B or `break-after` on A
+   breaks at the A|B boundary regardless of avoid.
+7. The backup SHALL restore layout state exactly: the placed children, the
+   outgoing child tokens, the cursor, the `Flow` bookkeeping (running
+   strings, counters, floats, footnote registrations), and the link-rect sink
+   are rolled back to their values before A was laid (same mechanism as the
+   footnote-area re-lay).
+8. Termination: a backup leaves at least the content before the chain on the
+   current fragmentainer, so every page makes progress; on the next
+   fragmentainer the chain starts with nothing before it and rule 5 applies.
+
+### Non-Goals (known limitations)
+
+- Propagation (css-break-3 §4.1): an avoid on a box's first or last child
+  does not constrain the parent's own sibling boundary, and an avoid between
+  two boxes does not reach into their descendants' breakpoints.
+- Flex items, grid items, and table rows do not honor between-sibling avoid.
+- Balanced multicol sets (a set whose content fits the page and whose
+  column height is computed before filling) do not back up: a backup there
+  would spill the set's tail past the last column onto a new page
+  (css-multicol `balance-break-avoidance-002` shape). Chromium grows the
+  balanced height instead. Columns that fill to the page bottom honor avoid.
+- B that places some content and then breaks is a break inside B (governed by
+  orphans/widows), not an A|B boundary break; it is unaffected.
+
+### Acceptance Criteria
+
+| # | Test | Asserts |
+|---|------|---------|
+| AC1 | `avoid_after_keeps_heading_with_paragraph` | `h2 {break-after: avoid}` on a page's last line moves to the next page with its paragraph; page 1 holds only the content before it |
+| AC2 | `legacy_page_break_after_avoid_matches` | `page-break-after: avoid` renders the same pages as AC1 |
+| AC3 | `avoid_before_on_following_sibling` | `p {break-before: avoid}` keeps the preceding heading with it |
+| AC4 | `avoid_chain_moves_every_heading` | `h1` + `h2`, both `break-after: avoid`, move together with the paragraph |
+| AC5 | `avoid_without_earlier_break_breaks_anyway` | A heading first on the page followed by a block that defers: the heading stays, the block moves, layout terminates |
+| AC6 | `forced_break_wins_over_avoid` | `break-after: avoid` on A plus `break-before: page` on B breaks between them |
+| AC6b | `column_break_value_defeats_avoid` | `break-after: column` on A beats `break-before: avoid` on B: the natural break stands |
+| AC7 | `avoid_after_inside_column_moves_heading` (multicol.rs) | A heading with `break-after: avoid` at a column bottom moves to the next column with its paragraph |
+| AC7b | `balanced_set_ignores_avoid_instead_of_spilling` (multicol.rs) | A balanced set with an avoid boundary stays on one page |
+| AC8 | `avoid_is_not_forced` (css unit) | `avoid`, `avoid-page`, `avoid-column` parse to `Avoid`; `is_forced()` is false |
+
+AC1–AC6b and AC8 live in `engine/tests/break_between_avoid.rs`.

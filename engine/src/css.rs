@@ -2958,9 +2958,11 @@ mod breaks {
             "page" | "always" => Some(BreakBetween::Page),
             "left" => Some(BreakBetween::Left),
             "right" => Some(BreakBetween::Right),
-            // `avoid` on a between-property is not a page break; treat as auto
-            // (this engine models between-avoidance only via appeal, not here).
-            "avoid" => Some(BreakBetween::Auto),
+            // Between-sibling avoidance (CORE-365). v1 does not distinguish
+            // page from column fragmentainers, so all three keywords avoid
+            // any break at the boundary.
+            "avoid" | "avoid-page" | "avoid-column" => Some(BreakBetween::Avoid),
+            "column" => Some(BreakBetween::Column),
             _ => None,
         }
     }

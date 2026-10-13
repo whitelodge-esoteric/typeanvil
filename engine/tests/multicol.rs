@@ -366,6 +366,75 @@ fn avoid_box_moves_to_next_column() {
     );
 }
 
+// --- 6b. Between-sibling avoid inside a column (CORE-365) ----------------
+
+#[test]
+fn avoid_after_inside_column_moves_heading() {
+    // The content overflows the page, so page 1's columns FILL to the 144pt
+    // content bottom (no balancing). A 132pt filler leaves one 12pt line in
+    // column 0: the heading lands there and its paragraph starts column 1.
+    // With `break-after: avoid` the heading moves to column 1's top.
+    let words = (0..400).map(|i| format!("w{i}")).collect::<Vec<_>>().join(" ");
+    let doc = |css: &str| {
+        format!(
+            r#"<html><head><style>
+        body {{ margin: 0; font-size: 12pt; line-height: 12pt; }}
+        p, div, h2 {{ margin: 0; padding: 0; font-size: 12pt; line-height: 12pt; }}
+        .mc {{ column-count: 2; }}
+        .fill {{ height: 132pt; }}
+        {css}
+    </style></head>
+    <body><div class="mc">
+        <div class="fill">FILL</div>
+        <h2 class="head">HEADING</h2>
+        <p>{words}</p>
+    </div></body></html>"#
+        )
+    };
+    // Sanity: without avoid the heading ends column 0.
+    let control = doc("");
+    let layout = lay(&control);
+    let head = node_id_by_class(&dom_of(&control), "head");
+    let (col, _) = column_containing(page_mc(&layout, 0), head).expect("heading in a column");
+    assert_eq!(col, 0, "control: heading strands at the bottom of column 0");
+
+    let html = doc("h2 { break-after: avoid; }");
+    let layout = lay(&html);
+    let head = node_id_by_class(&dom_of(&html), "head");
+    let container = page_mc(&layout, 0);
+    let (col, _) = column_containing(container, head).expect("heading in a column");
+    assert_eq!(col, 1, "the heading moves to the next column with its paragraph");
+    let mut frags = Vec::new();
+    find_source(container, head, &mut frags);
+    assert!(
+        frags[0].offset.y.get().abs() < 0.5,
+        "heading at the column top, got y={}",
+        frags[0].offset.y.get()
+    );
+}
+
+#[test]
+fn balanced_set_ignores_avoid_instead_of_spilling() {
+    // A balanced set (no declared height, fits the page) fixes its column
+    // height before filling. Backing up at an avoid boundary there would
+    // spill the last block past the final column onto a NEW page
+    // (css-multicol balance-break-avoidance-002 shape). v1 keeps the
+    // balanced fill as-is: one page, all four blocks laid.
+    let html = r#"<html><head><style>
+        body { margin: 0; }
+        div { margin: 0; padding: 0; }
+        .mc { width: 100px; columns: 2; column-gap: 0; }
+    </style></head>
+    <body><div class="mc">
+        <div style="height:25px;"></div>
+        <div style="height:50px;"></div>
+        <div style="height:25px; break-before:avoid;"></div>
+        <div style="height:50px;"></div>
+    </div></body></html>"#;
+    let layout = lay(html);
+    assert_eq!(layout.pages.len(), 1, "a balanced set must not spill to a new page");
+}
+
 // --- 7. (css-multicol WPT subset: harness follow-up — see close-out) ------
 
 // --- 8. Determinism -------------------------------------------------------

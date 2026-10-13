@@ -121,6 +121,10 @@ The engine shall:
    to the next column. `break-inside: avoid`, widows, orphans, and forced
    breaks apply per column fragmentainer — a forced break is the computed
    `break-before`, never a child's fresh-start token (CORE-360).
+   Between-sibling `break-before`/`break-after: avoid` applies per column too:
+   a heading that would end a column apart from its paragraph moves to the
+   next column with it (fragmentation-core.spec.md, Addendum "Between-Sibling
+   Break Avoidance", CORE-365).
 9. Stay deterministic: column geometry is a pure function of measure; measure
    passes are bounded and deterministic.
 
