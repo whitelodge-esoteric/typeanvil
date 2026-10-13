@@ -1211,45 +1211,75 @@ fn paginate(
         // area if any call marker PLACED on this page (`pending_footnotes`).
         // When the body ran past the reserved band, re-lay the page with the
         // floor raised — Flow snapshots restore exactly, and the link sink
-        // truncates so rects from the discarded attempt do not leak. The
-        // retry places a strict SUBSET of the first attempt's lines, so the
-        // second attempt's registrations never exceed the first's and the
-        // measured band is always big enough.
+        // truncates so rects from the discarded attempt do not leak.
+        //
+        // CORE-366: the band must hold the notes whose calls land on THIS
+        // page (footnotes.spec.md req. 4/6), not every note the full-height
+        // attempt reached. Reserving for all of them once over-reserved
+        // whenever that attempt was generous — the body starved, notes
+        // floated mid-page, and a mid-page multicol could lose the whole
+        // page. Calls register in document order, so a raised-floor attempt
+        // places a PREFIX of the first attempt's notes, and fewer as the
+        // floor rises. Search for the smallest prefix `k` whose reserved
+        // area admits the notes the body then places (monotone in `k`;
+        // `k = all` holds by the subset argument), re-lay at it, and size
+        // the band to the notes actually attached.
         let content_bottom = content.y + content.height;
         let saved_flow = flow.clone();
         let saved_links_len = links.borrow().len();
         let mut res =
             ctx.layout_root(root, content.y, &token, &mut flow);
         if !fn_numbers.is_empty() && !flow.pending_footnotes.is_empty() {
-            let area_h =
-                footnote_area_height(dom, styles, &flow.pending_footnotes, content.width);
+            let area_of = |notes: &[(usize, NodeId)]| {
+                footnote_area_height(dom, styles, notes, content.width)
+            };
+            let first_notes = flow.pending_footnotes.clone();
+            let mut area_h = area_of(&first_notes);
             if area_h.get() > 0.0 {
-                let area_top = content_bottom - area_h;
-                if content.y + res.used > area_top {
-                    flow = saved_flow.clone();
-                    links.borrow_mut().truncate(saved_links_len);
-                    let ctx2 = Ctx {
-                        dom,
-                        styles,
-                        content_x: content.x,
-                        content_width: content.width,
-                        content_y: content.y,
-                        page_height: area_top - content.y,
-                        icb_width: icb.width,
-                        icb_height: icb.height,
-                        target_pages,
-                        target_counters,
-                        total_pages,
-                        links,
-                        page_index,
-                        image_infos,
-                        fn_numbers,
-                        counter_snaps: &counter_snaps,
+                if content.y + res.used > content_bottom - area_h {
+                    // One attempt with `reserve` points held back for notes.
+                    let relay = |reserve: Scalar, flow: &mut Flow| -> BlockResult {
+                        *flow = saved_flow.clone();
+                        links.borrow_mut().truncate(saved_links_len);
+                        let ctx2 = Ctx {
+                            dom,
+                            styles,
+                            content_x: content.x,
+                            content_width: content.width,
+                            content_y: content.y,
+                            page_height: content_bottom - reserve - content.y,
+                            icb_width: icb.width,
+                            icb_height: icb.height,
+                            target_pages,
+                            target_counters,
+                            total_pages,
+                            links,
+                            page_index,
+                            image_infos,
+                            fn_numbers,
+                            counter_snaps: &counter_snaps,
+                        };
+                        ctx2.layout_root(root, content.y, &token, flow)
                     };
-                    res = ctx2.layout_root(root, content.y, &token, &mut flow);
+                    let (mut lo, mut hi) = (1usize, first_notes.len());
+                    while lo < hi {
+                        let mid = (lo + hi) / 2;
+                        let reserve = area_of(&first_notes[..mid]);
+                        relay(reserve, &mut flow);
+                        let placed = area_of(&flow.pending_footnotes);
+                        if placed.get() <= reserve.get() + 1e-6 {
+                            hi = mid;
+                        } else {
+                            lo = mid + 1;
+                        }
+                    }
+                    // Re-lay the chosen attempt last so the Flow and the link
+                    // sink hold exactly its state.
+                    res = relay(area_of(&first_notes[..hi]), &mut flow);
+                    area_h = area_of(&flow.pending_footnotes);
                 }
-                // Attach THIS page's notes (the post-retry registrations)
-                // into the band above the bottom margin.
+                // Attach THIS page's notes (the final attempt's registrations)
+                // into a band sized to them, above the bottom margin.
                 attach_footnotes(
                     &mut fragmentainer,
                     dom,

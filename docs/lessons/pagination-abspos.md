@@ -4,7 +4,7 @@ type: lesson
 status: approved
 owner: maintainers
 created: 2026-09-16
-updated: 2026-09-27
+updated: 2026-10-13
 sidebar_position: 2
 tags: [engine, pagination, fragmentation, abspos, page-break]
 ---
@@ -34,6 +34,7 @@ Pagination combines page geometry, break tokens, continuation state, and out-of-
 - **The pinned drain's `ty` is already page-local** (verified): use `local_top = ty - target*content.height`, not `ty - (content.y + target*content.height)`; the extra `content.y` moved `fixedpos-004`'s ref side 0.5in up. A job that fits one fragmentainer must lay with `f64::MAX` (overflow in place, like Chromium's abspos overflow); with a real bottom limit it fragments into extra pages exactly when the pair nearly matches.
 - **A monolithic parent leaks its `f64::MAX` bottom limit to nested abspos children** (verified 2026-09-18): a child laid inside an abspos parent that fits one page inherits the parent's `box_bottom_limit = f64::MAX`, so `y + fh > bottom_limit` can never fire and the fragmentation path never runs (`overflowing-block-print-ref` renders 1 page versus Chromium's 3). Fix shape: decide every out-of-flow fragment decision against the real fragmentainer bottom `content_y + page_height`, never the inherited limit; the two coincide at the body level, so only the nested path changes. Also, `resolved_height` ignores percentage heights (they live on `height_percent`, consumed only by the `resolved_height_or_percent` walk), so the pinned-fragmentation declared-extent test must use that walk or `height: 300%` stays monolithic (toplevel300 probe: 1 page versus Chromium's 3).
 - **A percentage-height abspos fixture must keep html/body static or the chain is indefinite** (verified 2026-09-19): a first fixture using `* { position: absolute }` with no declared heights sent html/body to auto-height, so the child's `height: 300%` resolves against an indefinite ancestor chain and Chromium renders it as one page (the test wrongly wanted 3). The engine was right and the fixture was wrong. Oracle-verify the exact fixture shape (html/body static versus absolute, margins 0 and 0.5) before asserting a page count in a unit test.
+- **A page-level retry must re-measure what the retry actually placed** (verified 2026-10-13, CORE-366): the footnote pass laid the page full-height, reserved a band for every note that attempt reached, and retried once. A generous first attempt over-reserved: the body starved (1 of 7 fitting paragraphs) and the attached notes floated mid-page. It stayed hidden because nothing made the first attempt more generous until CORE-364's margin collapse let columns pack tighter, after which a mid-page multicol lost the whole page. Search the reservation instead (calls register in document order, so a raised-floor attempt places a prefix of the first attempt's notes; validity is monotone in the prefix length), and size the band to the notes actually attached. WPT has no `float: footnote` tests, so the release gate is blind here: A/B the footnote corpus docs (`grep -l "float: *footnote" demo/`) out of gate.
 
 ## Verification
 
