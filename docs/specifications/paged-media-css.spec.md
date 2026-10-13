@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-16
-updated: 2026-09-28
+updated: 2026-10-13
 sidebar_position: 3
 tags: [css, paged-media, page, layout, engine]
 spec_id: paged-media-css
@@ -173,7 +173,9 @@ The engine shall:
    break is a real empty line. The content's block extent is the
    line count times that pitch, its max-content extent is the widest line, and
    its min-content extent is the widest line's min-content (css-sizing-3
-   §5.1). Each line aligns independently by `text-align`; no line soft-wraps,
+   §5.1). The box's `font-family` is its own declaration, else the page
+   context's, else the initial value `serif` — the same default unstyled
+   body text uses (font-resolution spec Behavior 5). Each line aligns independently by `text-align`; no line soft-wraps,
    and each is deterministically clipped if it overflows the box.
    A `url(<path>)` piece shall paint its image as replaced inline
    content of that image's INTRINSIC size (96 DPI pixels converted to points),

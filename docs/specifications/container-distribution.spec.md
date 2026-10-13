@@ -4,7 +4,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-09-27
-updated: 2026-09-27
+updated: 2026-10-13
 slug: /specifications/container-distribution
 sidebar_position: 47
 tags: [container, distribution, docker, fonts, release]
@@ -72,6 +72,11 @@ italic) as the Linux fallback set.
   Arial bundle.
 - Liberation is licensed under the SIL Open Font License 1.1, which permits
   redistribution in a container image. The license text ships in the image.
+- AMENDED 2026-10-13 (CORE-361): the image also bundles **Liberation Serif**
+  and **Liberation Mono** (4 faces each, same OFL license), metric-compatible
+  with Times New Roman and Courier New. They back the `serif` and `monospace`
+  rows of the generic table in `font-resolution.spec.md` Behavior 5, so the
+  image renders serif and code text with no host fonts.
 - DejaVu and Noto were rejected: DejaVu is not metric-compatible with Arial
   (wider metrics re-baseline every unstyled doc), and Noto Sans is a larger
   download with no metric-compatibility benefit for this use.
@@ -133,17 +138,17 @@ set from a platform-appropriate path:
 - On Linux: the bundled open-source set at a known path, e.g.
   `/usr/share/fonts/typeanvil/LiberationSans-*.ttf`.
 
-The GENERIC GATE (`family_candidates`, ~line 386) pins serif/sans-serif/
-monospace/cursive/fantasy to the bundled Arial set. This issue re-points the
-gate to the bundled open-source set on Linux, with an approved re-baseline per
-`docs/conventions/css-standards-alignment.md`.
+The GENERIC GATE (`family_candidates`) that pinned every generic to the
+bundled set was replaced by CORE-361's generic table (`font-resolution.spec.md`
+Behavior 5). On Linux, `serif` and `monospace` resolve to the image's
+Liberation Serif / Liberation Mono; `sans-serif` keeps the bundled set.
 
 ### Container image
 
 ```text
 ghcr.io/typeanvil/typeanvil:<tag>
   /usr/bin/typeanvil          # the musl release binary
-  /usr/share/fonts/typeanvil/ # bundled Liberation Sans (4 faces) + OFL license
+  /usr/share/fonts/typeanvil/ # bundled Liberation Sans/Serif/Mono (12 faces) + OFL license
   /usr/share/fonts/user/      # user mount point (documented contract)
   non-root user, no shell
 ```

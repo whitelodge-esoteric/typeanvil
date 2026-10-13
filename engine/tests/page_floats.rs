@@ -253,7 +253,7 @@ fn top_floats_stack_in_document_order() {
 #[test]
 fn oversized_top_float_defers_to_next_page() {
     let html = r#"<html><head><style>
-        body { margin: 0; font-size: 12pt; line-height: 1.2; }
+        body { margin: 0; font-size: 12pt; line-height: 1.2; font-family: Arial; } /* CORE-361: expected values use Arial metrics */ 
         p, div { margin: 0; padding: 0; }
         .tall { float: top; width: 3in; height: 100pt; }
     </style></head><body>

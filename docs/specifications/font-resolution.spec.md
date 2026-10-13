@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-08-22
-updated: 2026-09-27
+updated: 2026-10-13
 sidebar_position: 13
 tags: [engine, css-fonts, typography, pdf, determinism]
 spec_id: font-resolution
@@ -84,11 +84,29 @@ fontdb itself uses ttf-parser/skrifa-family parsing and adds no C FFI.
    §5.2: if target weight < 400, check weights ≤ target descending first;
    otherwise check weights ≥ target ascending first; then the remaining
    direction. Italic desired → italic/oblique faces first; normal desired →
-   normal faces first.
-5. Generic families SHALL resolve through fontdb's generic mapping
-   (`Family::Serif` etc.). On this machine that yields Times New Roman /
-   Arial / Courier New / Comic Sans MS / Papyrus; the spec records these as
-   observed defaults, not promises.
+   normal faces first. Width is matched before both (§5.2 step 4a): the
+   engine requests `normal` width, so when a family has any normal-width
+   face, its condensed/expanded faces are not candidates (CORE-361).
+5. Generic families SHALL resolve through the engine-owned generic table
+   (CORE-361), NOT fontdb's generic slots: each generic lists concrete
+   family names in order and the first installed family wins; when none is
+   installed the generic resolves to the bundled set (Behavior 6).
+
+   | Generic | Ordered candidates |
+   |---|---|
+   | `serif` | Times New Roman, Liberation Serif |
+   | `sans-serif` | the bundled set (fixed ids 0..4: Arial / Liberation Sans) |
+   | `monospace` | Courier New, Liberation Mono |
+   | `cursive` | Comic Sans MS |
+   | `fantasy` | Papyrus, Impact |
+
+   Other generics stylo parses (`system-ui`, `math`, …) resolve as
+   `sans-serif`. Liberation Serif and Liberation Mono are metric-compatible
+   with Times New Roman and Courier New, so macOS and Linux renders lay out
+   alike. fontdb's generic slots are rejected because on Linux it reads them
+   from fontconfig aliases: in the dev container it picked FreeSerif /
+   FreeSans / FreeMono and two uninstalled Persian faces for cursive and
+   fantasy (probe 2026-10-13), which depends on host configuration.
 6. When no family in the stack resolves, the engine SHALL fall back to the
    existing Arial bundle path (current behavior), never panic.
 7. `@font-face src: url(...)` SHALL resolve relative paths against the input
@@ -176,16 +194,14 @@ full stack, not just the first name. `clone_font_weight().value(): f32`,
 
 ## Implementation notes (2026-08-22, landed commit b1a24e4)
 
-- **GENERIC GATE (deliberate deviation from Behavior 5):** generic families
-  resolve to the bundled Arial set, NOT concrete system faces. Reason: the
-  UA default `font-family` is stylo's initial value — bare `serif` — and
-  the WPT harness renders test AND reference through that same default;
-  mapping it to Times re-baselined every unstyled doc in the suite
-  (observed live: `fragmentation::orphans_widows` failed with
-  system-Times metrics before the gate was added). The fontdb mapping is
-  real and recorded above; flipping generics to concrete faces is a
-  one-line change in `family_candidates`, gated on a full-suite run and a
-  deliberate re-baseline decision.
+- **GENERIC GATE (superseded by CORE-361, 2026-10-13):** generic families
+  used to resolve to the bundled Arial set so WPT baselines would not move
+  (`fragmentation::orphans_widows` failed with system-Times metrics before
+  that gate was added). CORE-361 replaced the gate with the Behavior 5
+  table. The UA default `font-family` is stylo's initial value — bare
+  `serif` — so unstyled documents now render in Times New Roman (Liberation
+  Serif on Linux), matching Chromium and Prince. The approved re-baseline
+  and its WPT/corpus deltas are recorded on CORE-361.
 - Bundled Arial faces keep FIXED registry ids 0..4. Documents whose
   families resolve to Arial/Helvetica/sans-serif render byte-identical to
   the earlier fixed-face output.

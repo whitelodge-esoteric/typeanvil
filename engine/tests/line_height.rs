@@ -318,7 +318,7 @@ fn first_baseline_uses_half_leading() {
     for (factor, fs) in cases {
         let html = format!(
             r#"<html><head><style>
-                body {{ margin: 0; }}
+                body {{ margin: 0; font-family: Arial; }} /* CORE-361: expected values use Arial metrics */ 
                 h1 {{ font-size: {fs}pt; line-height: {factor}; margin: 0; }}
             </style></head><body><h1>Heading</h1></body></html>"#
         );

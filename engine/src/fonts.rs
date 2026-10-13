@@ -395,64 +395,74 @@ fn family_candidates(spec: &FamilySpec) -> Vec<FaceId> {
             if !custom.is_empty() {
                 return custom;
             }
-            // The bundled Arial faces keep their FIXED ids 0..4 so existing
-            // documents render identically; never re-register system Arial.
-            if key == "arial" || key == "helvetica" {
-                return vec![FACE_REGULAR, FACE_BOLD, FACE_ITALIC, FACE_BOLD_ITALIC];
-            }
-            FONTDB
-                .faces()
-                .filter(|face| {
-                    face.families
-                        .iter()
-                        .any(|(name, _)| name.to_ascii_lowercase() == key)
-                })
-                .map(register_system_face)
-                .fold(Vec::new(), |mut out, id| {
-                    if !out.contains(&id) {
-                        out.push(id);
-                    }
-                    out
-                })
+            system_family_candidates(&key)
         }
-        // GENERIC GATE (0-regression rule): the engine's UA default
-        // font-family is stylo's initial value — bare `serif` — and the
-        // WPT harness compares OUR test vs OUR reference through this
-        // same default. Resolving generics to concrete system faces
-        // changes line metrics for every unstyled doc and re-baselines
-        // the suite. Until a deliberate re-baseline lands, ALL generics
-        // resolve to the bundled set (the pre-CORE-103 behavior). The
-        // bundled set is platform-appropriate: macOS Arial, or the
-        // container image's Liberation set on Linux (CORE-247) — so a
-        // Linux render never reads empty font bytes. The fontdb generic
-        // mapping is verified and recorded in the spec; flipping this
-        // switch is a one-line follow-up gated on a full-suite run.
-        // Author-declared family NAMES resolve fully.
-        FamilySpec::Serif
-        | FamilySpec::SansSerif
-        | FamilySpec::Monospace
-        | FamilySpec::Cursive
-        | FamilySpec::Fantasy => vec![FACE_REGULAR, FACE_BOLD, FACE_ITALIC, FACE_BOLD_ITALIC],
+        // Generic families resolve through the engine-owned table (spec
+        // Behavior 5, CORE-361), not fontdb's generic slots: on Linux fontdb
+        // reads those from fontconfig aliases, which picked FreeSerif and
+        // uninstalled faces in the dev container. First installed family
+        // wins; otherwise the bundled set. `sans-serif` IS the bundled set
+        // (fixed ids 0..4), so sans documents stay byte-identical.
+        FamilySpec::SansSerif => BUNDLED_FACES.to_vec(),
+        FamilySpec::Serif => generic_table_candidates(GENERIC_SERIF),
+        FamilySpec::Monospace => generic_table_candidates(GENERIC_MONOSPACE),
+        FamilySpec::Cursive => generic_table_candidates(GENERIC_CURSIVE),
+        FamilySpec::Fantasy => generic_table_candidates(GENERIC_FANTASY),
     }
 }
 
-/// All faces of the concrete family fontdb maps the generic to.
-fn generic_candidates(generic: fontdb::Family) -> Vec<FaceId> {
-    let name = FONTDB.family_name(&generic).to_ascii_lowercase();
-    let mut out = Vec::new();
-    for face in FONTDB.faces() {
-        if face
-            .families
-            .iter()
-            .any(|(n, _)| n.to_ascii_lowercase() == name)
-        {
-            let id = register_system_face(face);
+/// The bundled faces (fixed ids 0..4).
+const BUNDLED_FACES: [FaceId; 4] = [FACE_REGULAR, FACE_BOLD, FACE_ITALIC, FACE_BOLD_ITALIC];
+
+/// Ordered concrete families per generic (spec Behavior 5). Liberation
+/// Serif / Mono are metric-compatible with Times New Roman / Courier New,
+/// so macOS and the Linux images lay text out alike.
+const GENERIC_SERIF: &[&str] = &["times new roman", "liberation serif"];
+const GENERIC_MONOSPACE: &[&str] = &["courier new", "liberation mono"];
+const GENERIC_CURSIVE: &[&str] = &["comic sans ms"];
+const GENERIC_FANTASY: &[&str] = &["papyrus", "impact"];
+
+/// The first installed family of a generic's table, else the bundled set.
+/// Lowercase names; system faces only (an @font-face rule does not redefine
+/// a generic, css-fonts-4 §4.2).
+fn generic_table_candidates(families: &[&str]) -> Vec<FaceId> {
+    families
+        .iter()
+        .map(|name| system_family_candidates(name))
+        .find(|c| !c.is_empty())
+        .unwrap_or_else(|| BUNDLED_FACES.to_vec())
+}
+
+/// Every system face of one family name (lowercase key). Arial/Helvetica
+/// map to the bundled faces, which keep their FIXED ids 0..4 so existing
+/// documents render identically; never re-register system Arial.
+fn system_family_candidates(key: &str) -> Vec<FaceId> {
+    if key == "arial" || key == "helvetica" {
+        return BUNDLED_FACES.to_vec();
+    }
+    let faces: Vec<&fontdb::FaceInfo> = FONTDB
+        .faces()
+        .filter(|face| {
+            face.families
+                .iter()
+                .any(|(name, _)| name.to_ascii_lowercase() == key)
+        })
+        .collect();
+    // css-fonts-4 §5.2 matches font-stretch BEFORE style and weight. The
+    // engine always wants `normal` width, so when the family has any
+    // normal-width face, condensed/expanded faces are not candidates
+    // (e.g. Papyrus vs Papyrus-Condensed, both 400 upright — CORE-361).
+    let has_normal = faces.iter().any(|f| f.stretch == fontdb::Stretch::Normal);
+    faces
+        .into_iter()
+        .filter(|f| !has_normal || f.stretch == fontdb::Stretch::Normal)
+        .map(register_system_face)
+        .fold(Vec::new(), |mut out, id| {
             if !out.contains(&id) {
                 out.push(id);
             }
-        }
-    }
-    out
+            out
+        })
 }
 
 /// The bundled Arial face for a weight/style (the Behavior-6 fallback).
@@ -612,9 +622,9 @@ mod tests {
         let specs = vec![FamilySpec::Name("Georgia".into()), FamilySpec::Serif];
         let r = resolve_font(&specs, 400.0, FontStyle::Normal);
         assert_eq!(face_postscript_name(r.primary), "Georgia");
-        // the serif slot falls back to the bundled set (generic gate)
+        // the serif slot resolves through the generic table (CORE-361)
         assert!(!r.fallbacks.is_empty());
-        assert_eq!(r.fallbacks[0], FACE_REGULAR);
+        assert_eq!(face_postscript_name(r.fallbacks[0]), "TimesNewRomanPSMT");
     }
 
     #[cfg(target_os = "macos")]
@@ -647,14 +657,94 @@ mod tests {
         assert_eq!(r.primary, FACE_BOLD);
     }
 
+    /// The PostScript name a generic resolves to, or None for the bundled set.
+    fn generic_ps(spec: FamilySpec, weight: f32, style: FontStyle) -> Option<String> {
+        let r = resolve_font(&[spec], weight, style);
+        if BUNDLED_FACES.contains(&r.primary) {
+            None
+        } else {
+            Some(face_postscript_name(r.primary).to_string())
+        }
+    }
+
+    /// Whether any installed face belongs to `family` (lowercase).
+    fn installed(family: &str) -> bool {
+        FONTDB
+            .faces()
+            .any(|f| f.families.iter().any(|(n, _)| n.to_ascii_lowercase() == family))
+    }
+
+    // CORE-361: generics follow the engine-owned table (spec Behavior 5).
+    // The expected face is derived from what is installed, so the test holds
+    // on macOS (Times New Roman / Courier New), in the dev container
+    // (Liberation Serif / Mono) and on a bare host (bundled fallback).
     #[test]
-    fn generics_map_to_bundled_set() {
-        // GENERIC GATE: generics resolve to the bundled Arial set until the
-        // deliberate re-baseline (see family_candidates). Named families
-        // resolve to system faces (see resolve_georgia test).
-        let r = resolve_font(&[FamilySpec::Monospace], 400.0, FontStyle::Normal);
+    fn generics_follow_the_generic_table() {
+        let expect = |table: &[&str], ps: &[&str]| -> Option<String> {
+            table
+                .iter()
+                .position(|f| installed(f))
+                .map(|i| ps[i].to_string())
+        };
+        assert_eq!(
+            generic_ps(FamilySpec::Serif, 400.0, FontStyle::Normal),
+            expect(GENERIC_SERIF, &["TimesNewRomanPSMT", "LiberationSerif"])
+        );
+        assert_eq!(
+            generic_ps(FamilySpec::Monospace, 400.0, FontStyle::Normal),
+            expect(GENERIC_MONOSPACE, &["CourierNewPSMT", "LiberationMono"])
+        );
+        assert_eq!(
+            generic_ps(FamilySpec::Serif, 700.0, FontStyle::Italic),
+            expect(
+                GENERIC_SERIF,
+                &["TimesNewRomanPS-BoldItalicMT", "LiberationSerif-BoldItalic"]
+            )
+        );
+    }
+
+    // sans-serif stays the bundled set with its fixed ids, so sans documents
+    // render byte-identically to pre-CORE-361 output.
+    #[test]
+    fn sans_serif_is_the_bundled_set() {
+        let r = resolve_font(&[FamilySpec::SansSerif], 400.0, FontStyle::Normal);
         assert_eq!(r.primary, FACE_REGULAR);
-        let r = resolve_font(&[FamilySpec::Serif], 400.0, FontStyle::Normal);
-        assert_eq!(r.primary, FACE_REGULAR);
+        let r = resolve_font(&[FamilySpec::SansSerif], 700.0, FontStyle::Italic);
+        assert_eq!(r.primary, FACE_BOLD_ITALIC);
+    }
+
+    // A generic whose table has no installed family falls back to the
+    // bundled set (never an empty candidate list).
+    #[test]
+    fn generic_table_without_installed_family_is_bundled() {
+        assert_eq!(
+            generic_table_candidates(&["no such family qz"]),
+            BUNDLED_FACES.to_vec()
+        );
+    }
+
+    // css-fonts-4 §5.2: normal width is matched before weight/style, so a
+    // family's condensed cut never wins over its normal cut (CORE-361).
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn normal_width_face_beats_condensed_cut() {
+        let r = resolve_font(&[FamilySpec::Name("Papyrus".into())], 400.0, FontStyle::Normal);
+        assert_eq!(face_postscript_name(r.primary), "Papyrus");
+        let r = resolve_font(
+            &[FamilySpec::Name("Helvetica Neue".into())],
+            700.0,
+            FontStyle::Normal,
+        );
+        assert_eq!(face_postscript_name(r.primary), "HelveticaNeue-Bold");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_generics_are_distinct_faces() {
+        let ps = |s| generic_ps(s, 400.0, FontStyle::Normal);
+        assert_eq!(ps(FamilySpec::Serif).as_deref(), Some("TimesNewRomanPSMT"));
+        assert_eq!(ps(FamilySpec::Monospace).as_deref(), Some("CourierNewPSMT"));
+        assert_eq!(ps(FamilySpec::Cursive).as_deref(), Some("ComicSansMS"));
+        assert_eq!(ps(FamilySpec::Fantasy).as_deref(), Some("Papyrus"));
     }
 }

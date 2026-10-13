@@ -620,7 +620,7 @@ fn leader_fill_uses_real_dot_advance() {
     // (spec §9/§10 two-pass convergence).
     let html = r##"<html><head><style>
         @page { margin: 0.4in; }
-        body { margin: 0; }
+        body { margin: 0; font-family: Arial; } /* CORE-361: expected values use Arial metrics */ 
         .toc a { display: block; }
         .e1 { content: "Chapter 1 " leader('.') target-counter(attr(href), page); }
         .ch { display: block; break-before: page; }
@@ -789,7 +789,7 @@ fn ua_body_margin_is_8px() {
     // page-box-002/003 refs simulate it with an inner margin:8px div, so
     // css-standards-alignment (spec > Prince, which zeroes it) wins. Pin
     // p's margin to isolate the body UA default.
-    let html = "<html><head><style>p { margin: 0; }</style></head><body><p>Hi.</p></body></html>";
+    let html = "<html><head><style>html { font-family: Arial; } p { margin: 0; }</style></head><body><p>Hi.</p></body></html>";
     // 0.5in margin → content top = 36pt + 8px body margin = 42pt.
     let geo = geometry(5.0, 3.0, 0.5);
     let layout = lay(html, geo);
@@ -824,7 +824,7 @@ fn ua_heading_margin_preserved_at_document_start() {
     // (36) + 16pt margin + ascent (24×1854/2048) + half-leading of the 24pt
     // line at lh 1.2 → 74.72. The old Prince-matching behavior truncated the
     // margin to flush the heading at 58.72.
-    let html = "<html><head></head><body><h1>Heading</h1></body></html>";
+    let html = "<html><head><style>html { font-family: Arial; }</style></head><body><h1>Heading</h1></body></html>";
     let geo = geometry(5.0, 3.0, 0.5);
     let layout = lay(html, geo);
     let (_, y) = text_pos(&layout.pages[0], "Heading").expect("text must be present");
@@ -842,7 +842,7 @@ fn ua_heading_font_sizes_are_fixed_pt() {
     // Prince's h1 is 24pt REGARDLESS of body font-size; the HTML4 2em value
     // would scale to 16pt at body 8pt. Baseline = content top (36) + 16pt
     // margin (preserved at document start) + 24pt line box → 74.72.
-    let html = "<html><head><style>body { font-size: 8pt; }</style></head><body><h1>Heading</h1></body></html>";
+    let html = "<html><head><style>html { font-family: Arial; } body { font-size: 8pt; }</style></head><body><h1>Heading</h1></body></html>";
     let geo = geometry(5.0, 3.0, 0.5);
     let layout = lay(html, geo);
     let (_, y) = text_pos(&layout.pages[0], "Heading").expect("text must be present");
@@ -860,7 +860,7 @@ fn ua_paragraph_margin_is_1_12em_mid_page() {
     // → 13.44pt): baseline = first line box bottom (50.4) + 13.44 + ascent +
     // half-leading → 75.70. The old 1em default gave 74.26; Prince uses
     // 1.12em.
-    let html = r#"<html><head><style>.z { margin: 0; }</style></head>
+    let html = r#"<html><head><style>html { font-family: Arial; } .z { margin: 0; }</style></head>
         <body><p class="z">First.</p><p>Second.</p></body></html>"#;
     let geo = geometry(5.0, 3.0, 0.5);
     let layout = lay(html, geo);

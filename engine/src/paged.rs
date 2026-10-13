@@ -2388,7 +2388,10 @@ pub fn resolve_page_spec(
                 .font_family
                 .clone()
                 .or_else(|| page_font_family.clone())
-                .unwrap_or_else(|| vec![crate::fonts::FamilySpec::SansSerif]);
+                // The initial `font-family` — stylo's, i.e. bare `serif` —
+                // so an unstyled margin box matches unstyled body text
+                // (font-resolution spec Behavior 5, CORE-361).
+                .unwrap_or_else(|| vec![crate::fonts::FamilySpec::Serif]);
             let font_size = style.font_size.or(page_font_size).unwrap_or(Scalar(12.0));
             let font_weight = style.font_weight.or(page_font_weight).unwrap_or(400.0);
             let font_style = style

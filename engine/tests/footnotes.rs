@@ -231,3 +231,36 @@ fn footnote_table_float_smoke() {
         all
     );
 }
+
+// --- CORE-361: footnote runs draw with the face they were shaped with -------
+
+/// `attach_footnotes` shapes a note with the note element's resolved face
+/// (`break_paragraph` reads `style.font_face`), so the emitted run must
+/// carry that face. A hard-wired bundled face drew Times glyph ids/advances
+/// through Arial once `serif` resolved to a real face: overlapped first words
+/// and wrong spacing, while text extraction still read correctly. Here the
+/// note inherits `serif` from body, so its run face must equal the body's.
+#[test]
+fn footnote_run_uses_the_note_face() {
+    let html = doc(r#"<p>Body text.<span class="fn">Archival note text.</span></p>"#);
+    let l = layout_doc(&html);
+    fn runs(f: &typeanvil::frag::Fragment, out: &mut Vec<typeanvil::frag::TextRun>) {
+        if let FragmentContent::Text(run) = &f.content {
+            if !run.glyphs.is_empty() {
+                out.push(run.clone());
+            }
+        }
+        for c in &f.children {
+            runs(c, out);
+        }
+    }
+    let mut all = Vec::new();
+    runs(&l.pages[0].root, &mut all);
+    let body = all.iter().find(|r| r.text.contains("Body")).expect("body run");
+    let note = all.iter().find(|r| r.text.contains("Archival")).expect("note run");
+    assert_eq!(
+        note.font_face, body.font_face,
+        "footnote run must draw with the note's own (inherited serif) face"
+    );
+}
+

@@ -12,7 +12,7 @@
 #
 # Layout:
 #   /usr/bin/typeanvil            the release binary
-#   /usr/share/fonts/typeanvil/   bundled Liberation Sans (4 faces) + OFL license
+#   /usr/share/fonts/typeanvil/   bundled Liberation Sans/Serif/Mono 2.1.5 (12 faces) + OFL license
 #   /usr/share/fonts/user/        user font mount point (documented contract)
 #
 # The release workflow builds with buildx --platform linux/amd64,linux/arm64
@@ -24,8 +24,10 @@ FROM gcr.io/distroless/base-debian12:nonroot
 ARG TARGETARCH
 COPY dist/typeanvil-linux-${TARGETARCH} /usr/bin/typeanvil
 
-# Bundled open-source font set (Liberation Sans, metric-compatible with Arial)
-# + its OFL license. This is the Linux fallback when no user fonts are mounted.
+# Bundled open-source font set (Liberation 2.1.5: Sans, Serif, Mono —
+# metric-compatible with Arial, Times New Roman, Courier New) + its OFL
+# license. Sans is the bundled fallback; Serif/Mono back the `serif` and
+# `monospace` generics (CORE-361). Used when no user fonts are mounted.
 COPY docker/fonts/typeanvil/ /usr/share/fonts/typeanvil/
 
 # User font mount point (documented contract). fontdb scans /usr/share/fonts
