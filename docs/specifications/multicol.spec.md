@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-18
-updated: 2026-09-27
+updated: 2026-10-13
 sidebar_position: 8
 tags: [engine, layout, css-multicol, fragmentation]
 spec_id: multicol
@@ -108,11 +108,19 @@ The engine shall:
    enclosing column's measure; its fragmentainers nest inside the outer
    fragmentainer chain.
 7. **Fragment multicol containers**: when the container breaks across pages,
-   the remaining content resumes on the next page as a fresh balanced set of
-   columns (the container's break token carries the consumed children's
-   tokens); a column never slices a line.
-8. Reuse the fragmentation-core rules inside columns: `break-inside: avoid`, widows,
-   orphans, and forced breaks apply per column fragmentainer.
+   every non-final page fills its columns to the page's remaining block size
+   (css-multicol-1 §8: balancing applies to the LAST fragment only); the
+   remaining content resumes on the next page, and the final page balances
+   only what remains (a block split on the previous page counts its remaining
+   lines, not its full height). The container's break token carries the
+   consumed children's tokens; a column never slices a line.
+8. Reuse the fragmentation-core rules inside columns: a column is a
+   fragmentainer, so a splittable block breaks between lines at the column
+   bottom exactly as at a page edge; only an unsplittable block
+   (`break-inside: avoid`, a declared height, an atomic inline) moves whole
+   to the next column. `break-inside: avoid`, widows, orphans, and forced
+   breaks apply per column fragmentainer — a forced break is the computed
+   `break-before`, never a child's fresh-start token (CORE-360).
 9. Stay deterministic: column geometry is a pure function of measure; measure
    passes are bounded and deterministic.
 
@@ -182,15 +190,20 @@ Each criterion maps to a test in `engine/tests/multicol.rs` (helpers mirror
    container's width equals the outer column's content width (constrained by
    every enclosing context).
 5. **Fragment across pages.** Given a multicol container taller than a page,
-   the remaining content resumes on the next page as a fresh balanced set of
-   columns; no column slices a line. Partial fills anchor columns at the
+   the page's columns fill to the page bottom and the remaining content
+   resumes on the next page; only the final page balances, measuring only the
+   remaining content (`continuation_page_packs_many_items_per_column`,
+   `final_page_balances_only_the_remaining_content`); no column slices a
+   line. Partial fills anchor columns at the
    container's current content cursor, so content taller than the page
    (e.g. a long table) progresses instead of re-laying its first row forever
    (termination regression `table_fragments_inside_multicol`: a 12-row
    `break-inside: avoid` table in `column-count: 2` renders 2-3 pages and
    terminates).
 6. **Breaks inside columns.** Given `break-inside: avoid` on a box inside a
-   column, the box moves to the next column as a unit.
+   column, the box moves to the next column as a unit; a paragraph without it
+   breaks between lines at the column bottom
+   (`paragraph_splits_at_the_column_bottom`).
 7. **css-multicol WPT subset.** A growing subset of css-multicol print-reftests
    (basic balance, spanning, nested) passes via the harness.
 8. **Determinism.** Two renders of a multicol doc are byte-identical; the full
@@ -213,6 +226,10 @@ Each criterion maps to a test in `engine/tests/multicol.rs` (helpers mirror
   the laid columns instead of fragmenting with an empty resume token (a
   trailing blank page) or re-laying the same set with no cursor advance
   (infinite pagination).
+- Known gap: adjoining sibling margins inside a column do not collapse (the
+  column filler and the balance measure both sum each block's full margins),
+  so headings sit a few points lower than in Chromium and a final page can
+  balance about one line taller in its first column (CORE-360 residual).
 
 ## References
 
