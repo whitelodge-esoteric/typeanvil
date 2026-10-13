@@ -282,3 +282,32 @@ p { font-family: Arial; font-size: 12pt; margin: 0; }
     assert!(contains_face(&bytes, "ArialMT"));
     assert!(!contains_face(&bytes, "Arial-BoldMT"));
 }
+
+// --- CORE-361: an unstyled margin box uses the same default face as body ----
+
+/// A margin box with no `font-family` (own or page context) falls back to the
+/// initial value `serif`, the same family unstyled body text gets — so the
+/// header/footer and the body match (WPT margin-boxes/content-00x refs draw
+/// the margin text as body text). Before CORE-361 the margin-box fallback was
+/// `sans-serif`, which only agreed with the body while every generic mapped
+/// to the bundled Arial set.
+#[test]
+fn unstyled_margin_box_matches_unstyled_body_face() {
+    let html = r#"<!DOCTYPE html><html><head><style>
+@page { margin: 1in; @top-center { content: "Header text"; } }
+body { margin: 0; }
+</style></head><body><p>Body text.</p></body></html>"#;
+    let l = lay(html);
+    let page = &l.pages[0];
+    let mut body = Vec::new();
+    collect_runs(&page.root, &mut body);
+    let mut header = Vec::new();
+    for mb in &page.margin_boxes {
+        collect_runs(&mb.fragment, &mut header);
+    }
+    assert!(!body.is_empty() && !header.is_empty(), "body and header text present");
+    assert_eq!(
+        header[0].font_face, body[0].font_face,
+        "unstyled margin box must use the unstyled body face"
+    );
+}
