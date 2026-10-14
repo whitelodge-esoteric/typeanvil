@@ -594,7 +594,20 @@ pub fn render_with_options(
     }
 
     // PDF bookmarks: nest the DOM-order headings by level and emit them.
-    if let Some(outline) = build_outline(layout) {
+    // A tagged render with no headings gets one entry, the document title →
+    // page 1, because PDF/UA-1 requires an outline (tagged-pdf.spec.md
+    // Behavior 7a, CORE-382). Untagged renders keep "no headings, no
+    // /Outlines" (pdf-outlines.spec.md §9).
+    let outline = build_outline(layout).or_else(|| {
+        let title = meta.title.as_ref().filter(|_| tagged && !layout.pages.is_empty())?;
+        let mut outline = Outline::new();
+        outline.push_child(OutlineNode::new(
+            title.clone(),
+            XyzDestination::new(0, Point::from_xy(0.0, 0.0)),
+        ));
+        Some(outline)
+    });
+    if let Some(outline) = outline {
         document.set_outline(outline);
     }
 

@@ -139,6 +139,16 @@ as PDF-400/UA-1 intend.
    validator; any violation aborts the render with the full violation list on
    stderr. Without `--ua`, tagging proceeds without the validator (missing
    alt text degrades gracefully instead of failing).
+7a. A tagged render whose outline would be empty (no headings, or every
+   heading suppressed by `bookmark-level: none`) SHALL emit a single outline
+   entry titled with the document title (the resolved `DocumentMetadata`
+   title), with an XYZ destination at the top of page 1. Without a title it
+   emits none: the document is already non-conformant (`NoDocumentTitle`),
+   and the engine doesn't invent text. Untagged renders keep
+   `pdf-outlines.spec.md` §9 unchanged (DECIDED 2026-10-13, user: one entry
+   from the title rather than heuristics or leaving letters unconformable;
+   CORE-382).
+
 8. Identical input with identical flags SHALL yield byte-identical output,
    tagged or not. All tree construction SHALL be index-ordered (arena Vec
    order), never hash-iterated.
@@ -236,6 +246,11 @@ typeanvil render in.html [--tagged] [--ua] -o out.pdf
   whitespace (alt from `title`) each render with `--tagged --ua`, and the
   alt text equals the rule in Behavior 6.
   Test: `engine/tests/tagged_link_alt.rs`.
+- AC-11 (outline fallback, CORE-382): a titled document with no headings
+  renders with `--tagged --ua` and carries exactly one outline entry, the
+  title, pointing at page 1; with headings, the outline is the heading tree
+  as before; the untagged render has no `/Outlines`.
+  Test: `engine/tests/tagged_outline_fallback.rs`.
 - AC-7 (no regression): full WPT suite shows 0 regressed (untagged raster
   path cannot move; gate confirms). Engine `cargo test` green.
 

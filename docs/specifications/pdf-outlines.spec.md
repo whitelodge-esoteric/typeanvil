@@ -5,7 +5,7 @@ type: spec
 status: in-review
 owner: maintainers
 created: 2026-09-03
-updated: 2026-09-27
+updated: 2026-10-13
 sidebar_position: 21
 tags: [engine, pdf, outlines, bookmarks, gcpm]
 spec_id: pdf-outlines
@@ -93,6 +93,10 @@ Verified krilla facts (krilla 0.8.2, checked 2026-09-03):
 9. Rendering with zero bookmarks (no headings, or all suppressed) shall
    produce no `/Outlines` object and remain byte-identical to the current
    output for documents that do not use bookmark properties.
+   Exception: a **tagged** render of such a document gets a single entry
+   (the document title → page 1) so PDF/UA-1 validation can pass; see
+   `tagged-pdf.spec.md` Behavior 7a (CORE-382). Untagged renders are
+   unaffected.
 
 ## Interfaces
 
