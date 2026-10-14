@@ -542,6 +542,7 @@ pub fn render_with_options(
             // `pdf_page` directly in tagged mode.
             drop(surface);
             for pl in &pending_links {
+                let alt = dom.map(|d| link_alt_text(d, pl));
                 let ident = add_link_annotation(
                     &mut pdf_page,
                     page_w,
@@ -550,6 +551,7 @@ pub fn render_with_options(
                     &page.page_orientation,
                     pl,
                     true,
+                    alt,
                 );
                 if let Some(id) = ident {
                     tagged_link_idents.push((pl.node, id));
@@ -578,6 +580,7 @@ pub fn render_with_options(
                 &page.page_orientation,
                 pl,
                 false,
+                None,
             );
         }
         pdf_page.finish();
@@ -1562,6 +1565,24 @@ fn paint_group(
 /// into the structure tree and its identifier returned (CORE-111); untagged
 /// mode keeps the plain add and returns `None`.
 #[allow(clippy::too_many_arguments)]
+/// Alternate text for a link annotation (tagged-pdf.spec.md Behavior 6,
+/// CORE-381): the `<a>` element's text with whitespace collapsed, else its
+/// `title`, else its `href`.
+fn link_alt_text(dom: &crate::dom::Dom, pl: &crate::layout::PageLink) -> String {
+    let collapse = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
+    let text = collapse(&dom.text_content(pl.node));
+    if !text.is_empty() {
+        return text;
+    }
+    let el = dom.nodes[pl.node].kind.element();
+    let attr = |name: &str| el.and_then(|e| e.attr(name)).map(collapse).unwrap_or_default();
+    let title = attr("title");
+    if !title.is_empty() {
+        return title;
+    }
+    attr("href")
+}
+
 fn add_link_annotation(
     pdf_page: &mut krilla::page::Page,
     page_w: f32,
@@ -1570,6 +1591,7 @@ fn add_link_annotation(
     orientation: &Option<crate::paged::PageOrientation>,
     pl: &crate::layout::PageLink,
     tagged: bool,
+    alt: Option<String>,
 ) -> Option<krilla::tagging::Identifier> {
     let (x0, y0, x1, y1) = (
         pl.x.get(),
@@ -1610,8 +1632,12 @@ fn add_link_annotation(
             )),
         ),
     };
-    let annotation =
-        krilla::annotation::Annotation::from(krilla::annotation::LinkAnnotation::new(rect, target));
+    // `alt` becomes the annotation's `/Contents` (PDF/UA-1 §7.18.5). Only the
+    // tagged path passes one, so untagged output is unchanged (CORE-381).
+    let annotation = krilla::annotation::Annotation::new_link(
+        krilla::annotation::LinkAnnotation::new(rect, target),
+        alt,
+    );
     if tagged {
         Some(pdf_page.add_tagged_annotation(annotation))
     } else {

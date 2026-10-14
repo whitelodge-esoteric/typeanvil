@@ -128,6 +128,13 @@ as PDF-400/UA-1 intend.
 6. Link annotations (`hyperlinks.spec.md`) rendered in tagged mode SHALL be registered
    with `add_tagged_annotation`, and the corresponding `Link` group SHALL
    contain the annotation identifier followed by the link text's identifiers.
+   Each tagged link annotation SHALL carry alternate text (`/Contents`,
+   PDF/UA-1 §7.18.5): the `<a>` element's text content with whitespace
+   collapsed; if that is empty, its `title` attribute (collapsed); if that is
+   empty, its `href`. The untagged path writes no `/Contents`, so untagged
+   output stays byte-identical (CORE-381). An image-only link produces no
+   annotation today (CORE-391); its alt fallback lands with that fix.
+
 7. With `--ua`, the document SHALL be finished under krilla's accessibility
    validator; any violation aborts the render with the full violation list on
    stderr. Without `--ua`, tagging proceeds without the validator (missing
@@ -224,6 +231,11 @@ typeanvil render in.html [--tagged] [--ua] -o out.pdf
   body's text is reachable in the structure tree. Corpus check:
   `scripts/verify_tagged_pdf.py` reports `untagged: 0` on every corpus and
   showcase fixture. Test: `engine/tests/tagged_untagged_content.rs`.
+- AC-10 (link alt text, CORE-381): an external link, an internal `#id`
+  link, a link wrapped over two lines, and a link whose only text is
+  whitespace (alt from `title`) each render with `--tagged --ua`, and the
+  alt text equals the rule in Behavior 6.
+  Test: `engine/tests/tagged_link_alt.rs`.
 - AC-7 (no regression): full WPT suite shows 0 regressed (untagged raster
   path cannot move; gate confirms). Engine `cargo test` green.
 
