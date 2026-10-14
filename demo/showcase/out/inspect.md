@@ -29,15 +29,13 @@ TypeAnvil 3 page(s) / Prince 3 page(s)
 
 ### Academic Sample
 
-TypeAnvil 5 page(s) / Prince 3 page(s)
+TypeAnvil 3 page(s) / Prince 3 page(s)
 
 | TypeAnvil | Prince (reference) |
 | --- | --- |
 | <img src="images/journal/page-001-ta.png" alt="Academic Sample — page-001-ta" width="420"> | <img src="images/journal/page-001-pr.png" alt="Academic Sample — page-001-pr" width="420"> |
 | <img src="images/journal/page-002-ta.png" alt="Academic Sample — page-002-ta" width="420"> | <img src="images/journal/page-002-pr.png" alt="Academic Sample — page-002-pr" width="420"> |
 | <img src="images/journal/page-003-ta.png" alt="Academic Sample — page-003-ta" width="420"> | <img src="images/journal/page-003-pr.png" alt="Academic Sample — page-003-pr" width="420"> |
-| <img src="images/journal/page-004-ta.png" alt="Academic Sample — page-004-ta" width="420"> | *(no page)* |
-| <img src="images/journal/page-005-ta.png" alt="Academic Sample — page-005-ta" width="420"> | *(no page)* |
 
 ### Rich Media Print
 
@@ -85,7 +83,7 @@ TypeAnvil 3 page(s) / Prince 1 page(s)
 
 ### WeasyPrint Report
 
-TypeAnvil 14 page(s) / Prince 8 page(s)
+TypeAnvil 10 page(s) / Prince 8 page(s)
 
 | TypeAnvil | Prince (reference) |
 | --- | --- |
@@ -99,10 +97,6 @@ TypeAnvil 14 page(s) / Prince 8 page(s)
 | <img src="images/weasyprint-report/page-008-ta.png" alt="WeasyPrint Report — page-008-ta" width="420"> | <img src="images/weasyprint-report/page-008-pr.png" alt="WeasyPrint Report — page-008-pr" width="420"> |
 | <img src="images/weasyprint-report/page-009-ta.png" alt="WeasyPrint Report — page-009-ta" width="420"> | *(no page)* |
 | <img src="images/weasyprint-report/page-010-ta.png" alt="WeasyPrint Report — page-010-ta" width="420"> | *(no page)* |
-| <img src="images/weasyprint-report/page-011-ta.png" alt="WeasyPrint Report — page-011-ta" width="420"> | *(no page)* |
-| <img src="images/weasyprint-report/page-012-ta.png" alt="WeasyPrint Report — page-012-ta" width="420"> | *(no page)* |
-| <img src="images/weasyprint-report/page-013-ta.png" alt="WeasyPrint Report — page-013-ta" width="420"> | *(no page)* |
-| <img src="images/weasyprint-report/page-014-ta.png" alt="WeasyPrint Report — page-014-ta" width="420"> | *(no page)* |
 
 ### WeasyPrint Ticket
 

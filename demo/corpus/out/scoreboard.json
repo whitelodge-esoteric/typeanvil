@@ -1,6 +1,6 @@
 {
-  "generated": "2026-10-13T17:08:38Z",
-  "typeanvil_version": "26e4f1d",
+  "generated": "2026-10-14T00:02:15Z",
+  "typeanvil_version": "d284efe",
   "prince_version": "Prince 16.2",
   "docs": [
     {
@@ -563,14 +563,14 @@
         },
         {
           "page": 4,
-          "diff_percent": 30.452112268518515
+          "diff_percent": 30.41449652777778
         },
         {
           "page": 5,
-          "diff_percent": 26.068431712962965
+          "diff_percent": 26.01996527777778
         }
       ],
-      "overall_diff_percent": 24.755497685185183,
+      "overall_diff_percent": 24.73828125,
       "render_error": null,
       "structure_match": false,
       "structure_reasons": [
@@ -1607,15 +1607,15 @@
         },
         {
           "page": 2,
-          "diff_percent": 22.158564814814817
+          "diff_percent": 21.414930555555557
         },
         {
           "page": 3,
-          "diff_percent": 22.668547453703702
+          "diff_percent": 20.849971064814817
         },
         {
           "page": 4,
-          "diff_percent": 23.828125
+          "diff_percent": 20.46875
         },
         {
           "page": 5,
@@ -1638,7 +1638,7 @@
           "diff_percent": 5.642361111111112
         }
       ],
-      "overall_diff_percent": 19.809670781893004,
+      "overall_diff_percent": 19.151716820987655,
       "render_error": null,
       "structure_match": false,
       "structure_reasons": [
