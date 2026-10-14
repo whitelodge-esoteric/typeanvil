@@ -48,6 +48,28 @@ fn tag_for_owner(owner: Option<NodeId>) -> ContentTag<'static> {
     }
 }
 
+/// The Artifact tag for one piece of page chrome painted as a background
+/// (CORE-379). PDF 1.7 makes a BBox mandatory on Background artifacts (ISO
+/// 32000-1 table 330) and krilla panics without one. krilla writes the BBox
+/// in page space and ignores the current transform, so on a rotated page the
+/// painted `rect` is mapped through the same `page_xform` the fill is drawn
+/// under. With no usable rect the paint is still page chrome, so it falls
+/// back to a Layout artifact, which needs no BBox.
+fn background_artifact(
+    rect: Option<Rect>,
+    page_xform: Option<krilla::geom::Transform>,
+) -> ContentTag<'static> {
+    let bbox = match (rect, page_xform) {
+        (Some(r), Some(t)) => r.transform(t),
+        (r, None) => r,
+        (None, Some(_)) => None,
+    };
+    match bbox {
+        Some(b) => ContentTag::Artifact(Artifact::new(ArtifactType::Background, Some(b))),
+        None => ContentTag::Artifact(Artifact::with_kind(ArtifactType::Layout)),
+    }
+}
+
 /// Record one tagged draw owned by a DOM node (CORE-111). Unsourced draws
 /// carry no tree entry.
 fn record_draw(
@@ -238,6 +260,7 @@ pub fn render_with_options(
         // is pushed before any drawing and popped at the end. rotate-right:
         // (x, y) -> (H - y, x); rotate-left: (x, y) -> (y, W - x); 180°:
         // (x, y) -> (W - x, H - y).
+        let mut page_xform: Option<krilla::geom::Transform> = None;
         if let Some(orient) = page.page_orientation {
             let (sx, ky, kx, sy, tx, ty) = match orient {
                 crate::paged::PageOrientation::RotateRight => (0.0, 1.0, -1.0, 0.0, page_h, 0.0),
@@ -247,7 +270,9 @@ pub fn render_with_options(
                     (-1.0, 0.0, 0.0, -1.0, page_w, page_h)
                 }
             };
-            surface.push_transform(&krilla::geom::Transform::from_row(sx, ky, kx, sy, tx, ty));
+            let xform = krilla::geom::Transform::from_row(sx, ky, kx, sy, tx, ty);
+            surface.push_transform(&xform);
+            page_xform = Some(xform);
         }
 
         // Page box background (CORE-66): a full-page fill from the resolved
@@ -261,9 +286,7 @@ pub fn render_with_options(
                     surface.set_fill(Some(solid_fill(bg)));
                     // Page background: an Artifact (Layout), never in the tree.
                     if tagged {
-                        surface.start_tagged(ContentTag::Artifact(Artifact::with_kind(
-                            ArtifactType::Background,
-                        )));
+                        surface.start_tagged(background_artifact(Some(rect), page_xform));
                         surface.draw_path(&path);
                         surface.end_tagged();
                     } else {
@@ -308,9 +331,7 @@ pub fn render_with_options(
                 if let Some(path) = pb.finish() {
                     surface.set_fill(Some(solid_fill(bg)));
                     if tagged {
-                        surface.start_tagged(ContentTag::Artifact(Artifact::with_kind(
-                            ArtifactType::Background,
-                        )));
+                        surface.start_tagged(background_artifact(Some(rect), page_xform));
                         surface.draw_path(&path);
                         surface.end_tagged();
                     } else {
@@ -342,6 +363,8 @@ pub fn render_with_options(
                 let (ix1, iy1) = (ox + cw + o, oy + ch + o);
                 let (ex0, ey0) = (ix0 - w, iy0 - w);
                 let ew = (ix1 + w) - ex0; // outer width = cw + 2o + 2w
+                // The ring's outer rect — its Background artifact BBox.
+                let outline_box = Rect::from_xywh(ex0, ey0, ew, (iy1 + w) - ey0);
                 let sides: [(f32, f32, f32, f32); 4] = [
                     (ex0, ey0, ew, w), // top
                     (ex0, iy1, ew, w), // bottom
@@ -360,9 +383,7 @@ pub fn render_with_options(
                 if let Some(path) = pb.finish() {
                     surface.set_fill(Some(solid_fill(oc)));
                     if tagged {
-                        surface.start_tagged(ContentTag::Artifact(Artifact::with_kind(
-                            ArtifactType::Background,
-                        )));
+                        surface.start_tagged(background_artifact(outline_box, page_xform));
                         surface.draw_path(&path);
                         surface.end_tagged();
                     } else {
@@ -407,6 +428,8 @@ pub fn render_with_options(
                     page.content_origin.y.to_f32(),
                 );
                 let (cw, ch) = (page.content_size.0.to_f32(), page.content_size.1.to_f32());
+                // The ring's outer rect (the page area) — its artifact BBox.
+                let ring_box = Rect::from_xywh(ox, oy, cw, ch);
                 let mut pb = krilla::geom::PathBuilder::new();
                 for (rx, ry, rw, rh) in ring_rects(ox, oy, cw, ch, bwf.min(cw / 2.0).min(ch / 2.0)) {
                     if rw <= 0.0 || rh <= 0.0 {
@@ -419,9 +442,7 @@ pub fn render_with_options(
                 if let Some(path) = pb.finish() {
                     surface.set_fill(Some(solid_fill(bc)));
                     if tagged {
-                        surface.start_tagged(ContentTag::Artifact(Artifact::with_kind(
-                            ArtifactType::Background,
-                        )));
+                        surface.start_tagged(background_artifact(ring_box, page_xform));
                         surface.draw_path(&path);
                         surface.end_tagged();
                     } else {
@@ -438,6 +459,8 @@ pub fn render_with_options(
                     page.content_origin.y.to_f32(),
                 );
                 let (cw, ch) = (page.content_size.0.to_f32(), page.content_size.1.to_f32());
+                // The ring's outer rect (the page area) — its artifact BBox.
+                let ring_box = Rect::from_xywh(ox, oy, cw, ch);
                 let mut pb = krilla::geom::PathBuilder::new();
                 for (rx, ry, rw, rh) in ring_rects(ox, oy, cw, ch, bwf.min(cw / 2.0).min(ch / 2.0)) {
                     if rw <= 0.0 || rh <= 0.0 {
@@ -450,9 +473,7 @@ pub fn render_with_options(
                 if let Some(path) = pb.finish() {
                     surface.set_fill(Some(solid_fill(bc)));
                     if tagged {
-                        surface.start_tagged(ContentTag::Artifact(Artifact::with_kind(
-                            ArtifactType::Background,
-                        )));
+                        surface.start_tagged(background_artifact(ring_box, page_xform));
                         surface.draw_path(&path);
                         surface.end_tagged();
                     } else {

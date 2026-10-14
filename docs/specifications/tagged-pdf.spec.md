@@ -93,6 +93,13 @@ as PDF-400/UA-1 intend.
    - draws with no sourced ancestor (margin boxes, page background,
      watermark) → `ContentTag::Artifact` with kind Background (fills) or
      Header/Footer (margin boxes) / Footer (watermark).
+   - every page-chrome Background artifact (the `@page` fill, the propagated
+     canvas fill, the `@page` outline and border rings, the root border
+     ring) SHALL carry a BBox: the painted rect (a ring's outer rect),
+     mapped through the page-orientation rotation when one is pushed.
+     PDF 1.7 (ISO 32000-1 table 330) makes the BBox mandatory for
+     Background artifacts, krilla panics without one, and krilla writes it
+     in page space without applying the current transform (CORE-379).
 3. The structure tree SHALL be built from the parsed DOM in document order:
    a single pre-order walk assigns each element its `TagKind` (role table in
    Goals §1; `th` carries `scope` from the `scope` attribute, row/column
@@ -189,6 +196,12 @@ typeanvil render in.html [--tagged] [--ua] -o out.pdf
   title, no lang) fails with a recorded violation list; the same fixture
   completed (title + lang + alts) passes.
   Test: `engine/tests/tagged_pdf.rs::ua_validator_rejects_incomplete_document`.
+- AC-8 (page chrome, CORE-379): each page-chrome kind (`@page`
+  background, `body` canvas background, `@page` outline, `@page` border,
+  `html` border) renders with `--tagged` and with `--tagged --ua`, and every
+  Background artifact carries a BBox that lies on the page, including on a
+  `page-orientation: rotate-left` page.
+  Test: `engine/tests/tagged_page_chrome.rs`.
 - AC-7 (no regression): full WPT suite shows 0 regressed (untagged raster
   path cannot move; gate confirms). Engine `cargo test` green.
 
