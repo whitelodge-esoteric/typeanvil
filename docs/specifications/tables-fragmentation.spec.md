@@ -125,6 +125,21 @@ The engine SHALL implement the following, stated as "shall" rules:
    of a table SHALL re-lay-out the `thead`/`table-header-group` at its top,
    drawn with its own background/borders, consuming its own height (not
    stealing content space from the first fragment).
+   - **Header stays with the first body row (CORE-354).** A header is
+     chrome for body rows: when the first fragment would hold header
+     group content (and footer) but no body row, and the fragmentainer
+     already holds content above the table, the whole table SHALL move to
+     the next fragmentainer — once (`deferred_once`, rule 14), mirroring
+     the top-caption rule. Likewise, when the table can move, a footer
+     SHALL NOT print on a fragment without a body row (a header that did
+     not fit leaves no row behind it either). At a fragmentainer top the
+     table cannot move, so the header (and footer) place and the row
+     follows its own rules.
+   - **A header repeats only after it completed once (CORE-354).** A
+     continuation fragment SHALL repeat a header group only when that
+     group lies before the resume point. A header that was itself deferred
+     or split resumes through the in-order path and SHALL NOT also be
+     repeated — no fragment paints a header twice.
 8. **Footer placement.** A `tfoot`/`table-footer-group` SHALL be placed at the
    bottom of the fragment that contains its preceding body rows (bottom of the
    last fragment of that group's content), and SHALL repeat on each
@@ -297,6 +312,13 @@ Each maps to a real test in `engine/tests/tables.rs` (new) or the WPT harness:
     the next page with the table (`tests/table_caption.rs`). The corpus
     fixtures thesis-excerpt, technical-report and conference-paper show
     their captions in the text layer.
+14. **Header with its first row** — Given content above a table whose
+    header fits at the page bottom but whose first body row does not (with
+    or without a `tfoot`), when rendered, then the first page holds no
+    header or footer and the whole table starts on the next page; given a
+    header that itself does not fit (or only its first row fits), then the
+    next page shows each header row exactly once
+    (`tests/table_header_break.rs`).
 
 ## Edge Cases
 

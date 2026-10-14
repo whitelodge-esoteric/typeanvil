@@ -213,7 +213,8 @@
       "Prince may resolve a different system font for the sans-serif stack",
       "Grouped subtotal rows carry an explicit background color; fill rendering matches but sub-pixel edges may differ",
       "Page-break positions may differ where a row's height differs between engines"
-    ]
+    ],
+    "expected_change": "CORE-354: a table header is no longer painted twice when it resumes on a new page (p2 'Channel Q1..FY2026' duplicate gone). The freed line pulls every later row up one, and since TA's page breaks were already offset from Prince's (heading kept with the table differently) the per-page pixel diff grows 29.35 -> 33.27 pp; page count unchanged (7/7) and the duplicate-line scan is clean"
   },
   {
     "name": "Pro-Forma Invoice",
@@ -233,7 +234,8 @@
       "Running-header font pinned to Arial 9pt in both engines; residual header diffs are layout-metric or structural",
       "Page-count gap (TA 18 vs PR 15) from accumulated line-break and table-row-height differences; per-page diffs remain in the cosmetic band",
       "The tfoot totals repeat at the bottom of every fragment in both engines"
-    ]
+    ],
+    "expected_change": "CORE-354: the line-item table's header was painted twice at the top of its first continuation page; it now paints once, the freed space absorbs a page of rows, and the document moves 17 -> 16 pages (Prince 15)"
   },
   {
     "name": "Credit Note",
@@ -249,7 +251,8 @@
       "Prince may resolve a different system font for the sans-serif stack",
       "GBP glyph and VAT number exercise the ToUnicode path; a glyph-substitution difference would show as per-page pixel noise",
       "Page-count gap (TA 12 vs PR 10) from accumulated line-break differences; per-page diffs remain in the cosmetic band"
-    ]
+    ],
+    "expected_change": "CORE-354: the line-item header no longer paints twice on p3 and the tfoot no longer prints alone at the bottom of p2 (no header, no body row); the table now starts on p3 with header, first row and whole footer as in Prince, and the document moves 11 -> 10 pages (Prince 10)"
   },
   {
     "name": "Multi-Currency Invoice",

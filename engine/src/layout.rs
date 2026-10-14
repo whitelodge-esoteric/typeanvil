@@ -5363,6 +5363,10 @@ impl<'a> Ctx<'a> {
         let mut seen_all = true;
         let mut placed = page_has_content;
         let mut placed_any = false;
+        // CORE-354: whether header chrome / a body row landed on this
+        // fragment — a header must not ship without a body row.
+        let mut header_placed = false;
+        let mut body_placed = false;
 
         // CORE-235: the table's own chrome. In the SEPARATE model (the CSS
         // initial value, border-collapse: separate) the table border-box
@@ -5455,9 +5459,16 @@ impl<'a> Ctx<'a> {
         // table-header-group re-lays-out at the top of the page even though
         // its child index is before the resume point. (A header is small;
         // if it itself overflows we let it fragment like any box.)
+        // CORE-354: only a header BEFORE the resume point repeats. A header
+        // the token resumes AT (it was deferred or split) has not completed
+        // once yet; the in-order loop below lays it, and repeating it here
+        // too painted it twice.
         if !fresh {
             for (i, child) in children.iter().enumerate() {
                 if self.styles[*child].display != Display::TableHeaderGroup {
+                    continue;
+                }
+                if i >= start_index {
                     continue;
                 }
                 let child_tok = self.child_incoming(token, i);
@@ -5543,6 +5554,13 @@ impl<'a> Ctx<'a> {
                 _ => continue,
             };
             if !res.empty {
+                if res.used.get() > 0.0 {
+                    if cd == Display::TableHeaderGroup {
+                        header_placed = true;
+                    } else {
+                        body_placed = true;
+                    }
+                }
                 y += res.used;
                 placed = true;
                 placed_any = true;
@@ -5559,12 +5577,44 @@ impl<'a> Ctx<'a> {
             }
         }
 
+        // CORE-354 (spec rule 7, "header stays with the first body row"):
+        // the first fragment holds header rows but no body row, the table
+        // is unfinished, and content above it means the table can move —
+        // move the whole table to the next fragmentainer instead of
+        // orphaning the header (and the repeated footer) here. Once only
+        // (`deferred_once`, rule 14): at the next attempt the header places
+        // and the row follows its own deferral rules. Mirrors the
+        // top-caption rule in `layout_table_block`, which sees this empty
+        // result and moves the caption along with the grid.
+        if fresh
+            && page_has_content
+            && !token.deferred_once
+            && !seen_all
+            && header_placed
+            && !body_placed
+        {
+            return BlockResult {
+                fragment: Fragment::block(Point::new(origin_x, top), (avail_width, Scalar::ZERO)),
+                used: Scalar::ZERO,
+                outgoing: Some(BreakToken::break_before_deferred()),
+                empty: true,
+            };
+        }
+
         // Footer repetition: place the footer group(s) at the bottom of this
         // fragment, after the last row that fit. Only when the fragment
         // actually contains table content (an empty fragment — e.g. a table
         // that starts at the very bottom of a page — defers everything,
         // footer included, to the next fragment).
-        if placed_any && reserve_footer {
+        // CORE-354: the footer is chrome for body rows too. A header group
+        // that did not fit still leaves a zero-height, token-carrying
+        // fragment that sets `placed_any`; without a body row here the
+        // footer would print alone at the page bottom. A table with no body
+        // left to place (`seen_all`) still closes with its footer, and at a
+        // fragmentainer top (nothing above, the table cannot move) the
+        // chrome keeps its old placement — the row follows its own rules
+        // (table-fragmentation-003c/d: header + footer on page 1).
+        if placed_any && reserve_footer && (body_placed || seen_all || !page_has_content) {
             for &fi in &footer_indices {
                 let child_tok = self.child_incoming(token, fi);
                 if spaced_any && sp_v.get() > 0.0 {
