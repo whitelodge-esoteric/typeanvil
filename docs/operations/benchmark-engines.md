@@ -4,7 +4,7 @@ type: runbook
 status: approved
 owner: maintainers
 created: 2026-08-25
-updated: 2026-10-11
+updated: 2026-10-13
 sidebar_position: 2
 tags: [benchmark, performance, prince, weasyprint]
 ---
@@ -63,6 +63,9 @@ things handle this:
 - `scripts/render-weasyprint.sh` (and therefore the benchmark and triage
   WeasyPrint legs) exports `DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib`
   itself when it is unset.
+- `scripts/benchmark.py` exports the same fallback for its `weasyprint
+  --version` probe, so `results.json` and `RESULTS.md` record the version
+  string instead of a blank import-failure line.
 - For interactive use, add the export to your shell profile:
   `export DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib"`.
 
@@ -90,8 +93,11 @@ variable rather than relying on inheritance.
 - **Known upstream crash (verified CORE-318):** WeasyPrint 70.0 crashes with an
   `AssertionError` in its `float_layout` on `demo/corpus/book-chapter.html`
   (drop-cap `::first-letter` float interacting with `float: footnote`). Prince
-  and TypeAnvil render it. Re-test with a newer WeasyPrint before adding that
-  fixture to a committed baseline.
+  and TypeAnvil render it. The WeasyPrint leg therefore SKIPS that fixture
+  automatically — `WEASY_KNOWN_CRASHES` in `scripts/benchmark.py` — and reports
+  it as `Skipped:` on the console and in `RESULTS.md`. A skipped fixture is not
+  a failure, so the run still exits 0 and its numbers can be committed. Re-test
+  with a newer WeasyPrint and remove the entry once it renders.
 
 ## Baseline snapshot
 

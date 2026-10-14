@@ -28,6 +28,7 @@ fallback otherwise).
 
 import argparse
 import json
+import os
 import platform
 import re
 import shutil
@@ -55,6 +56,39 @@ PAGE_MARGIN_PRINCE = "36pt 36pt 36pt 36pt"
 # posix_spawn strips DYLD_* vars from children, so they cannot be inherited.
 WEASY_WRAPPER = REPO_ROOT / "scripts" / "render-weasyprint.sh"
 
+# WeasyPrint 70.0 raises an AssertionError in its `float_layout` on this fixture
+# (a drop-cap `::first-letter` float interacting with `float: footnote`). Prince
+# and TypeAnvil render it. The bug is upstream, so the WeasyPrint leg skips the
+# fixture instead of recording a per-run failure, and the skip is printed in
+# both outputs. Re-test against a newer WeasyPrint before removing an entry.
+# See docs/operations/benchmark-engines.md.
+WEASY_KNOWN_CRASHES = {
+    "Book Chapter — The Cartography of Rivers":
+        "WeasyPrint 70.0 AssertionError in float_layout (upstream)",
+}
+
+
+def skip_reason(engine: str, name: str) -> str | None:
+    """Why this engine's leg must not render this fixture, else None."""
+    if engine == "weasy":
+        return WEASY_KNOWN_CRASHES.get(name)
+    return None
+
+
+def weasy_env(lib_dir: str = "/opt/homebrew/lib") -> dict:
+    """Subprocess environment for WeasyPrint.
+
+    Mirrors the export in scripts/render-weasyprint.sh: Homebrew's Pango/GLib
+    live in /opt/homebrew/lib, which is not on the default dyld search path, so
+    the CLI cannot import them without the fallback. Without this the version
+    probe reads back as blank instead of the version string.
+    """
+    env = dict(os.environ)
+    if not env.get("DYLD_FALLBACK_LIBRARY_PATH") and Path(lib_dir).is_dir():
+        env["DYLD_FALLBACK_LIBRARY_PATH"] = lib_dir
+    return env
+
+
 MANIFEST = REPO_ROOT / "demo/corpus/manifest.json"
 OUT_DIR = REPO_ROOT / "benchmarks"
 
@@ -77,8 +111,10 @@ def engine_version_prince() -> str:
 
 
 def engine_version_weasy(binary: str = "weasyprint") -> str:
-    r = subprocess.run([binary, "--version"], capture_output=True, text=True)
-    return (r.stdout or r.stderr).strip().splitlines()[0] if (r.stdout or r.stderr) else "unknown"
+    r = subprocess.run([binary, "--version"], capture_output=True, text=True,
+                       env=weasy_env())
+    out = (r.stdout or r.stderr).strip()
+    return out.splitlines()[0] if out else "unknown"
 
 
 def count_pages(pdf_path: Path) -> int | None:
@@ -153,6 +189,11 @@ def bench_engine(engine: str, corpus, workdir: Path, ta_bin: Path,
                  runs: int, warmup: int) -> dict:
     results = {}
     for name, fname in corpus:
+        reason = skip_reason(engine, name)
+        if reason:
+            results[name] = {"runs": 0, "failures": [], "skipped": reason,
+                             "pages": None}
+            continue
         html = REPO_ROOT / "demo/corpus" / fname
         base = fname[:-len(".html")]
         out_pdf = workdir / f"{base}-{engine}.pdf"
@@ -213,10 +254,19 @@ def machine_info() -> dict:
 def write_results_md(data: dict, path: Path) -> None:
     lines = []
     env = data["environment"]
-    lines.append("# Engine benchmark — TypeAnvil vs PrinceXML vs WeasyPrint")
+    names = {"ta": "TypeAnvil", "prince": "PrinceXML", "weasy": "WeasyPrint"}
+    engines = [names.get(e, str(e)) for e in data["engines"]]
+    lines.append("# Engine benchmark — " + " vs ".join(engines))
     lines.append("")
-    lines.append(f"Generated {env['date_utc']} · TypeAnvil `{data['typeanvil_version']}` "
-                 f"(release profile) · {data['prince_version']} · {data['weasy_version']}")
+    versions = []
+    if "ta" in data["engines"]:
+        versions.append(f"TypeAnvil `{data['typeanvil_version']}` "
+                        f"({data['typeanvil_profile']} profile)")
+    if "prince" in data["engines"]:
+        versions.append(str(data["prince_version"]))
+    if "weasy" in data["engines"]:
+        versions.append(str(data["weasy_version"]))
+    lines.append(f"Generated {env['date_utc']} · " + " · ".join(versions))
     lines.append("")
     lines.append(f"Environment: {env.get('cpu', env['platform'])}, "
                  f"{round(env.get('ram_bytes', 0) / (1024**3))} GB RAM, "
@@ -229,6 +279,14 @@ def write_results_md(data: dict, path: Path) -> None:
                  "memory is the max peak RSS across timed runs (`/usr/bin/time -l`). "
                  "Process spawn cost included for all engines.")
     lines.append("")
+    skipped = [(eng, name, r["skipped"])
+               for eng in data["engines"]
+               for name, _f in data["corpus"]
+               if (r := data["results"][eng].get(name, {})).get("skipped")]
+    if skipped:
+        lines.append("Skipped: " + "; ".join(
+            f"{names.get(eng, eng)} / {name} — {why}" for eng, name, why in skipped))
+        lines.append("")
     for metric, unit, key, fmt in (
         ("Render speed (median wall-clock)", "s", "median_s", ".3f"),
         ("Peak memory", "MiB", "peak_rss_mib", ".1f"),
@@ -346,6 +404,9 @@ def main() -> int:
     # silently become a missing number).
     for eng, per in data["results"].items():
         for name, e in per.items():
+            if e.get("skipped"):
+                print(f"{eng:6s} {name[:40]:40s} SKIPPED  {e['skipped']}")
+                continue
             status = "ok" if not e["failures"] else f"FAILURES: {'; '.join(e['failures'])}"
             med = e.get("median_s", "—")
             mem = e.get("peak_rss_mib", "—")

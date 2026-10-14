@@ -110,8 +110,8 @@ The visible consequence is in `demo/showcase/weasyprint-report.html`. The
 sample's `@top-center` is a 1.42pt background rule that its author drew to sit
 beneath the running head. Under the spec's `middle` default it lands on the
 running head's centre line instead, so the rule crosses the text. WeasyPrint
-keeps the rule clear of the text by placing the boxes flush to the page edge —
-but that placement is WeasyPrint's deviation from the table, not ours.
+keeps the rule clear of the text by placing the boxes flush to the page edge,
+which deviates from the table.
 
 Measured 2026-10-13 on `release/2026.10`. Reproduce with a 200mm × 60mm page and
 20mm margins, declaring `@top-left` (`height: 1cm; width: 1cm`), `@top-center`
