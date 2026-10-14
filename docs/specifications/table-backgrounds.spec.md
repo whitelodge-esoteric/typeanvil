@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-08-20
-updated: 2026-09-27
+updated: 2026-10-14
 sidebar_position: 16
 tags: [layout, tables, css-tables, backgrounds, engine]
 spec_id: table-backgrounds
@@ -51,8 +51,9 @@ the correct z-order with no emitter change.
 
 ## Non-Goals
 
-- `table`-, `colgroup`-, and `col`-level backgrounds (out of scope for
-  this spec; same pattern extends later).
+- `colgroup`- and `col`-level backgrounds (out of scope for this spec; same
+  pattern extends later). Table-level backgrounds moved into scope in
+  CORE-368 (Behavior 9 below).
 - `border-collapse: separate` (the engine is collapse-only).
 - Background images, gradients, `background-clip`/`origin`/`position` —
   `background-color` only.
@@ -82,6 +83,11 @@ the correct z-order with no emitter change.
 7. Row/group fills shall not change layout or pagination: `used` heights and
    break tokens are unaffected by the presence of a fill.
 8. A zero-height row/group shall emit no fill.
+9. A table whose `background-color` is set shall emit a `Background` fill on
+   its own fragment on EVERY page it spans. The fill covers that fragment's
+   border box, so it paints under the group, row and cell fills (the table
+   is their parent). A zero-height fragment emits no fill (CORE-368;
+   css-tables-3 §6 background layers).
 
 ## Interfaces
 
@@ -113,6 +119,12 @@ borders before text).
    red, green, and blue exact-hex counts are all > 30k px and border pixels
    are present. Verified 2026-08-20: red 38,997 / green 38,618 / blue 39,872 /
    border 11,355 / text 1,078 (1-page 5in×3in render).
+5. **Table-level fill** (Behavior 9). Given a `<table>` or a div
+   `display:table` with `background: yellow` around a 350vh cell, when
+   rendered, then each of the 4 pages carries exactly one yellow
+   `Background` fill
+   (`core368_anonymous_table_boxes.rs::table_background_paints_on_every_fragment`).
+   WPT `monolithic-overflow-009/010/011` pass.
 
 ## Edge Cases
 

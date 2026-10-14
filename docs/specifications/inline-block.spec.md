@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-08-25
-updated: 2026-09-27
+updated: 2026-10-14
 sidebar_position: 24
 tags: [css-display-3, layout]
 spec_id: SPEC-inline-block
@@ -118,6 +118,28 @@ this residual.
     and the box = -360pt). An atomic that WRAPS to a fresh line starts at the
     segment origin — a new line's alignment is computed from its own content.
 
+13. All atomic boxes on one line shall share that line box (css2 §9.4.2,
+    §10.8). Each atomic shall be laid out from the line's top, and the line
+    shall be as tall as its tallest box, not the sum of its boxes. The cursor
+    after the line shall be the bottom of the tallest box.
+    - An atomic that wraps shall open a new line box whose top is the
+      previous line's bottom. Baseline alignment and the Behavior 8 top
+      clamp shall measure against that new line.
+    - An in-flow block sibling ends the current line, so the next atomic
+      shall start a fresh line at the content-box left edge.
+    - The baseline-alignment shift shall move the atomic's own fragment
+      only. Descendant offsets and text baselines are parent-relative
+      (`frag.rs`), so moving the box moves its whole subtree. Before this
+      rule, each descendant moved again, once per nesting level: a `<p>`
+      inside the second of two side-by-side inline-blocks landed above the
+      page top.
+14. The atomic's own margins shall be applied exactly once. The block
+    layout path (`layout_box`) and `measure_block` already apply the box's
+    margins and vertical padding. The atomic placement shall therefore hand
+    them the margin box (origin = pen, width = the margin-box advance) and
+    shall not add those margins or padding a second time. Before this rule,
+    `margin-left: 1cm` indented the box by 2cm and narrowed it by 2cm.
+
 ## Interfaces
 
 - `css.rs`: add `Display::InlineBlock`; map stylo
@@ -164,6 +186,13 @@ this residual.
   sits behind the text at the line origin
   (`core175_atomic_after_aligned_text.rs::atomic_after_right_aligned_text_follows_it`;
   confirmed to fail without the fix with `gap=-360, box x=0`).
+- Behaviors 13–14 (`core368_inline_block_line.rs`). Two inline-blocks with
+  block children share one line and their text stays inside each box
+  (failed without the fix with `B1 baseline -39.15 inside B's box
+  36..50.4`). A wrapped third box opens the next line (`C top 36 is below
+  the first line bottom 64.8`). A box after a block starts at the line
+  start (`x=108`). `margin-left: 40px` indents the box once (`got x=96`,
+  want 66).
 
 ## Edge Cases
 

@@ -147,6 +147,21 @@ impl<'a> Ctx<'a> {
         let mut set_i = 0usize;
         let mut span_i = 0usize;
         let mut in_flight = start_index;
+        // CORE-368: a multicol container with a definite height has a FIXED
+        // column height (css-multicol-1 §8.1). `column-fill: auto` fills
+        // each column to that height in turn; `balance` balances, but never
+        // past it. Content that does not fit the container's n columns
+        // flows into overflow columns in the inline direction, on the same
+        // page (§8.2). The engine used to ignore the height and always
+        // balance, so a table whose repeated header the balance estimate
+        // cannot see (WPT repeated-section/*) spilled a set tail onto extra
+        // pages. Applied to a fresh, spanner-free container that fits the
+        // page; anything else keeps the page-filling paths below.
+        let constrained_h = if fresh && spanners.is_empty() {
+            self.resolved_height(style)
+        } else {
+            None
+        };
 
         while set_i < sets.len() || span_i < spanners.len() {
             // Lay the next set (if any) before the next spanner.
@@ -164,6 +179,47 @@ impl<'a> Ctx<'a> {
 
             if lay_set {
                 let (s0, s1, target) = sets[set_i];
+                if let Some(h) = constrained_h.filter(|h| y + *h <= bottom_limit + Scalar(0.01)) {
+                    let col_target = if style.column_fill_auto {
+                        h
+                    } else {
+                        Scalar(target.get().min(h.get()))
+                    };
+                    const MAX_OVERFLOW_COLUMNS: u32 = 10_000;
+                    let (cols, consumed_upto, tok) = self.fill_columns(
+                        id,
+                        &items,
+                        s0,
+                        s1,
+                        inner_left,
+                        col_w,
+                        gap,
+                        n.max(MAX_OVERFLOW_COLUMNS),
+                        col_target,
+                        content_top,
+                        y,
+                        // Each column top is a fragmentainer start, and a
+                        // fixed-height container never defers content to
+                        // the next page: an item too tall for its column
+                        // overflows it in place (tall-line-in-short-
+                        // fragmentainer-000, block-in-inline-000).
+                        false,
+                        token,
+                        flow,
+                        style,
+                    );
+                    children.extend(cols);
+                    in_flight = consumed_upto;
+                    if let Some(t) = tok {
+                        outgoing_children.push(t);
+                        done = false;
+                        y = y + h;
+                        break;
+                    }
+                    y = y + h;
+                    set_i += 1;
+                    continue;
+                }
                 // A set whose balanced column height is shorter than its
                 // tallest in-flow block item cannot be laid by the balanced
                 // path: the item would be force-placed into a truncated
@@ -679,6 +735,36 @@ impl<'a> Ctx<'a> {
     /// balanced height instead).
     #[allow(clippy::too_many_arguments)]
     fn fill_one_column(
+        &self,
+        id: NodeId,
+        items: &[Item],
+        start: usize,
+        end: usize,
+        x: Scalar,
+        col_w: Scalar,
+        col_bottom: Scalar,
+        set_top: Scalar,
+        placed: bool,
+        token: &BreakToken,
+        resume: Option<(usize, BreakToken)>,
+        flow: &mut Flow,
+        style: &ComputedStyle,
+        honor_avoid: bool,
+    ) -> (Fragment, usize, Option<ChildToken>) {
+        // CORE-368: the column is the fragmentainer for its content. Tables
+        // size their repeated chrome against it (css-tables-3: a header or
+        // footer repeats only within a quarter of the fragmentainer).
+        let outer = self.column_height.replace(Some(col_bottom - set_top));
+        let out = self.fill_one_column_body(
+            id, items, start, end, x, col_w, col_bottom, set_top, placed, token, resume, flow, style,
+            honor_avoid,
+        );
+        self.column_height.set(outer);
+        out
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn fill_one_column_body(
         &self,
         id: NodeId,
         items: &[Item],

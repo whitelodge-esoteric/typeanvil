@@ -1,0 +1,113 @@
+{
+  "schema": "typeanvil.harness.reviews/1",
+  "candidate": {
+    "label": "candidate-ecdde58bd1c14762682cba5499b043c680720012",
+    "source_commit": "ecdde58bd1c14762682cba5499b043c680720012",
+    "binary_sha256": "a680ead54156055c1850442b9e1d833accbe38a54dd6a1f4533bd3e46c7fa479"
+  },
+  "baseline": {
+    "label": "baseline-4333fdaba4c4e927ac4660d2e7ac774a852c2cdd",
+    "source_commit": "4333fdaba4c4e927ac4660d2e7ac774a852c2cdd",
+    "binary_sha256": "51450f41cbe81f9ffe621ddd52328eec1ec44db5a574e44f56888930a7249208"
+  },
+  "dispositions": [
+    {
+      "doc_id": "css/css-break/flexbox/multi-line-row-flex-fragmentation-081-print-ref.html",
+      "change_id": "6763d7f9ba5b42d4572bb13cf949d6ef33e2e53c41663e7aa7748592c3ef4002",
+      "kind": "variation",
+      "reason": "Ref's `.flexbox > div > div { display: inline-block }` (combinator) now computes inline-block. Before, the paged pass's UA `div { display: block }` overwrote it. Pages and words are unchanged: 2 -> 2 pages, `Before Flexbox 1 2` | `3 4 After Flexbox`, same as Chromium. Ink is 639/720 -> 499/496 (Chromium 816/590): the boxes are real inline-blocks now, but the known border-box shrink-to-fit width residual (CORE-368 comment, not addressed) draws them narrower. Owning tests 081a-d: FAIL -> FAIL. (Carried from the 0cfbf64 review: identical baseline/candidate fingerprint pair at 0ae1a30.) (Rebased onto 4333fda / CORE-380+381: identical change_id, i.e. identical baseline and candidate fingerprints; disposition carried.)",
+      "provenance": "CORE-368; docs/specifications/paged-media-css.spec.md Behavior 19 (stylesheet display/position owned by stylo); CORE-368; docs/specifications/inline-block.spec.md Behaviors 13-14"
+    },
+    {
+      "doc_id": "css/css-break/flexbox/multi-line-row-flex-fragmentation-082-print-ref.html",
+      "change_id": "0d190b5b7d0ba79b56beee0d4eee0d94c7841fb60f36f08232b038d9e87ab3f0",
+      "kind": "correction",
+      "reason": "Ref's combinator inline-blocks now lay out as inline-blocks, side by side (they were stacked as blocks). Pages 4 -> 2. Words per page `Before Flexbox 1 2 3 4` | `5 6 7 8 After Flexbox`, identical to Chromium (2 pages, same words); base split `4` and `After Flexbox` onto extra pages. Owning tests 082a-d: FAIL -> FAIL (separate flex residual). (Carried from the 0cfbf64 review: identical baseline/candidate fingerprint pair at 0ae1a30.) (Rebased onto 4333fda / CORE-380+381: identical change_id, i.e. identical baseline and candidate fingerprints; disposition carried.)",
+      "provenance": "CORE-368; docs/specifications/paged-media-css.spec.md Behavior 19 (stylesheet display/position owned by stylo); CORE-368; docs/specifications/inline-block.spec.md Behaviors 13-14"
+    },
+    {
+      "doc_id": "css/css-break/table/repeated-section/fixedpos-in-footer-forced-break-print.html",
+      "change_id": "42f01961d50df66a18578efd2e3a9bd3ed54333f22a8e52b34d21bd858030509",
+      "kind": "correction",
+      "reason": "The orphaned `display: table-row` and `table-footer-group` divs now get an anonymous table (parent-side fixup), so the footer group repeats. 4 -> 4 pages. Every page now reads `On the Nth page. On every page. At the bottom of every page.`, exactly Chromium's words per page; base lacked `On every page.` on pages 1-3. Ink 104/108/106/147 -> 144/148/146/147 (Chromium 161/166/165/152). FAIL -> FAIL. (Carried from the 0cfbf64 review: identical baseline/candidate fingerprint pair at 0ae1a30.) (Rebased onto 4333fda / CORE-380+381: identical change_id, i.e. identical baseline and candidate fingerprints; disposition carried.)",
+      "provenance": "CORE-368; docs/specifications/tables-fragmentation.spec.md Behavior 2 (anonymous table boxes, both sides); table-backgrounds.spec.md Behavior 9"
+    },
+    {
+      "doc_id": "css/css-page/monolithic-overflow-016-print.html",
+      "change_id": "11b84336b9936e1aa42c4ea2b29d67a24213d31cd6811d2e4e09c10d1c172216",
+      "kind": "variation",
+      "reason": "The div table (header + footer groups + a 320vh contain:size block) now takes the real table path, not the block mis-layout. Header and footer now repeat on every page, as in Chromium (base printed them on page 1 only). Pages 4 -> 5 (Chromium 4): the 320vh monolithic block is sliced per page under a 30pt header+footer band. The equivalent real `<table>` (probe/c368/tbl/m016-realtable.html) renders the same 5 pages on base2 and cand, so this is the existing table/monolithic-overflow residual reached by div tables, not new behaviour. FAIL -> FAIL. (Carried from the 0cfbf64 review: identical baseline/candidate fingerprint pair at 0ae1a30.) (Rebased onto 4333fda / CORE-380+381: identical change_id, i.e. identical baseline and candidate fingerprints; disposition carried.)",
+      "provenance": "CORE-368; docs/specifications/tables-fragmentation.spec.md Behavior 2 (anonymous table boxes, both sides); table-backgrounds.spec.md Behavior 9"
+    },
+    {
+      "doc_id": "css/css-page/monolithic-overflow-017-print.html",
+      "change_id": "a61450ce327eb01f58e986e33aef5afa10f75688f24f249759f462449df85971",
+      "kind": "correction",
+      "reason": "The div table's footer group now repeats on every page. 4 -> 4 pages. Per page `footer` | `footer` | `footer` | `PASS footer ...`, matching Chromium's words exactly; base printed the footer only on page 1 and dropped it from the last page. FAIL -> FAIL (pixel residual: ink 1111 vs Chromium 572 on page 4). (Carried from the 0cfbf64 review: identical baseline/candidate fingerprint pair at 0ae1a30.) (Rebased onto 4333fda / CORE-380+381: identical change_id, i.e. identical baseline and candidate fingerprints; disposition carried.)",
+      "provenance": "CORE-368; docs/specifications/tables-fragmentation.spec.md Behavior 2 (anonymous table boxes, both sides); table-backgrounds.spec.md Behavior 9"
+    },
+    {
+      "doc_id": "css/css-page/page-name-inline-block-003-print-ref.html",
+      "change_id": "e49ba526cf69da68a5fb025d5d3c3edb368456e182bc3a09ed193ab9defecfb9",
+      "kind": "correction",
+      "reason": "Two inline-block divs now share one line: `a` x42.4 y47.5, `b` x47.3 y44.8 (Chromium: `b` x50.4 y44.2, same line). Base stacked `b` above the line at y30.4 (the baseline shift moved nested text twice). The remaining 3pt x gap is the known collapsed inter-box space. 1 -> 1 page. Test PASS -> PASS (test and ref move together). (Carried from the 0cfbf64 review: identical baseline/candidate fingerprint pair at 0ae1a30.) (Rebased onto 4333fda / CORE-380+381: identical change_id, i.e. identical baseline and candidate fingerprints; disposition carried.)",
+      "provenance": "CORE-368; docs/specifications/inline-block.spec.md Behaviors 13-14"
+    },
+    {
+      "doc_id": "css/css-page/page-name-inline-block-003-print.html",
+      "change_id": "ba0a65add2c373ae56faeafecb1147076044e9811baa72246714d4246e4c806b",
+      "kind": "correction",
+      "reason": "Same as the ref: `b` moves from y30.4 (above the line) to y44.8 on the line beside `a` (Chromium y44.2). 1 -> 1 page; PASS -> PASS. (Carried from the 0cfbf64 review: identical baseline/candidate fingerprint pair at 0ae1a30.) (Rebased onto 4333fda / CORE-380+381: identical change_id, i.e. identical baseline and candidate fingerprints; disposition carried.)",
+      "provenance": "CORE-368; docs/specifications/inline-block.spec.md Behaviors 13-14"
+    },
+    {
+      "doc_id": "css/css-break/break-nested-float-in-table-001-print.html",
+      "change_id": "84b0e3125982ae9dd091a4c5b112e9a31cfc2a9f88c376599b3dabdd495b7a07",
+      "kind": "correction",
+      "reason": "Div table cells holding sized blocks now measure their declared width (tables-fragmentation B3, css-sizing-3 \u00a75); before, the column collapsed to 0 and nothing painted. Pages 3 -> 3; ink per page 0/0/0 -> 1296/1296/1296, Chromium 1296/1296/1296. Owning test FAIL -> PASS. (Re-keyed f580e9f -> 0ae1a30: identical change_id; the amend added a multicol column-top fix that does not touch this doc.) (Rebased onto 4333fda / CORE-380+381: identical change_id, i.e. identical baseline and candidate fingerprints; disposition carried.)",
+      "provenance": "CORE-368; docs/specifications/tables-fragmentation.spec.md Behaviors 3/7/8 + AC16; docs/specifications/multicol.spec.md Behavior 7 + AC9"
+    },
+    {
+      "doc_id": "css/css-break/table/table-fragmentation-003a-print.html",
+      "change_id": "85ce38df271e40d21201f31dd1614b2d2ea1e5ebe872df04054efcacc8abf883",
+      "kind": "correction",
+      "reason": "Footer reservation now counts `tfoot td { block-size: 0.25in }` (measure_rows honours a cell's declared height) and the body row no longer defers past the header. Bands now match Chromium page for page: p1 header+gold 117-152+footer, p2 header+gold 63-152+footer, p3 header+gold 63-80+orange+footer 108-125 (identical to Chromium p3). Base dropped the gold row from p1 and the footer from p2. Residual: our repeated footer sits one border-spacing (9pt) lower than Chromium's (162 vs 153), css-tables-3 places it directly after the last row. Pages 3 -> 3 (Chromium 3). (Re-keyed f580e9f -> 0ae1a30: identical change_id; the amend added a multicol column-top fix that does not touch this doc.) (Rebased onto 4333fda / CORE-380+381: identical change_id, i.e. identical baseline and candidate fingerprints; disposition carried.)",
+      "provenance": "CORE-368; docs/specifications/tables-fragmentation.spec.md Behaviors 3/7/8 + AC16; docs/specifications/multicol.spec.md Behavior 7 + AC9"
+    },
+    {
+      "doc_id": "css/css-break/table/table-fragmentation-003b-print.html",
+      "change_id": "ce3b2186ea435470e5f272551286bb5ecbd990b8a2404dfbf0db33f5fe9983d2",
+      "kind": "correction",
+      "reason": "Same document shape as 003a (writing-mode variant): bands now match Chromium page for page (p1 gold 117-152 + footer, p2 gold 63-152 + footer, p3 identical to Chromium); base dropped the gold row from p1 and the footer from p2. Residual: repeated footer 9pt lower than Chromium (border-spacing before it). Pages 3 -> 3 (Chromium 3). (Re-keyed f580e9f -> 0ae1a30: identical change_id; the amend added a multicol column-top fix that does not touch this doc.) (Rebased onto 4333fda / CORE-380+381: identical change_id, i.e. identical baseline and candidate fingerprints; disposition carried.)",
+      "provenance": "CORE-368; docs/specifications/tables-fragmentation.spec.md Behaviors 3/7/8 + AC16; docs/specifications/multicol.spec.md Behavior 7 + AC9"
+    },
+    {
+      "doc_id": "css/css-break/table/table-fragmentation-003c-print.html",
+      "change_id": "68c9a779c88c0b0b40488c9a542db4fe9ec9e5fa407c355e6e20939229d258a9",
+      "kind": "variation",
+      "reason": "`box-decoration-break: clone` table: pages 2 -> 2 (Chromium 3; clone is not implemented, pre-existing). Base painted the table past the page (black to y=215 on p2, content bottom 180) and printed the footer alone on p1; cand keeps every fragment inside the page with header, row and footer on each (p1 black 36-179, p2 36-161), the footer repeating as in Chromium. The extra Chromium page comes from the cloned border+padding per fragment. (Re-keyed f580e9f -> 0ae1a30: identical change_id; the amend added a multicol column-top fix that does not touch this doc.) (Rebased onto 4333fda / CORE-380+381: identical change_id, i.e. identical baseline and candidate fingerprints; disposition carried.)",
+      "provenance": "CORE-368; docs/specifications/tables-fragmentation.spec.md Behaviors 3/7/8 + AC16; docs/specifications/multicol.spec.md Behavior 7 + AC9"
+    },
+    {
+      "doc_id": "css/css-break/table/table-fragmentation-003d-print.html",
+      "change_id": "c5b277c5679bb5376be70dd156787a155faaffafe11aa0ae2c89693488f86722",
+      "kind": "variation",
+      "reason": "Same as 003c (writing-mode variant): pages 2 -> 2 (Chromium 3, box-decoration-break: clone unimplemented, pre-existing). Base overflowed the page (black to y=215) with the footer alone on p1; cand stays inside the page with header, row and repeated footer on each fragment. (Re-keyed f580e9f -> 0ae1a30: identical change_id; the amend added a multicol column-top fix that does not touch this doc.) (Rebased onto 4333fda / CORE-380+381: identical change_id, i.e. identical baseline and candidate fingerprints; disposition carried.)",
+      "provenance": "CORE-368; docs/specifications/tables-fragmentation.spec.md Behaviors 3/7/8 + AC16; docs/specifications/multicol.spec.md Behavior 7 + AC9"
+    },
+    {
+      "doc_id": "css/css-page/fixedpos-011-print.html",
+      "change_id": "dce8f315f76471d74c81a82c0a573303c473d66f97df4b2ca501fc64a8469f1b",
+      "kind": "correction",
+      "reason": "Fixed multicol `columns:4; column-fill:auto; height:100px` holding a 400px green block now fills four 100px columns (multicol B7, definite height) into the 100x100 green square covering the red, as in Chromium. Pages 3 -> 3; ink per page 695/522/517 -> 565/392/387, Chromium 551/400/398 (base painted extra column content outside the square). (Re-keyed f580e9f -> 0ae1a30: identical change_id; the amend added a multicol column-top fix that does not touch this doc.) (Rebased onto 4333fda / CORE-380+381: identical change_id, i.e. identical baseline and candidate fingerprints; disposition carried.)",
+      "provenance": "CORE-368; docs/specifications/tables-fragmentation.spec.md Behaviors 3/7/8 + AC16; docs/specifications/multicol.spec.md Behavior 7 + AC9"
+    },
+    {
+      "doc_id": "css/css-page/monolithic-overflow-023-print.html",
+      "change_id": "0feab9698c815bdc06350e17bca1ac5d582b055455a63b82361a3d0e6de67884",
+      "kind": "correction",
+      "reason": "Re-measured at the final candidate (fingerprint moved since the 0cfbf64 review): pages 2 -> 2, p1 ink 642 -> 642 (Chromium 634), p2 ink 525 -> 925 (Chromium 844): the monolithic table row now places on p2 under its header instead of being deferred past it (tables-fragmentation B7, chrome is not progress). (Re-keyed f580e9f -> 0ae1a30: identical change_id; the amend added a multicol column-top fix that does not touch this doc.) (Rebased onto 4333fda / CORE-380+381: identical change_id, i.e. identical baseline and candidate fingerprints; disposition carried.)",
+      "provenance": "CORE-368; docs/specifications/tables-fragmentation.spec.md Behaviors 3/7/8 + AC16; docs/specifications/multicol.spec.md Behavior 7 + AC9"
+    }
+  ]
+}

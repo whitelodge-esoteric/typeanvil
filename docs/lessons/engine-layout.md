@@ -4,7 +4,7 @@ type: lesson
 status: approved
 owner: maintainers
 created: 2026-09-16
-updated: 2026-10-13
+updated: 2026-10-14
 sidebar_position: 1
 tags: [engine, layout, fragmentation, paint]
 ---
@@ -28,6 +28,10 @@ Layout changes often cross measurement, fragmentation, fragment assembly, and pa
 - Resolve logical page margins and padding against the effective page writing mode, at resolution time. Do not fold them to physical sides during parsing.
 - When a change moves a public struct field, search all struct literals, including tests, before treating compile errors as environmental.
 - Remove diagnostic probes from production paths before landing.
+- **Fragment offsets are parent-relative: move a subtree by moving its root only** (verified CORE-368): the inline-block baseline shift used a `rebase_subtree` that moved every descendant's offset too, so text inside a shifted box moved once per nesting level. A `<p>` in the second of two side-by-side inline-blocks landed at y −267 on a 3in page. The bug stayed latent because the shift was usually 0 (a single box clamps to the line top) or a few points (empty flexbox-test boxes). Probe signature: an element's text sits above the page while its own box is placed correctly.
+- **Atomic boxes on one line share the line top** (CORE-368): `y` after an atomic is that box's bottom, so laying the NEXT atomic from `y` stacked the boxes, and the line grew to their SUM. Lay every atomic from `line_top`, advance `y` to the tallest box, open a new line box on wrap, and end the line at any in-flow block sibling. `layout_box`/`measure_block` already apply the box's own margins, so pass them the margin box.
+- **`self.page_height` is not the fragmentainer inside multicol** (CORE-368): a size check written against the page ("a footer smaller than the page is reserved") reserves a 120px footer in a 100px column and leaves no room for rows. Read `Ctx::fragmentainer_height()` (the column being filled, set by `fill_one_column`) for any "does it fit one fragmentainer" decision. Probe signature: a table inside fixed-height columns spills onto extra pages while the same table on plain pages is fine.
+- **Repeated chrome must never take the resume token's place** (CORE-368): a repeated header laid against the row limit can split and push its OWN child token; the body row's token is then lost and the table restarts from row 1 on every fragment (100,000-page runaway). Lay repeated chrome whole (unbounded) or drop it.
 
 ## Lessons
 

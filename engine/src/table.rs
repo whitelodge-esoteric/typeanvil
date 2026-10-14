@@ -7,7 +7,7 @@
 //! display roles to table-family depth for anonymous-box wrapping.
 
 use crate::css::{ComputedStyle, Display, Hyphens, TextAlign};
-use crate::dom::{Dom, NodeId, NodeKind};
+use crate::dom::{Dom, Element, Node, NodeId, NodeKind};
 use crate::fonts;
 use crate::geom::Scalar;
 use crate::typography::{break_paragraph, shape_word_with_features};
@@ -126,6 +126,19 @@ pub fn intrinsic_column_widths(
                     }
                 }
             }
+            // CORE-368: a descendant block with a DECLARED width is as wide as
+            // that width at both min- and max-content (css-sizing-3 §5: a
+            // definite `width` is the box's min/max-content contribution).
+            // Without it a cell whose only content is a sized `<div>`
+            // measured 0, its column collapsed, and nothing in it painted
+            // (WPT repeated-section/*: `width:25px` green columns).
+            let declared = declared_descendant_width(dom, styles, cell);
+            if declared.get() > cell_min.get() {
+                cell_min = declared;
+            }
+            if declared.get() > cell_max.get() {
+                cell_max = declared;
+            }
             let cell_min = cell_min + style.padding_left + style.padding_right;
             let cell_max = cell_max + style.padding_left + style.padding_right;
             // CORE-96: a spanning cell contributes an EQUAL SHARE of its
@@ -150,6 +163,41 @@ pub fn intrinsic_column_widths(
         }
     }
     (min_widths, max_widths)
+}
+
+/// The widest margin box among `id`'s in-flow element descendants that
+/// declare a definite (non-percentage) `width` (CORE-368). A content-box
+/// width adds its padding + border; margins always add. Out-of-flow and
+/// `display: none` subtrees contribute nothing.
+fn declared_descendant_width(dom: &Dom, styles: &[ComputedStyle], id: NodeId) -> Scalar {
+    let mut widest = Scalar::ZERO;
+    for &child in &dom.nodes[id].children {
+        if !matches!(dom.nodes[child].kind, NodeKind::Element(_)) {
+            continue;
+        }
+        let cs = &styles[child];
+        if cs.display == Display::None
+            || matches!(cs.position, crate::css::Position::Absolute | crate::css::Position::Fixed)
+        {
+            continue;
+        }
+        if let (Some(w), None) = (cs.width, cs.width_percent) {
+            let chrome = if cs.box_sizing == crate::css::StyloBoxSizing::BorderBox {
+                Scalar::ZERO
+            } else {
+                cs.padding_left + cs.padding_right + cs.border_left + cs.border_right
+            };
+            let box_w = w + chrome + cs.margin_left + cs.margin_right;
+            if box_w.get() > widest.get() {
+                widest = box_w;
+            }
+        }
+        let nested = declared_descendant_width(dom, styles, child) + cs.padding_left + cs.padding_right;
+        if nested.get() > widest.get() {
+            widest = nested;
+        }
+    }
+    widest
 }
 
 /// The rows of a table restricted to a [`MeasureScope`] (CORE-89).
@@ -527,6 +575,22 @@ pub fn measure_rows(
             if block_h.get() > content_h.get() {
                 content_h = block_h;
             }
+            // CORE-368: the cell's own declared `height` is a minimum, as
+            // `layout_box` applies it when the cell is laid (content box
+            // unless `box-sizing: border-box`). Without it a footer of
+            // `td { height: 0.25in }` measured 0, the footer reservation was
+            // one cell short, and the repeated footer no longer fit under the
+            // rows (table-fragmentation-003a-d).
+            if let Some(h) = style.height {
+                let declared = if style.box_sizing == crate::css::StyloBoxSizing::BorderBox {
+                    h - style.padding_top - style.padding_bottom - style.border_top - style.border_bottom
+                } else {
+                    h
+                };
+                if declared.get() > content_h.get() {
+                    content_h = declared;
+                }
+            }
             // CORE-210: a replaced child contributes its used box height
             // (mirrors `measure_block`'s image handling in layout.rs) — an
             // image-only cell otherwise measures 0 and its row collapses
@@ -710,4 +774,205 @@ fn measure_text_height(text: &str, style: &ComputedStyle, max_width: Scalar) -> 
     let lines = break_paragraph(text, max_width, style, hyphenate, justify);
     let line_height = style.line_height;
     line_height * (lines.len() as f64)
+}
+
+/// Tag of the anonymous table wrappers (CORE-368). It names no HTML element,
+/// so no tag-keyed path (`img`, `td` colspan, `br`, ...) ever matches one.
+pub const ANONYMOUS_TABLE_TAG: &str = "-typeanvil-anonymous";
+
+/// The wrapper role a table-family parent gives a run of children that are
+/// not proper table children (css-tables-3 §3.4.2 "generate missing child
+/// wrappers"), or `None` when `parent` is not a table-family container.
+fn child_wrapper_role(display: Display) -> Option<Display> {
+    match display {
+        Display::Table
+        | Display::TableRowGroup
+        | Display::TableHeaderGroup
+        | Display::TableFooterGroup => Some(Display::TableRow),
+        Display::TableRow => Some(Display::TableCell),
+        _ => None,
+    }
+}
+
+/// True when `child` is already a proper child of a `parent_display` box,
+/// or renders nothing and so needs no wrapper.
+fn is_proper_table_child(nodes: &[Node], styles: &[ComputedStyle], parent_display: Display, child: NodeId) -> bool {
+    let NodeKind::Element(el) = &nodes[child].kind else {
+        return false;
+    };
+    let cs = &styles[child];
+    if cs.display == Display::None {
+        return true;
+    }
+    // Column boxes are unsupported (they compute to Block, css.rs); they hold
+    // no content and must not grow an anonymous row.
+    if el.tag.eq_ignore_ascii_case("col") || el.tag.eq_ignore_ascii_case("colgroup") {
+        return true;
+    }
+    match parent_display {
+        Display::Table => {
+            cs.table_caption.is_some()
+                || matches!(
+                    cs.display,
+                    Display::TableRow
+                        | Display::TableRowGroup
+                        | Display::TableHeaderGroup
+                        | Display::TableFooterGroup
+                )
+        }
+        Display::TableRow => cs.display == Display::TableCell,
+        _ => cs.display == Display::TableRow,
+    }
+}
+
+/// A run is worth a wrapper when it holds an element or non-white-space
+/// text; a white-space-only run between table boxes is dropped (§3.4.2).
+fn run_is_significant(nodes: &[Node], run: &[NodeId]) -> bool {
+    run.iter().any(|&c| match &nodes[c].kind {
+        NodeKind::Text(t) => !t.trim().is_empty(),
+        NodeKind::Element(_) => true,
+        NodeKind::Root => false,
+    })
+}
+
+/// True for an internal table box that needs a table ancestor (css-tables-3
+/// §3.4.3 "generate missing parents"). Captions outside a table stay blocks
+/// (tables-fragmentation Behavior 19).
+fn is_internal_table_box(nodes: &[Node], styles: &[ComputedStyle], id: NodeId) -> bool {
+    matches!(nodes[id].kind, NodeKind::Element(_))
+        && matches!(
+            styles[id].display,
+            Display::TableRowGroup
+                | Display::TableHeaderGroup
+                | Display::TableFooterGroup
+                | Display::TableRow
+                | Display::TableCell
+        )
+}
+
+/// Maximal runs of internal table boxes among the children of a NON-table
+/// box `id`; each run gets one anonymous table. White space between two
+/// internal boxes joins the run; a white-space run at either end does not.
+fn orphan_runs(nodes: &[Node], styles: &[ComputedStyle], id: NodeId) -> Vec<Vec<NodeId>> {
+    let mut runs = Vec::new();
+    let mut cur: Vec<NodeId> = Vec::new();
+    let mut pending_ws: Vec<NodeId> = Vec::new();
+    for &c in &nodes[id].children {
+        if is_internal_table_box(nodes, styles, c) {
+            if !cur.is_empty() {
+                cur.append(&mut pending_ws);
+            }
+            pending_ws.clear();
+            cur.push(c);
+        } else if matches!(&nodes[c].kind, NodeKind::Text(t) if t.trim().is_empty()) {
+            pending_ws.push(c);
+        } else {
+            if !cur.is_empty() {
+                runs.push(std::mem::take(&mut cur));
+            }
+            pending_ws.clear();
+        }
+    }
+    if !cur.is_empty() {
+        runs.push(cur);
+    }
+    runs
+}
+
+/// The wrapper role and the runs it wraps for node `id`: child-side runs
+/// inside a table-family box, parent-side (anonymous table) runs elsewhere.
+fn wrapper_runs(nodes: &[Node], styles: &[ComputedStyle], id: NodeId) -> Option<(Display, Vec<Vec<NodeId>>)> {
+    if matches!(nodes[id].kind, NodeKind::Text(_)) {
+        return None;
+    }
+    let (role, runs) = match child_wrapper_role(styles[id].display) {
+        Some(role) => (role, improper_runs(nodes, styles, id)),
+        // A `display: none` box renders nothing and needs no fixup. A cell's
+        // content is ordinary block flow, so a row inside a cell DOES get an
+        // anonymous table (the arm below).
+        None if styles[id].display == Display::None => return None,
+        None => (Display::Table, orphan_runs(nodes, styles, id)),
+    };
+    (!runs.is_empty()).then_some((role, runs))
+}
+
+/// Maximal runs of consecutive improper children of `id` that need a wrapper.
+fn improper_runs(nodes: &[Node], styles: &[ComputedStyle], id: NodeId) -> Vec<Vec<NodeId>> {
+    if child_wrapper_role(styles[id].display).is_none() {
+        return Vec::new();
+    }
+    if !matches!(nodes[id].kind, NodeKind::Element(_)) {
+        return Vec::new();
+    }
+    let pd = styles[id].display;
+    let mut runs = Vec::new();
+    let mut cur: Vec<NodeId> = Vec::new();
+    for &c in &nodes[id].children {
+        if is_proper_table_child(nodes, styles, pd, c) {
+            if run_is_significant(nodes, &cur) {
+                runs.push(std::mem::take(&mut cur));
+            }
+            cur.clear();
+        } else {
+            cur.push(c);
+        }
+    }
+    if run_is_significant(nodes, &cur) {
+        runs.push(cur);
+    }
+    runs
+}
+
+/// Generate the anonymous table boxes CSS requires (CORE-368; css-tables-3
+/// §3.4, CSS2.1 §17.2.1):
+///
+/// - child side (§3.4.2): a run of non-row children of a table / row group
+///   is wrapped in an anonymous `table-row`, and a run of non-cell children
+///   of a row in an anonymous `table-cell`;
+/// - parent side (§3.4.3): a run of rows / row groups / cells whose parent
+///   is not a table-family box is wrapped in an anonymous `table` (a stray
+///   cell then gets its anonymous row from the child side).
+///
+/// Without it the table loop skipped that content and it vanished
+/// (`<div style="display:table">text</div>` painted nothing).
+///
+/// Runs AFTER the cascade, so selectors never see the wrappers (anonymous
+/// boxes are not elements). Wrappers are appended to the arena, so every
+/// existing `NodeId` stays valid; their styles inherit from the parent
+/// ([`ComputedStyle::anonymous_child`]). Returns `None` (no copy) when no
+/// table needs fixing.
+pub fn fixup_anonymous_table_boxes(dom: &Dom, styles: &mut Vec<ComputedStyle>) -> Option<Dom> {
+    if !(0..dom.nodes.len()).any(|id| wrapper_runs(&dom.nodes, styles, id).is_some()) {
+        return None;
+    }
+    let mut nodes = dom.nodes.clone();
+    // Index order; wrappers are appended, so a new anonymous row is itself
+    // visited and gets its anonymous cell.
+    let mut id = 0;
+    while id < nodes.len() {
+        if let Some((role, runs)) = wrapper_runs(&nodes, styles, id) {
+            for run in runs {
+                let anon = nodes.len();
+                nodes.push(Node {
+                    kind: NodeKind::Element(Element {
+                        tag: ANONYMOUS_TABLE_TAG.to_string(),
+                        id: None,
+                        classes: Vec::new(),
+                        attrs: Vec::new(),
+                    }),
+                    parent: Some(id),
+                    children: run.clone(),
+                });
+                let st = styles[id].anonymous_child(role);
+                styles.push(st);
+                for &c in &run {
+                    nodes[c].parent = Some(anon);
+                }
+                let first = nodes[id].children.iter().position(|&c| c == run[0]).expect("run child");
+                nodes[id].children.splice(first..first + run.len(), [anon]);
+            }
+        }
+        id += 1;
+    }
+    Some(Dom { nodes, root: dom.root })
 }

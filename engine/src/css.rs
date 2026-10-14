@@ -1043,6 +1043,10 @@ pub struct ComputedStyle {
     pub column_width: Option<Scalar>,
     /// `column-span` (spanners interrupt the column flow).
     pub column_span: ColumnSpan,
+    /// `column-fill: auto` (CORE-368). stylo compiles `column-fill` for
+    /// gecko only, so the paged pass carries it. `false` = `balance`, the
+    /// initial value.
+    pub column_fill_auto: bool,
     /// `column-gap`; `normal`/`auto` resolve to 1em. Points.
     pub column_gap: Scalar,
     /// Flex container properties (css-flexbox-1). Computed by stylo (all
@@ -1170,6 +1174,36 @@ pub struct ComputedStyle {
 }
 
 impl ComputedStyle {
+    /// The style of an anonymous box generated inside `self` (CORE-368,
+    /// css-tables-3 §3.4.2 table fixup; CSS2.1 §17.2.1): inherited
+    /// properties come from the parent, every other property takes its
+    /// initial value, and `display` is the wrapper's role.
+    pub(crate) fn anonymous_child(&self, display: Display) -> ComputedStyle {
+        let mut s = ComputedStyle::initial();
+        s.display = display;
+        s.color = self.color;
+        s.font_size = self.font_size;
+        s.line_height = self.line_height;
+        s.font_weight = self.font_weight;
+        s.font_style = self.font_style;
+        s.font_face = self.font_face;
+        s.font_fallbacks = self.font_fallbacks.clone();
+        s.font_family = self.font_family.clone();
+        s.border_collapse = self.border_collapse;
+        s.border_spacing_h = self.border_spacing_h;
+        s.border_spacing_v = self.border_spacing_v;
+        s.orphans = self.orphans;
+        s.widows = self.widows;
+        s.text_align = self.text_align;
+        s.rtl = self.rtl;
+        s.writing_mode = self.writing_mode;
+        s.hyphens = self.hyphens;
+        s.white_space = self.white_space;
+        s.feature_settings = self.feature_settings.clone();
+        s.ot_features = self.ot_features.clone();
+        s
+    }
+
     /// The initial / root style (the base of inheritance).
     fn initial() -> ComputedStyle {
         ComputedStyle {
@@ -1219,6 +1253,7 @@ impl ComputedStyle {
             column_count: None,
             column_width: None,
             column_span: ColumnSpan::None,
+            column_fill_auto: false,
             column_gap: px_to_pt(16.0),
             flex_direction: FlexDirection::Row,
             flex_wrap: FlexWrap::Nowrap,
@@ -2245,6 +2280,7 @@ impl CascadeSession {
             column_count,
             column_width,
             column_span,
+            column_fill_auto: false,
             column_gap,
             flex_direction,
             flex_wrap,
@@ -2718,7 +2754,7 @@ pub(crate) fn cascade_evaluated(
     // content / bookmark-*). The UA sheet's element rules (CORE-128 heading
     // bookmark defaults) join at UA origin — any author rule wins.
     paged_props::apply_paged_properties(
-        dom,
+        &backend,
         evaluated_css,
         CascadeSession::UA_CSS,
         &mut styles,
@@ -3123,6 +3159,18 @@ mod breaks {
             hyphens: Option<(u32, u32)>,
         }
         let mut won = vec![Won::default(); styles.len()];
+        // UA level (CORE-368): `thead, tfoot { break-inside: avoid }`, as in
+        // Chromium's html.css. Any author declaration outranks it (`won`
+        // stays unset). Repeated table chrome requires `avoid`
+        // (css-tables-3 §8); probed: Chromium stops repeating a `<thead>`
+        // given `break-inside: auto`.
+        for (id, node) in dom.nodes.iter().enumerate() {
+            if let crate::dom::NodeKind::Element(el) = &node.kind {
+                if el.tag == "thead" || el.tag == "tfoot" {
+                    styles[id].break_inside = BreakInside::Avoid;
+                }
+            }
+        }
         // Which nodes explicitly set orphans/widows/hyphens (so inheritance
         // skips them).
         let mut set_orphans = vec![false; styles.len()];
@@ -3820,10 +3868,32 @@ mod borders {
 /// stylesheet text, reusing that module's selector matcher. `@page` at-rules
 /// are parsed separately (see [`crate::paged`]); this pass skips them.
 mod paged_props {
-    use super::breaks::{parse_simple, strip_comments, SimpleSelector};
+    use super::breaks::strip_comments;
     use super::{ComputedStyle, StringSetValue};
-    use crate::dom::{Dom, NodeKind};
+    use crate::dom::NodeKind;
     use crate::paged::{parse_content, ContentPiece};
+    use crate::stylo_dom::{TyBackend, TyElement};
+    use selectors::parser::Selector;
+    use style::selector_parser::{SelectorImpl, SelectorParser};
+    use style::stylesheets::UrlExtraData;
+
+    /// Parse a rule prelude with stylo's own selector parser (CORE-368), so
+    /// the paged pass matches exactly what the cascade matches: combinators,
+    /// attribute selectors, every structural pseudo. An invalid selector list
+    /// drops the whole rule (selectors-4 §3: one bad selector invalidates
+    /// the list). Selectors with a pseudo-element are skipped — they style
+    /// the pseudo-element, never the originating element.
+    fn compile_selectors(prelude: &str, url_data: &UrlExtraData) -> Vec<Selector<SelectorImpl>> {
+        match SelectorParser::parse_author_origin_no_namespace(prelude, url_data) {
+            Ok(list) => list
+                .slice()
+                .iter()
+                .filter(|s| !s.has_pseudo_element())
+                .cloned()
+                .collect(),
+            Err(_) => Vec::new(),
+        }
+    }
 
     /// One paged-media declaration keyed to a field.
     enum PagedDecl {
@@ -3854,6 +3924,9 @@ mod paged_props {
         BookmarkLabel(Vec<ContentPiece>),
         /// `bookmark-state: open | closed` — `true` when `closed`.
         BookmarkState(bool),
+        /// `column-fill: auto | balance` — `true` when `auto` (CORE-368;
+        /// gecko-only in stylo's servo build).
+        ColumnFill(bool),
     }
 
     /// Parse `string-set: name content();` (comma-separated pairs).
@@ -3971,6 +4044,9 @@ mod paged_props {
                     "top" => Some(PagedDecl::FloatSide(super::Float::Top)),
                     "bottom" => Some(PagedDecl::FloatSide(super::Float::Bottom)),
                     "next-page" => Some(PagedDecl::FloatSide(super::Float::NextPage)),
+                    // CORE-368: `none` competes in the guarded float slot so
+                    // a more specific `float: none` beats a page float.
+                    "none" => Some(PagedDecl::FloatSide(super::Float::None)),
                     "snap" => Some(PagedDecl::FloatSide(super::Float::Top)),
                     _ => None,
                 }
@@ -4009,12 +4085,20 @@ mod paged_props {
                     _ => None,
                 }
             }
+            "column-fill" => {
+                let v = value.trim().to_ascii_lowercase();
+                match v.as_str() {
+                    "auto" => Some(PagedDecl::ColumnFill(true)),
+                    "balance" | "balance-all" => Some(PagedDecl::ColumnFill(false)),
+                    _ => None,
+                }
+            }
             _ => None,
         }
     }
 
     struct Rule {
-        selectors: Vec<SimpleSelector>,
+        selectors: Vec<Selector<SelectorImpl>>,
         decls: Vec<PagedDecl>,
         order: u32,
     }
@@ -4022,7 +4106,7 @@ mod paged_props {
     /// Parse only the paged-media element rules; `@page` and other at-rules are
     /// skipped (their braces are balanced-matched so nested margin boxes do not
     /// confuse the scanner).
-    fn parse_rules(css: &str) -> Vec<Rule> {
+    fn parse_rules(css: &str, url_data: &UrlExtraData) -> Vec<Rule> {
         let css = strip_comments(css);
         let mut rules = Vec::new();
         let mut order = 0u32;
@@ -4049,14 +4133,20 @@ mod paged_props {
             // leaving an unbalanced path that interned as a BROKEN image.
             for decl in super::split_top_level_decls(body) {
                 if let Some((prop, value)) = decl.split_once(':') {
-                    if let Some(d) = parse_decl(prop, value) {
-                        decls.push(d);
+                    match parse_decl(prop, value) {
+                        // CORE-368: stylo's cascade already computes
+                        // stylesheet `display` / `position` and is the
+                        // authority for them; re-applying them here let the
+                        // re-read UA sheet (`p { display: block }`) clobber
+                        // a more specific author rule. Only the inline-style
+                        // path below still carries them.
+                        Some(PagedDecl::Display(_)) | Some(PagedDecl::Position(_)) | None => {}
+                        Some(d) => decls.push(d),
                     }
                 }
             }
             if !decls.is_empty() {
-                let selectors: Vec<SimpleSelector> =
-                    prelude.split(',').filter_map(parse_simple).collect();
+                let selectors = compile_selectors(prelude, url_data);
                 if !selectors.is_empty() {
                     rules.push(Rule {
                         selectors,
@@ -4096,9 +4186,18 @@ mod paged_props {
     /// heading bookmark defaults live there, at UA origin — an author rule
     /// wins the cascade slot by construction since UA rules are applied
     /// first and any later match with prio >= an UA match overwrites).
-    pub fn apply_paged_properties(dom: &Dom, css: &str, ua_css: &str, styles: &mut [ComputedStyle]) {
-        let mut rules = parse_rules(css);
-        let mut ua_rules = parse_rules(ua_css);
+    pub fn apply_paged_properties(
+        backend: &TyBackend<'_>,
+        css: &str,
+        ua_css: &str,
+        styles: &mut [ComputedStyle],
+    ) {
+        let dom = backend.dom;
+        let url_data = UrlExtraData(servo_arc::Arc::new(
+            url::Url::parse("http://localhost/").expect("static url"),
+        ));
+        let mut rules = parse_rules(css, &url_data);
+        let mut ua_rules = parse_rules(ua_css, &url_data);
         // UA origin loses to any author rule. Renumber UA rules to 0..n so
         // their priorities sit BELOW every author rule, then shift author
         // orders up by the UA count: an author rule's (spec, order) always
@@ -4129,17 +4228,32 @@ mod paged_props {
             bookmark_level: Option<(u32, u32)>,
             bookmark_label: Option<(u32, u32)>,
             bookmark_state: Option<(u32, u32)>,
+            float: Option<(u32, u32)>,
+            writing_mode: Option<(u32, u32)>,
+            column_fill: Option<(u32, u32)>,
         }
         let mut won = vec![Won::default(); styles.len()];
 
+        // Same matcher as the stylo cascade (CORE-368). No selector flags:
+        // this pass only reads the DOM, it never invalidates.
+        let mut caches = selectors::context::SelectorCaches::default();
+        let mut ctx = selectors::context::MatchingContext::new(
+            selectors::matching::MatchingMode::Normal,
+            None,
+            &mut caches,
+            selectors::matching::QuirksMode::NoQuirks,
+            selectors::matching::NeedsSelectorFlags::No,
+            selectors::matching::MatchingForInvalidation::No,
+        );
         for rule in &rules {
             for sel in &rule.selectors {
-                let prio = (sel.specificity, rule.order);
+                let prio = (sel.specificity(), rule.order);
                 for id in 0..dom.nodes.len() {
                     if !matches!(dom.nodes[id].kind, NodeKind::Element(_)) {
                         continue;
                     }
-                    if !sel.matches(dom, id) {
+                    let el = TyElement::new(id, backend);
+                    if !selectors::matching::matches_selector(sel, 0, None, &el, &mut ctx) {
                         continue;
                     }
                     for decl in &rule.decls {
@@ -4151,17 +4265,20 @@ mod paged_props {
                                 }
                             }
                             PagedDecl::WritingMode(v) => {
-                                styles[id].writing_mode = *v;
-                                styles[id].writing_mode_declared = true;
+                                if won[id].writing_mode.is_none_or(|w| prio >= w) {
+                                    styles[id].writing_mode = *v;
+                                    styles[id].writing_mode_declared = true;
+                                    won[id].writing_mode = Some(prio);
+                                }
                             }
-                            PagedDecl::Display(v) => {
-                                styles[id].display = *v;
-                            }
-                            PagedDecl::Position(v) => {
-                                styles[id].position = *v;
-                            }
+                            // Filtered out of stylesheet rules in
+                            // `parse_rules` (stylo owns them, CORE-368).
+                            PagedDecl::Display(_) | PagedDecl::Position(_) => {}
                             PagedDecl::FloatSide(v) => {
-                                styles[id].float = *v;
+                                if won[id].float.is_none_or(|w| prio >= w) {
+                                    styles[id].float = *v;
+                                    won[id].float = Some(prio);
+                                }
                             }
                             PagedDecl::FloatFootnote(v) => {
                                 if won[id].content.is_none_or(|w| prio >= w) {
@@ -4213,6 +4330,12 @@ mod paged_props {
                                 if won[id].bookmark_state.is_none_or(|w| prio >= w) {
                                     styles[id].bookmark_closed = *v;
                                     won[id].bookmark_state = Some(prio);
+                                }
+                            }
+                            PagedDecl::ColumnFill(v) => {
+                                if won[id].column_fill.is_none_or(|w| prio >= w) {
+                                    styles[id].column_fill_auto = *v;
+                                    won[id].column_fill = Some(prio);
                                 }
                             }
                         }
@@ -4304,6 +4427,9 @@ mod paged_props {
                     }
                     PagedDecl::Display(v) => {
                         styles[id].display = v;
+                    }
+                    PagedDecl::ColumnFill(v) => {
+                        styles[id].column_fill_auto = v;
                     }
                 }
             }

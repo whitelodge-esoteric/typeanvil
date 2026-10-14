@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-08-17
-updated: 2026-10-13
+updated: 2026-10-14
 sidebar_position: 4
 tags: [layout, tables, fragmentation, css-tables, engine]
 spec_id: tables-fragmentation
@@ -101,6 +101,34 @@ The engine SHALL implement the following, stated as "shall" rules:
    ancestor, SHALL be wrapped in anonymous table/row-group/row boxes per
    css-tables-3 §17 so a bare `<tr>`/`<td>` still renders. (Simplified: wrap in
    the nearest missing level in the table-family chain during box-tree build.)
+   Before CORE-368 this parent-side rule was stated but not implemented:
+   `table_family_depth` existed with no caller. A `display: table-row` div
+   rendered only because the paged pass rewrote it to `display: block`. The
+   fixup below now implements it. A maximal run of rows / row groups / cells
+   (white space between them included) whose parent is not a table-family
+   box shall be wrapped in one anonymous `table`. A row inside a cell's
+   block flow counts as orphaned.
+   **Child side:** the engine shall also generate the wrappers a table's
+   CHILDREN are missing (css-tables-3 §3.4.2; CSS2.1 §17.2.1 rules 2.1–2.3).
+   A maximal run of consecutive children of a `table` or row group that are
+   not rows, row groups or captions shall be wrapped in one anonymous
+   `table-row`. A run of non-cell children of a `table-row` shall be wrapped
+   in one anonymous `table-cell`, so a stray cell directly in a table gets
+   an anonymous row and then sits in it.
+   - A run of white-space-only text shall generate nothing.
+   - `display: none` children and `col`/`colgroup` (column boxes are
+     unsupported and compute to `block`) are never wrapped.
+   - The wrapper inherits the parent's inherited properties. Every other
+     property takes its initial value.
+   - The fixup runs after the cascade, so selectors never match a wrapper.
+   - Wrappers are appended to a per-layout copy of the DOM arena, so every
+     existing `NodeId` keeps its meaning. Fragments of a wrapper carry no
+     `source`.
+
+   Before CORE-368 such content was skipped and lost:
+   `<div style="display:table">text</div>` painted nothing. This stayed
+   hidden only because the paged pass rewrote every div-based table to
+   `display: block`.
 3. **Column measure pass.** Before laying out rows, the table SHALL measure
    each column's min/max content width over its cells (the same
    `break_paragraph` measure used for text, capped at the fragmentainer
@@ -108,7 +136,13 @@ The engine SHALL implement the following, stated as "shall" rules:
    the available width; with `width: auto`, the table uses the min of the sum
    and the available width; with an explicit `width`, columns scale
    proportionally from their measured max widths (simplified fixed+auto
-   hybrid).
+   hybrid). A cell's in-flow descendant with a definite, non-percentage
+   `width` contributes its margin box to both the cell's min- and
+   max-content width (css-sizing-3 §5), so a cell holding only a sized
+   block is as wide as that block (CORE-368). The row pre-measure
+   (`measure_rows`, used for footer reservation and deferral decisions)
+   SHALL count a cell's declared `height` as a minimum, exactly as cell
+   layout applies it (CORE-368).
 4. **Row layout.** Each row SHALL lay out its cells side by side at the
    resolved column widths; row height SHALL be the max of its cells' heights;
    cells SHALL have their padding/borders inside the column width.
@@ -135,6 +169,25 @@ The engine SHALL implement the following, stated as "shall" rules:
      not fit leaves no row behind it either). At a fragmentainer top the
      table cannot move, so the header (and footer) place and the row
      follows its own rules.
+   - **Which groups are chrome (CORE-368, css-tables-3 §3.4).** Only the
+     FIRST `table-header-group` in document order is the table's header,
+     and it is laid before every other row group; only the FIRST
+     `table-footer-group` is the footer, laid after them. Any further
+     header or footer group is an ordinary row group in its source
+     position.
+   - **When chrome repeats (CORE-368, css-tables-3 §8).** The header (and
+     the footer, rule 8) repeats on continuation fragments only when it is
+     `break-inside: avoid` AND its height is at most a quarter of the
+     fragmentainer: the page content box, or the multicol column the table
+     sits in. The UA sheet gives `thead`/`tfoot` `break-inside: avoid`;
+     an author `break-inside: auto` stops the repeat (Chromium probed for
+     both edges). A repeated header is laid whole or not at all; when it
+     would leave no room for a body row it is omitted on that fragment.
+   - **Chrome is not progress (CORE-368).** A body row's last-resort
+     placement ("nothing placed on this fragmentainer yet") ignores the
+     header: with nothing above the table, a row that does not fit under
+     the header is placed and overflows (rule 14) instead of deferring to
+     a fragment that repeats the same header.
    - **A header repeats only after it completed once (CORE-354).** A
      continuation fragment SHALL repeat a header group only when that
      group lies before the resume point. A header that was itself deferred
@@ -143,8 +196,12 @@ The engine SHALL implement the following, stated as "shall" rules:
 8. **Footer placement.** A `tfoot`/`table-footer-group` SHALL be placed at the
    bottom of the fragment that contains its preceding body rows (bottom of the
    last fragment of that group's content), and SHALL repeat on each
-   continuation fragment that still has body rows below it. A table that fits
-   on one fragmentainer SHALL render header, body, footer in document order.
+   continuation fragment that still has body rows below it, subject to the
+   repeat conditions of rule 7. A footer that does not repeat SHALL still
+   close the table once, after its last body row, fragmenting like a row
+   group if it does not fit (CORE-368; it used to be dropped when taller
+   than the page). A table that fits on one fragmentainer SHALL render
+   header, body, footer in that order.
 9. **Borders across breaks.** The row-start border SHALL be drawn on the
    fragment that starts the row; the table's outer border box SHALL be
    preserved across fragments (top border on first fragment, side borders on
@@ -319,6 +376,31 @@ Each maps to a real test in `engine/tests/tables.rs` (new) or the WPT harness:
     header that itself does not fit (or only its first row fits), then the
     next page shows each header row exactly once
     (`tests/table_header_break.rs`).
+
+15. **Anonymous child wrappers** (Behavior 2, child side) — Given
+    `<div style="display:table">TEXT</div>`, a `display:table-row` holding
+    bare text, or a `display:table-cell` directly in a table, the content
+    renders. Given a 350vh block plus `END` directly in a `display:table`,
+    the table fragments over 4 pages with `END` on page 4. White space
+    between rows changes no fragment, and a tagged render of a fixed-up
+    table succeeds. A `display: table-row` div with no table, holding text
+    and two `break-before: page` blocks, renders over 3 pages with every
+    piece present (`tests/core368_anonymous_table_boxes.rs`). WPT
+    `monolithic-overflow-009/010/011` pass, and
+    `fixedpos-in-footer-forced-break` matches Chromium's 4 pages.
+16. **Repeated chrome follows css-tables-3** (Behavior 7/8, CORE-368) —
+    Given a 40-row table, a `<thead>` repeats on every page, and with
+    `thead { break-inside: auto }` only on the first. A header over a
+    quarter of the page shows only on the first page. In 100px multicol
+    columns a ~32px header shows once. Header/footer groups in mixed
+    source order lay out first header, body groups in order, first footer
+    last. A repeated header taller than its column never restarts the
+    table (no runaway to the page cap), and a cell holding only a
+    `width:25px` block measures 25px. A footer of `td { height: 18pt }`
+    is reserved at its real height and repeats inside the page on every
+    page (`tests/core368_table_in_multicol.rs`).
+    WPT `css-break/table/repeated-section/*` and
+    `sections-and-captions-mixed-order` match Chromium's page count.
 
 ## Edge Cases
 

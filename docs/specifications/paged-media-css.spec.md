@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-16
-updated: 2026-10-13
+updated: 2026-10-14
 sidebar_position: 3
 tags: [css, paged-media, page, layout, engine]
 spec_id: paged-media-css
@@ -313,6 +313,31 @@ The engine shall:
     to element borders and page-margin-box borders alike (the margin box spec
     already holds per-side `(width, colour)` pairs; the fragment shall reflect
     them per side instead of one colour from the first declared side).
+19. **Paged-pass selector matching**: the hand-rolled element pass
+    that carries the paged-media properties stylo does not compute (`page`,
+    `string-set`, `counter-reset`/`counter-increment`, element `content`,
+    `bookmark-*`, `float: footnote`, the page-float values of `float`, and
+    `writing-mode`) shall parse each rule prelude with stylo's selector parser
+    and match it with the same `selectors`-crate matcher the cascade uses, so a
+    rule applies to exactly the elements the cascade would style (Selectors
+    Level 4: descendant, child, next-sibling and subsequent-sibling
+    combinators, and every structural pseudo-class the adapter supports).
+    - A selector list containing an invalid selector shall drop the whole rule
+      (Selectors Level 4, "Invalid Selectors and Error Handling").
+    - A selector with a pseudo-element shall not style its originating element.
+    - Each property shall take the value of the highest-priority matching
+      declaration, where priority is (specificity, source order) and UA rules
+      sit below every author rule. `writing-mode` and `float` shall follow this
+      rule like the other properties. Before this change both took the last
+      match in source order.
+    - `display` and `position` from stylesheet rules shall come from stylo's
+      cascade alone; the pass shall not rewrite them. (It re-reads the UA
+      sheet, so writing them let `p { display: block }` overwrite a more
+      specific author `#wrap p { display: inline }`.) The pass still carries
+      them from inline `style=""` declarations.
+    - Attribute selectors match nothing, in this pass and in the cascade alike:
+      the DOM adapter's `attr_matches` is not implemented. That limitation
+      belongs to the adapter, not to this pass.
 
 ## Interfaces
 
@@ -648,6 +673,13 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     axis and glyph advances along their inline axis. Independent layout and
     real-font checks remain required. The incomplete placement changes were
     rolled back; this criterion is not implemented.
+38. **Paged-pass selector matching** (Behavior 19) — Given
+    `#wrap p { display: inline }`, the paragraph computes `display: inline`
+    despite the UA `p { display: block }`; given `#wrap > p { page: a }`, the
+    child paragraph takes page `a` and a grandchild does not; each paged
+    property applies from a `#wrap p` rule; `#wrap p { float: left }` beats a
+    later `p { float: top }`; a `p::before` rule leaves `p` unstyled
+    (`engine/tests/paged_selectors.rs`).
 
 
 ## Edge Cases

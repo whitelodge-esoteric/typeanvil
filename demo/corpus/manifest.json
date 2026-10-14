@@ -235,7 +235,7 @@
       "Page-count gap (TA 18 vs PR 15) from accumulated line-break and table-row-height differences; per-page diffs remain in the cosmetic band",
       "The tfoot totals repeat at the bottom of every fragment in both engines"
     ],
-    "expected_change": "CORE-354: the line-item table's header was painted twice at the top of its first continuation page; it now paints once, the freed space absorbs a page of rows, and the document moves 17 -> 16 pages (Prince 15)"
+    "expected_change": "CORE-368: repeated table chrome follows css-tables-3 §8 and Chromium: a header/footer repeats only within a quarter of the page. The line-item tfoot (subtotal/VAT/total rows) is taller than that, so it now closes the table once instead of repeating on every page; the freed space holds the rows and the document moves 16 -> 8 pages (Chromium 7, Prince 15 - Prince repeats any tfoot). Supersedes CORE-354 (17 -> 16)"
   },
   {
     "name": "Credit Note",
@@ -252,7 +252,7 @@
       "GBP glyph and VAT number exercise the ToUnicode path; a glyph-substitution difference would show as per-page pixel noise",
       "Page-count gap (TA 12 vs PR 10) from accumulated line-break differences; per-page diffs remain in the cosmetic band"
     ],
-    "expected_change": "CORE-354: the line-item header no longer paints twice on p3 and the tfoot no longer prints alone at the bottom of p2 (no header, no body row); the table now starts on p3 with header, first row and whole footer as in Prince, and the document moves 11 -> 10 pages (Prince 10)"
+    "expected_change": "CORE-368: repeated table chrome follows css-tables-3 §8 and Chromium: the totals tfoot exceeds a quarter of the page, so it no longer repeats on each continuation page and closes the table once; the document moves 10 -> 7 pages (Chromium 7, Prince 10 - Prince repeats any tfoot). Supersedes CORE-354 (11 -> 10)"
   },
   {
     "name": "Multi-Currency Invoice",

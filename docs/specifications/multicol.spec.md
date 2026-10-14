@@ -38,10 +38,9 @@ the integration boundaries for column fragmentainers.
   implementation; the pref gates whether the properties are honored).
 - `column-gap`, `row-gap`, `column-rule-color/style/width` — compiled, no
   gates.
-- `column-fill` — **gecko-only**: the servo build does not compile it.
-  `balance` is therefore the default and the only promised fill mode
-  (`column-fill: auto` is a non-goal until the servo build gains the
-  longhand).
+- `column-fill` — **gecko-only**: the servo build does not compile it, so
+  the paged pass carries it (`ComputedStyle::column_fill_auto`, CORE-368).
+  `balance` is the initial value.
 
 **Fitness function:** css-multicol WPT print-reftests via the harness — a
 growing subset (basic balance → spanning → nested), 744 files total is the
@@ -71,7 +70,6 @@ fitness target.
 
 **Non-Goals** (deferred; scope stays honest)
 
-- `column-fill: auto` (gecko-only longhand in stylo 0.20 — see above).
 - `columns` shorthand beyond what stylo computes from the two longhands.
 - Floats, abspos, or flex inside multicol — the
   interaction specs land after the individual features.
@@ -107,14 +105,24 @@ The engine shall:
 6. **Nest multicol**: an inner multicol's columns are constrained by the
    enclosing column's measure; its fragmentainers nest inside the outer
    fragmentainer chain.
-7. **Fragment multicol containers**: when the container breaks across pages,
+7. **Definite height (CORE-368, css-multicol-1 §8.1–8.2).** A fresh,
+   spanner-free container with a definite `height` that fits the page has
+   FIXED-height columns: `column-fill: auto` fills each column to that
+   height in turn; `balance` balances but never past it. Content that does
+   not fit the n columns flows into overflow columns in the inline
+   direction on the same page, never onto a new page; each column top is a
+   fragmentainer start, so an item too tall for its column stays in it
+   rather than deferring past the container. While a column is
+   being filled it is the fragmentainer: a table inside sizes its repeated
+   chrome against the column's height (tables-fragmentation rule 7).
+8. **Fragment multicol containers**: when the container breaks across pages,
    every non-final page fills its columns to the page's remaining block size
    (css-multicol-1 §8: balancing applies to the LAST fragment only); the
    remaining content resumes on the next page, and the final page balances
    only what remains (a block split on the previous page counts its remaining
    lines, not its full height). The container's break token carries the
    consumed children's tokens; a column never slices a line.
-8. Reuse the fragmentation-core rules inside columns: a column is a
+9. Reuse the fragmentation-core rules inside columns: a column is a
    fragmentainer, so a splittable block breaks between lines at the column
    bottom exactly as at a page edge; only an unsplittable block
    (`break-inside: avoid`, a declared height, an atomic inline) moves whole
@@ -125,7 +133,7 @@ The engine shall:
    a heading that would end a column apart from its paragraph moves to the
    next column with it (fragmentation-core.spec.md, Addendum "Between-Sibling
    Break Avoidance", CORE-365).
-9. Stay deterministic: column geometry is a pure function of measure; measure
+10. Stay deterministic: column geometry is a pure function of measure; measure
    passes are bounded and deterministic.
 
 ## Interfaces
@@ -212,6 +220,15 @@ Each criterion maps to a test in `engine/tests/multicol.rs` (helpers mirror
    (basic balance, spanning, nested) passes via the harness.
 8. **Determinism.** Two renders of a multicol doc are byte-identical; the full
    existing engine test suite still passes.
+9. **Definite height** (Behavior 7, CORE-368). Given `columns:4;
+   column-fill:auto; height:100px` holding a table with a 20px
+   `break-inside: avoid` header and 320px of body, the four 100px columns
+   hold it on ONE page with nothing painted below the column box
+   (`tests/core368_table_in_multicol.rs`,
+   `column_fill_auto_with_definite_height_fills_fixed_columns`). With
+   content above it, an inline-block too tall for its 50px column stays on
+   the first page (`fixed_height_multicol_keeps_a_too_tall_item_on_its_page`). WPT
+   `css-break/table/repeated-section/header` matches Chromium's 1 page.
 
 ## Edge Cases
 

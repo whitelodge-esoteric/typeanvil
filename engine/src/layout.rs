@@ -407,6 +407,10 @@ struct Ctx<'a> {
     /// counter state captured when its box starts, for `bookmark-label`
     /// resolution after the pass. A `RefCell` like `links`.
     counter_snaps: &'a std::cell::RefCell<BTreeMap<NodeId, Vec<(String, i32)>>>,
+    /// Block size of the multicol column currently being filled (CORE-368),
+    /// `None` outside multicol. Set and restored by `fill_one_column`; read
+    /// through [`Ctx::fragmentainer_height`].
+    column_height: std::cell::Cell<Option<Scalar>>,
 }
 
 /// Interned `<img>` info for one source element (CORE-106). Layout reads the
@@ -446,6 +450,18 @@ pub fn layout_with_images(
 
 /// [`layout`] with an explicit image store too (tests inspect interned
 /// entries through it).
+/// Clear every fragment `source` that names a node at or beyond `source_len`
+/// (an anonymous table wrapper, CORE-368): such a fragment belongs to its
+/// nearest sourced ancestor, the convention for anonymous boxes.
+fn drop_anonymous_sources(fragment: &mut Fragment, source_len: usize) {
+    if fragment.source.is_some_and(|s| s >= source_len) {
+        fragment.source = None;
+    }
+    for child in &mut fragment.children {
+        drop_anonymous_sources(child, source_len);
+    }
+}
+
 pub fn layout_with_images_and_store(
     dom: &Dom,
     stylesheet: &Stylesheet,
@@ -458,6 +474,12 @@ pub fn layout_with_images_and_store(
     // false @media cannot leak a @page rule, a true one must still apply.
     let evaluated_css = crate::css::evaluate_media(stylesheet.source(), &geometry);
     let mut styles = crate::css::cascade_evaluated(dom, &evaluated_css, &geometry);
+    // CORE-368: generate the anonymous row / cell boxes table children are
+    // missing (css-tables-3 §3.4.2). Wrappers are appended to a copy of the
+    // arena, so every caller-visible NodeId stays valid.
+    let source_len = dom.nodes.len();
+    let fixed_dom = crate::table::fixup_anonymous_table_boxes(dom, &mut styles);
+    let dom: &Dom = fixed_dom.as_ref().unwrap_or(dom);
     let page_rules = parse_page_rules(&evaluated_css);
     let root = dom.find_tag("body").unwrap_or(dom.root);
 
@@ -587,6 +609,13 @@ pub fn layout_with_images_and_store(
     // Resolve internal `#fragment` links against the FINAL pass's id → page
     // map (the same map target-counter uses); unresolved ids drop silently.
     let links = resolve_links(collected_links, dom, &target_pages);
+    // Anonymous table wrappers exist only in this function's arena copy;
+    // the caller's DOM (tagged PDF reads it by `source`) has no such node.
+    if fixed_dom.is_some() {
+        for page in &mut pages {
+            drop_anonymous_sources(&mut page.root, source_len);
+        }
+    }
     Layout {
         geometry,
         pages,
@@ -1179,6 +1208,7 @@ fn paginate(
             image_infos,
             fn_numbers,
             counter_snaps: &counter_snaps,
+            column_height: std::cell::Cell::new(None),
         };
         // The initial containing block for `position: fixed` boxes: the FIRST
         // page's content box (CORE-127 slice b). With per-page @page rules the
@@ -1260,6 +1290,7 @@ fn paginate(
                             image_infos,
                             fn_numbers,
                             counter_snaps: &counter_snaps,
+                            column_height: std::cell::Cell::new(None),
                         };
                         ctx2.layout_root(root, content.y, &token, flow)
                     };
@@ -1694,6 +1725,7 @@ fn paginate(
                 image_infos,
                 fn_numbers,
                 counter_snaps: &counter_snaps,
+                column_height: std::cell::Cell::new(None),
             };
             let fstyle = &styles[fid];
             // Measure the fixed box's margin box at the ICB width (the same
@@ -2806,7 +2838,7 @@ impl<'a> Ctx<'a> {
                 atomic_line_active = true;
             }
             let mut pen_x = atomic_pen_x;
-            let line_top = atomic_line_top;
+            let mut line_top = atomic_line_top;
             let mut line_h = atomic_line_h;
             match &items[i] {
                 Item::Text(text, link_spans, fn_markers) => {
@@ -3307,11 +3339,12 @@ impl<'a> Ctx<'a> {
                         None => self.shrink_to_fit(*child, inner_width),
                     };
                     let aw = content_w + cstyle.margin_left + cstyle.margin_right;
-                    let ah = self.measure_block(*child, content_w)
-                        + cstyle.margin_top
-                        + cstyle.padding_top
-                        + cstyle.padding_bottom
-                        + cstyle.margin_bottom;
+                    // CORE-368: `measure_block` already includes the box's own
+                    // vertical margins + padding and subtracts its side
+                    // margins from the width it is given — hand it the same
+                    // margin-box width `layout_box` gets below, and do not
+                    // add the vertical pedestal a second time.
+                    let ah = self.measure_block(*child, aw);
                     // An explicit CSS `height` wins over the measured content
                     // height (the block measure path ignores declared height,
                     // CORE-66 model) — the deferral decision needs the real
@@ -3367,14 +3400,26 @@ impl<'a> Ctx<'a> {
                         // Wrap to a new line below everything placed so far.
                         y = line_top + line_h;
                         pen_x = inner_left;
+                        // CORE-368: the wrapped atomic opens a NEW line box;
+                        // baseline alignment and the top clamp below measure
+                        // against it, not the line it left.
+                        line_top = y;
+                        atomic_line_top = y;
+                        line_h = lh;
+                        atomic_line_h = lh;
                         // CORE-175: the wrapped atomic starts a FRESH line at
                         // the segment origin; no text alignment applies to it.
                         atomic_line_from_text = false;
                     }
+                    // CORE-368: every atomic on a line is laid from the LINE
+                    // TOP. `y` is the bottom of the previous atomic, so laying
+                    // the next one there stacked the line's boxes (the line
+                    // grew to their SUM and a tall pair spilled a page).
+                    let box_y = line_top;
                     // Monolithic deferral (spec Behavior 5): a box taller than
                     // the remaining page space defers whole — unless this page
                     // is genuinely empty (last resort: overflow, never loop).
-                    let fits_page = y + ah <= bottom_limit;
+                    let fits_page = box_y + ah <= bottom_limit;
                     let last_resort = !placed;
                     if !fits_page && !last_resort {
                         seen_all = false;
@@ -3398,16 +3443,22 @@ impl<'a> Ctx<'a> {
                     let declared_tall = self
                         .resolved_height(cstyle)
                         .map(|h| {
-                            y.get() + h.get() + cstyle.margin_top.get() + cstyle.margin_bottom.get()
+                            box_y.get() + h.get() + cstyle.margin_top.get() + cstyle.margin_bottom.get()
                                 > bottom_limit.get()
                         })
                         .unwrap_or(false);
                     let saved_floats = std::mem::take(&mut flow.active_floats);
+                    // CORE-368: `layout_box` applies the box's own margins
+                    // (it anchors the border box at `origin + margin-left`,
+                    // `top + margin-top`, and subtracts both side margins
+                    // from the available width). Hand it the MARGIN box:
+                    // adding the margins here too indented the box twice
+                    // and narrowed it by its own side margins.
                     let mut res = self.layout_box(
                         *child,
-                        pen_x + cstyle.margin_left,
-                        content_w,
-                        y + cstyle.margin_top,
+                        pen_x,
+                        aw,
+                        box_y,
                         if declared_tall {
                             bottom_limit
                         } else {
@@ -3441,8 +3492,9 @@ impl<'a> Ctx<'a> {
                             lh,
                             style.font_face,
                         );
+                    // `ah` is the margin-box height, measured from `box_y`.
                     let shift = base_y + Scalar(style.font_size.get() * -desc_em)
-                        - (y + cstyle.margin_top + ah);
+                        - (box_y + ah);
                     // CORE-171: a box TALLER than the line must not be pushed
                     // above the line's top. css2 §10.8 grows the line box to
                     // contain an atomic box — aligning a 50px inline-block to a
@@ -3455,7 +3507,7 @@ impl<'a> Ctx<'a> {
                     // it. Small atomics keep their baseline alignment, which is
                     // what the flexbox alignment tests pin.
                     let shift = {
-                        let box_top_before = y + cstyle.margin_top;
+                        let box_top_before = box_y;
                         if box_top_before.get() + shift.get() < line_top.get() {
                             Scalar(line_top.get() - box_top_before.get())
                         } else {
@@ -3489,17 +3541,16 @@ impl<'a> Ctx<'a> {
                             }
                         }
                     }
-                    fn rebase_subtree(fragment: &mut Fragment, shift: Scalar) {
-                        fragment.offset.y = fragment.offset.y + shift;
-                        if let FragmentContent::Text(run) = &mut fragment.content {
+                    // CORE-368: descendants are PARENT-relative (frag.rs), so
+                    // moving the box's own offset moves its whole subtree.
+                    // Shifting every descendant too moved text inside the box
+                    // once per nesting level (a `<p>` in an inline-block
+                    // landed above the page top).
+                    if shift.get() != 0.0 {
+                        res.fragment.offset.y = res.fragment.offset.y + shift;
+                        if let FragmentContent::Text(run) = &mut res.fragment.content {
                             run.baseline.y = run.baseline.y + shift;
                         }
-                        for child in &mut fragment.children {
-                            rebase_subtree(child, shift);
-                        }
-                    }
-                    if shift.get() != 0.0 {
-                        rebase_subtree(&mut res.fragment, shift);
                     }
 
                     let frag_used = res.used;
@@ -3509,16 +3560,19 @@ impl<'a> Ctx<'a> {
                         None
                     };
                     children.push(res.fragment);
+                    // CORE-368: the cursor is the bottom of the TALLEST box on
+                    // the line so far, not the running sum of their heights.
+                    let box_bottom = box_y + ah;
                     if declared_tall {
                         // A declared-height box's cursor advances by the
                         // piece actually placed on this page (the box
                         // continues on the next page until its extent is
                         // consumed), capped so following items lay from the
                         // page bottom.
-                        let next = (y.get() + frag_used.get()).min(bottom_limit.get());
-                        y = Scalar(next);
-                    } else {
-                        y += cstyle.margin_top + ah;
+                        let next = (box_y.get() + frag_used.get()).min(bottom_limit.get());
+                        y = Scalar(next.max(y.get()));
+                    } else if box_bottom.get() > y.get() {
+                        y = box_bottom;
                     }
 
                     // Advance the pen past the margin box and grow the line.
@@ -3533,7 +3587,7 @@ impl<'a> Ctx<'a> {
                         let d = (y.get() - line_top.get()).max(0.0);
                         Scalar(d)
                     } else {
-                        y + cstyle.margin_top + ah - line_top
+                        box_bottom - line_top
                     };
                     if bh.get() > line_h.get() {
                         atomic_line_h = bh;
@@ -3615,6 +3669,15 @@ impl<'a> Ctx<'a> {
                 Item::Block(child) => {
                     let child_tok = self.child_incoming(token, i);
                     let cstyle = &self.styles[*child];
+                    // CORE-368: an in-flow block ends the current line, so an
+                    // atomic after it opens a fresh line at the block's
+                    // bottom instead of resuming the stale pen and line top.
+                    if cstyle.float == Float::None
+                        && matches!(cstyle.position, Position::Static | Position::Relative)
+                        && cstyle.display != Display::None
+                    {
+                        atomic_line_active = false;
+                    }
                     if cstyle.position == Position::Fixed {
                         // CORE-127 slice b: fixed boxes are laid out ONCE
                         // after the page loop (against the initial
@@ -5050,6 +5113,36 @@ impl<'a> Ctx<'a> {
     /// against `self.page_height` as the first-fragmentainer height proxy,
     /// and measures scoped. Pure: identical input → identical widths on every
     /// page and every layout pass.
+    /// A table grid's element children in layout order (CORE-368,
+    /// css-tables-3 §3.4): the first `table-header-group` first, the first
+    /// `table-footer-group` last, everything else in document order. Break
+    /// tokens index into this list; it is a pure function of the DOM, so
+    /// every fragment sees the same order.
+    fn table_grid_children(&self, id: NodeId) -> Vec<NodeId> {
+        let mut children: Vec<NodeId> = self.dom.nodes[id]
+            .children
+            .iter()
+            .copied()
+            .filter(|c| matches!(self.dom.nodes[*c].kind, NodeKind::Element(_)))
+            .collect();
+        let first_of = |list: &[NodeId], d: Display| list.iter().position(|c| self.styles[*c].display == d);
+        if let Some(h) = first_of(&children, Display::TableHeaderGroup) {
+            let head = children.remove(h);
+            children.insert(0, head);
+        }
+        if let Some(f) = first_of(&children, Display::TableFooterGroup) {
+            let foot = children.remove(f);
+            children.push(foot);
+        }
+        children
+    }
+
+    /// Block size of the current fragmentainer: the multicol column being
+    /// filled, else the page content box (CORE-368).
+    fn fragmentainer_height(&self) -> Scalar {
+        self.column_height.get().unwrap_or(self.page_height)
+    }
+
     fn frozen_table_columns(&self, id: NodeId, avail_width: Scalar) -> crate::table::ColumnWidths {
         let mut table_id = id;
         let mut cur = Some(id);
@@ -5343,12 +5436,24 @@ impl<'a> Ctx<'a> {
         // scope and the SAME frozen widths. The widths are threaded down to
         // rows, which no longer re-measure per row (also a CORE-89 perf win).
         let columns = self.frozen_table_columns(id, avail_width);
-        let children: Vec<NodeId> = self.dom.nodes[id]
-            .children
-            .iter()
-            .copied()
-            .filter(|c| matches!(self.dom.nodes[*c].kind, NodeKind::Element(_)))
-            .collect();
+        let children = self.table_grid_children(id);
+        // css-tables-3 §3.4: only the FIRST header group is the table's
+        // header (laid first) and only the FIRST footer group its footer
+        // (laid last); `table_grid_children` already put them there. Any
+        // other header/footer group is an ordinary row group in place.
+        let header_index = children
+            .first()
+            .filter(|c| self.styles[**c].display == Display::TableHeaderGroup)
+            .map(|_| 0usize);
+        let footer_index = children
+            .last()
+            .filter(|c| self.styles[**c].display == Display::TableFooterGroup)
+            .map(|_| children.len() - 1);
+        // css-tables-3 §8 (Chromium agrees, probed CORE-368): a header or
+        // footer repeats only when it is `break-inside: avoid` (the UA sheet
+        // gives `thead`/`tfoot` that) and takes at most a quarter of the
+        // fragmentainer — the page, or the multicol column it sits in.
+        let repeat_max = self.fragmentainer_height() * 0.25;
         let start_index = if fresh {
             0
         } else {
@@ -5408,12 +5513,7 @@ impl<'a> Ctx<'a> {
         // budget below — rows break early enough that rows + footer always
         // fit. A footer taller than a full page gets no reservation (it
         // overflows monolithically at the table's end, rule 11).
-        let footer_indices: Vec<usize> = children
-            .iter()
-            .enumerate()
-            .filter(|(_, c)| self.styles[**c].display == Display::TableFooterGroup)
-            .map(|(i, _)| i)
-            .collect();
+        let footer_indices: Vec<usize> = footer_index.into_iter().collect();
         let mut footer_height = Scalar::ZERO;
         for &fi in &footer_indices {
             let footer_rows: Vec<NodeId> = self.dom.nodes[children[fi]]
@@ -5449,8 +5549,10 @@ impl<'a> Ctx<'a> {
         if separate {
             footer_height = footer_height + sp_v * (footer_indices.len() as f64);
         }
-        let reserve_footer =
-            footer_height.get() > 0.0 && footer_height.get() < self.page_height.get();
+        let repeatable = |c: NodeId| self.styles[c].break_inside == crate::frag::BreakInside::Avoid;
+        let reserve_footer = footer_index.is_some_and(|f| repeatable(children[f]))
+            && footer_height.get() > 0.0
+            && footer_height.get() <= repeat_max.get() + 0.01;
         let row_limit = if reserve_footer {
             bottom_limit - footer_height
         } else {
@@ -5467,41 +5569,41 @@ impl<'a> Ctx<'a> {
         // too painted it twice.
         if !fresh {
             for (i, child) in children.iter().enumerate() {
-                if self.styles[*child].display != Display::TableHeaderGroup {
+                if Some(i) != header_index || i >= start_index || !repeatable(*child) {
                     continue;
                 }
-                if i >= start_index {
-                    continue;
-                }
-                let child_tok = self.child_incoming(token, i);
-                if spaced_any && sp_v.get() > 0.0 {
-                    y += sp_v;
-                }
+                // CORE-368: a REPEATED header is chrome, laid whole or not at
+                // all. It is laid unbounded so it never splits, and dropped
+                // when it would leave no room under `row_limit` for body
+                // progress. Splitting it pushed a resume token for the HEADER
+                // index, which lost the body row's token, so the table
+                // restarted from its first row on the next fragment
+                // (repeated-section/background-001: a 100px header in 96px
+                // multicol columns looped to the 100,000-page cap).
+                let child_tok = BreakToken::break_before();
+                let gap = if spaced_any && sp_v.get() > 0.0 { sp_v } else { Scalar::ZERO };
                 let res = self.layout_table_group(
                     *child,
                     grid_x,
                     avail_width,
-                    y,
-                    row_limit,
+                    y + gap,
+                    Scalar(f64::MAX),
                     placed,
                     &child_tok,
                     flow,
                     &columns,
                 );
-                if !res.empty {
-                    y += res.used;
-                    placed = true;
-                    placed_any = true;
-                    spaced_any = true;
-                    frag_children.push(res.fragment);
+                if res.empty
+                    || res.used.get() > repeat_max.get() + 0.01
+                    || (y + gap + res.used).get() >= row_limit.get()
+                {
+                    continue;
                 }
-                if let Some(tok) = res.outgoing {
-                    seen_all = false;
-                    outgoing_children.push(ChildToken {
-                        index: i,
-                        token: tok,
-                    });
-                }
+                y += gap + res.used;
+                placed = true;
+                placed_any = true;
+                spaced_any = true;
+                frag_children.push(res.fragment);
             }
         }
 
@@ -5523,21 +5625,34 @@ impl<'a> Ctx<'a> {
             // by the in-order loop (it would otherwise render only once, at
             // the end of the table — spec rule 8 requires it on every
             // fragment).
-            if cd == Display::TableFooterGroup {
+            if Some(i) == footer_index {
                 continue;
             }
             let child_tok = self.child_incoming(token, i);
             if spaced_any && sp_v.get() > 0.0 {
                 y += sp_v;
             }
+            // CORE-368: header chrome is not progress. A body row's last-
+            // resort decision ("nothing placed yet on this fragmentainer, so
+            // place me even if I do not fit") must ignore header rows. They
+            // repeat on every fragment, so a row deferred past them meets the
+            // same header on the next fragment and defers again. In a fixed-
+            // height multicol that ran to the 100,000-page cap (WPT
+            // repeated-section/background-001). Chromium places the row and
+            // lets monolithic content overflow (monolithic-overflow-023).
+            let row_placed = if Some(i) == header_index {
+                placed
+            } else {
+                page_has_content || body_placed
+            };
             let res = match cd {
-                Display::TableHeaderGroup | Display::TableRowGroup => self.layout_table_group(
+                Display::TableHeaderGroup | Display::TableRowGroup | Display::TableFooterGroup => self.layout_table_group(
                     child,
                     grid_x,
                     avail_width,
                     y,
                     row_limit,
-                    placed,
+                    row_placed,
                     &child_tok,
                     flow,
                     &columns,
@@ -5548,7 +5663,7 @@ impl<'a> Ctx<'a> {
                     avail_width,
                     y,
                     row_limit,
-                    placed,
+                    row_placed,
                     &child_tok,
                     flow,
                     &columns,
@@ -5557,7 +5672,7 @@ impl<'a> Ctx<'a> {
             };
             if !res.empty {
                 if res.used.get() > 0.0 {
-                    if cd == Display::TableHeaderGroup {
+                    if Some(i) == header_index {
                         header_placed = true;
                     } else {
                         body_placed = true;
@@ -5616,7 +5731,15 @@ impl<'a> Ctx<'a> {
         // fragmentainer top (nothing above, the table cannot move) the
         // chrome keeps its old placement — the row follows its own rules
         // (table-fragmentation-003c/d: header + footer on page 1).
-        if placed_any && reserve_footer && (body_placed || seen_all || !page_has_content) {
+        // CORE-368: a footer too tall to repeat (over a quarter of the
+        // fragmentainer) still closes the table once, on its last fragment.
+        // It used to be dropped outright when taller than the page.
+        let footer_due = if reserve_footer {
+            placed_any && (body_placed || seen_all || !page_has_content)
+        } else {
+            seen_all
+        };
+        if footer_due {
             for &fi in &footer_indices {
                 let child_tok = self.child_incoming(token, fi);
                 if spaced_any && sp_v.get() > 0.0 {
@@ -5677,6 +5800,16 @@ impl<'a> Ctx<'a> {
         let mut fragment = Fragment::block(origin, (table_box_w, height));
         fragment.children = frag_children;
         fragment.source = Some(id);
+        // CORE-368: paint the table's OWN background over its border box on
+        // every fragment (css-tables-3 §6 paint order: the table layer sits
+        // under row groups, rows and cells, which this fragment parents).
+        // Div tables reach this path now that the paged pass stopped
+        // rewriting them to `display: block`, and their background vanished.
+        if let Some(bg) = tstyle.background_color {
+            if height.get() > 0.0 {
+                fragment.content = FragmentContent::Background(bg);
+            }
+        }
         // CORE-235: paint the table's OWN border box (the table element's
         // `border` — previously never painted). Slice semantics like the
         // block path: top band on the first fragment, bottom band on the

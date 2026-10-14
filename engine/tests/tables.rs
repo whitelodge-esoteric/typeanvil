@@ -309,12 +309,17 @@ fn test_giant_row_defers_at_most_once() {
         .map(|(p, _)| count_text(&l, p, "giant-row"))
         .sum::<usize>();
     assert_eq!(total, 1, "giant row must appear exactly once, got {total}");
-    // It cannot share page 0 with the header (130pt row + header > 144pt),
-    // so it must appear on a LATER page than the first.
+    // CORE-368: the header is chrome, not progress. With nothing above the
+    // table, deferring the row past the header gains nothing (the next page
+    // repeats the same header), so the row starts on page 0 with the header
+    // and overflows the bottom by ~1pt. Chromium renders this exact document
+    // as `[HDR giant-row] [HDR after-row]` (probe/c368/giant.html). This
+    // assertion used to pin the header alone on page 0, which also broke
+    // the CORE-354 rule "a header never ships without a body row".
     let page_of = (0..l.pages.len())
         .find(|p| count_text(&l, *p, "giant-row") == 1)
         .expect("giant row placed somewhere");
-    assert!(page_of >= 1, "giant row must defer past the first page");
+    assert_eq!(page_of, 0, "giant row shares the first page with its header (Chromium)");
     // Content after the giant row survives.
     let after = l
         .pages

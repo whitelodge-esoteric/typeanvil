@@ -4,7 +4,7 @@ type: lesson
 status: approved
 owner: maintainers
 created: 2026-09-16
-updated: 2026-09-27
+updated: 2026-10-14
 sidebar_position: 6
 tags: [css, stylo, parsing, escaping, ua-css]
 ---
@@ -27,6 +27,8 @@ Typeanvil has engine-owned passes beside Stylo's computed-style pipeline. A prop
 - **`collect_items` must list every block-level `Display` variant** (verified): a container missing from the block-level list folds as inline and its children are lifted to the parent; the container fragment vanishes and its layout dispatch never fires.
 - **UA-versus-author paged-rule priority: renumber UA rules, do not shift by `len()`** (verified 2026-09-03): `parse_rules` bumps `order` for every block it scans, including rules the paged parser drops (font-size, margins), so pushed UA rules carry order values around 20+ while `ua_rules.len()` is only 6. Shifting author orders by `len()` left them below the UA values and UA silently beat author rules. Fix: renumber UA rules to `0..n` first, then shift author orders by `n`. Symptom: an author `X { bookmark-level: N }` (or any paged-declaration property) loses to a same-specificity UA rule. Comment text inside UA_CSS or raw CSS must never contain a literal `/*` marker pair; `strip_comments` cuts at the first `*/`, so text like `/* */` in a comment truncates the sheet mid-comment.
 - **Author-CSS passes split declaration bodies with a naive `split(';')`** (verified 2026-09-15): four passes in `css.rs` (`breaks`, `borders`, `paged_props`, `viewport_units`) plus `breaks::parse_inline_decls` did. A data URI contains `;base64,`, so `content: url(data:image/png;base64,...)` reached the parser as `url(data:image/png`, an unbalanced path that interns as a broken 0x0 image and paints nothing. `split_top_level_decls` already existed for the `src` list; use it. Signature: an image that interns fine but paints 0x0.
+- **A hand-rolled pass that re-reads the UA sheet must never rewrite a property stylo already computes** (verified CORE-368, 2026-10-14): `paged_props` re-parsed `UA_CSS` and wrote `display` with no priority guard. UA `p`/`div { display: block }` then overwrote stylo's correct value whenever the author rule was one the pass could not see (a combinator such as `#x p`), or a value it did not map (`table`, `table-row`, `table-cell`). So for months every div-based table laid out as a BLOCK. Removing the clobber exposed three latent defects that the mis-layout had hidden: no anonymous table boxes on either side (content inside `display:table` without rows/cells vanished), no table-level background, and inline-block line placement. Three WPT tests had passed only by accident. Rule: stylo owns every property it computes; a manual pass may fill only properties stylo lacks. When removing such a clobber, A/B the full selection AND reproduce each flip on the equivalent real-HTML markup (`<table>` vs div table) to separate "newly exposed existing behaviour" from "new defect".
+- **Match author rules in manual passes with stylo's own parser and matcher** (CORE-368): `SelectorParser::parse_author_origin_no_namespace(prelude, &url_data)` plus `selectors::matching::matches_selector(sel, 0, None, &TyElement::new(id, backend), &mut ctx)` (a `MatchingContext::new` with `NeedsSelectorFlags::No`). Priority is `(sel.specificity(), order)`; skip selectors with `has_pseudo_element()`. Attribute selectors still match nothing, because `TyElement::attr_matches` is a stub (CORE-383).
 
 ## Verification
 
