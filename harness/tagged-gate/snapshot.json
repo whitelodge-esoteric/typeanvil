@@ -1,0 +1,604 @@
+{
+ "corpus/analytics-digest.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 27,
+   "Document": 8,
+   "Figure": 1,
+   "H1": 1,
+   "H2": 4,
+   "P": 6,
+   "TBody": 5,
+   "TD": 73,
+   "TH": 20,
+   "THead": 4,
+   "TR": 19,
+   "Table": 5
+  }
+ },
+ "corpus/board-report.html": {
+  "coverage": 0.9953,
+  "roles": {
+   "Div": 39,
+   "Document": 12,
+   "H1": 2,
+   "H2": 4,
+   "Link": 3,
+   "P": 13,
+   "TBody": 7,
+   "TD": 56,
+   "TH": 28,
+   "THead": 7,
+   "TR": 21,
+   "Table": 7
+  }
+ },
+ "corpus/book-chapter.html": {
+  "coverage": 0.9512,
+  "roles": {
+   "BlockQuote": 1,
+   "Div": 23,
+   "Document": 9,
+   "H1": 1,
+   "H2": 3,
+   "P": 14
+  }
+ },
+ "corpus/business-letter.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 27,
+   "Document": 6,
+   "H2": 1,
+   "L": 2,
+   "LI": 5,
+   "P": 9
+  }
+ },
+ "corpus/conference-paper.html": {
+  "coverage": 0.9885,
+  "roles": {
+   "Div": 24,
+   "Document": 8,
+   "Figure": 2,
+   "H1": 1,
+   "H2": 6,
+   "P": 9,
+   "TBody": 2,
+   "TD": 15,
+   "TH": 10,
+   "THead": 2,
+   "TR": 5,
+   "Table": 2
+  }
+ },
+ "corpus/cover-letter.html": {
+  "coverage": 0.9766,
+  "roles": {
+   "Div": 23,
+   "Document": 6,
+   "P": 9
+  }
+ },
+ "corpus/credit-note.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 27,
+   "Document": 7,
+   "H1": 1,
+   "H2": 2,
+   "P": 3,
+   "TBody": 3,
+   "TD": 40,
+   "TFoot": 2,
+   "TH": 15,
+   "THead": 3,
+   "TR": 14,
+   "Table": 4
+  }
+ },
+ "corpus/data-sheet.html": {
+  "coverage": 0.9807,
+  "roles": {
+   "Div": 18,
+   "Document": 7,
+   "Figure": 2,
+   "H1": 1,
+   "H2": 4,
+   "P": 6,
+   "TBody": 5,
+   "TD": 59,
+   "TH": 18,
+   "THead": 5,
+   "TR": 21,
+   "Table": 5
+  }
+ },
+ "corpus/financial-statement.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 25,
+   "Document": 11,
+   "H1": 1,
+   "H2": 3,
+   "H3": 1,
+   "P": 2,
+   "TBody": 11,
+   "TD": 160,
+   "TH": 36,
+   "THead": 11,
+   "TR": 60,
+   "Table": 11
+  }
+ },
+ "corpus/float-showcase.html": {
+  "coverage": 0.9478,
+  "roles": {
+   "Div": 22,
+   "Document": 8,
+   "H1": 1,
+   "H2": 1,
+   "P": 14
+  }
+ },
+ "corpus/formal-notice.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 34,
+   "Document": 7,
+   "H1": 1,
+   "H2": 2,
+   "L": 3,
+   "LI": 6,
+   "P": 5
+  }
+ },
+ "corpus/invoice-statement.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 10,
+   "Document": 5,
+   "H1": 1,
+   "H2": 2,
+   "P": 2,
+   "TBody": 8,
+   "TD": 163,
+   "TH": 25,
+   "THead": 5,
+   "TR": 40,
+   "Table": 8
+  }
+ },
+ "corpus/invoice.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 13,
+   "Document": 5,
+   "H1": 1,
+   "TBody": 4,
+   "TD": 88,
+   "TFoot": 4,
+   "TH": 16,
+   "THead": 4,
+   "TR": 28,
+   "Table": 4
+  }
+ },
+ "corpus/journal-paper.html": {
+  "coverage": 0.934,
+  "roles": {
+   "Div": 14,
+   "Document": 5,
+   "H1": 1,
+   "H2": 8,
+   "P": 8,
+   "TBody": 4,
+   "TD": 8,
+   "TR": 4,
+   "Table": 4
+  }
+ },
+ "corpus/letterhead.html": {
+  "coverage": 0.9692,
+  "roles": {
+   "Div": 30,
+   "Document": 8,
+   "H1": 1,
+   "P": 12
+  }
+ },
+ "corpus/long-report.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 19,
+   "Document": 9,
+   "H1": 1,
+   "H2": 6,
+   "P": 13,
+   "TBody": 4,
+   "TD": 57,
+   "TH": 17,
+   "THead": 4,
+   "TR": 17,
+   "Table": 4
+  }
+ },
+ "corpus/memo.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 15,
+   "Document": 6,
+   "H1": 1,
+   "H2": 4,
+   "L": 4,
+   "LI": 9,
+   "P": 4,
+   "TBody": 1,
+   "TD": 4,
+   "TH": 4,
+   "TR": 4,
+   "Table": 1
+  }
+ },
+ "corpus/multicurrency-invoice.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 16,
+   "Document": 7,
+   "H1": 1,
+   "H2": 4,
+   "P": 2,
+   "TBody": 8,
+   "TD": 82,
+   "TH": 38,
+   "THead": 8,
+   "TR": 27,
+   "Table": 8
+  }
+ },
+ "corpus/paper.html": {
+  "coverage": 0.9533,
+  "roles": {
+   "BlockQuote": 1,
+   "Div": 24,
+   "Document": 12,
+   "H1": 1,
+   "H2": 4,
+   "Link": 2,
+   "P": 17
+  }
+ },
+ "corpus/preprint.html": {
+  "coverage": 0.9737,
+  "roles": {
+   "Div": 20,
+   "Document": 8,
+   "H1": 1,
+   "H2": 5,
+   "P": 14,
+   "TBody": 1,
+   "TD": 9,
+   "TH": 3,
+   "THead": 1,
+   "TR": 4,
+   "Table": 1
+  }
+ },
+ "corpus/price-catalog.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 10,
+   "Document": 4,
+   "H1": 1,
+   "H2": 6,
+   "P": 1,
+   "TBody": 9,
+   "TD": 87,
+   "TH": 18,
+   "THead": 6,
+   "TR": 36,
+   "Table": 9
+  }
+ },
+ "corpus/product-manual.html": {
+  "coverage": 0.9862,
+  "roles": {
+   "Div": 22,
+   "Document": 9,
+   "Figure": 1,
+   "H1": 1,
+   "H2": 4,
+   "L": 3,
+   "LI": 7,
+   "P": 8,
+   "TBody": 4,
+   "TD": 36,
+   "TH": 12,
+   "THead": 4,
+   "TR": 16,
+   "Table": 4
+  }
+ },
+ "corpus/proforma-invoice.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 29,
+   "Document": 8,
+   "H1": 1,
+   "H2": 2,
+   "P": 1,
+   "TBody": 6,
+   "TD": 70,
+   "TFoot": 1,
+   "TH": 25,
+   "THead": 5,
+   "TR": 22,
+   "Table": 6
+  }
+ },
+ "corpus/prose.html": {
+  "coverage": 0.9918,
+  "roles": {
+   "BlockQuote": 1,
+   "Div": 23,
+   "Document": 11,
+   "H1": 1,
+   "H2": 3,
+   "P": 13
+  }
+ },
+ "corpus/recurring-billing.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 14,
+   "Document": 6,
+   "H1": 1,
+   "H2": 3,
+   "P": 2,
+   "TBody": 7,
+   "TD": 78,
+   "TH": 26,
+   "THead": 6,
+   "TR": 24,
+   "Table": 7
+  }
+ },
+ "corpus/report.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 33,
+   "Document": 11,
+   "Figure": 2,
+   "H1": 5,
+   "H2": 8,
+   "Link": 4,
+   "P": 15,
+   "TBody": 1,
+   "TD": 20,
+   "TH": 4,
+   "THead": 1,
+   "TR": 6,
+   "Table": 1
+  }
+ },
+ "corpus/sales-summary.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 15,
+   "Document": 7,
+   "H1": 1,
+   "H2": 4,
+   "P": 3,
+   "TBody": 7,
+   "TD": 132,
+   "TH": 48,
+   "THead": 7,
+   "TR": 35,
+   "Table": 7
+  }
+ },
+ "corpus/spec-sheet.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 12,
+   "Document": 5,
+   "H1": 1,
+   "H2": 4,
+   "P": 1,
+   "TBody": 5,
+   "TD": 60,
+   "TH": 40,
+   "THead": 5,
+   "TR": 25,
+   "Table": 5
+  }
+ },
+ "corpus/table-stress.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 106,
+   "Document": 52,
+   "H1": 1,
+   "TBody": 52,
+   "TD": 973,
+   "TFoot": 52,
+   "TH": 312,
+   "THead": 52,
+   "TR": 241,
+   "Table": 52
+  }
+ },
+ "corpus/technical-report.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 25,
+   "Document": 10,
+   "Figure": 2,
+   "H1": 1,
+   "H2": 4,
+   "P": 11,
+   "TBody": 3,
+   "TD": 52,
+   "TH": 13,
+   "THead": 3,
+   "TR": 15,
+   "Table": 3
+  }
+ },
+ "corpus/thesis-excerpt.html": {
+  "coverage": 0.9021,
+  "roles": {
+   "Div": 25,
+   "Document": 9,
+   "H1": 1,
+   "H2": 4,
+   "P": 12,
+   "TBody": 4,
+   "TD": 36,
+   "TH": 16,
+   "THead": 4,
+   "TR": 13,
+   "Table": 4
+  }
+ },
+ "corpus/whitepaper.html": {
+  "coverage": 0.9725,
+  "roles": {
+   "Div": 32,
+   "Document": 10,
+   "H1": 2,
+   "H2": 4,
+   "Link": 1,
+   "P": 13,
+   "TBody": 2,
+   "TD": 12,
+   "TH": 6,
+   "THead": 2,
+   "TR": 6,
+   "Table": 2
+  }
+ },
+ "showcase/book.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 27,
+   "Document": 6,
+   "H1": 2,
+   "H2": 4,
+   "Link": 4,
+   "P": 15
+  }
+ },
+ "showcase/invoice.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 10,
+   "Document": 3,
+   "H2": 3,
+   "P": 23,
+   "TBody": 6,
+   "TD": 307,
+   "TH": 10,
+   "THead": 2,
+   "TR": 71,
+   "Table": 6
+  }
+ },
+ "showcase/journal.html": {
+  "coverage": 0.974,
+  "roles": {
+   "Div": 11,
+   "Document": 3,
+   "Figure": 1,
+   "H1": 1,
+   "H2": 7,
+   "Link": 4,
+   "P": 17,
+   "Span": 1
+  }
+ },
+ "showcase/poster.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 4,
+   "Document": 1,
+   "H1": 1,
+   "P": 3
+  }
+ },
+ "showcase/report.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 7,
+   "Document": 3,
+   "Figure": 2,
+   "H1": 1,
+   "H2": 6,
+   "P": 13,
+   "TBody": 1,
+   "TD": 16,
+   "TH": 4,
+   "TR": 5,
+   "Table": 1
+  }
+ },
+ "showcase/weasyprint-invoice.html": {
+  "coverage": 0.7681,
+  "roles": {
+   "Div": 6,
+   "Document": 1,
+   "H1": 1,
+   "L": 1,
+   "TBody": 1,
+   "TD": 12,
+   "TH": 4,
+   "THead": 1,
+   "TR": 4,
+   "Table": 1
+  }
+ },
+ "showcase/weasyprint-letter.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 13,
+   "Document": 1,
+   "P": 4
+  }
+ },
+ "showcase/weasyprint-poster.html": {
+  "coverage": 0.9767,
+  "roles": {
+   "Div": 12,
+   "Document": 3,
+   "L": 2,
+   "LI": 5,
+   "P": 7
+  }
+ },
+ "showcase/weasyprint-report.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 49,
+   "Document": 10,
+   "H1": 1,
+   "H2": 6,
+   "H3": 6,
+   "H4": 13,
+   "L": 14,
+   "LBody": 4,
+   "LI": 56,
+   "P": 16
+  }
+ },
+ "showcase/weasyprint-ticket.html": {
+  "coverage": 0.4167,
+  "roles": {
+   "Div": 4,
+   "Document": 1,
+   "H2": 1,
+   "L": 3,
+   "LI": 13,
+   "P": 1
+  }
+ }
+}

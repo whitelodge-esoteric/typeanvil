@@ -325,6 +325,16 @@ with `scripts/verify_tagged_pdf.py --html <source>`. Raw results:
 - List markers are not painted at all (untagged renders too), so the
   `Lbl`-stays-empty Non-Goal remains accurate.
 
+Recorded 2026-10-13 (CORE-377, release/2026.10 `e687fe3`): the tagged gate
+(`scripts/tagged_gate.py`, spec `tagged-gate.spec.md`, runbook
+`docs/operations/tagged-gate.md`) is now a required release-gate step.
+Green run in the dev container and on the macOS host, identical: 42
+fixtures, 0 unexpected failures, 6 known failures (3× `ua`
+`ContainsNotDefGlyph` → CORE-386; 3× `dangling` empty marked-content
+sequences → CORE-396). Red run: `h1` mapped to `P` fails `roles` on all 36
+fixtures whose snapshot has an `H1`, exit 1. weasyprint-ticket's `<h1>`
+already reads back without `H1`, a CORE-374 gap.
+
 ## Edge Cases
 
 - Fragment with `source: None` under a sourced ancestor (anonymous blocks) →

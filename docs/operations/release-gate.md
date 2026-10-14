@@ -5,7 +5,7 @@ type: runbook
 status: approved
 owner: maintainers
 created: 2026-09-15
-updated: 2026-09-27
+updated: 2026-10-13
 sidebar_position: 8
 tags: [harness, wpt, release, gate, testing]
 trigger: Before landing an engine change, and before promoting the release branch
@@ -130,6 +130,21 @@ The command prints both identities, the compatibility verdict, every blocking
 condition, every changed document, and every direct-check result. It exits 0 only
 when all layers pass.
 
+### 4b. Run the tagged PDF gate
+
+Tagged output has its own gate (CORE-377): it renders every corpus and
+showcase fixture with `--tagged` and `--tagged --ua` using the candidate
+binary, and checks the structure trees. Run it in the container from the
+candidate worktree:
+
+```bash
+scripts/dev-container.sh python3 /work/scripts/tagged_gate.py \
+  --bin /work/engine/target/debug/typeanvil
+```
+
+It must print `TAGGED GATE PASSED`. Failures and intended role changes:
+[tagged gate runbook](tagged-gate.md).
+
 ### 5. Review the changes
 
 Read `<out>/<candidate-label>-gate.json`, then the side-by-side images under
@@ -174,6 +189,7 @@ The gate passed:
 - no blocking conditions;
 - every direct check reports a measured value and passes;
 - the WPT status counts equal the baseline counts for the same test ids.
+- the tagged gate printed `TAGGED GATE PASSED` (step 4b).
 
 For a promotion this is the engine-change tier. The full-selection delta is a
 separate artifact (see [Promotion](#promotion)) and is not a pass.
