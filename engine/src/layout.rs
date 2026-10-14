@@ -885,10 +885,12 @@ fn attach_footnotes(
             };
             let w_used = if li == 0 { inner } else { rest_w };
             let w_final = if w_used.get() > w.get() { w_used } else { w };
-            fragmentainer
-                .root
-                .children
-                .push(Fragment::line(Point::new(x, y), (w_final, lh_note), run));
+            // The note's lines are owned by the footnote element, so tagged
+            // rendering puts the body in the structure tree with the call's
+            // paragraph instead of drawing it untagged (CORE-380).
+            let mut line = Fragment::line(Point::new(x, y), (w_final, lh_note), run);
+            line.source = Some(*id);
+            fragmentainer.root.children.push(line);
             y += lh_note;
         }
     }
@@ -8036,6 +8038,7 @@ fn attach_margin_boxes(
         fragmentainer.margin_boxes.push(MarginBoxFragment {
             z_index: mb.z_index.unwrap_or(0),
             order: mb.name.paint_order(),
+            name: mb.name,
             fragment,
         });
     }

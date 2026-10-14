@@ -100,6 +100,21 @@ as PDF-400/UA-1 intend.
      PDF 1.7 (ISO 32000-1 table 330) makes the BBox mandatory for
      Background artifacts, krilla panics without one, and krilla writes it
      in page space without applying the current transform (CORE-379).
+   - every draw inside a page-margin box (text, fills, borders, images) SHALL
+     be an Artifact **regardless of owner**: a margin box repeats page
+     chrome, so even a copy derived from document content (`string()`,
+     a future `element()`) must not enter the tree once per page. The kind
+     follows the box's margin row: top row (`@top-*`, top corners) →
+     Header; bottom row → Footer; left/right column → PaginationOther
+     (CORE-380).
+   - footnote bodies (`float: footnote`) are document content: each note's
+     lines SHALL be owned by the footnote element, so the body enters the
+     tree inside the group of the element that contains the call, at the
+     call's position in reading order — not at the foot of the page. Its
+     role (`Note`) is CORE-374's (CORE-380).
+   - no draw SHALL be emitted outside a marked-content sequence: an
+     unsourced text run anywhere else becomes a Layout artifact, the same
+     as an unsourced fill (CORE-380).
 3. The structure tree SHALL be built from the parsed DOM in document order:
    a single pre-order walk assigns each element its `TagKind` (role table in
    Goals §1; `th` carries `scope` from the `scope` attribute, row/column
@@ -202,6 +217,13 @@ typeanvil render in.html [--tagged] [--ua] -o out.pdf
   Background artifact carries a BBox that lies on the page, including on a
   `page-orientation: rotate-left` page.
   Test: `engine/tests/tagged_page_chrome.rs`.
+- AC-9 (nothing untagged, CORE-380): a document with `@top-center` text,
+  `@bottom-center` `counter(page)`, a `string()` running header and
+  footnotes over several pages renders tagged with zero page objects outside
+  marked content; margin-box text is a Header/Footer artifact; each footnote
+  body's text is reachable in the structure tree. Corpus check:
+  `scripts/verify_tagged_pdf.py` reports `untagged: 0` on every corpus and
+  showcase fixture. Test: `engine/tests/tagged_untagged_content.rs`.
 - AC-7 (no regression): full WPT suite shows 0 regressed (untagged raster
   path cannot move; gate confirms). Engine `cargo test` green.
 
@@ -236,7 +258,9 @@ Recorded 2026-08-24 (worktree `core-111`, binary at 53854a0 + this change):
   - krilla requires list numbering on `L`; the engine draws no markers yet,
     so `L` carries `ListNumbering::None` (legal, honest).
   - Margin boxes are Artifacts (Header/Footer kinds available later if we
-    want finer artifact typing; currently Layout for fills).
+    want finer artifact typing; currently Layout for fills). Superseded by
+    CORE-380 (2026-10-13): margin-box text was in fact drawn untagged; all
+    margin-box draws are now Header/Footer/PaginationOther artifacts.
   - VeraPDF external validation not yet run — krilla's UA-1 validator is the
     recorded gate for this iteration; an Acrobat/PAC spot-check remains as
     optional follow-up evidence.

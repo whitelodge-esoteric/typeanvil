@@ -399,6 +399,9 @@ pub struct MarginBoxFragment {
     /// box in css-page-3 §3.1's list (`@top-left-corner` = 0, clockwise).
     /// `z-index` overrides it; within one `z-index` this order breaks ties.
     pub order: u8,
+    /// Which margin box this is. Tagged rendering picks the artifact kind
+    /// from its margin row (top → Header, bottom → Footer; CORE-380).
+    pub name: crate::paged::MarginBoxName,
     /// The box's fragment subtree (background/border/content).
     pub fragment: Fragment,
 }

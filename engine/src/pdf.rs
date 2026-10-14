@@ -70,6 +70,19 @@ fn background_artifact(
     }
 }
 
+/// The artifact kind for everything a page-margin box paints (CORE-380):
+/// its margin row decides — top row (incl. the top corners) → Header,
+/// bottom row → Footer, the side columns → PaginationOther.
+fn margin_artifact_kind(name: crate::paged::MarginBoxName) -> ArtifactType {
+    match name.row() {
+        crate::paged::MarginRow::Top => ArtifactType::Header,
+        crate::paged::MarginRow::Bottom => ArtifactType::Footer,
+        crate::paged::MarginRow::Left | crate::paged::MarginRow::Right => {
+            ArtifactType::PaginationOther
+        }
+    }
+}
+
 /// Record one tagged draw owned by a DOM node (CORE-111). Unsourced draws
 /// carry no tree entry.
 fn record_draw(
@@ -309,7 +322,7 @@ pub fn render_with_options(
                 .into_iter()
                 .filter(|m| m.z_index < 0)
             {
-                paint_margin_box(&mut surface, layout, &mb.fragment, tagged, &mut draws, page_idx)?;
+                paint_margin_box(&mut surface, layout, &mb.fragment, tagged, margin_artifact_kind(mb.name))?;
             }
         }
 
@@ -505,7 +518,7 @@ pub fn render_with_options(
                 .into_iter()
                 .filter(|m| m.z_index >= 0)
             {
-                paint_margin_box(&mut surface, layout, &mb.fragment, tagged, &mut draws, page_idx)?;
+                paint_margin_box(&mut surface, layout, &mb.fragment, tagged, margin_artifact_kind(mb.name))?;
             }
         }
 
@@ -840,9 +853,12 @@ fn paint_margin_box(
     layout: &Layout,
     fragment: &Fragment,
     tagged: bool,
-    draws: &mut Vec<crate::tags::DrawRef>,
-    page_idx: usize,
+    kind: ArtifactType,
 ) -> Result<()> {
+    // Everything a margin box paints is page chrome, never document content,
+    // even when a draw resolves to a DOM owner: a running copy must not enter
+    // the structure tree once per page (CORE-380). No draws are recorded.
+    let chrome = || ContentTag::Artifact(Artifact::with_kind(kind));
     let mut backgrounds: Vec<(f32, f32, f32, f32, Color, Option<NodeId>)> = Vec::new();
     let mut bg_images: Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)> = Vec::new();
     let mut borders: Vec<BorderItem> = Vec::new();
@@ -876,10 +892,9 @@ fn paint_margin_box(
         if let Some(path) = pb.finish() {
             surface.set_fill(Some(solid_fill(*color)));
             if tagged {
-                let ident = surface.start_tagged(tag_for_owner(*owner));
+                surface.start_tagged(chrome());
                 surface.draw_path(&path);
                 surface.end_tagged();
-                record_draw(draws, page_idx, ident, *owner);
             } else {
                 surface.draw_path(&path);
             }
@@ -933,10 +948,9 @@ fn paint_margin_box(
                 };
                 surface.push_transform(&krilla::geom::Transform::from_row(1.0, 0.0, 0.0, 1.0, tx, ty));
                 if tagged {
-                    let ident = surface.start_tagged(tag_for_owner(*owner));
+                    surface.start_tagged(chrome());
                     surface.draw_image(kimg.clone(), size);
                     surface.end_tagged();
-                    record_draw(draws, page_idx, ident, *owner);
                 } else {
                     surface.draw_image(kimg.clone(), size);
                 }
@@ -978,7 +992,7 @@ fn paint_margin_box(
         } else if sides.is_empty() {
             continue;
         } else {
-            let ident = surface.start_tagged(tag_for_owner(*owner));
+            surface.start_tagged(chrome());
             for (px, py, pw, ph, side_color) in &sides {
                 if *pw <= 0.0 || *ph <= 0.0 {
                     continue;
@@ -993,7 +1007,6 @@ fn paint_margin_box(
                 }
             }
             surface.end_tagged();
-            record_draw(draws, page_idx, ident, *owner);
         }
     }
 
@@ -1021,10 +1034,9 @@ fn paint_margin_box(
         };
         surface.push_transform(&krilla::geom::Transform::from_row(1.0, 0.0, 0.0, 1.0, *x, *y));
         if tagged {
-            let ident = surface.start_tagged(tag_for_owner(*owner));
+            surface.start_tagged(chrome());
             surface.draw_image(kimg, size);
             surface.end_tagged();
-            record_draw(draws, page_idx, ident, *owner);
         } else {
             surface.draw_image(kimg, size);
         }
@@ -1057,11 +1069,10 @@ fn paint_margin_box(
                 );
             }
         };
-        if tagged && t.owner.is_some() {
-            let ident = surface.start_tagged(tag_for_owner(t.owner));
+        if tagged {
+            surface.start_tagged(chrome());
             draw(surface);
             surface.end_tagged();
-            record_draw(draws, page_idx, ident, t.owner);
         } else {
             draw(surface);
         }
@@ -1466,7 +1477,9 @@ fn paint_group(
     for t in &group.texts {
         let font = font_for(t.font_face)?;
         surface.set_fill(Some(solid_fill(t.color)));
-        if tagged && t.owner.is_some() {
+        // Unsourced text is a Layout artifact, like an unsourced fill — never
+        // drawn outside marked content (CORE-380).
+        if tagged {
             let ident = surface.start_tagged(tag_for_owner(t.owner));
             if t.glyphs.is_empty() {
                 // Fallback text path (empty run — nothing shaped). All
