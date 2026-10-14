@@ -4,7 +4,7 @@ type: convention
 status: approved
 owner: maintainers
 created: 2026-08-24
-updated: 2026-10-11
+updated: 2026-10-13
 sidebar_position: 3
 tags: [css, engine, compatibility, prince, weasyprint]
 ---
@@ -85,6 +85,42 @@ When a residual diff traces to a place where Prince deviates from the CSS spec:
 - When a Prince-only extension (`-prince-*` properties) conflicts with a
   standardized equivalent, follow the standard. Extensions are additive and
   never override spec-defined behavior.
+
+## Known spec-correct divergences
+
+Rule 3 asks for a one-sentence note wherever we knowingly differ from a
+comparison engine for spec reasons. Their visible effect is corpus diff and
+visual-QA movement, which is easy to misread as a defect on a later pass — so
+the recurring ones are collected here. Every row is measured with the other
+engines as comparison targets, never as oracles. (The `box-decoration-break`
+case under Examples above is the other recorded instance.)
+
+| Behaviour | Governing spec | Typeanvil | PrinceXML 16.2 | WeasyPrint 70.0 |
+|---|---|---|---|---|
+| Top page-margin boxes align on the vertical centre of their band | css-page-3 §6.2, Table 2 | band centre | whole band painted; running head wraps vertically | flush to the content edge |
+
+### Page-margin box vertical alignment
+
+css-page-3 §6.2 fixes the page-margin-box defaults in a table: `top-left`,
+`top-center` and `top-right` each default to `vertical-align: middle`. Typeanvil
+implements that table directly, so a margin box shorter than its band is centred
+in the band.
+
+The visible consequence is in `demo/showcase/weasyprint-report.html`. The
+sample's `@top-center` is a 1.42pt background rule that its author drew to sit
+beneath the running head. Under the spec's `middle` default it lands on the
+running head's centre line instead, so the rule crosses the text. WeasyPrint
+keeps the rule clear of the text by placing the boxes flush to the page edge —
+but that placement is WeasyPrint's deviation from the table, not ours.
+
+Measured 2026-10-13 on `release/2026.10`. Reproduce with a 200mm × 60mm page and
+20mm margins, declaring `@top-left` (`height: 1cm; width: 1cm`), `@top-center`
+(`height: .05cm; width: 100%`) and `@top-right`
+(`height: 1cm; vertical-align: middle; width: 100%`), then read the box
+positions out of each engine's PDF. The top margin band is 56.7pt tall: the
+`@top-left` box starts 14.2pt below the page edge in Typeanvil (centred) and
+28.3pt below it in WeasyPrint (flush to the content edge). Prince paints the
+whole 56.7pt band as one background box.
 
 ## References
 
