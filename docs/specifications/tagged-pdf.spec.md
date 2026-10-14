@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-24
-updated: 2026-09-27
+updated: 2026-10-13
 sidebar_position: 16
 tags: [engine, pdf, accessibility, tagging, determinism]
 spec_id: tagged-pdf
@@ -170,8 +170,9 @@ typeanvil render in.html [--tagged] [--ua] -o out.pdf
 - AC-2 (roles land): a fixture with heading, paragraph, list, and table
   renders tagged; pypdf structure-tree read-back shows `H1`, `P`, `L`/`LI`,
   `Table`/`TR`/`TH`/`TD` elements in document order.
-  Verification: `scripts/verify_tagged_pdf.py` (pypdf) run against the test
-  output; recorded in this spec's validation log below.
+  Verification: `scripts/verify_tagged_pdf.py` (pypdfium2; committed
+  2026-10-13 with CORE-373) run against the test output; recorded in this
+  spec's validation log below.
 - AC-3 (alt text): `<img src=… alt="Chart">` inside a figure yields a
   Figure element whose `/Alt` entry reads `Chart`; a broken image's
   placeholder alt behaves the same.
@@ -226,6 +227,39 @@ Recorded 2026-08-24 (worktree `core-111`, binary at 53854a0 + this change):
   - VeraPDF external validation not yet run — krilla's UA-1 validator is the
     recorded gate for this iteration; an Acrobat/PAC spot-check remains as
     optional follow-up evidence.
+
+Recorded 2026-10-13 (CORE-373 health check, release/2026.10 `f5241c3`,
+host build). Every demo corpus + showcase fixture (32 + 10) rendered
+untagged, `--tagged` (twice) and `--tagged --ua`; each tagged PDF read back
+with `scripts/verify_tagged_pdf.py --html <source>`. Raw results:
+`~/workspace/typeanvil-evidence/CORE-373/` (`health.json`, `scoreboard.md`).
+
+- **Still holds:** untagged and tagged output deterministic (identical
+  SHA-256 across two runs) for all 41 renderable fixtures; tagged page counts
+  equal untagged; `engine/tests/tagged_pdf.rs` 4/4 green (container).
+  `<html lang>`, heading titles, table structure and `<figure>` alt text read
+  back correctly.
+- **Crash:** `--tagged` aborts on any `@page`/canvas background
+  (`Background artifact must have a bounding box in PDF 1.7`) —
+  weasyprint-ticket. CORE-379.
+- **Behavior §2 violated:** margin-box text and footnote bodies are painted
+  outside any marked content (869 untagged text objects across 40
+  fixtures). krilla's UA validator does not detect this — 34/42 fixtures
+  pass `--ua` regardless. CORE-380.
+- **`--ua` failures (7 fixtures):** `MissingAnnotationAltText` on links
+  (CORE-381); `MissingDocumentOutline` on heading-less letters/posters
+  (CORE-382); `ContainsNotDefGlyph` for `⁻`/`♥` (font coverage, not a
+  tagging defect — the glyph is missing untagged too).
+- **Role gaps (Goals §1 not met):** no `Strong`/`Em`/`Code` anywhere (text
+  attributed to the block); `<img>` outside `<figure>` lands on a `Div` with
+  its alt lost; `<caption>` → `Div`; `LI` mostly without `LBody`; 8 fixtures
+  with `<a>` produce no `Link`. CORE-374.
+- **Reading order:** 14/41 fixtures read back word-for-word in source order.
+  Remaining drift: repeated table header/footer rows tagged as content on
+  every page (CORE-375); hyphenated fragments (CORE-376); untagged
+  footnotes (CORE-380).
+- List markers are not painted at all (untagged renders too), so the
+  `Lbl`-stays-empty Non-Goal remains accurate.
 
 ## Edge Cases
 
