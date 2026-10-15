@@ -1,20 +1,23 @@
 ---
-title: Engine Benchmark — Typeanvil vs PrinceXML vs WeasyPrint
+title: Engine Benchmark — TypeAnvil vs PrinceXML, WeasyPrint and Headless Chrome
 type: runbook
 status: approved
 owner: maintainers
 created: 2026-08-25
-updated: 2026-10-13
+updated: 2026-10-14
 sidebar_position: 2
-tags: [benchmark, performance, prince, weasyprint]
+tags: [benchmark, performance, prince, weasyprint, chrome]
 ---
 
-# Engine benchmark — TypeAnvil vs PrinceXML vs WeasyPrint
+# Engine benchmark — TypeAnvil vs PrinceXML, WeasyPrint and Headless Chrome
 
 `scripts/benchmark.py` measures wall-clock render time and peak memory for all
-three engines across the demo corpus. WeasyPrint joined the comparison in
+four engines across the demo corpus. WeasyPrint joined the comparison in
 CORE-318 as a free, open-source second reference point (Prince requires a
-license). It is an on-demand tool. It is not part of CI or pre-commit.
+license). Headless Chrome joined in CORE-403 as a third reference point: it is
+the PDF engine behind print-to-PDF in Chrome and behind Playwright's headless
+mode, so its numbers bound what a browser-based converter can do. The benchmark
+is an on-demand tool. It is not part of CI or pre-commit.
 
 ## Run it
 
@@ -23,18 +26,23 @@ cargo build --release --manifest-path engine/Cargo.toml
 python3 scripts/benchmark.py --runs 5
 ```
 
-Prerequisites: `prince` on PATH (see demo/corpus/README.md) and the
-`weasyprint` CLI (`uv tool install weasyprint`, plus `brew install pango`;
-see [Installing WeasyPrint](#installing-weasyprint)).
+Prerequisites: `prince` on PATH (see demo/corpus/README.md), the `weasyprint`
+CLI (`uv tool install weasyprint`, plus `brew install pango`; see
+[Installing WeasyPrint](#installing-weasyprint)), and `chrome-headless-shell`
+(see [Headless Chrome](#headless-chrome)).
 
 Useful flags:
 
 - `--runs N` — timed runs per fixture (default 5; median reported).
 - `--warmup N` — untimed warmup runs (default 1) so font/file caches are hot.
 - `--filter NAME` — substring match on a fixture name.
-- `--engine ta|prince|weasy|all|both` — restrict engines. Default is `all`;
-  `both` keeps the legacy TypeAnvil + Prince pair (schema-1 baselines).
+- `--engine LIST` — comma list or alias. Members are `ta`, `prince`, `weasy`,
+  `chrome`; `all` = `ta,prince,weasy,chrome`; `both` keeps the legacy
+  TypeAnvil + Prince pair (schema-1 baselines). Default is `all`.
 - `--ta-binary PATH` — defaults to `engine/target/release/typeanvil`.
+- `--chrome-binary PATH` — `chrome-headless-shell` binary; defaults to the
+  newest one in the Puppeteer cache (see [Headless Chrome](#headless-chrome)).
+  `$CHROME_BIN` is honored when the flag is absent.
 
 ## What it measures
 
@@ -42,15 +50,108 @@ Per fixture and engine:
 
 1. **Median wall-clock seconds** across the timed runs. Process spawn cost
    included for all engines.
-2. **Peak RSS** from `/usr/bin/time -l`, max and median across runs.
-3. **Page count** of the output PDF as a sanity check (all engines must
+2. **Peak RSS** from `/usr/bin/time -l`, max and median across runs. This is
+   the largest single process only.
+3. **Process-tree memory**: summed resident memory and summed physical
+   footprint over every process in the render's process group (see
+   [Memory figures](#memory-figures)).
+4. **Page count** of the output PDF as a sanity check (all engines must
    produce pages).
+
+Any single run longer than 60 seconds is killed (whole process group) and
+counted as a failure, so a hung render cannot hang the benchmark.
 
 Geometry matches `scripts/build-demo.sh` exactly: 5in × 3in pages with
 0.5in margins. TypeAnvil and Prince take CLI geometry flags directly;
 WeasyPrint has no page-size flags, so the leg routes through
 `scripts/render-weasyprint.sh`, which writes an `@page` stylesheet with the
-same geometry (appended after the fixture's own CSS).
+same geometry (appended after the fixture's own CSS). Chrome's CLI has no
+page-size flags either, so the leg writes a prepared copy of the fixture with
+the same `@page` rule appended (see [Headless Chrome](#headless-chrome)).
+
+## Headless Chrome
+
+The `chrome` leg renders with **`chrome-headless-shell`**, the stripped
+headless browser that ships with Chrome for Testing. It is also the default
+headless browser in Playwright. Use the headless shell and not full Google
+Chrome: full Chrome's `--headless` mode hangs in non-GUI shells on macOS (its
+renderer thread blocks on CVDisplayLink and the process never exits), so it is
+unusable from a script.
+
+Install the default binary:
+
+```bash
+npx @puppeteer/browsers install chrome-headless-shell@stable
+```
+
+The benchmark resolves the default by globbing
+`~/.cache/puppeteer/chrome-headless-shell/*/chrome-headless-shell-*/chrome-headless-shell`
+and picking the highest version directory. Override it with
+`--chrome-binary PATH` or `$CHROME_BIN`. When Chrome is selected and no binary
+is found, the script prints an install hint and exits 2 (the same pattern as
+the Prince and WeasyPrint checks).
+
+Geometry and asset resolution. Chrome's CLI has no page-size flags, so the
+leg writes a prepared copy of each fixture into `benchmarks/.work/` once,
+outside the timed region:
+
+- a `<base href="file://<corpus dir>/">` inserted right after `<head …>` so the
+  fixture's relative images, fonts, and CSS resolve;
+- an `@page { size: 5in 3in !important; margin: 0.5in !important; }` rule
+  appended at the very end of the document, so it wins the cascade over the
+  fixture's own `@page` rules. This mirrors the `@page` stylesheet that
+  `scripts/render-weasyprint.sh` appends for WeasyPrint.
+
+Each render is one cold Chrome process. The command uses a fresh
+`--user-data-dir` (a temp directory, removed after the run) and
+`--use-mock-keychain --password-store=basic`; the keychain flags are required,
+because Chrome otherwise blocks on a macOS keychain prompt. The measured
+command is roughly:
+
+```bash
+chrome-headless-shell --headless --disable-gpu --no-first-run \
+  --no-default-browser-check --no-pdf-header-footer \
+  --use-mock-keychain --password-store=basic \
+  --disable-extensions --disable-background-networking \
+  --user-data-dir=<fresh temp dir> --print-to-pdf=<abs out.pdf> \
+  file://<abs prepared.html>
+```
+
+Non-goal: there is no warm or persistent-browser mode. Every render cold-starts
+Chrome, which is how the other engines are measured too. A long-lived Puppeteer
+browser would be faster per page and is a possible follow-up.
+
+## Memory figures
+
+The results report three memory numbers, because a single figure is misleading
+for a multi-process engine:
+
+- **Peak memory (MiB)** — the largest single process's peak RSS, from
+  `/usr/bin/time -l`. This is the traditional figure, kept for continuity. It
+  under-reports multi-process engines badly: Chrome runs around five processes
+  (browser, renderer, GPU, utility), and only the biggest one is counted.
+- **Peak memory, whole process tree — summed RSS (MiB)** — the sum of resident
+  memory over every process the render spawned. This over-counts multi-process
+  engines, because shared pages (each Chrome process maps the same framework)
+  are counted once per process.
+- **Peak memory, whole process tree — physical footprint (MiB)** — the sum of
+  each process's private physical footprint, the figure Activity Monitor shows
+  as "Memory". It excludes shared libraries, so it is the fairest single
+  cross-engine comparison.
+
+Quote the **physical footprint** for cross-engine comparison. Report the
+single-process RSS when comparing against older baselines, and note that it
+under-reports Chrome. The summed RSS and the footprint bracket the truth: the
+real figure lies between them.
+
+The process-tree figures are sampled on macOS with `libproc`
+(`proc_listpgrppids` + `proc_pid_rusage`); a sampler thread takes one sample
+before any wait, then polls the render's process group every 2 ms and reads the
+kernel's `RUSAGE_INFO_V4` per-process lifetime peak physical footprint, so a
+short render that ends between polls still reports its real peak. On non-macOS
+platforms the sampler is unavailable and the tree figures are omitted, while
+elapsed time and single-process RSS keep working. When the two tree tables are
+present, a one-line summary lists the maximum process count seen per engine.
 
 ## Installing WeasyPrint
 
@@ -87,7 +188,9 @@ variable rather than relying on inheritance.
   `results.json`.
 - Memory comparison caveat: Prince and WeasyPrint link their own runtimes
   (Python + Pango for WeasyPrint); TypeAnvil is a small static Rust binary.
-  Peak RSS differences partly reflect that.
+  Peak RSS differences partly reflect that. Use the process-tree physical
+  footprint (see [Memory figures](#memory-figures)) for the fairest
+  cross-engine comparison.
 - A failed render is reported loudly (`FAILURES: ...`) and sets a non-zero
   exit code. Do not commit results containing failures.
 - **Known upstream crash (verified CORE-318):** WeasyPrint 70.0 crashes with an
