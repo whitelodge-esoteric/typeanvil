@@ -4,7 +4,7 @@ type: architecture
 status: draft
 owner: maintainers
 created: 2026-10-03
-updated: 2026-10-03
+updated: 2026-10-14
 sidebar_position: 2
 tags: [typography, line-breaking, microtypography, engine]
 ---
@@ -137,7 +137,7 @@ Two layers prove the behavior:
    `white-space` cases.
 2. **The comparison corpus.** The [visual comparison demo](../specifications/visual-comparison-demo.spec.md)
    renders the same documents through TypeAnvil and Prince 16.2 and shows
-   the pages side by side in the [corpus gallery](../../demo/corpus/README.md).
+   the pages side by side in the [corpus gallery](https://github.com/whitelodge-esoteric/typeanvil/blob/main/demo/corpus/README.md).
    Typography-focused fixtures render at page-count parity with Prince. In
    that comparison, Prince does not implement Knuth-Plass protrusion to the
    same spec — hanging punctuation is a Typeanvil advantage.

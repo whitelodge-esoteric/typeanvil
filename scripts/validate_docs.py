@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
 
-TYPES = {"spec", "architecture", "lesson", "runbook", "convention", "research"}
+TYPES = {"guide", "spec", "architecture", "lesson", "runbook", "convention", "research"}
 STATUSES = {"draft", "in-review", "approved", "superseded"}
 REQUIRED = {"title", "type", "status", "owner", "created", "updated", "sidebar_position", "tags"}
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -70,6 +70,31 @@ def check_file(path: Path) -> list[str]:
         errors.append(f"{path.relative_to(ROOT)}: 'tags' must be a list")
     if data.get("type") == "spec" or path.name.endswith(".spec.md"):
         errors.extend(check_spec_conventions(path, data))
+    if data.get("type") == "guide" or path.relative_to(DOCS).parts[0] == "guides":
+        errors.extend(check_guide_conventions(path, data))
+    return errors
+
+
+def check_guide_conventions(path: Path, data: dict) -> list[str]:
+    """Enforce the guide convention (frontmatter-schema.md).
+
+    Guides: live in guides/, declare type: guide, and carry a slug starting
+    /guides/ so their public URLs stay stable (other sites link to them).
+    """
+    errors: list[str] = []
+    rel = path.relative_to(DOCS)
+    in_guides_dir = rel.parts[0] == "guides"
+    is_guide_type = data.get("type") == "guide"
+    if is_guide_type and not in_guides_dir:
+        errors.append(f"{rel}: type: guide docs must live under guides/")
+    if in_guides_dir and not is_guide_type:
+        errors.append(f"{rel}: docs under guides/ must declare type: guide")
+    if is_guide_type:
+        slug = data.get("slug")
+        if not slug:
+            errors.append(f"{rel}: guide docs require a 'slug' starting '/guides'")
+        elif not (str(slug) == "/guides" or str(slug).startswith("/guides/")):
+            errors.append(f"{rel}: slug should start with '/guides/'")
     return errors
 
 

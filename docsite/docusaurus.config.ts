@@ -54,6 +54,12 @@ const config: Config = {
     },
     navbar: {
       title: 'Typeanvil',
+      logo: {
+        alt: 'Typeanvil',
+        src: 'img/typeanvil-mark-light.svg',
+        srcDark: 'img/typeanvil-mark-dark.svg',
+        height: 28,
+      },
       items: [],
     },
     prism: {

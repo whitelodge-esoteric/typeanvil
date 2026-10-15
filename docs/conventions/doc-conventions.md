@@ -4,7 +4,7 @@ type: convention
 status: approved
 owner: maintainers
 created: 2026-08-16
-updated: 2026-09-27
+updated: 2026-10-14
 sidebar_position: 1
 tags: [docs, meta, public]
 ---
@@ -40,6 +40,7 @@ A narrow topic can remain here when it explains a lasting constraint or a test.
 
 | Directory | Purpose |
 |---|---|
+| `guides/` | User-facing installation and usage guides: start here to render with Typeanvil |
 | `architecture/` | Current composition, module boundaries, and design rationale |
 | `specifications/` | Behavior contracts and observable acceptance criteria |
 | `operations/` | Reproducible usage, testing, and release procedures |

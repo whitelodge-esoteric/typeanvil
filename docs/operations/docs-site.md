@@ -4,7 +4,7 @@ type: runbook
 status: approved
 owner: maintainers
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-10-14
 sidebar_position: 1
 tags: [operations, docusaurus, docs]
 trigger: when you want to browse or deploy the docs site
@@ -44,6 +44,19 @@ docs content lives in `docs/`; the site is just a renderer — edit markdown in
 
    Serves at `http://localhost:3000`. Edits to `docs/**` hot-reload.
 
+   **Named local URL (optional).** If you use
+   [Portless](https://github.com/vercel-labs/portless) for local hostnames,
+   pin the port and register an alias once per machine:
+
+   ```bash
+   npm run start -- --port 3004
+   portless alias engine.typeanvil.local 3004
+   ```
+
+   The site is then also served at `https://engine.typeanvil.local`. Port 3004
+   avoids port 3000, which local API servers commonly use. The Docusaurus dev
+   server accepts the alias hostname without extra configuration.
+
 3. Build a production bundle:
 
    ```bash
@@ -63,8 +76,10 @@ docs content lives in `docs/`; the site is just a renderer — edit markdown in
 
 - `npm run build` exits 0.
 - `http://localhost:3000` shows the docs home, with the categories in the
-  sidebar (Conventions, Specifications, Architecture, Operations, Lessons,
-  Research).
+  sidebar (Guides first, then Conventions, Specifications, Architecture,
+  Operations, Lessons, Research).
+- `/guides/getting-started` renders: other sites link to that URL, so keep
+  the guide slugs stable.
 - Mermaid diagrams in docs/README.md render.
 
 ## Rollback

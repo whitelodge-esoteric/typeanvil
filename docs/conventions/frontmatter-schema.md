@@ -4,7 +4,7 @@ type: convention
 status: approved
 owner: maintainers
 created: 2026-08-16
-updated: 2026-09-27
+updated: 2026-10-14
 sidebar_position: 2
 tags: [docs, metadata]
 ---
@@ -18,7 +18,7 @@ Every Markdown file under `docs/` starts with YAML frontmatter between `---` lin
 | Field | Type | Meaning |
 |---|---|---|
 | `title` | string | Human-readable page title. |
-| `type` | enum | `spec`, `architecture`, `lesson`, `runbook`, `convention`, or `research`. |
+| `type` | enum | `guide`, `spec`, `architecture`, `lesson`, `runbook`, `convention`, or `research`. |
 | `status` | enum | `draft`, `in-review`, `approved`, or `superseded`. |
 | `owner` | string | Maintainer or team responsible for accuracy. |
 | `created` | date | `YYYY-MM-DD`; never changes. |
@@ -42,6 +42,8 @@ The docs home `docs/README.md` is the Docusaurus index and is exempt from the ty
 | `slug` | string | Route beginning `/specifications/` and not ending `.spec`. |
 
 **`runbook`** documents add `trigger`, which states when to run the procedure.
+
+**`guide`** documents are user-facing how-to pages in `guides/`. They add a `slug` beginning `/guides/` so their public URLs stay stable when files move.
 
 Lessons and research records use `status: approved` after completion. Architecture and convention documents have no extra fields.
 

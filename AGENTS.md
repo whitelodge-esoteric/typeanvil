@@ -32,7 +32,7 @@ Every feature starts as a spec; code follows the spec; tests prove the spec.
   after the fact.
 - Every `docs/**/*.md` carries frontmatter: `title, type, status, owner,
   created, updated, sidebar_position, tags`.
-- `type` ∈ `spec | architecture | lesson | runbook | convention | research`.
+- `type` ∈ `guide | spec | architecture | lesson | runbook | convention | research`.
 - Lifecycle: `draft` → `in-review` → `approved` → `superseded`. Bump `updated`
   on every edit, in the same commit.
 - **Specs** live in `docs/specifications/<feature>.spec.md`, declare
