@@ -391,8 +391,9 @@ fn avoid_after_inside_column_moves_heading() {
     </div></body></html>"#
         )
     };
-    // Sanity: without avoid the heading ends column 0.
-    let control = doc("");
+    // Sanity: without avoid the heading ends column 0. (CORE-370: the UA
+    // sheet now avoids after headings, so the control opts out explicitly.)
+    let control = doc("h2 { break-after: auto; }");
     let layout = lay(&control);
     let head = node_id_by_class(&dom_of(&control), "head");
     let (col, _) = column_containing(page_mc(&layout, 0), head).expect("heading in a column");

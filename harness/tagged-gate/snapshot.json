@@ -58,18 +58,18 @@
  "corpus/conference-paper.html": {
   "coverage": 0.9885,
   "roles": {
-   "Div": 24,
-   "Document": 8,
+   "Div": 26,
+   "Document": 9,
    "Figure": 2,
    "H1": 1,
    "H2": 6,
-   "P": 9,
-   "TBody": 2,
+   "P": 10,
+   "TBody": 1,
    "TD": 15,
-   "TH": 10,
-   "THead": 2,
-   "TR": 5,
-   "Table": 2
+   "TH": 5,
+   "THead": 1,
+   "TR": 4,
+   "Table": 1
   }
  },
  "corpus/cover-letter.html": {
@@ -117,18 +117,18 @@
  "corpus/financial-statement.html": {
   "coverage": 1.0,
   "roles": {
-   "Div": 25,
-   "Document": 11,
+   "Div": 28,
+   "Document": 12,
    "H1": 1,
    "H2": 3,
    "H3": 1,
    "P": 2,
-   "TBody": 11,
+   "TBody": 10,
    "TD": 160,
-   "TH": 36,
-   "THead": 11,
-   "TR": 60,
-   "Table": 11
+   "TH": 33,
+   "THead": 10,
+   "TR": 59,
+   "Table": 10
   }
  },
  "corpus/float-showcase.html": {
@@ -185,7 +185,7 @@
   }
  },
  "corpus/journal-paper.html": {
-  "coverage": 0.934,
+  "coverage": 0.9308,
   "roles": {
    "Div": 14,
    "Document": 5,
@@ -214,7 +214,7 @@
    "Document": 9,
    "H1": 1,
    "H2": 6,
-   "P": 13,
+   "P": 14,
    "TBody": 4,
    "TD": 57,
    "TH": 17,
@@ -257,7 +257,7 @@
   }
  },
  "corpus/paper.html": {
-  "coverage": 0.9533,
+  "coverage": 0.9523,
   "roles": {
    "BlockQuote": 1,
    "Div": 24,
@@ -265,7 +265,7 @@
    "H1": 1,
    "H2": 4,
    "Link": 2,
-   "P": 17
+   "P": 16
   }
  },
  "corpus/preprint.html": {
@@ -388,13 +388,13 @@
    "Document": 7,
    "H1": 1,
    "H2": 4,
-   "P": 3,
-   "TBody": 7,
+   "P": 2,
+   "TBody": 8,
    "TD": 132,
-   "TH": 48,
-   "THead": 7,
-   "TR": 35,
-   "Table": 7
+   "TH": 54,
+   "THead": 8,
+   "TR": 36,
+   "Table": 8
   }
  },
  "corpus/spec-sheet.html": {
@@ -405,12 +405,12 @@
    "H1": 1,
    "H2": 4,
    "P": 1,
-   "TBody": 5,
+   "TBody": 4,
    "TD": 60,
-   "TH": 40,
-   "THead": 5,
-   "TR": 25,
-   "Table": 5
+   "TH": 36,
+   "THead": 4,
+   "TR": 24,
+   "Table": 4
   }
  },
  "corpus/table-stress.html": {

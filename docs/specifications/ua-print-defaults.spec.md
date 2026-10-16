@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-20
-updated: 2026-09-27
+updated: 2026-10-16
 sidebar_position: 12
 tags: [engine, ua-stylesheet, prince-parity, css-break, css-page]
 spec_id: ua-print-defaults
@@ -103,6 +103,13 @@ The engine SHALL implement the following, stated as "shall" rules:
 9. **Comment hygiene.** `UA_CSS` SHALL use `/* */` block comments only.
    `//` line comments are not valid CSS and can poison stylo's rule stream
    for every rule that follows (hit on this ticket).
+10. **Heading break defaults (CORE-370).** The UA level SHALL give `h1`..`h6`
+    `break-after: avoid` and `break-inside: avoid`, as Prince 16.2
+    `html.css` lines 29-34 do. Any author declaration (for example
+    `h2 { break-after: auto }`) SHALL override it. This is a product choice
+    for Prince parity. Chromium's UA sheet has no such rule. Implementation:
+    `apply_break_properties` in `engine/src/css.rs`, next to the
+    `thead`/`tfoot` UA default (CORE-368).
 
 ## Interfaces
 
@@ -162,6 +169,14 @@ Each maps to a real test in `engine/tests/` or a committed probe:
    paragraph/heading margins for its pagination; fixtures that need a top
    margin declare it explicitly (`avoid_moves_block` pins `p { margin: 12pt
    0 }` for this reason).
+
+8. **Heading break defaults (CORE-370)** — Given an unstyled `h2` that fits
+   at the page bottom followed by a `<p>` or `<table>` that does not, when
+   laid out, then the heading moves to the next page with its sibling
+   (`engine/tests/ua_heading_breaks.rs`: `unstyled_heading_moves_with_paragraph`,
+   `unstyled_heading_moves_with_table`, `ua_heading_computes_break_avoid`).
+   An author `break-after: auto` restores the strand
+   (`author_break_after_auto_overrides_ua_rule`).
 
 ## Edge Cases
 

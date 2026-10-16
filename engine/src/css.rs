@@ -3227,6 +3227,13 @@ mod breaks {
                 if el.tag == "thead" || el.tag == "tfoot" {
                     styles[id].break_inside = BreakInside::Avoid;
                 }
+                // CORE-370: Prince 16.2 html.css lines 29-34 declare
+                // `h1..h6 { break-inside: avoid; break-after: avoid }`.
+                // UA level: any author declaration outranks it.
+                if matches!(el.tag.as_str(), "h1" | "h2" | "h3" | "h4" | "h5" | "h6") {
+                    styles[id].break_inside = BreakInside::Avoid;
+                    styles[id].break_after = BreakBetween::Avoid;
+                }
             }
         }
         // Which nodes explicitly set orphans/widows/hyphens (so inheritance

@@ -109,7 +109,8 @@ fn assert_heading_moved(got: &[String], what: &str) {
 fn avoid_after_keeps_heading_with_paragraph() {
     // Sanity: without avoid, the heading strands on page 1 (the bug's
     // natural break point), so the fixture exercises the boundary.
-    let control = pages(&lay(&heading_doc("")));
+    // (CORE-370: the UA sheet now avoids after headings, so opt out.)
+    let control = pages(&lay(&heading_doc("h2 { break-after: auto; }")));
     assert_eq!(control.len(), 2, "control: two pages, got {control:?}");
     assert!(
         control[0].contains("HEADING") && !control[0].contains("PARA"),

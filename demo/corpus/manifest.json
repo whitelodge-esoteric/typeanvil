@@ -159,7 +159,8 @@
       "Running-header font pinned to Arial 9pt in both engines; residual header diffs are layout-metric or structural",
       "Page-break positions may differ where a row's height differs between engines",
       "Total rows are ordinary body rows (no repeated tfoot), so both engines print identical digits"
-    ]
+    ],
+    "expected_change": "CORE-370: h1-h6 carry Prince's UA break-after: avoid / break-inside: avoid, so the 'Statement of Financial Position' and 'Statement of Cash Flows' headings now move with their first table rows instead of stranding at a page bottom (cand p5 and p10 start with the heading). Keeping headings with their tables pushes rows down and the document moves 11 -> 12 pages (Prince 11, Chromium 2 pages at its own geometry). The move is away from Prince's count and needs the owner's call; no stranded heading remains in the candidate"
   },
   {
     "name": "Monthly Analytics Digest",
@@ -397,7 +398,8 @@
       "Float placement may differ by a line where line-box heights diverge (CORE-90)",
       "The figure image scales identically (both engines honor the explicit width/height)",
       "Prince hyphenation dictionary may differ inside float-wrapped segments"
-    ]
+    ],
+    "expected_change": "CORE-370: h1-h6 carry Prince's UA break-after: avoid / break-inside: avoid, so a heading stranded at a page bottom now moves with the following content. The document moves 8 -> 9 pages, which equals Prince (9)"
   },
   {
     "name": "Preprint — Convergence of Iterative Page Breaking",
@@ -468,7 +470,8 @@
       "Prince may resolve a different system font for the sans-serif stack",
       "Four dense tables fragment across pages; row-boundary breaks may land on a different page where a row's height differs",
       "Header rows repeat on every fragment in both engines"
-    ]
+    ],
+    "expected_change": "CORE-370: h1-h6 carry Prince's UA break-after: avoid / break-inside: avoid, so section headings no longer strand before a table that moves to the next page. Page count is unchanged and the per-page pixel diff vs Prince falls 28.21 -> 21.33 pp (closer to Prince)"
   },
   {
     "name": "Price Catalog 2026 — Meridian Trading",
