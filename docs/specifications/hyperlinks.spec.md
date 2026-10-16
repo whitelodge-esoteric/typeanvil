@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-21
-updated: 2026-09-27
+updated: 2026-10-16
 sidebar_position: 14
 tags: [engine, pdf, annotations, determinism]
 spec_id: hyperlinks
@@ -89,6 +89,15 @@ krilla's surface space directly — no flip is needed for link rects.
    pdf.rs can emit them without re-walking fragments.
 9. Determinism: link collection SHALL depend only on DOM order and layout
    results — no HashMap iteration order, no wall clock.
+10. (CORE-391) A replaced element (`<img>`, inline `<svg>`) with a
+    non-empty border box inside an `<a href>` SHALL contribute one link
+    rect equal to its border box, on the page where it was placed. Decision:
+    a mixed text + image link emits one rect per piece (one per text line
+    segment, one per image), not one merged rect. Images are monolithic
+    blocks in v1, so a text segment and an image never share a line.
+11. (CORE-391) In tagged mode, the alt text of a link with no text is the
+    `alt` of its first descendant `<img>` that has a non-empty `alt`; the
+    chain is text, image `alt`, `title`, `href`.
 
 ## Interfaces
 

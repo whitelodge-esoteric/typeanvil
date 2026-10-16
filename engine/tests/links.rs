@@ -191,3 +191,37 @@ fn link_render_is_deterministic() {
     let b = render_bytes(&dom, geometry(6.5, 3.0, 0.75));
     assert_eq!(a, b, "identical input must render byte-identical PDFs");
 }
+
+// --- CORE-391: image-only and mixed links ------------------------------------
+
+const PNG_1X1: &str = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+#[test]
+fn image_only_link_covers_image_box() {
+    let html = format!(
+        "<html><head><style>{BASE_CSS}</style></head><body>\
+         <p><a href=\"https://example.com/\"><img src=\"{PNG_1X1}\" alt=\"Logo\" \
+         style=\"width:20px;height:20px\"></a></p></body></html>"
+    );
+    let dom = parse_html(&html);
+    let sheet = stylesheet_of(&dom);
+    let lay = layout(&dom, &sheet, geometry(6.5, 9.0, 1.0));
+    assert_eq!(lay.links.len(), 1, "image-only link yields one rect");
+    let pl = &lay.links[0];
+    // 20px = 15pt.
+    assert!((pl.w.get() - 15.0).abs() < 0.1, "w = {}", pl.w.get());
+    assert!((pl.h.get() - 15.0).abs() < 0.1, "h = {}", pl.h.get());
+}
+
+#[test]
+fn mixed_text_and_image_link_covers_both() {
+    let html = format!(
+        "<html><head><style>{BASE_CSS}</style></head><body>\
+         <p><a href=\"https://example.com/\">Home<img src=\"{PNG_1X1}\" alt=\"Logo\" \
+         style=\"width:20px;height:20px\"></a></p></body></html>"
+    );
+    let dom = parse_html(&html);
+    let sheet = stylesheet_of(&dom);
+    let lay = layout(&dom, &sheet, geometry(6.5, 9.0, 1.0));
+    assert_eq!(lay.links.len(), 2, "one rect for the text, one for the image");
+}

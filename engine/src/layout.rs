@@ -2254,6 +2254,28 @@ impl<'a> Ctx<'a> {
         // advanced via `used`, so following content never reflows.
         RelativeInsetShift::resolve(style, self.icb_width, self.icb_height).apply(&mut fragment);
 
+        // CORE-391: a replaced element inside `<a href>` makes its border box
+        // part of the link's clickable area (one rect per placed image).
+        if used_w.get() > 0.0 && used_h.get() > 0.0 {
+            let mut cur = self.dom.nodes[id].parent;
+            while let Some(p) = cur {
+                let anchor = self.dom.nodes[p].kind.element().filter(|e| e.tag == "a");
+                if let Some(href) = anchor.and_then(|e| e.attr("href")) {
+                    self.links.borrow_mut().push(CollectedLink {
+                        page_index: self.page_index,
+                        x: box_left,
+                        y: box_top,
+                        w: used_w,
+                        h: used_h,
+                        href: href.to_string(),
+                        node: p,
+                    });
+                    break;
+                }
+                cur = self.dom.nodes[p].parent;
+            }
+        }
+
         BlockResult {
             used: used_h + margin_top,
             fragment,
@@ -7335,6 +7357,23 @@ impl<'a> Ctx<'a> {
                                 | Display::Grid
                         )
                     {
+                        // CORE-391: spans of anchors still open (end ==
+                        // usize::MAX) close at the flush and reopen at 0 in
+                        // the next item, so text before a block/replaced
+                        // child inside `<a>` keeps its link.
+                        let mut reopen: Vec<LinkSpan> = Vec::new();
+                        for s in spans.iter_mut() {
+                            if s.end == usize::MAX {
+                                reopen.push(LinkSpan {
+                                    start: 0,
+                                    end: usize::MAX,
+                                    href: s.href.clone(),
+                                    node: s.node,
+                                });
+                                s.end = pending.len();
+                            }
+                        }
+                        spans.retain(|s| s.end > s.start);
                         if !pending.trim().is_empty() || !spans.is_empty() || !markers.is_empty() {
                             items.push(Item::Text(
                                 std::mem::take(pending),
@@ -7344,6 +7383,7 @@ impl<'a> Ctx<'a> {
                         } else {
                             pending.clear();
                         }
+                        spans.extend(reopen);
                         if self.styles[child].display == Display::InlineBlock {
                             items.push(Item::Atomic(child));
                         } else {
@@ -7364,18 +7404,23 @@ impl<'a> Ctx<'a> {
                                 .and_then(|el| el.attr("href"))
                             {
                                 let start = pending.len();
+                                spans.push(LinkSpan {
+                                    start,
+                                    end: usize::MAX,
+                                    href: href.to_string(),
+                                    node: child,
+                                });
                                 self.collect_items_rec(child, items, pending, spans, markers);
+                                // Close the (possibly reopened) open span.
                                 // Whitespace-only anchors yield a zero-width
                                 // overlap later → no rect (spec edge case).
                                 let end = pending.len();
-                                if end > start {
-                                    spans.push(LinkSpan {
-                                        start,
-                                        end,
-                                        href: href.to_string(),
-                                        node: child,
-                                    });
+                                for s in spans.iter_mut() {
+                                    if s.end == usize::MAX && s.node == child {
+                                        s.end = end;
+                                    }
                                 }
+                                spans.retain(|s| s.end > s.start);
                                 continue;
                             }
                         }

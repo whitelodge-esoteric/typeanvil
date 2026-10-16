@@ -103,3 +103,15 @@ fn whitespace_only_link_alt_falls_back_to_title() {
         &["Example home"],
     );
 }
+
+const PNG_1X1: &str = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+/// CORE-391: an image-only link gets an annotation whose alt text is the
+/// image's `alt`, and the render passes `--tagged --ua`.
+#[test]
+fn image_only_link_alt_is_the_image_alt() {
+    let body = format!(
+        r#"<p><a href="https://example.com"><img src="{PNG_1X1}" alt="Example logo" style="width:20px;height:20px"></a></p>"#
+    );
+    assert_alt(&body, "", &["Example logo"]);
+}

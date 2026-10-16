@@ -1598,6 +1598,19 @@ fn link_alt_text(dom: &crate::dom::Dom, pl: &crate::layout::PageLink) -> String 
     if !text.is_empty() {
         return text;
     }
+    // CORE-391: image-only link → the first descendant image's `alt`.
+    let mut stack = vec![pl.node];
+    while let Some(n) = stack.pop() {
+        if let Some(e) = dom.nodes[n].kind.element() {
+            if e.tag == "img" {
+                let alt = e.attr("alt").map(collapse).unwrap_or_default();
+                if !alt.is_empty() {
+                    return alt;
+                }
+            }
+        }
+        stack.extend(dom.nodes[n].children.iter().rev());
+    }
     let el = dom.nodes[pl.node].kind.element();
     let attr = |name: &str| el.and_then(|e| e.attr(name)).map(collapse).unwrap_or_default();
     let title = attr("title");
