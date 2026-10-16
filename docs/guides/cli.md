@@ -76,8 +76,9 @@ Flags and the input path can come in any order after `render`.
 | `--base-url` | directory path | none | Directory used to resolve relative image paths. |
 | `--title` | text | document `<title>` | PDF metadata title. Replaces the document title. |
 | `--author` | text | `<meta name="author">` | PDF metadata author. Replaces the document author. |
-| `--tagged` | none (switch) | off | Write a tagged PDF with a logical structure tree. |
-| `--ua` | none (switch) | off | Tagged PDF plus PDF/UA-1 validation. Implies `--tagged`. |
+| `--no-tagged` | none (switch) | off | Skip the logical structure tree. Tagged PDF is the default. |
+| `--tagged` | none (switch) | on | Write a tagged PDF with a logical structure tree. This is the default, so the flag changes nothing. |
+| `--ua` | none (switch) | off | Tagged PDF plus PDF/UA-1 validation. Overrides `--no-tagged`. |
 | `--diagnostics` | `json` or `text` | off | Report stylesheet diagnostics after the PDF is written. |
 
 Parsing rules:
@@ -123,10 +124,12 @@ those two. An empty `--title ""` or `--author ""` is ignored, so the document
 value is used. See the
 [PDF metadata specification](../specifications/pdf-metadata.spec.md).
 
-### Tagged PDF: `--tagged` and `--ua`
+### Tagged PDF: `--no-tagged` and `--ua`
 
-`--tagged` builds a structure tree from the DOM in document order and tags
-every draw. The language comes from `<html lang>`. `--ua` also runs the
+Tagging is on by default. The engine builds a structure tree from the DOM in
+document order and tags every draw. Pass `--no-tagged` to leave the tree out
+(smaller file, same painted pages). `--tagged` is still accepted and changes
+nothing. The language comes from `<html lang>`. `--ua` also runs the
 PDF/UA-1 validator in [krilla](https://github.com/LaurenzV/krilla), the PDF
 library the engine uses. If the validator finds any violation, the render
 fails, prints the violation list to stderr, exits `1`, and writes no output

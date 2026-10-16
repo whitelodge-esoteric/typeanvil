@@ -48,8 +48,8 @@ the CSS specifications. PrinceXML and Chromium are only comparison tools (see
   boxes, named pages, page counters, running headers (`string-set`),
   footnotes, multi-column layout, floats, and table headers and footers that
   repeat on each page. Each feature has a specification that lists its limits.
-- **Accessibility output.** `--tagged` writes a tagged PDF with a logical
-  structure tree. `--ua` also runs a PDF/UA-1 validator and fails the render
+- **Accessibility output.** Every PDF is tagged by default, with a logical
+  structure tree; `--no-tagged` turns that off. `--ua` also runs a PDF/UA-1 validator and fails the render
   on any violation. See the
   [tagged PDF specification](../specifications/tagged-pdf.spec.md).
 - **Diagnostics.** `--diagnostics json|text` reports CSS the engine does not

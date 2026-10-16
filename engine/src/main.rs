@@ -78,8 +78,9 @@ Flags (render):
       --base-url <url>      Base URL for resolving document URLs
       --title <text>        PDF metadata title
       --author <text>       PDF metadata author
-      --tagged              Emit a logical structure tree (tagged PDF)
-      --ua                  Tagged PDF + PDF/UA-1 validation
+      --no-tagged           Omit the logical structure tree (tagged PDF is the default)
+      --tagged              Emit a logical structure tree (default; accepted for compatibility)
+      --ua                  Tagged PDF + PDF/UA-1 validation (overrides --no-tagged)
       --diagnostics <mode>  css diagnostics: json (stdout) | text (stderr)
   -h, --help                Print this help
   -V, --version             Print version
@@ -347,7 +348,9 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
     let mut base_url = String::new();
     let mut title: Option<String> = None;
     let mut author: Option<String> = None;
-    let mut tagged = false;
+    // CORE-378: tagging is the default; `--no-tagged` opts out and `--ua`
+    // (which implies tagging) wins over it in any argument order.
+    let mut no_tagged = false;
     let mut ua = false;
     let mut diagnostics: Option<DiagnosticsMode> = None;
 
@@ -366,11 +369,9 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
             "--base-url" => base_url = next_value(&mut it, &arg)?,
             "--title" => title = Some(next_value(&mut it, &arg)?),
             "--author" => author = Some(next_value(&mut it, &arg)?),
-            "--tagged" => tagged = true,
-            "--ua" => {
-                tagged = true;
-                ua = true;
-            }
+            "--tagged" => no_tagged = false,
+            "--no-tagged" => no_tagged = true,
+            "--ua" => ua = true,
             "--diagnostics" => {
                 let value = next_value(&mut it, &arg)?;
                 diagnostics = Some(match value.as_str() {
@@ -402,7 +403,7 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
         base_url,
         title,
         author,
-        tagged,
+        tagged: ua || !no_tagged,
         ua,
         diagnostics,
     })

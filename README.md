@@ -22,8 +22,9 @@ commercial rendering engine or a headless browser farm.
   boxes, named pages, page counters, running headers, footnotes, leader fills,
   multi-column layout, floats, and repeating table headers and footers. See the
   feature specifications for exact behavior and known gaps.
-- **Accessibility features.** `--tagged` emits a tagged structure tree;
-  `--ua` additionally validates against PDF/UA-1.
+- **Accessibility features.** PDFs carry a tagged structure tree by
+  default (`--no-tagged` turns it off); `--ua` additionally validates against
+  PDF/UA-1.
 
 PrinceXML and Chromium are comparison tools. CSS specifications define
 Typeanvil's expected behavior.

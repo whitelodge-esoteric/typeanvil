@@ -32,8 +32,9 @@ typeanvil render <input.html> [flags] -o <output.pdf>
 | `--base-url` | URL/path | empty | Base for resolving document-relative resources. |
 | `--title` | string | from `<title>` | PDF metadata title (overrides the document). |
 | `--author` | string | from document | PDF metadata author. |
-| `--tagged` | flag | off | Emit a tagged-PDF logical structure tree. |
-| `--ua` | flag | off | Tagged output plus krilla's PDF/UA-1 validation. Implies `--tagged`. |
+| `--no-tagged` | flag | off | Omit the tagged-PDF logical structure tree. Tagging is on by default (CORE-378). |
+| `--tagged` | flag | on | Emit a tagged-PDF logical structure tree. Accepted as a no-op; this is the default. |
+| `--ua` | flag | off | Tagged output plus krilla's PDF/UA-1 validation. Overrides `--no-tagged`. |
 | `--diagnostics` | `json` \| `text` | none | Print CSS/layout diagnostics after the render. |
 
 ## Length units

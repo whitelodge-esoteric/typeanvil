@@ -505,14 +505,15 @@ or producer strings, so the same input always produces the same bytes.
 ## Tagged PDF and PDF/UA
 
 Tagged PDF adds a logical structure tree for assistive technology. Tagging is
-**off by default**. Output without the flag has no structure tree.
+**on by default**. Pass `--no-tagged` to leave the structure tree out.
 
 ```bash
-typeanvil render in.html --page-width 8.5in --page-height 11in --tagged -o out.pdf
+typeanvil render in.html --page-width 8.5in --page-height 11in -o out.pdf
+typeanvil render in.html --page-width 8.5in --page-height 11in --no-tagged -o out.pdf
 typeanvil render in.html --page-width 8.5in --page-height 11in --ua -o out.pdf
 ```
 
-`--ua` turns on tagging (you do not need `--tagged` as well). It also runs a
+`--ua` always tags, even with `--no-tagged`. It also runs a
 PDF/UA-1 validator (built into krilla, the PDF library Typeanvil uses) when
 writing the PDF. If the validator finds a problem, the render fails: the
 command exits with status 1, prints the list of violations to stderr, and

@@ -2,7 +2,7 @@
 title: Tagged PDF / PDF-UA Accessibility
 slug: /specifications/tagged-pdf
 type: spec
-status: draft
+status: approved
 owner: maintainers
 created: 2026-08-24
 updated: 2026-10-16
@@ -19,8 +19,8 @@ dependencies: [pdf-metadata]
 
 TypeAnvil supports opt-in tagged PDFs through krilla 0.8.2's tagging API.
 The `--tagged` path emits a logical structure tree for headings, paragraphs,
-lists, tables, figures, links, and language. The default untagged output stays
-byte-identical.
+lists, tables, figures, links, and language. Since CORE-378 tagging is the
+default; `--no-tagged` yields the earlier untagged output, byte-identical.
 
 Verified krilla facts (krilla 0.8.2, checked 2026-08-24):
 
@@ -57,7 +57,7 @@ Verified krilla facts (krilla 0.8.2, checked 2026-08-24):
    `<html lang>` becomes the structure-tree language.
 3. With `--tagged --ua`, krilla's PDF/UA-1 validator runs; violations fail
    the render with the recorded error list.
-4. Without `--tagged`, output is byte-identical to today's.
+4. With `--no-tagged`, output is byte-identical to the pre-CORE-378 default.
 5. Determinism preserved with tagging on (document-order tree, no hash
    iteration, no clock reads).
 
@@ -73,20 +73,26 @@ Verified krilla facts (krilla 0.8.2, checked 2026-08-24):
 - No full Acrobat/PAC certification — krilla's validator is the recorded gate;
   external-tool runs are follow-up evidence, not blockers.
 
-## Decision: opt-in flag, artifacts for chrome
+## Decision: tagged by default, `--no-tagged` opt-out, artifacts for chrome
 
-Tagging defaults OFF. Untagged rendering is the product default until the
-structure tree is proven; the harness contract stays additive (`--tagged`,
-`--ua` are new optional flags). Margin-box text, page backgrounds, and the
+DECIDED 2026-10-16 (agent, CORE-378): tagging defaults ON. The structure tree
+is proven by the tagged gate (`tagged-gate.spec.md`, CORE-377) and Chrome has
+tagged every Save-as-PDF since Chrome 85. Flipping the default changes the
+bytes of every default render once; `--no-tagged` restores the previous
+default output byte-for-byte. `--tagged` stays accepted as a no-op alias so
+existing scripts keep working. `--ua` implies tagging and wins over
+`--no-tagged`, in any argument order. History: CORE-111 shipped tagging
+opt-in "until the structure tree is proven". Margin-box text, page backgrounds, and the
 unlicensed watermark carry no DOM source, so they are tagged as `Artifact`
 (Background / Header / Footer kinds) — excluded from the logical tree exactly
 as PDF-400/UA-1 intend.
 
 ## Behavior
 
-1. When `--tagged` is absent, `render` SHALL behave bit-for-bit as before:
-   `enable_tagging: false`, no `start_tagged` calls, no tag tree.
-2. When `--tagged` is present, the emitter SHALL set `enable_tagging: true`
+1. When `--no-tagged` is present (and `--ua` is not), `render` SHALL behave
+   bit-for-bit as the pre-CORE-378 default did: `enable_tagging: false`, no
+   `start_tagged` calls, no tag tree. Without `--no-tagged`, tagging is on.
+2. When tagging is on (the default, `--tagged`, or `--ua`), the emitter SHALL set `enable_tagging: true`
    and wrap every draw call in a `start_tagged`/`end_tagged` pair:
    - draws whose owning fragment resolves (through `Fragment::source`,
      inheriting the nearest sourced ancestor) to a DOM element →
@@ -197,8 +203,11 @@ pub fn render_with_options(
 CLI (main.rs, hand-parsed like every flag):
 
 ```text
-typeanvil render in.html [--tagged] [--ua] -o out.pdf
+typeanvil render in.html [--no-tagged] [--ua] -o out.pdf
 ```
+
+`--tagged` is accepted as a no-op (tagging is the default). `--ua` implies
+tagging and overrides `--no-tagged`.
 
 ## Acceptance Criteria
 
@@ -229,6 +238,13 @@ typeanvil render in.html [--tagged] [--ua] -o out.pdf
   title, no lang) fails with a recorded violation list; the same fixture
   completed (title + lang + alts) passes.
   Test: `engine/tests/tagged_pdf.rs::ua_validator_rejects_incomplete_document`.
+- AC-12 (default on, CORE-378): a render with no tagging flag carries a
+  `/StructTreeRoot`; `--no-tagged` carries none; `--tagged` output equals the
+  default output; `--ua` tags even with `--no-tagged`, in either order.
+  Test: `engine/tests/tagged_default.rs`. Byte stability: on all 33 corpus
+  documents, `--no-tagged` output from the CORE-378 binary is byte-identical
+  to the default output of the binary at the branch point (60f8eff); see the
+  cost table below.
 - AC-8 (page chrome, CORE-379): each page-chrome kind (`@page`
   background, `body` canvas background, `@page` outline, `@page` border,
   `html` border) renders with `--tagged` and with `--tagged --ua`, and every
@@ -356,6 +372,41 @@ already reads back without `H1`, a CORE-374 gap.
   descendants produce groups; simplest correct rule: emit groups only along
   chains that own at least one draw).
 - Watermark + tagged → watermark is an Artifact; excluded from the tree.
+
+## Validation log: default flip (CORE-378, 2026-10-16)
+
+Candidate bf73ff7 against baseline 60f8eff (release/2026.10 tip), container
+debug builds:
+
+- `--no-tagged` output byte-identical to the baseline default on 33 of 33
+  corpus documents (AC2).
+- Release gate: 283 WPT tests, PASS 183 / FAIL 100 on both sides, 0 changed
+  documents, 13 of 13 direct checks pass, `GATE PASSED` (AC3, no raster
+  change).
+- Tagged gate: 42 fixtures, 6 expected failures (CORE-386, CORE-396),
+  0 unexpected, `TAGGED GATE PASSED`.
+- `cargo test -j 2 --no-fail-fast`: all test binaries green, including the
+  4 new tests in `engine/tests/tagged_default.rs`. Pre-fix, all 4 failed
+  (default untagged; `--no-tagged` an unknown flag).
+
+## Cost of tagging (CORE-378, measured 2026-10-16)
+
+Method: the 33 documents in `demo/corpus/` at the corpus geometry (5in x 3in,
+0.5in margins), debug build in the dev container, one render each. Base is
+the binary at 60f8eff with its default (untagged) output; tagged is the
+CORE-378 default. Per-document table: `~/workspace/typeanvil-evidence/CORE-378/ac2-size-time.tsv`.
+
+| Measure | Untagged | Tagged | Change |
+|---|---|---|---|
+| Total PDF bytes (33 docs) | 2,042,603 | 2,666,898 | +30.6% |
+| Total render time, ms | 3,639 | 3,704 | +1.8% (inside run-to-run noise) |
+| Largest size ratio | | table-stress 151,253 to 344,482 bytes | 2.28x |
+
+Prose documents grow 8% to 15% (book-chapter +7.7%, paper +8.7%). Table-heavy
+documents grow 30% to 130% (financial-statement +50.6%, table-stress +128%),
+because every cell is a structure element. Tagging does not touch painting,
+so rasters are unchanged (verified by the release gate, see the validation
+log).
 
 ## References
 
