@@ -40,6 +40,8 @@ pub enum TagRole {
     TableHeader(TableHeaderScope),
     TableCell,
     Figure(Option<String>),
+    /// CORE-363: a `<math>` element; alt text filled by the builder.
+    Formula,
     Link,
     Strong,
     Emphasis,
@@ -75,6 +77,7 @@ impl TagRole {
             TagRole::TableHeader(scope) => TagKind::TH(Tag::<kind::TH>::TH(*scope)),
             TagRole::TableCell => TagKind::TD(Tag::TD),
             TagRole::Figure(alt) => TagKind::Figure(Tag::<kind::Figure>::Figure(alt.clone())),
+            TagRole::Formula => TagKind::Formula(Tag::<kind::Formula>::Formula(None)),
             TagRole::Link => TagKind::Link(Tag::Link),
             TagRole::Strong => TagKind::Strong(Tag::Strong),
             TagRole::Emphasis => TagKind::Em(Tag::Em),
@@ -105,6 +108,7 @@ pub fn role_for(el: &Element) -> TagRole {
         "th" => TagRole::TableHeader(header_scope(el)),
         "td" => TagRole::TableCell,
         "figure" | "img" => TagRole::Figure(None), // alt filled by builder
+        "math" => TagRole::Formula,
         "figcaption" => TagRole::Paragraph,        // caption text stays readable
         "a" => TagRole::Link,
         "strong" | "b" => TagRole::Strong,
@@ -247,6 +251,21 @@ pub fn build_tag_tree(dom: &Dom, draws: &[DrawRef], lang: Option<String>) -> Tag
                         use krilla::tagging::{kind, Tag};
                         TagGroup::new(krilla::tagging::TagKind::Figure(
                             Tag::<kind::Figure>::Figure(alt_for(dom, id)),
+                        ))
+                    }
+                    TagRole::Formula => {
+                        use krilla::tagging::{kind as tagkind, Tag};
+                        let alt = kind
+                            .attr("alttext")
+                            .map(|s| s.to_string())
+                            .filter(|s| !s.trim().is_empty())
+                            .or_else(|| {
+                                let t = dom.text_content(id);
+                                let t = t.split_whitespace().collect::<Vec<_>>().join(" ");
+                                (!t.is_empty()).then_some(t)
+                            });
+                        TagGroup::new(krilla::tagging::TagKind::Formula(
+                            Tag::<tagkind::Formula>::Formula(alt),
                         ))
                     }
                     _ => TagGroup::new(role.tag()),

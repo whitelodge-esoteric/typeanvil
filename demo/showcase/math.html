@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Notes on Quadratic Forms and Series — Math Sample</title>
+<style>
+  @page {
+    size: 8.5in 11in;
+    margin: 1in 1.1in;
+    @bottom-center { content: counter(page); font-size: 9pt; font-family: serif; }
+  }
+  body { font-family: serif; font-size: 11pt; line-height: 1.5; color: #111; }
+  h1 { font-size: 16pt; text-align: center; margin: 0 0 12pt 0; }
+  h2 { font-size: 12pt; margin: 16pt 0 6pt 0; page-break-after: avoid; }
+  p { margin: 0 0 8pt 0; }
+  math { font-size: 12pt; }
+  .eq { counter-increment: eq; position: relative; }
+  .eq::after { content: "(" counter(eq) ")"; }
+</style>
+</head>
+<body>
+<h1>Notes on Quadratic Forms and Series</h1>
+
+<h2>1. Energy and mass</h2>
+<p>Einstein's relation <math alttext="E equals m c squared"><mi>E</mi><mo>=</mo><mi>m</mi><msup><mi>c</mi><mn>2</mn></msup></math>
+sets the scale for rest energy. A particle of mass
+<math alttext="m"><mi>m</mi></math> at speed
+<math alttext="v"><mi>v</mi></math> carries the energy below.</p>
+
+<math display="block" alttext="E equals m c squared over the square root of one minus v squared over c squared">
+  <mi>E</mi><mo>=</mo>
+  <mfrac>
+    <mrow><mi>m</mi><msup><mi>c</mi><mn>2</mn></msup></mrow>
+    <msqrt><mn>1</mn><mo>-</mo><mfrac><msup><mi>v</mi><mn>2</mn></msup><msup><mi>c</mi><mn>2</mn></msup></mfrac></msqrt>
+  </mfrac>
+</math>
+
+<h2>2. The quadratic formula</h2>
+<p>The roots of <math alttext="a x squared plus b x plus c equals 0"><mi>a</mi><msup><mi>x</mi><mn>2</mn></msup><mo>+</mo><mi>b</mi><mi>x</mi><mo>+</mo><mi>c</mi><mo>=</mo><mn>0</mn></math> are given by</p>
+
+<math display="block" alttext="x equals minus b plus or minus the square root of b squared minus four a c, all over two a">
+  <mi>x</mi><mo>=</mo>
+  <mfrac>
+    <mrow><mo>-</mo><mi>b</mi><mo>±</mo><msqrt><msup><mi>b</mi><mn>2</mn></msup><mo>-</mo><mn>4</mn><mi>a</mi><mi>c</mi></msqrt></mrow>
+    <mrow><mn>2</mn><mi>a</mi></mrow>
+  </mfrac>
+</math>
+
+<h2>3. Sums, limits and matrices</h2>
+<p>The partial sums of the geometric series converge when the ratio is small.</p>
+
+<math display="block" alttext="sum from n equals 0 to infinity of r to the n equals one over one minus r">
+  <munderover><mo>∑</mo><mrow><mi>n</mi><mo>=</mo><mn>0</mn></mrow><mi>∞</mi></munderover>
+  <msup><mi>r</mi><mi>n</mi></msup><mo>=</mo>
+  <mfrac><mn>1</mn><mrow><mn>1</mn><mo>-</mo><mi>r</mi></mrow></mfrac>
+</math>
+
+<p>A rotation by the angle <math alttext="theta"><mi>θ</mi></math> acts on the plane as</p>
+
+<math display="block" alttext="rotation matrix with entries cosine theta, minus sine theta, sine theta, cosine theta">
+  <mi>R</mi><mo>=</mo>
+  <mo>(</mo>
+  <mtable>
+    <mtr><mtd><mi>cos</mi><mi>θ</mi></mtd><mtd><mo>-</mo><mi>sin</mi><mi>θ</mi></mtd></mtr>
+    <mtr><mtd><mi>sin</mi><mi>θ</mi></mtd><mtd><mi>cos</mi><mi>θ</mi></mtd></mtr>
+  </mtable>
+  <mo>)</mo>
+</math>
+
+<p>The cube root of a number <math alttext="n"><mi>n</mi></math> is written
+<math alttext="cube root of n"><mroot><mi>n</mi><mn>3</mn></mroot></math>.</p>
+</body>
+</html>

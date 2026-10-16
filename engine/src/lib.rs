@@ -16,6 +16,7 @@ pub mod geom;
 pub mod images;
 pub mod layout;
 pub mod margin_box;
+pub mod math;
 pub mod metadata;
 pub mod paged;
 pub mod pdf;

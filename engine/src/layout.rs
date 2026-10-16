@@ -2210,6 +2210,87 @@ impl<'a> Ctx<'a> {
         Some((w, h))
     }
 
+    /// CORE-363: lay out a `<math>` element: (box, size) with the math baseline.
+    fn math_layout(&self, id: NodeId) -> crate::math::MathBox {
+        let style = &self.styles[id];
+        crate::math::layout_math(self.dom, id, style.font_size.get(), style.font_face)
+    }
+
+    /// CORE-363: a `<math>` element as a monolithic block fragment. Math
+    /// children paint as shaped text runs and filled rules (spec Behavior
+    /// 13). `display="block"` centers the box in the available width.
+    #[allow(clippy::too_many_arguments)]
+    fn layout_math_box(
+        &self,
+        id: NodeId,
+        origin_x: Scalar,
+        avail_width: Scalar,
+        top: Scalar,
+        bottom_limit: Scalar,
+        page_has_content: bool,
+        style: &ComputedStyle,
+    ) -> BlockResult {
+        let mb = self.math_layout(id);
+        let w = mb.width;
+        let h = mb.ascent + mb.descent;
+        let box_top = top + style.margin_top;
+        let mut box_left = origin_x + style.margin_left;
+        if crate::math::is_block_math(self.dom, id) {
+            let room = avail_width.get() - style.margin_left.get() - style.margin_right.get();
+            if room > w {
+                box_left = box_left + Scalar((room - w) / 2.0);
+            }
+        }
+        if box_top + Scalar(h) > bottom_limit && page_has_content {
+            return BlockResult {
+                fragment: Fragment::block(Point::new(origin_x, top), (avail_width, Scalar::ZERO)),
+                used: Scalar::ZERO,
+                outgoing: Some(BreakToken::break_before()),
+                empty: true,
+            };
+        }
+        let mut fragment = Fragment::block(Point::new(box_left, box_top), (Scalar(w), Scalar(h)));
+        fragment.source = Some(id);
+        for op in &mb.ops {
+            match op {
+                crate::math::MathOp::Text { x, y, size, face, text, glyphs } => {
+                    let base_y = mb.ascent + y;
+                    let run = TextRun {
+                        text: text.clone(),
+                        baseline: Point::new(Scalar(*x), Scalar(base_y)),
+                        font_size: Scalar(*size),
+                        color: style.color,
+                        font_face: *face,
+                        glyphs: glyphs.clone(),
+                        expansion: 0.0,
+                        protrude_left: Scalar::ZERO,
+                        protrude_right: Scalar::ZERO,
+                    };
+                    let tw: f64 = glyphs.iter().map(|g| g.x_advance.get()).sum();
+                    fragment.children.push(Fragment::line(
+                        Point::new(Scalar(*x), Scalar(base_y - size)),
+                        (Scalar(tw), Scalar(*size)),
+                        run,
+                    ));
+                }
+                crate::math::MathOp::Rule { x, y, w, h } => {
+                    let mut r = Fragment::block(
+                        Point::new(Scalar(*x), Scalar(mb.ascent + y)),
+                        (Scalar(*w), Scalar(*h)),
+                    );
+                    r.content = FragmentContent::Background(style.color);
+                    fragment.children.push(r);
+                }
+            }
+        }
+        BlockResult {
+            used: Scalar(h) + style.margin_top,
+            fragment,
+            outgoing: None,
+            empty: false,
+        }
+    }
+
     /// Greedy height measure of an `<img>` box for break-inside:avoid /
     /// float measurement contexts (mirrors layout_image's placement).
     fn measure_image(&self, id: NodeId, avail_width: Scalar) -> Scalar {
@@ -2429,6 +2510,10 @@ impl<'a> Ctx<'a> {
         // spec Behavior 6; a box that does not fit defers whole to the next
         // fragmentainer (Behavior 8); broken sources render an alt-text
         // placeholder (Behavior 7).
+        // CORE-363: `<math>` is a monolithic box laid out by `math.rs`.
+        if crate::math::is_math(self.dom, id) {
+            return self.layout_math_box(id, origin_x, avail_width, top, bottom_limit, page_has_content, style);
+        }
         let is_img = self.is_replaced_image(id);
         if is_img {
             return self.layout_image(
@@ -3599,8 +3684,13 @@ impl<'a> Ctx<'a> {
                             style.font_face,
                         );
                     // `ah` is the margin-box height, measured from `box_y`.
-                    let shift = base_y + Scalar(style.font_size.get() * -desc_em)
-                        - (box_y + ah);
+                    let shift = if crate::math::is_math(self.dom, *child) {
+                        // CORE-363: the math baseline sits on the text baseline.
+                        let mb = self.math_layout(*child);
+                        base_y - (box_y + cstyle.margin_top + Scalar(mb.ascent))
+                    } else {
+                        base_y + Scalar(style.font_size.get() * -desc_em) - (box_y + ah)
+                    };
                     // CORE-171: a box TALLER than the line must not be pushed
                     // above the line's top. css2 §10.8 grows the line box to
                     // contain an atomic box — aligning a 50px inline-block to a
@@ -6697,6 +6787,10 @@ impl<'a> Ctx<'a> {
         if style.display == Display::None {
             return Scalar::ZERO;
         }
+        if crate::math::is_math(self.dom, id) {
+            let mb = self.math_layout(id);
+            return style.margin_top + Scalar(mb.ascent + mb.descent) + style.margin_bottom;
+        }
         let inner_width = avail_width
             - style.margin_left
             - style.margin_right
@@ -6989,6 +7083,12 @@ impl<'a> Ctx<'a> {
     /// Shrink-to-fit width: the widest line of the float's content (text or
     /// nested blocks), capped at the containing block's inner width.
     fn shrink_to_fit(&self, id: NodeId, max_width: Scalar) -> Scalar {
+        if crate::math::is_math(self.dom, id) {
+            let st = &self.styles[id];
+            let w = Scalar(self.math_layout(id).width);
+            let _ = max_width;
+            return w + st.margin_left + st.margin_right;
+        }
         let style = &self.styles[id];
         let mut width = Scalar::ZERO;
         for item in self.collect_items(id) {
@@ -7435,9 +7535,13 @@ impl<'a> Ctx<'a> {
                     // its own item or it folds into the parent's text run
                     // and vanishes.
                     let is_img = self.is_replaced_image(child);
+                    // CORE-363: `<math>` is atomic inline (block when
+                    // `display="block"`); its subtree never folds into text.
+                    let is_math = crate::math::is_math(self.dom, child);
                     // CORE-390: a running element is block-level whatever its
                     // `display`; `layout_box` registers it and paints nothing.
                     if is_img
+                        || is_math
                         || self.styles[child].running_name.is_some()
                         || self.styles[child].display == Display::Block
                         || matches!(
@@ -7481,7 +7585,9 @@ impl<'a> Ctx<'a> {
                             pending.clear();
                         }
                         spans.extend(reopen);
-                        if self.styles[child].display == Display::InlineBlock {
+                        if self.styles[child].display == Display::InlineBlock
+                            || (is_math && !crate::math::is_block_math(self.dom, child))
+                        {
                             items.push(Item::Atomic(child));
                         } else {
                             items.push(Item::Block(child));

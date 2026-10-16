@@ -1874,6 +1874,7 @@ dependencies = [
  "rustc-hash",
  "selectors",
  "servo_arc",
+ "skrifa",
  "string_cache",
  "stylo",
  "stylo_atoms",

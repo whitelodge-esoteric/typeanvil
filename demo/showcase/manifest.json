@@ -16,6 +16,16 @@
     "expected_deltas": []
   },
   {
+    "name": "Math Sample",
+    "file": "math.html",
+    "wedge_features": ["math-rendering", "paged-media-css"],
+    "known_limitations": [
+      "Text after an inline equation wraps to a new line (CORE-454)",
+      "Stretchy delimiters scale one glyph; no glyph assembly"
+    ],
+    "expected_deltas": []
+  },
+  {
     "name": "Book Sample",
     "file": "book.html",
     "wedge_features": ["paged-media-css", "cross-references", "fragmentation-core"],

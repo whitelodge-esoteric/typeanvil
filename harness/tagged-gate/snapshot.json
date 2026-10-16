@@ -526,6 +526,17 @@
    "Span": 1
   }
  },
+ "showcase/math.html": {
+  "coverage": 0.7109,
+  "roles": {
+   "Div": 2,
+   "Document": 1,
+   "Formula": 11,
+   "H1": 1,
+   "H2": 3,
+   "P": 5
+  }
+ },
  "showcase/poster.html": {
   "coverage": 1.0,
   "roles": {
