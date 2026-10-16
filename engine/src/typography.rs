@@ -215,6 +215,10 @@ pub struct ShapedGlyph {
     /// ToUnicode map, so every glyph's range must be non-empty and in-bounds
     /// (CORE-85).
     pub range: Range<usize>,
+    /// Fallback face this glyph was shaped with (CORE-386), or `None` when
+    /// it belongs to the run's own face. The PDF writer splits a run at
+    /// every change of face.
+    pub face: Option<FaceId>,
 }
 
 /// A shaped word or segment.
@@ -431,6 +435,71 @@ fn shape_word_uncached(
     face: FaceId,
     features: &[(u32, u32)],
 ) -> ShapeRun {
+    // CORE-386: per-glyph fallback. Codepoints the face has no glyph for are
+    // split into their own segments and shaped with the first installed face
+    // that covers them; their glyphs carry that face in `ShapedGlyph.face`.
+    let (pfont, _) = face_shaper(face);
+    let needs_fallback = |ch: char| -> bool {
+        if (ch as u32) < 0x20
+            || matches!(ch, '\u{00AD}' | '\u{200B}'..='\u{200F}' | '\u{2060}' | '\u{FEFF}' | '\u{FFFE}')
+            || ch.is_whitespace()
+        {
+            return false;
+        }
+        // A face without a readable cmap is treated as covering everything
+        // (nothing better is knowable); otherwise require a non-.notdef gid.
+        match pfont.cmap() {
+            Ok(c) => !c.map_codepoint(ch).map(|g| g.to_u32() != 0).unwrap_or(false),
+            Err(_) => false,
+        }
+    };
+    if !word.chars().any(needs_fallback) {
+        return shape_single_face(word, font_size, face, features);
+    }
+    // Segment into (byte start, byte end, face override).
+    let mut segs: Vec<(usize, usize, Option<FaceId>)> = Vec::new();
+    for (i, ch) in word.char_indices() {
+        let fb = if needs_fallback(ch) {
+            crate::fonts::fallback_face_for(ch).filter(|f| *f != face)
+        } else {
+            None
+        };
+        let end = i + ch.len_utf8();
+        match segs.last_mut() {
+            Some(last) if last.2 == fb => last.1 = end,
+            _ => segs.push((i, end, fb)),
+        }
+    }
+    let mut glyphs: Vec<ShapedGlyph> = Vec::new();
+    let mut width = 0.0f64;
+    for (s, e, fb) in segs {
+        let part = shape_single_face(&word[s..e], font_size, fb.unwrap_or(face), features);
+        width += part.width.get();
+        for g in part.glyphs {
+            glyphs.push(ShapedGlyph {
+                id: g.id,
+                x_advance: g.x_advance,
+                x_offset: g.x_offset,
+                range: (s + g.range.start)..(s + g.range.end),
+                face: fb,
+            });
+        }
+    }
+    ShapeRun {
+        text: word.to_string(),
+        glyphs,
+        width: Scalar(width),
+        font_size,
+    }
+}
+
+/// Shape `word` against exactly one face (no fallback).
+fn shape_single_face(
+    word: &str,
+    font_size: Scalar,
+    face: FaceId,
+    features: &[(u32, u32)],
+) -> ShapeRun {
     let (font, data) = face_shaper(face);
     let shaper = data.shaper(font).build();
     let upem = shaper.units_per_em() as f64;
@@ -491,6 +560,7 @@ fn shape_word_uncached(
             x_advance: Scalar(adv),
             x_offset: Scalar(off),
             range: start..end,
+            face: None,
         });
     }
 
@@ -1208,6 +1278,7 @@ fn materialize_line(
                             // The single ' ' just appended to the line text
                             // (CORE-85).
                             range: sp..sp + 1,
+                            face: None,
                         });
                         spaces.push((gi, g.width.get(), g.stretch.get(), g.shrink.get()));
                     }
@@ -1223,6 +1294,7 @@ fn materialize_line(
                     x_advance: g.x_advance,
                     x_offset: g.x_offset,
                     range: (base + g.range.start)..(base + g.range.end),
+                    face: g.face,
                 }));
             }
             Item::Glue(g) => {
@@ -1262,6 +1334,7 @@ fn materialize_line(
             x_advance: g.x_advance,
             x_offset: g.x_offset,
             range: hp..hp + 1,
+            face: g.face,
         }));
     }
     // A forced break (`<br>`) adds no glyphs or width, but the line CONSUMES

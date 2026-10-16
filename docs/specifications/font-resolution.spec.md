@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-08-22
-updated: 2026-10-13
+updated: 2026-10-16
 sidebar_position: 13
 tags: [engine, css-fonts, typography, pdf, determinism]
 spec_id: font-resolution
@@ -112,11 +112,28 @@ fontdb itself uses ttf-parser/skrifa-family parsing and adds no C FFI.
 7. `@font-face src: url(...)` SHALL resolve relative paths against the input
    document's base URL/directory, then absolute paths; missing files fall
    through to the next `src` entry, then to system fonts.
-8. Shaping SHALL use the element's primary face; a codepoint missing from it
-   (`.notdef` glyph id returned for that cluster) SHALL be re-shaped against
-   the next candidate face that contains the glyph, splitting the run so
-   mixed-script text draws correctly. If no candidate has the glyph, the
-   primary face's `.notdef` stands.
+8. Shaping SHALL use the element's primary face; a codepoint the primary
+   face's `cmap` does not map (CORE-386) SHALL be split into its own segment
+   and shaped with the first installed face that has a glyph for it, so
+   mixed-script text draws correctly. Each fallback glyph carries its face
+   (`ShapedGlyph.face`); the PDF writer draws a run as one segment per face
+   and the ToUnicode ranges stay on the original run text. Whitespace,
+   control and zero-width format characters never trigger fallback. If no
+   installed face has the glyph, the primary face's `.notdef` stands.
+
+   Fallback order (system faces only, upright, normal width, closest to
+   weight 400 first, ties by PostScript name):
+   1. Arial Unicode MS, Apple Symbols, Menlo, DejaVu Sans, Liberation Sans,
+      FreeSans, Noto Sans Symbols, Noto Sans Symbols 2, Noto Sans Math
+      (in that order; the first one whose `cmap` covers the codepoint wins).
+   2. Every other installed upright normal-width face, sorted by weight
+      distance then PostScript name.
+
+   The result per codepoint is cached for the process. The order is a pure
+   function of the installed font set, so output stays deterministic per
+   environment. Known limitation: later members of the element's own
+   `font-family` stack are not consulted before the system order above
+   (`ComputedStyle.font_fallbacks` is not yet plumbed into shaping).
 9. Every embedded font subset SHALL be derived deterministically: the
    registry keys faces by content-independent id (source path or @font-face
    rule order + index), and krilla's content-hash dedup does the rest.

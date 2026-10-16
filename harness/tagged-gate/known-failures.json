@@ -1,7 +1,4 @@
 [
- {"doc": "corpus/journal-paper.html", "check": "ua", "ticket": "CORE-386", "reason": "ContainsNotDefGlyph: '⁻' (U+207B) has no glyph in the resolved face; no per-glyph font fallback"},
- {"doc": "showcase/weasyprint-invoice.html", "check": "ua", "ticket": "CORE-386", "reason": "ContainsNotDefGlyph: '♥' in generated content; no per-glyph font fallback"},
- {"doc": "showcase/weasyprint-ticket.html", "check": "ua", "ticket": "CORE-386", "reason": "ContainsNotDefGlyph: '✈'; no per-glyph font fallback"},
  {"doc": "showcase/weasyprint-invoice.html", "check": "dangling", "ticket": "CORE-396", "reason": "5 empty marked-content sequences (draws that paint nothing)"},
  {"doc": "showcase/weasyprint-report.html", "check": "dangling", "ticket": "CORE-396", "reason": "2 empty marked-content sequences (draws that paint nothing)"},
  {"doc": "showcase/weasyprint-ticket.html", "check": "dangling", "ticket": "CORE-396", "reason": "3 empty marked-content sequences (draws that paint nothing)"}

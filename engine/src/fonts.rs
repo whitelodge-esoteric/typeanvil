@@ -465,6 +465,71 @@ fn system_family_candidates(key: &str) -> Vec<FaceId> {
         })
 }
 
+/// Preferred system families for per-glyph fallback (CORE-386), tried in
+/// order before the scan of every other installed face. Lowercase names.
+/// Broad-coverage symbol/Unicode faces come first on each platform.
+const FALLBACK_FAMILIES: &[&str] = &[
+    "arial unicode ms",
+    "apple symbols",
+    "menlo",
+    "dejavu sans",
+    "liberation sans",
+    "freesans",
+    "noto sans symbols",
+    "noto sans symbols 2",
+    "noto sans math",
+];
+
+fn face_covers(info: &fontdb::FaceInfo, ch: char) -> bool {
+    FONTDB
+        .with_face_data(info.id, |data, index| {
+            read_fonts::FontRef::from_index(data, index)
+                .ok()
+                .and_then(|f| f.cmap().ok().and_then(|c| c.map_codepoint(ch)))
+                .map(|g| g.to_u32() != 0)
+                .unwrap_or(false)
+        })
+        .unwrap_or(false)
+}
+
+/// The first installed face that has a glyph for `ch` (CORE-386): the
+/// preferred families in `FALLBACK_FAMILIES` order, then every other
+/// upright normal-width face sorted by PostScript name (deterministic).
+/// Cached per codepoint. `None` when no installed face covers it.
+pub fn fallback_face_for(ch: char) -> Option<FaceId> {
+    static CACHE: LazyLock<Mutex<HashMap<char, Option<FaceId>>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
+    if let Some(r) = CACHE.lock().unwrap().get(&ch) {
+        return *r;
+    }
+    let usable = |f: &&fontdb::FaceInfo| {
+        f.style == fontdb::Style::Normal && f.stretch == fontdb::Stretch::Normal
+    };
+    let mut found: Option<fontdb::FaceInfo> = None;
+    'pref: for fam in FALLBACK_FAMILIES {
+        let mut faces: Vec<&fontdb::FaceInfo> = FONTDB
+            .faces()
+            .filter(|f| f.families.iter().any(|(n, _)| n.to_ascii_lowercase() == *fam))
+            .filter(usable)
+            .collect();
+        faces.sort_by_key(|f| ((f.weight.0 as i32 - 400).abs(), f.post_script_name.clone()));
+        for f in faces {
+            if face_covers(f, ch) {
+                found = Some(f.clone());
+                break 'pref;
+            }
+        }
+    }
+    if found.is_none() {
+        let mut faces: Vec<&fontdb::FaceInfo> = FONTDB.faces().filter(usable).collect();
+        faces.sort_by_key(|f| ((f.weight.0 as i32 - 400).abs(), f.post_script_name.clone()));
+        found = faces.into_iter().find(|f| face_covers(f, ch)).cloned();
+    }
+    let id = found.map(|f| register_system_face(&f));
+    CACHE.lock().unwrap().insert(ch, id);
+    id
+}
+
 /// The bundled Arial face for a weight/style (the Behavior-6 fallback).
 pub fn face_for(weight: f32, style: FontStyle) -> FaceId {
     bundled_fallback(weight, style)

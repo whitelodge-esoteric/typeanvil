@@ -731,6 +731,43 @@ fn to_krilla_glyphs(
     out
 }
 
+/// Draw a text item's shaped glyphs, splitting at every change of fallback
+/// face (CORE-386). Glyphs with `face: None` use the run's own font. Each
+/// segment keeps the full run text with its glyphs' original ranges, so
+/// ToUnicode stays correct.
+fn draw_shaped(
+    surface: &mut krilla::surface::Surface<'_>,
+    t: &TextItem,
+    font: &Font,
+) -> Result<()> {
+    let glyphs = to_krilla_glyphs(&t.glyphs, t.font_size, t.expansion, t.protrude_right);
+    let mut x = t.x - t.protrude_left;
+    let mut i = 0usize;
+    while i < glyphs.len() {
+        let seg_face = t.glyphs[i].face;
+        let mut j = i;
+        while j < glyphs.len() && t.glyphs[j].face == seg_face {
+            j += 1;
+        }
+        let seg_font: &Font = match seg_face {
+            Some(f) => font_for(f)?,
+            None => font,
+        };
+        let _ = surface.draw_glyphs(
+            Point::from_xy(x, t.y),
+            &glyphs[i..j],
+            seg_font.clone(),
+            &t.text,
+            t.font_size,
+            false,
+        );
+        let adv: f32 = glyphs[i..j].iter().map(|g| g.x_advance).sum();
+        x += adv * t.font_size;
+        i = j;
+    }
+    Ok(())
+}
+
 /// One text draw call, resolved to absolute page coordinates.
 ///
 /// All runs carry their shaped glyphs (body text, generated content, and
@@ -1074,16 +1111,7 @@ fn paint_margin_box(
                     TextDirection::Auto,
                 );
             } else {
-                let glyphs: Vec<KrillaGlyph> =
-                    to_krilla_glyphs(&t.glyphs, t.font_size, t.expansion, t.protrude_right);
-                let _ = surface.draw_glyphs(
-                    Point::from_xy(t.x - t.protrude_left, t.y),
-                    &glyphs,
-                    font.clone(),
-                    &t.text,
-                    t.font_size,
-                    false,
-                );
+                let _ = draw_shaped(surface, t, font);
             }
         };
         if tagged {
@@ -1514,16 +1542,7 @@ fn paint_group(
                 // Main text: shaped glyphs, with the typography layer's
                 // protrusion (hang into the margin) and per-line expansion
                 // (scale every advance by 1+expansion) applied at draw time.
-                let glyphs: Vec<KrillaGlyph> =
-                    to_krilla_glyphs(&t.glyphs, t.font_size, t.expansion, t.protrude_right);
-                surface.draw_glyphs(
-                    Point::from_xy(t.x - t.protrude_left, t.y),
-                    &glyphs,
-                    font.clone(),
-                    &t.text,
-                    t.font_size,
-                    false,
-                );
+                draw_shaped(surface, t, font)?;
             }
             surface.end_tagged();
             record_draw(draws, page_idx, ident, t.owner);
@@ -1538,16 +1557,7 @@ fn paint_group(
                     TextDirection::Auto,
                 );
             } else {
-                let glyphs: Vec<KrillaGlyph> =
-                    to_krilla_glyphs(&t.glyphs, t.font_size, t.expansion, t.protrude_right);
-                surface.draw_glyphs(
-                    Point::from_xy(t.x - t.protrude_left, t.y),
-                    &glyphs,
-                    font.clone(),
-                    &t.text,
-                    t.font_size,
-                    false,
-                );
+                draw_shaped(surface, t, font)?;
             }
         }
     }
