@@ -6,7 +6,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'Typeanvil Docs',
-  tagline: 'HTML/Markdown → PDF typesetting engine — engineering source of truth',
+  tagline: 'HTML → PDF typesetting engine — engineering source of truth',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   // v4 flag left off: it reworks markdown/mermaid config; verify compatibility

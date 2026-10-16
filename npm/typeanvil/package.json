@@ -1,7 +1,7 @@
 {
   "name": "typeanvil",
   "version": "0.0.0-staging",
-  "description": "Typeanvil — AI-first HTML/Markdown to PDF typesetting engine",
+  "description": "Typeanvil — AI-first HTML to PDF typesetting engine",
   "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
@@ -12,7 +12,6 @@
   "keywords": [
     "pdf",
     "html",
-    "markdown",
     "typesetting",
     "print",
     "css-paged-media"
