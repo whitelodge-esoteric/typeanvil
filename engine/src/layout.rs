@@ -870,11 +870,16 @@ fn attach_footnotes(
                     &style.ot_features,
                 );
                 let mut glyphs = m.glyphs.clone();
-                let marker_w = m.width;
-                let mut bg = lr.glyphs.clone();
-                if let Some(first) = bg.first_mut() {
-                    first.x_offset += marker_w;
+                // CORE-358: a glyph x_offset moves ONLY that glyph (krilla
+                // does not advance the pen), so offsetting the body's first
+                // glyph overprinted the second word. Instead the marker's
+                // trailing space absorbs the difference so the marker spans
+                // exactly MARKER_HANG and the body starts at the content edge.
+                let marker_w = m.width.get();
+                if let Some(last) = glyphs.last_mut() {
+                    last.x_advance = Scalar((last.x_advance.get() + MARKER_HANG - marker_w).max(0.0));
                 }
+                let mut bg = lr.glyphs.clone();
                 for g in &mut bg {
                     g.range.start += m.text.len();
                     g.range.end += m.text.len();
