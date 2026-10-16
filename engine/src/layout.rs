@@ -2794,6 +2794,7 @@ impl<'a> Ctx<'a> {
         // CORE-365: rollback points for the current run of consecutive avoid
         // boundaries (see `AvoidSnap`).
         let mut avoid_chain: Vec<AvoidSnap> = Vec::new();
+        let mut pushed_whole_at: Option<usize> = None;
         let mut i = start_index;
         while i < items.len() {
             // A deferred page-change break fires when the loop reaches the
@@ -4472,6 +4473,14 @@ impl<'a> Ctx<'a> {
                     }
 
                     if let Some(tok) = res.outgoing {
+                        // CORE-369: a fresh child that placed no height (a
+                        // table whose rows all deferred leaves an empty,
+                        // token-carrying fragment) was pushed whole in
+                        // effect, so the avoid backup treats it like a
+                        // break-before push.
+                        if child_tok.is_break_before() && res.used.get() <= 0.0 {
+                            pushed_whole_at = Some(i);
+                        }
                         seen_all = false;
                         outgoing_children.push(ChildToken {
                             index: i,
@@ -4662,9 +4671,9 @@ impl<'a> Ctx<'a> {
             && deferred_break_at != Some(i)
             && avoid_chain.last().is_some_and(|s| s.index + 1 == i)
             && avoid_chain[0].can_back_up
-            && outgoing_children
-                .last()
-                .is_some_and(|c| c.index == i && c.token.is_break_before())
+            && outgoing_children.last().is_some_and(|c| {
+                c.index == i && (c.token.is_break_before() || pushed_whole_at == Some(i))
+            })
         {
             let snap = avoid_chain.swap_remove(0);
             children.truncate(snap.children_len);

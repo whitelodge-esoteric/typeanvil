@@ -261,3 +261,48 @@ fn avoid_is_not_forced() {
         assert!(!v.is_forced(), "{prop}: {value} is not a forced break");
     }
 }
+
+// --- CORE-369: a table as the next sibling ---------------------------------
+
+fn table_doc(table: &str) -> String {
+    format!(
+        "<html><head><style>{BASE_CSS} h2 {{ break-after: avoid; }} \
+         table {{ border-collapse: collapse; }} td, th, caption {{ padding: 0; font-size: 12pt; line-height: 12pt; }}\
+         </style></head><body>\
+         <div class=\"fill\">FILL</div><h2>HEADING</h2>{table}</body></html>"
+    )
+}
+
+fn assert_heading_with_table(table: &str, what: &str) {
+    let got = pages(&lay(&table_doc(table)));
+    assert_eq!(got.len(), 2, "{what}: two pages, got {got:?}");
+    assert!(
+        got[0].contains("FILL") && !got[0].contains("HEADING"),
+        "{what}: heading must not strand on page 1: {got:?}"
+    );
+    assert!(
+        got[1].contains("HEADING") && got[1].contains("ROW1"),
+        "{what}: page 2 holds heading and table: {got:?}"
+    );
+}
+
+#[test]
+fn avoid_after_moves_heading_with_table() {
+    assert_heading_with_table(
+        "<table><thead><tr><th>HEAD</th></tr></thead><tbody><tr><td>ROW1</td></tr></tbody></table>",
+        "table with thead",
+    );
+}
+
+#[test]
+fn avoid_after_moves_heading_with_headerless_table() {
+    assert_heading_with_table("<table><tbody><tr><td>ROW1</td></tr></tbody></table>", "headerless table");
+}
+
+#[test]
+fn avoid_after_moves_heading_with_captioned_table() {
+    assert_heading_with_table(
+        "<table><caption>CAP</caption><tbody><tr><td>ROW1</td></tr></tbody></table>",
+        "captioned table",
+    );
+}

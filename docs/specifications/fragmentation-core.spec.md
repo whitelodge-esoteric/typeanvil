@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-08-16
-updated: 2026-10-13
+updated: 2026-10-16
 sidebar_position: 2
 tags: [layout, fragmentation, css-break, engine]
 spec_id: fragmentation-core
@@ -398,7 +398,10 @@ Chromium and Prince move the heading to the next page with its text
    extent, `break-inside: avoid`; in a column, also a block that broke having
    used zero block size), and the A|B boundary is an avoid boundary, the
    engine SHALL break before A instead: A is removed from the current
-   fragmentainer and starts the next one, with B following it.
+   fragmentainer and starts the next one, with B following it. A `display:
+   table` B (with or without a header row or `<caption>`) is an in-flow block
+   sibling: when it starts fresh and its fragment places zero height, it
+   counts as pushed whole (CORE-369).
 4. Chains: when the boundary before A is also an avoid boundary, the backup
    goes to the FIRST sibling of the consecutive avoid chain.
 5. Avoidance is a preference: when that first sibling did not start fresh on
