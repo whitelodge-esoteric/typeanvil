@@ -481,6 +481,20 @@ impl Ctx<'_> {
                 } else {
                     row_top + row_h
                 };
+                // CORE-395: at the top of a fragmentainer a cell that makes
+                // NO progress against the real bottom (an unsplittable
+                // inline-block taller than a short balanced column) would
+                // emit an empty continuation token on every pass and
+                // paginate forever. Remember the state so such a cell can
+                // be re-laid in place (last-resort placement, like the
+                // `placed` row guard above).
+                let try_progress_guard = item_laid_declared && !page_has_content;
+                let flow_snapshot = if try_progress_guard {
+                    Some(flow.clone())
+                } else {
+                    None
+                };
+                let incoming_consumed = child_tok.consumed_block_size;
                 let mut res = self.layout_box(
                     it.id,
                     cell_x,
@@ -491,6 +505,28 @@ impl Ctx<'_> {
                     &child_tok,
                     flow,
                 );
+                if try_progress_guard {
+                    let stalled = res
+                        .outgoing
+                        .as_ref()
+                        .map(|t| t.consumed_block_size.get() <= incoming_consumed.get())
+                        .unwrap_or(false);
+                    if stalled {
+                        if let Some(snap) = flow_snapshot {
+                            *flow = snap;
+                        }
+                        res = self.layout_box(
+                            it.id,
+                            cell_x,
+                            cell_w,
+                            row_top,
+                            row_top + row_h,
+                            false,
+                            &child_tok,
+                            flow,
+                        );
+                    }
+                }
                 if let Some(z) = ist.z_index {
                     res.fragment.z_index = Some(z);
                 }
