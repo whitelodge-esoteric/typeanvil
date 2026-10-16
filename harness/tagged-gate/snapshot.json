@@ -543,18 +543,18 @@
   }
  },
  "showcase/weasyprint-invoice.html": {
-  "coverage": 0.7681,
+  "coverage": 1.0,
   "roles": {
    "Div": 6,
    "Document": 1,
    "H1": 1,
    "L": 1,
-   "TBody": 1,
-   "TD": 12,
-   "TH": 4,
-   "THead": 1,
-   "TR": 4,
-   "Table": 1
+   "TBody": 2,
+   "TD": 15,
+   "TH": 7,
+   "THead": 2,
+   "TR": 6,
+   "Table": 2
   }
  },
  "showcase/weasyprint-letter.html": {
@@ -591,7 +591,7 @@
   }
  },
  "showcase/weasyprint-ticket.html": {
-  "coverage": 0.4167,
+  "coverage": 0.4444,
   "roles": {
    "Div": 4,
    "Document": 1,

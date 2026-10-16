@@ -4041,6 +4041,21 @@ mod paged_props {
     use style::selector_parser::{SelectorImpl, SelectorParser};
     use style::stylesheets::UrlExtraData;
 
+    /// Element-level `content` that can never paint anything (only empty
+    /// string literals, e.g. the `content: ''` clearfix idiom) must not
+    /// replace the element's children: it behaves like `normal`. Without
+    /// this, `footer { content: '' }` blanked its whole subtree (CORE-387).
+    fn element_content(pieces: &[ContentPiece]) -> Vec<ContentPiece> {
+        let inert = pieces
+            .iter()
+            .all(|p| matches!(p, ContentPiece::Literal(s) if s.is_empty()));
+        if inert {
+            Vec::new()
+        } else {
+            pieces.to_vec()
+        }
+    }
+
     /// Parse a rule prelude with stylo's own selector parser (CORE-368), so
     /// the paged pass matches exactly what the cascade matches: combinators,
     /// attribute selectors, every structural pseudo. An invalid selector list
@@ -4484,7 +4499,7 @@ mod paged_props {
                             }
                             PagedDecl::Content(v) => {
                                 if won[id].content.is_none_or(|w| prio >= w) {
-                                    styles[id].content = v.clone();
+                                    styles[id].content = element_content(v);
                                     won[id].content = Some(prio);
                                 }
                             }
@@ -4579,7 +4594,7 @@ mod paged_props {
                     }
                     PagedDecl::Content(v) => {
                         if won[id].content.is_none_or(|w| prio >= w) {
-                            styles[id].content = v.clone();
+                            styles[id].content = element_content(&v);
                             won[id].content = Some(prio);
                         }
                     }

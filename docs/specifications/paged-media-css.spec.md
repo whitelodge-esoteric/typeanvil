@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-16
-updated: 2026-10-14
+updated: 2026-10-16
 sidebar_position: 3
 tags: [css, paged-media, page, layout, engine]
 spec_id: paged-media-css
@@ -684,6 +684,12 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
 
 ## Edge Cases
 
+- **Element `content` made only of empty strings is inert (CORE-387, 2026-10-16)** →
+  `footer { content: '' }` (the clearfix idiom) behaves like `content: normal`:
+  it does not replace the element's children. Only a non-empty `content`
+  value replaces them. Before this rule the whole subtree vanished, which hid
+  the `position:absolute; bottom:0` total table of `weasyprint-invoice`.
+  Test: `engine/tests/core387_empty_content.rs`.
 - **No `@page` rule matches** → CLI geometry is used; no margin boxes.
 - **Named page rule missing** → falls back to the default page spec.
 - **`page: auto` on a fresh box** → resets the page context to the default page
