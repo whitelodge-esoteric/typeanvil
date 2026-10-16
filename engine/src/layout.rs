@@ -6221,11 +6221,58 @@ impl<'a> Ctx<'a> {
         // split; cells on this fragmentainer hold only their own remainder).
         if fresh && !broke_inside {
             let target = used;
-            for cell_frag in &mut children {
+            // CORE-352: first-line baseline of every `baseline` cell; the
+            // row baseline is the deepest one (CSS 2.1 §17.5.4).
+            fn first_baseline(f: &Fragment, y: f64) -> Option<f64> {
+                if let FragmentContent::Text(r) = &f.content {
+                    return Some(y + r.baseline.y.get());
+                }
+                for c in &f.children {
+                    if let Some(b) = first_baseline(c, y + f.offset.y.get()) {
+                        return Some(b);
+                    }
+                }
+                None
+            }
+            let cell_baselines: Vec<Option<f64>> = children
+                .iter()
+                .map(|c| {
+                    let is_base = c.source.map(|s| self.styles[s].cell_valign)
+                        == Some(crate::css::CellVAlign::Baseline);
+                    if is_base { first_baseline(c, 0.0) } else { None }
+                })
+                .collect();
+            let row_baseline = cell_baselines.iter().flatten().cloned().fold(f64::MIN, f64::max);
+            for (ci, cell_frag) in children.iter_mut().enumerate() {
                 if cell_frag.size.1 < target {
                     let delta = target - cell_frag.size.1;
+                    // CORE-352 (CSS 2.1 §17.5.4): `middle`/`bottom` cells
+                    // shift their content within the row; `top` and
+                    // `baseline` (first-line alignment approximated as top)
+                    // keep it at the top. Border children always stretch to
+                    // the row edge.
+                    let shift = match cell_frag
+                        .source
+                        .map(|s| self.styles[s].cell_valign)
+                        .unwrap_or_default()
+                    {
+                        crate::css::CellVAlign::Middle => delta * 0.5,
+                        crate::css::CellVAlign::Bottom => delta,
+                        crate::css::CellVAlign::Baseline => match cell_baselines[ci] {
+                            Some(b) => Scalar((row_baseline - b).max(0.0).min(delta.get())),
+                            None => Scalar::ZERO,
+                        },
+                        _ => Scalar::ZERO,
+                    };
                     for child in &mut cell_frag.children {
-                        child.size.1 = child.size.1 + delta;
+                        if shift.get() > 0.0 && !matches!(child.content, FragmentContent::Border(_)) {
+                            child.offset = Point::new(child.offset.x, child.offset.y + shift);
+                            if let FragmentContent::Text(run) = &mut child.content {
+                                run.baseline = Point::new(run.baseline.x, run.baseline.y + shift);
+                            }
+                        } else {
+                            child.size.1 = child.size.1 + delta;
+                        }
                     }
                     cell_frag.size.1 = target;
                 }

@@ -655,6 +655,17 @@ pub enum ColumnSpan {
 /// (`top`/`bottom`/`next-page`/`snap`, CORE-130) pin the box to the page's
 /// content-box edge instead of the line-level exclusion zone; `snap` maps to
 /// `Top` (nearest-edge resolution is `PageFloat::Top` for v1).
+/// Table-cell `vertical-align` (CSS 2.1 §17.5.4, CORE-352). The HTML UA sheet
+/// gives rows/groups `middle`, which cells inherit.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum CellVAlign {
+    Top,
+    #[default]
+    Middle,
+    Bottom,
+    Baseline,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum Float {
     #[default]
@@ -988,6 +999,9 @@ pub struct ComputedStyle {
     /// element out of flow; layout places it at the content edge and wraps
     /// in-flow text around it.
     pub float: Float,
+    /// Resolved `vertical-align` of a table cell (CORE-352); meaningless on
+    /// other boxes.
+    pub cell_valign: CellVAlign,
     /// The computed `width` property, `None` = `auto` (shrink-to-fit for
     /// floats and abspos). Points.
     pub width: Option<Scalar>,
@@ -1232,6 +1246,7 @@ impl ComputedStyle {
             font_family: "sans-serif".to_string(),
             display: Display::Inline,
             float: Float::None,
+            cell_valign: CellVAlign::Middle,
             width: None,
             width_percent: None,
             height: None,
@@ -2232,6 +2247,7 @@ impl CascadeSession {
             color,
             background_color,
             box_sizing,
+            cell_valign: CellVAlign::Middle,
             clips_overflow,
             // Borders come from stylo's computed values (CORE-126): both the
             // stylesheet `border` shorthand and inline declarations flow
@@ -2762,6 +2778,8 @@ pub(crate) fn cascade_evaluated(
     // Fourth pass: fill border widths/colors (CORE-61 tables; the engine's
     // ComputedStyle carries borders for border-collapse rendering).
     borders::apply_border_properties(dom, evaluated_css, &mut styles);
+    // CORE-352: table-cell vertical-align (UA default middle via rows).
+    cell_valign::apply_cell_valign(dom, evaluated_css, &mut styles);
     // Fifth pass: collapse adjacent table-cell borders (CORE-119 #5) — the
     // shared edge between two neighboring cells must stroke once.
     crate::table::collapse_cell_borders(dom, &mut styles);
@@ -3320,6 +3338,105 @@ mod breaks {
 /// simple selectors in source order (later/more-specific wins, mirroring the
 /// cascade). Style keywords (`solid`, `dashed`, ...) are accepted and ignored
 /// (width+color are what render); `none`/`0` clears.
+mod cell_valign {
+    use super::breaks::{parse_inline_decls, parse_simple, strip_comments, SimpleSelector};
+    use super::{CellVAlign, ComputedStyle, Display};
+    use crate::dom::{Dom, NodeKind};
+
+    fn parse_value(v: &str) -> Option<CellVAlign> {
+        match v.trim().to_ascii_lowercase().as_str() {
+            "top" => Some(CellVAlign::Top),
+            "middle" => Some(CellVAlign::Middle),
+            "bottom" => Some(CellVAlign::Bottom),
+            "baseline" => Some(CellVAlign::Baseline),
+            _ => None,
+        }
+    }
+
+    /// Author `vertical-align` declarations per element, then cell
+    /// resolution: own value, else the row's, else the row group's, else the
+    /// UA default `middle` (HTML rendering: `thead, tbody, tfoot, tr
+    /// { vertical-align: middle }`, cells inherit).
+    pub fn apply_cell_valign(dom: &Dom, css: &str, styles: &mut [ComputedStyle]) {
+        let css = strip_comments(css);
+        let bytes = css.as_bytes();
+        let mut decl: Vec<Option<((u32, u32), CellVAlign)>> = vec![None; dom.nodes.len()];
+        let mut order = 0u32;
+        let mut i = 0;
+        while let Some(rel) = css[i..].find('{') {
+            let brace = i + rel;
+            let prelude = css[i..brace].trim().to_string();
+            let mut depth = 0usize;
+            let mut end = None;
+            for (off, &b) in bytes.iter().enumerate().skip(brace) {
+                if b == b'{' {
+                    depth += 1;
+                } else if b == b'}' {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = Some(off);
+                        break;
+                    }
+                }
+            }
+            let Some(end) = end else { break };
+            if !prelude.starts_with('@') {
+                let mut val = None;
+                for d in css[brace + 1..end].split(';') {
+                    if let Some((p, v)) = d.split_once(':') {
+                        if p.trim().eq_ignore_ascii_case("vertical-align") {
+                            if let Some(a) = parse_value(v) {
+                                val = Some(a);
+                            }
+                        }
+                    }
+                }
+                if let Some(a) = val {
+                    let sels: Vec<SimpleSelector> =
+                        prelude.split(',').filter_map(|s| parse_simple(s.trim())).collect();
+                    for sel in &sels {
+                        let prio = (sel.specificity, order);
+                        for id in 0..dom.nodes.len() {
+                            if sel.matches(dom, id) && decl[id].is_none_or(|(p, _)| prio >= p) {
+                                decl[id] = Some((prio, a));
+                            }
+                        }
+                    }
+                }
+            }
+            order += 1;
+            i = end + 1;
+        }
+        for id in 0..dom.nodes.len() {
+            let NodeKind::Element(el) = &dom.nodes[id].kind else { continue };
+            if let Some(attr) = el.attr("style") {
+                for (p, v) in parse_inline_decls(attr) {
+                    if p.trim().eq_ignore_ascii_case("vertical-align") {
+                        if let Some(a) = parse_value(&v) {
+                            decl[id] = Some(((u32::MAX, 0), a));
+                        }
+                    }
+                }
+            }
+        }
+        for id in 0..dom.nodes.len() {
+            if styles[id].display != Display::TableCell {
+                continue;
+            }
+            let mut v = decl[id].map(|d| d.1);
+            let mut anc = dom.nodes[id].parent;
+            let mut hops = 0;
+            while v.is_none() && hops < 2 {
+                let Some(a) = anc else { break };
+                v = decl[a].map(|d| d.1);
+                anc = dom.nodes[a].parent;
+                hops += 1;
+            }
+            styles[id].cell_valign = v.unwrap_or(CellVAlign::Middle);
+        }
+    }
+}
+
 mod borders {
     use super::breaks::{parse_simple, strip_comments, SimpleSelector};
     use super::{Color, ComputedStyle};
