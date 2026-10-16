@@ -436,16 +436,16 @@
  "corpus/table-stress.html": {
   "coverage": 1.0,
   "roles": {
-   "Div": 106,
-   "Document": 52,
+   "Div": 54,
+   "Document": 26,
    "H1": 1,
-   "TBody": 52,
-   "TD": 820,
+   "TBody": 26,
+   "TD": 819,
    "TFoot": 1,
    "TH": 6,
    "THead": 1,
-   "TR": 139,
-   "Table": 52
+   "TR": 138,
+   "Table": 26
   }
  },
  "corpus/technical-report.html": {

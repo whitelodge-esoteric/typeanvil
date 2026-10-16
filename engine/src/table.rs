@@ -391,8 +391,27 @@ pub fn measure_columns_scoped(
     scope: MeasureScope,
     img_sizes: ImageSizer<'_>,
 ) -> ColumnWidths {
-    let (min_widths, max_widths) =
+    let frozen = matches!(scope, MeasureScope::FirstPage { .. });
+    let (mut min_widths, mut max_widths) =
         intrinsic_column_widths(dom, styles, table_id, scope.clone(), img_sizes);
+    if frozen {
+        // CORE-353: the first-page freeze (CORE-89) governs max-content
+        // distribution only. A column is never narrower than its min-content
+        // over ALL rows (css-tables-3 §3), so floor each column there; the
+        // max is raised to keep max >= min.
+        let (all_min, _) =
+            intrinsic_column_widths(dom, styles, table_id, MeasureScope::All, img_sizes);
+        for (i, mn) in min_widths.iter_mut().enumerate() {
+            if let Some(all) = all_min.get(i) {
+                if all.get() > mn.get() {
+                    *mn = *all;
+                }
+            }
+            if mn.get() > max_widths[i].get() {
+                max_widths[i] = *mn;
+            }
+        }
+    }
     if min_widths.is_empty() {
         return ColumnWidths {
             widths: Vec::new(),

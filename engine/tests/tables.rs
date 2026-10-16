@@ -675,16 +675,59 @@ fn test_freeze_excludes_late_wide_rows() {
         "All-scope Description = {} (expect ≈112pt — the late token enters)",
         desc_all.get()
     );
+    // CORE-353: the freeze limits max-content distribution only. Every
+    // column keeps its min-content over ALL rows, so the late 112pt token
+    // is a floor for the frozen Description column.
+    for (i, (f, a)) in frozen.widths.iter().zip(all.min_widths.iter()).enumerate() {
+        assert!(
+            f.get() + 1e-6 >= a.get(),
+            "frozen column {i} = {} is narrower than its all-row min-content {}",
+            f.get(),
+            a.get()
+        );
+    }
     assert!(
-        desc_frozen.get() < 100.0,
-        "frozen Description = {} (expect < 100pt — the late 112pt token is excluded)",
+        desc_frozen.get() > 100.0,
+        "frozen Description = {} (expect >= 112pt late-token min-content floor)",
         desc_frozen.get()
     );
-    assert!(
-        desc_frozen.get() > 40.0,
-        "frozen Description = {} (expect ≈ header width ≈ 57pt)",
-        desc_frozen.get()
-    );
+}
+
+#[test]
+fn test_freeze_min_content_independent_of_row_order() {
+    // CORE-353: moving the wide row from the first page to a later page
+    // must not narrow its column below the wide word.
+    let build = |wide_at: usize| {
+        let mut rows = String::new();
+        for i in 1..=30 {
+            let desc = if i == wide_at {
+                "Disappearing/reappearing clothes"
+            } else {
+                "Anvil, standard (150 lb)"
+            };
+            rows.push_str(&format!(
+                "<tr><td>ANV-{i:04}</td><td>{desc}</td><td>24</td></tr>"
+            ));
+        }
+        format!(
+            r#"<!DOCTYPE html><style>
+            table {{ border-collapse: collapse; width: 100%; }}
+            th, td {{ padding: 2pt 4pt; font-size: 9pt; font-family: Arial, sans-serif; }}
+        </style><table><thead><tr><th>SKU</th><th>Description</th><th>Qty</th></tr></thead>
+        <tbody>{rows}</tbody></table>"#
+        )
+    };
+    let mut descs = Vec::new();
+    for at in [4usize, 25] {
+        let html = build(at);
+        let (dom, styles) = parse(&html);
+        let tid = table_id_of(&dom);
+        let scope = resolve_freeze_scope(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), Scalar(144.0), &no_images);
+        let c = measure_columns_scoped(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), scope, &no_images);
+        assert!(c.widths[1].get() > 100.0, "wide row at {at}: Description = {}", c.widths[1].get());
+        descs.push(c.min_widths[1].get());
+    }
+    assert!((descs[0] - descs[1]).abs() < 1e-6, "min-content differs by row order: {descs:?}");
 }
 
 #[test]
@@ -795,9 +838,14 @@ fn test_table_stress_freeze_pages_ge_40() {
         .expect("table-stress corpus fixture");
     let geo = geometry(5.0, 3.0, 0.5);
     let l = lay(&src, geo);
+    // CORE-353: the freeze no longer drops later rows' min-content, so the
+    // Description column keeps the 102pt "Disappearing/reappearing" floor and
+    // the table is shorter than the pre-fix 45 (21 = no freeze at all, and
+    // the floor is tighter than the CORE-89 value). Pin the freeze still
+    // paginating beyond the All-scope count.
     assert!(
-        l.pages.len() >= 40,
-        "table-stress pages = {} (expect ≥ 40; was 21, Prince 45)",
+        l.pages.len() >= 26,
+        "table-stress pages = {} (expect ≥ 26, the measured count; All-scope 21)",
         l.pages.len()
     );
 }

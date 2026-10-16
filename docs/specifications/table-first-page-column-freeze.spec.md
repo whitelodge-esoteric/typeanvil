@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-20
-updated: 2026-09-27
+updated: 2026-10-16
 sidebar_position: 14
 tags: [layout, tables, css-tables, engine, demo-parity]
 spec_id: table-first-page-column-freeze
@@ -45,6 +45,20 @@ Prince's observed behavior — filed under
 output, and this deviation is scoped to fragmented tables only — the same
 spirit as the standard-measure UAX#14 glue note. The engine shall NOT apply the
 freeze to single-fragmentainer tables.
+
+**Min-content floor (CORE-353, 2026-10-16):** the freeze applies to the
+max-content distribution only. Every frozen column shall be floored at its
+min-content width measured over ALL rows, so a long unbreakable word in a
+later row never overprints the next column and column widths do not depend on
+which rows land on the first page. Three engines were probed on the same
+fixtures (`late-unbreakable`, `row13-wide-row`, table-stress): Chromium and
+WeasyPrint both widen the column to fit the word (Chromium: table-stress 35
+pages, 0 crossings). Prince 16.2 keeps the narrow frozen column and breaks
+`Disappearing/reappearing` after the slash (45 pages). Chromium and WeasyPrint
+agree with css-tables-3, so the engine follows them. **Known deviation from
+Prince:** table-stress no longer reaches Prince's 45 pages (the 102pt token
+widens Description). Do not re-add the slash break to close the gap; the
+engine does not take UAX #14 breaks after `/` (see CORE-348).
 
 **Measured result (2026-08-20, first-freeze landing):** table-stress moves
 21 → **42 pages** (Prince: 45) at the demo geometry; the Description column

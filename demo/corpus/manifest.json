@@ -88,7 +88,7 @@
     ],
     "known_limitations": [
       "rowspan unsupported (not used)",
-      "\"Disappearing/reappearing\" (3 rows) is one unbreakable word wider than the Description cell and overflows on its own line; Chromium also offers no break after '/' (CORE-348)"
+      "\"Disappearing/reappearing\" (3 rows) is one unbreakable word. The Description column is floored at its min-content over all rows (CORE-353), so no text crosses a column rule. Chromium and WeasyPrint do the same; Prince instead breaks the word after '/' in its narrow frozen column"
     ],
     "expected_deltas": [
       "Frozen column widths match Prince within ~0.4-6pt (CORE-96); residual from font metrics and Prince's ~7.7pt right-edge table overflow",
@@ -96,7 +96,7 @@
       "Collapsed-border rows include one cell-border width each (CORE-235; spec-correct, Chromium agrees: 1-line row 15.3pt vs Chromium 15.5pt). Moved 47 -> 50 pages because only 2-4 rows fit per page (CORE-244)",
       "Total row repeats at the bottom of every page (CORE-96, Prince parity)"
     ],
-    "expected_change": "CORE-348: a word wider than its line no longer forces the whole cell onto one line, and explicit hyphens are break opportunities (Chromium/Prince parity: 'Jet-/propelled', 'On / hand'). 20 Description cells that overprinted the next column now wrap, so rows grow and the ledger moves 50 -> 52 pages"
+    "expected_change": "CORE-348: a word wider than its line no longer forces the whole cell onto one line, and explicit hyphens are break opportunities (Chromium/Prince parity: 'Jet-/propelled', 'On / hand'). 20 Description cells that overprinted the next column now wrap, so rows grow and the ledger moves 50 -> 52 pages. CORE-353: frozen columns are floored at all-row min-content, so Description widens for the 102pt 'Disappearing/reappearing' token and the ledger moves 52 -> 26 pages (measured at release/2026.10 9e8217c; Chromium 35, Prince 45). The move is away from Prince's count and toward Chromium/WeasyPrint behavior (spec-correct, css-tables-3 min-content); see table-first-page-column-freeze.spec.md"
   },
   {
     "name": "Float Showcase — Figure & Pull Quote",
