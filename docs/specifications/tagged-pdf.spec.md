@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-24
-updated: 2026-10-13
+updated: 2026-10-16
 sidebar_position: 16
 tags: [engine, pdf, accessibility, tagging, determinism]
 spec_id: tagged-pdf
@@ -65,8 +65,9 @@ Verified krilla facts (krilla 0.8.2, checked 2026-08-24):
 
 - No `Span`-level language switching or `ActualText` (hyphenation-aware copy)
   in this pass — spans exist in the API but the emitter tags whole draws.
-- No list-item markers in the structure tree: the engine renders no visual
-  markers yet, so `LI` carries an empty `Lbl` and all content in `LBody`.
+- No list-item markers in `Lbl`: since CORE-385 the engine paints markers
+  (`list-markers.spec.md`), but the marker run is owned by the `li` fragment
+  and rides in `LBody` with the item. Moving it into `Lbl` is CORE-374.
 - No form fields, notes, or math tagging.
 - No PDF/A conformance (archival validator untouched).
 - No full Acrobat/PAC certification — krilla's validator is the recorded gate;

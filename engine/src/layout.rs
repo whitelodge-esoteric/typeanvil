@@ -49,6 +49,7 @@ use crate::geom::{PageGeometry, Point, Rect, Scalar};
 
 mod flex;
 mod grid;
+mod lists;
 mod multicol;
 use crate::paged::{
     parse_page_rules, resolve_page_spec, ContentPiece, CounterValue, MarginBoxSpec, PageMargins,
@@ -4884,6 +4885,60 @@ impl<'a> Ctx<'a> {
             child.offset = Point::new(child.offset.x - origin.x, child.offset.y - origin.y);
             if let FragmentContent::Text(run) = &mut child.content {
                 run.baseline = Point::new(run.baseline.x - origin.x, run.baseline.y - origin.y);
+            }
+        }
+        // CORE-385: `list-style-position: outside` marker. The marker line
+        // hangs in the left padding (right edge at the content edge) so it
+        // never changes line widths. Only the first fragment of the item
+        // carries it, anchored to the first text baseline.
+        if fresh && lists::is_list_item(self.dom, self.styles, id) {
+            if let Some(mtext) = lists::marker_text(self.dom, self.styles, id) {
+                fn first_baseline(frags: &[Fragment]) -> Option<f64> {
+                    for c in frags {
+                        if let FragmentContent::Text(run) = &c.content {
+                            return Some(run.baseline.y.get());
+                        }
+                        if let Some(b) = first_baseline(&c.children) {
+                            return Some(c.offset.y.get() + b);
+                        }
+                    }
+                    None
+                }
+                let face = style.font_face;
+                let m = crate::typography::shape_word_with_features(
+                    &mtext,
+                    style.font_size,
+                    face,
+                    &style.ot_features,
+                );
+                let base_y = first_baseline(&children).unwrap_or_else(|| {
+                    (content_top - origin.y
+                        + crate::typography::baseline_offset(
+                            style.font_size,
+                            style.line_height,
+                            face,
+                        ))
+                    .get()
+                });
+                let x = inner_left - origin.x - m.width;
+                let run = TextRun {
+                    text: m.text.clone(),
+                    baseline: Point::new(x, Scalar(base_y)),
+                    font_size: style.font_size,
+                    color: style.color,
+                    font_face: face,
+                    glyphs: m.glyphs.clone(),
+                    expansion: 0.0,
+                    protrude_left: Scalar::ZERO,
+                    protrude_right: Scalar::ZERO,
+                };
+                let mut line = Fragment::line(
+                    Point::new(x, Scalar(base_y) - style.line_height),
+                    (m.width, style.line_height),
+                    run,
+                );
+                line.source = Some(id);
+                children.insert(0, line);
             }
         }
         let has_block_child = children

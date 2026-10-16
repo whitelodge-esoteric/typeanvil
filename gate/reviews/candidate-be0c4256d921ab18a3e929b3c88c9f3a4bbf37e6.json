@@ -1,0 +1,29 @@
+{
+  "schema": "typeanvil.harness.reviews/1",
+  "candidate": {
+    "label": "candidate-be0c4256d921ab18a3e929b3c88c9f3a4bbf37e6",
+    "source_commit": "be0c4256d921ab18a3e929b3c88c9f3a4bbf37e6",
+    "binary_sha256": "ad19a3900fd2d494a04c54ba95ed3eaf4d116296a7384050f05be83454bf6179"
+  },
+  "baseline": {
+    "label": "baseline-3ac732c2fd7c6b1540ff2072311aead841c3151d",
+    "source_commit": "3ac732c2fd7c6b1540ff2072311aead841c3151d",
+    "binary_sha256": "76e0407fbde7cb29c9e1393826b079d12b01e52ab58dacd099d0b4283c9b455a"
+  },
+  "dispositions": [
+    {
+      "doc_id": "css/css-multicol/multicol-span-all-list-item-001.html",
+      "change_id": "51cc82228c5ca634187e252866438ccf841be62596b9ac94026e5c05b3a663a6",
+      "kind": "correction",
+      "reason": "The test has <li> items under a <ul>. Baseline painted no markers. Candidate paints a hanging '•' marker before the items (side-by-side image under gate/out/changes/ shows the added bullets on the nested-spanner lines). Page count is unchanged and no text moved: the marker hangs in the left padding and adds no line width. The test uses list-style-position: inside, which this change does not implement yet (it paints an outside marker for every item); that gap is listed as a Non-Goal in list-markers.spec.md. Test and reference both change the same way, status stays as in baseline.",
+      "provenance": "CORE-385; docs/specifications/list-markers.spec.md Behavior 1, 4, 5; css-lists-3 section 3"
+    },
+    {
+      "doc_id": "css/css-multicol/multicol-span-all-list-item-001-ref.html",
+      "change_id": "4c1e13ed0fc5cbe15b6338f51dfe366155651a88d2cbab0b57378a618d7213b3",
+      "kind": "correction",
+      "reason": "Same family as the owning test: the reference also has <li> items and now paints the hanging '•' marker, with identical geometry and page count. Baseline painted no markers. Test and reference change together, so the pair still matches.",
+      "provenance": "CORE-385; docs/specifications/list-markers.spec.md Behavior 1, 4, 5; css-lists-3 section 3"
+    }
+  ]
+}

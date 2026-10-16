@@ -643,6 +643,41 @@ pub enum CaptionSide {
     Top,
     Bottom,
 }
+/// `list-style-type` keywords the engine paints (CORE-385). stylo's servo
+/// build has no `list-style-type` longhand, so the paged pass carries it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ListStyleType {
+    None,
+    Disc,
+    Circle,
+    Square,
+    Decimal,
+    DecimalLeadingZero,
+    LowerAlpha,
+    UpperAlpha,
+    LowerRoman,
+    UpperRoman,
+}
+
+impl ListStyleType {
+    /// Parse one `list-style-type` keyword (case-insensitive).
+    pub fn from_keyword(k: &str) -> Option<ListStyleType> {
+        Some(match k.trim().to_ascii_lowercase().as_str() {
+            "none" => ListStyleType::None,
+            "disc" => ListStyleType::Disc,
+            "circle" => ListStyleType::Circle,
+            "square" => ListStyleType::Square,
+            "decimal" => ListStyleType::Decimal,
+            "decimal-leading-zero" => ListStyleType::DecimalLeadingZero,
+            "lower-alpha" | "lower-latin" => ListStyleType::LowerAlpha,
+            "upper-alpha" | "upper-latin" => ListStyleType::UpperAlpha,
+            "lower-roman" => ListStyleType::LowerRoman,
+            "upper-roman" => ListStyleType::UpperRoman,
+            _ => return None,
+        })
+    }
+}
+
 /// The computed `column-span` value (css-multicol-1 §4).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum ColumnSpan {
@@ -1129,6 +1164,9 @@ pub struct ComputedStyle {
     /// element produces no in-flow box; it renders in its call page's
     /// footnote area with a superscript call marker in the body text.
     pub float_footnote: bool,
+    /// Declared `list-style-type` (CORE-385). `None` = not declared on this
+    /// element; layout resolves inheritance by walking ancestors.
+    pub list_style_type: Option<ListStyleType>,
     /// `string-set` declarations: `(string name, value)` pairs.
     pub string_set: Vec<(String, StringSetValue)>,
     /// `counter-reset` declarations: `(counter name, value)` pairs.
@@ -1320,6 +1358,7 @@ impl ComputedStyle {
             bookmark_closed: false,
             content: Vec::new(),
             float_footnote: false,
+            list_style_type: None,
         }
     }
 }
@@ -2378,6 +2417,7 @@ impl CascadeSession {
             bookmark_closed: false,
             content: Vec::new(),
             float_footnote: false,
+            list_style_type: None,
         }
     }
 }
@@ -4044,6 +4084,8 @@ mod paged_props {
         /// `column-fill: auto | balance` — `true` when `auto` (CORE-368;
         /// gecko-only in stylo's servo build).
         ColumnFill(bool),
+        /// `list-style-type` / `list-style` shorthand (CORE-385).
+        ListStyleType(super::ListStyleType),
     }
 
     /// Parse `string-set: name content();` (comma-separated pairs).
@@ -4168,6 +4210,13 @@ mod paged_props {
                     _ => None,
                 }
             }
+            "list-style-type" => {
+                super::ListStyleType::from_keyword(value).map(PagedDecl::ListStyleType)
+            }
+            "list-style" => value
+                .split_whitespace()
+                .find_map(super::ListStyleType::from_keyword)
+                .map(PagedDecl::ListStyleType),
             "string-set" => Some(PagedDecl::StringSet(parse_string_set(value))),
             "counter-reset" => Some(PagedDecl::CounterReset(parse_counters(value, 0))),
             "counter-increment" => Some(PagedDecl::CounterIncrement(parse_counters(value, 1))),
@@ -4348,6 +4397,7 @@ mod paged_props {
             float: Option<(u32, u32)>,
             writing_mode: Option<(u32, u32)>,
             column_fill: Option<(u32, u32)>,
+            list_style_type: Option<(u32, u32)>,
         }
         let mut won = vec![Won::default(); styles.len()];
 
@@ -4449,6 +4499,12 @@ mod paged_props {
                                     won[id].bookmark_state = Some(prio);
                                 }
                             }
+                            PagedDecl::ListStyleType(v) => {
+                                if won[id].list_style_type.is_none_or(|w| prio >= w) {
+                                    styles[id].list_style_type = Some(*v);
+                                    won[id].list_style_type = Some(prio);
+                                }
+                            }
                             PagedDecl::ColumnFill(v) => {
                                 if won[id].column_fill.is_none_or(|w| prio >= w) {
                                     styles[id].column_fill_auto = *v;
@@ -4544,6 +4600,9 @@ mod paged_props {
                     }
                     PagedDecl::Display(v) => {
                         styles[id].display = v;
+                    }
+                    PagedDecl::ListStyleType(v) => {
+                        styles[id].list_style_type = Some(v);
                     }
                     PagedDecl::ColumnFill(v) => {
                         styles[id].column_fill_auto = v;
