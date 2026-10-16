@@ -1,0 +1,57 @@
+{
+ "schema": "typeanvil.harness.reviews/1",
+ "candidate": {
+  "label": "candidate-f44250e4ca05",
+  "source_commit": "f44250e4ca0573599fd0cc92c5387ecf6b0a4b56",
+  "binary_sha256": "389ef5e01d98e9f98e5472e379738ef55711f8dbe2db3d1bbd80eb3dd8bafea9"
+ },
+ "baseline": {
+  "label": "baseline-8294e11ea7ab",
+  "source_commit": "8294e11ea7abdb0d31f20300698c7145aae86ded",
+  "binary_sha256": "e615e3f7fcbe7f5c22ce1d964cd7549ed953b6245af2795035a7f93debaa7a61"
+ },
+ "dispositions": [
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-006-print.html",
+   "change_id": "683eaf92de4596eff56d302f63ea52bc307030f94c58bd750a5c1dd8a9d8df3b",
+   "kind": "correction",
+   "reason": "Margin-box text now wraps inside the distributed box width (css-page-3 5.3.2). Status FAIL -> FAIL. Pair diff vs own reference measured with compare-pair.py: 63229 px (45.74%) -> 58980 px (42.66%), closer to the reference. Examined by measurement, not visually.",
+   "provenance": "css-page-3 5.3.2 margin box dimensions; CORE-357"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-007-print.html",
+   "change_id": "3b5e16dc0ac21e67dcc6bf517895edf8990942331b135708b517aa72705a32d0",
+   "kind": "correction",
+   "reason": "Margin-box text wraps inside the distributed width. Status FAIL -> FAIL. Pair diff 58582 px (42.38%) -> 56152 px (40.62%), closer to the reference.",
+   "provenance": "css-page-3 5.3.2 margin box dimensions; CORE-357"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-008-print.html",
+   "change_id": "445153993e190372cfc8568985b4915893dfd68485814965d4ae635786de4311",
+   "kind": "correction",
+   "reason": "Margin-box text wraps inside the distributed width. Status FAIL -> FAIL. Pair diff 18965 px (13.72%) -> 17520 px (12.67%), closer to the reference.",
+   "provenance": "css-page-3 5.3.2 margin box dimensions; CORE-357"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-009-print.html",
+   "change_id": "4b1fa93c89d4cd4547d801be24fc11049d33bd37a488f5247b97f0a694a3ba63",
+   "kind": "correction",
+   "reason": "Margin-box text wraps inside the distributed width. Status FAIL -> FAIL. Pair diff 7333 px (5.30%) -> 4059 px (2.94%), closer to the reference.",
+   "provenance": "css-page-3 5.3.2 margin box dimensions; CORE-357"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-013-print.html",
+   "change_id": "e753a408b1cdc78a60466211f7a97c7a32fbb9bd7cd8a2870b365ab9dc350469",
+   "kind": "correction",
+   "reason": "Margin-box text wraps inside the distributed width. Status FAIL -> FAIL. Pair diff 56224 px (40.67%) -> 56192 px (40.65%), marginally closer to the reference.",
+   "provenance": "css-page-3 5.3.2 margin box dimensions; CORE-357"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-014-print.html",
+   "change_id": "3643f04dea57b705d540f195c791c8eaa4b976795fed3ab0200aba48c42561b4",
+   "kind": "correction",
+   "reason": "Margin-box text wraps inside the distributed width. Status FAIL -> FAIL. Pair diff against dimensions-013 ref 56418 px (40.81%) -> 56386 px (40.79%), marginally closer.",
+   "provenance": "css-page-3 5.3.2 margin box dimensions; CORE-357"
+  }
+ ]
+}

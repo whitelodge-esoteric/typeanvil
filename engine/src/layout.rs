@@ -8068,6 +8068,7 @@ fn attach_margin_boxes(
         Vec::with_capacity(spec.margin_boxes.len());
     let mut metrics: Vec<crate::margin_box::BoxMetrics> =
         Vec::with_capacity(spec.margin_boxes.len());
+    let mut line_texts: Vec<Vec<String>> = Vec::with_capacity(spec.margin_boxes.len());
     let mut box_images: Vec<Option<([u8; 32], Scalar, Scalar, bool)>> =
         Vec::with_capacity(spec.margin_boxes.len());
     for mb in &spec.margin_boxes {
@@ -8138,6 +8139,7 @@ fn attach_margin_boxes(
             block,
         });
         shaped.push(runs);
+        line_texts.push(lines);
         box_images.push(image);
     }
 
@@ -8167,6 +8169,38 @@ fn attach_margin_boxes(
         };
         let (box_x, box_y, box_w, box_h) = (pb.x, pb.y, pb.w, pb.h);
         let (cx, cy, cw, ch) = pb.content_rect();
+        // CORE-357: the resolved content width can be narrower than the
+        // max-content width (css-page-3 §5.3.2 distributes the edge by
+        // min/max-content). Soft-wrap each overflowing line inside the box so
+        // adjacent boxes never overprint.
+        if mb.white_space.soft_wraps() {
+            let img_w = box_images
+                .get(i)
+                .and_then(|o| o.as_ref())
+                .map(|(_, w, _, _)| *w)
+                .unwrap_or(Scalar::ZERO);
+            let avail = Scalar((cw.get() - img_w.get()).max(0.0));
+            let overflows = shaped[i]
+                .iter()
+                .flatten()
+                .any(|s| s.width.get() > avail.get() + 0.01);
+            if overflows {
+                let mut new_lines: Vec<String> = Vec::new();
+                for l in &line_texts[i] {
+                    new_lines.extend(wrap_margin_line(l, avail, mb.font_size, mb.font_face));
+                }
+                shaped[i] = new_lines
+                    .iter()
+                    .map(|l| {
+                        if l.is_empty() {
+                            None
+                        } else {
+                            Some(crate::typography::shape_word(l, mb.font_size, mb.font_face))
+                        }
+                    })
+                    .collect();
+            }
+        }
         let mut fragment = Fragment::block(Point::new(box_x, box_y), (box_w, box_h));
         if let Some(bg) = mb.background {
             if box_w.get() > 0.0 && box_h.get() > 0.0 {
@@ -8372,6 +8406,35 @@ fn margin_box_lines(text: &str, ws: crate::css::WhiteSpace) -> Vec<String> {
         }
         vec![s]
     }
+}
+
+/// Greedy soft-wrap of one margin-box line to `avail` points (CORE-357).
+/// Breaks at spaces only; a word wider than `avail` sits alone and overflows.
+fn wrap_margin_line(
+    text: &str,
+    avail: Scalar,
+    font_size: Scalar,
+    face: crate::fonts::FaceId,
+) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    for word in text.split_whitespace() {
+        if cur.is_empty() {
+            cur.push_str(word);
+            continue;
+        }
+        let cand = format!("{cur} {word}");
+        if crate::typography::shape_word(&cand, font_size, face).width.get() <= avail.get() + 0.01 {
+            cur = cand;
+        } else {
+            out.push(std::mem::take(&mut cur));
+            cur.push_str(word);
+        }
+    }
+    if !cur.is_empty() || out.is_empty() {
+        out.push(cur);
+    }
+    out
 }
 
 /// The first `url(...)` image in a margin box's generated content, if any.
@@ -9336,6 +9399,38 @@ mod core178_tests {
         assert!(
             (pitch - expected).abs() < 1e-6,
             "line pitch {pitch:.3} must be the box line-height {expected:.3}"
+        );
+    }
+
+    /// CORE-357. Two adjacent top margin boxes whose max-content widths
+    /// exceed the edge must wrap inside their distributed widths instead of
+    /// overprinting (css-page-3 §5.3.2). Each box must produce >= 2 lines and
+    /// no line may extend past its box's right edge.
+    #[test]
+    fn long_adjacent_margin_boxes_wrap_instead_of_overprinting() {
+        let css = r#"@page { size: 300px 200px; margin: 30px;
+             @top-left { content: "Northwind Systems Technical Report TR-2026-14"; font-size: 8pt; }
+             @top-right { content: "4. Headroom and recommendation"; font-size: 8pt; } }"#;
+        let html = format!("<html><head><style>{css}</style></head><body></body></html>");
+        let dom = Dom::parse(&html).expect("parse");
+        let sheet = Stylesheet::parse(css);
+        let laid = layout(&dom, &sheet, geometry());
+        let mbs = &laid.pages[0].margin_boxes;
+        assert_eq!(mbs.len(), 2);
+        for mb in mbs {
+            let mut found = Vec::new();
+            collect_text_baselines(&mb.fragment, 0.0, 0.0, &mut found);
+            let mut ys: Vec<i64> = found.iter().map(|(_, y)| (*y * 100.0) as i64).collect();
+            ys.sort();
+            ys.dedup();
+            assert!(ys.len() >= 2, "box {:?} must wrap to >= 2 lines: {ys:?}", mb.name);
+        }
+        // The boxes' border boxes must not overlap horizontally.
+        let (a, b) = (&mbs[0].fragment, &mbs[1].fragment);
+        let (l, r) = if a.offset.x.get() < b.offset.x.get() { (a, b) } else { (b, a) };
+        assert!(
+            l.offset.x.get() + l.size.0.get() <= r.offset.x.get() + 0.01,
+            "boxes overlap"
         );
     }
 

@@ -175,8 +175,14 @@ The engine shall:
    its min-content extent is the widest line's min-content (css-sizing-3
    §5.1). The box's `font-family` is its own declaration, else the page
    context's, else the initial value `serif` — the same default unstyled
-   body text uses (font-resolution spec Behavior 5). Each line aligns independently by `text-align`; no line soft-wraps,
-   and each is deterministically clipped if it overflows the box.
+   body text uses (font-resolution spec Behavior 5). Each line aligns independently by `text-align`. When the box's
+   `white-space` permits soft wrapping (`normal`, `pre-wrap`, `pre-line`,
+   `break-spaces`) and a line is wider than the box's resolved content width
+   (after css-page-3 §5.3.2 distributes the edge between adjacent boxes by
+   min/max-content), the line shall wrap at spaces into further lines inside
+   the box, so adjacent boxes never overprint (CORE-357). A single word wider
+   than the box sits alone on its line and overflows. Under `nowrap` and
+   `pre` lines never soft-wrap and are deterministically clipped.
    A `url(<path>)` piece shall paint its image as replaced inline
    content of that image's INTRINSIC size (96 DPI pixels converted to points),
    following the text of the LAST line. The line box shall grow to the image
@@ -703,9 +709,9 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
 - **Heading without an `id`** → bookmark still emitted (outline targets the
   page, not a fragment anchor); TOC link without a matching id → the entry
   resolves to "?" or is left empty (deterministic choice, documented in code).
-- **Margin-box text wider than its box** → clipped deterministically, no
-  soft wrap (lines break only at newlines the resolved `white-space`
-  preserves).
+- **Margin-box text wider than its box** → soft-wraps at spaces inside the
+  box when `white-space` allows it (CORE-357); an unbreakable word, or
+  `nowrap`/`pre` text, is clipped deterministically.
 - **`leader('.')` with no room** → no fill characters; line ends normally.
 - **Deep heading nesting (h1–h6)** → outline depth capped at 6; h6 is the
   deepest node.
