@@ -28,6 +28,10 @@ fi
 if [ ! -x "$PY" ]; then
   PY="$(command -v python3)"
 fi
+# Engine binary (CORE-212): ENGINE_BIN may be scripts/engine-in-container.sh,
+# a CI artifact, or a native build; host cargo builds are banned (CORE-168).
+ENGINE_BIN="${ENGINE_BIN:-$REPO_ROOT/engine/target/debug/typeanvil}"
+case "$ENGINE_BIN" in /*) ;; *) ENGINE_BIN="$REPO_ROOT/$ENGINE_BIN" ;; esac
 # Host Prince (CORE-217): the overlay renders with the host binary, never the
 # container shim. An explicit PRINCE_BIN wins (failure-isolation tests point it
 # at a bogus binary); otherwise fall back to PATH, then known install roots.
@@ -86,8 +90,8 @@ for arg in "$@"; do
   esac
 done
 
-if [ ! -x engine/target/debug/typeanvil ]; then
-  echo "error: engine binary not found (engine/target/debug/typeanvil). Build first: cargo build --manifest-path engine/Cargo.toml" >&2
+if [ ! -x "$ENGINE_BIN" ]; then
+  echo "error: engine binary not found ($ENGINE_BIN). Host cargo builds are banned (CORE-168): build in the container and set ENGINE_BIN=scripts/engine-in-container.sh. See docs/operations/dev-container.md." >&2
   exit 2
 fi
 
@@ -120,14 +124,14 @@ for entry in "${entries[@]}"; do
   ta_pdf="$WORK/$base-ta.pdf"
 
   if [ "$DRY_RUN" = "1" ]; then
-    echo "[dry] (cd $SHOWCASE_DIR && engine/target/debug/typeanvil render $file $GEOM_FLAGS -o $REPO_ROOT/$ta_pdf)"
+    echo "[dry] (cd $SHOWCASE_DIR && $ENGINE_BIN render $file $GEOM_FLAGS -o $REPO_ROOT/$ta_pdf)"
     echo "[dry] (cd $SHOWCASE_DIR && scripts/render-prince.sh $file $GEOM_FLAGS -o $REPO_ROOT/$WORK/$base-pr.pdf)  # reference overlay, not scored"
     continue
   fi
 
   # Render from the showcase dir so relative url()/src resolve like the
   # comparison corpus (base-url threading is CORE-140).
-  if (cd "$SHOWCASE_DIR" && "$REPO_ROOT/engine/target/debug/typeanvil" render "$file" $GEOM_FLAGS -o "$REPO_ROOT/$ta_pdf" 2>"$REPO_ROOT/$WORK/$base-ta.err"); then
+  if (cd "$SHOWCASE_DIR" && "$ENGINE_BIN" render "$file" $GEOM_FLAGS -o "$REPO_ROOT/$ta_pdf" 2>"$REPO_ROOT/$WORK/$base-ta.err"); then
     echo "TA  ok   $file"
   else
     echo "TA  FAIL $file :: $(head -1 "$WORK/$base-ta.err")"

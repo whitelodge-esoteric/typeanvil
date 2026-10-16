@@ -82,8 +82,10 @@ case "$TRACK" in
     ;;
 esac
 
-if [ ! -x engine/target/debug/typeanvil ]; then
-  echo "error: engine binary not found (engine/target/debug/typeanvil). Build first: cargo build --manifest-path engine/Cargo.toml" >&2
+ENGINE_BIN="${ENGINE_BIN:-$REPO_ROOT/engine/target/debug/typeanvil}"
+case "$ENGINE_BIN" in /*) ;; *) ENGINE_BIN="$REPO_ROOT/$ENGINE_BIN" ;; esac
+if [ ! -x "$ENGINE_BIN" ]; then
+  echo "error: engine binary not found ($ENGINE_BIN). Host cargo builds are banned (CORE-168): build in the container and set ENGINE_BIN=scripts/engine-in-container.sh. See docs/operations/dev-container.md." >&2
   exit 2
 fi
 PRINCE_BIN="${PRINCE_BIN:-prince}"
@@ -142,8 +144,8 @@ for entry in "${entries[@]}"; do
 
     if [[ "$engine" == "ta" ]]; then
       if [ "$DRY_RUN" = "1" ]; then
-        echo "[dry] engine/target/debug/typeanvil render $FIXTURES_DIR/$file $GEOM_FLAGS -o $pdf"
-      elif (cd "$FIXTURES_DIR" && "$REPO_ROOT/engine/target/debug/typeanvil" render "$file" $GEOM_FLAGS -o "$pdf" 2>"$WORK/$base-ta.err"); then
+        echo "[dry] $ENGINE_BIN render $FIXTURES_DIR/$file $GEOM_FLAGS -o $pdf"
+      elif (cd "$FIXTURES_DIR" && "$ENGINE_BIN" render "$file" $GEOM_FLAGS -o "$pdf" 2>"$WORK/$base-ta.err"); then
         echo "TA  ok   $file"
       else
         echo "TA  FAIL $file :: $(head -1 "$WORK/$base-ta.err")" >&2

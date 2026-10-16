@@ -4,7 +4,7 @@ type: runbook
 status: approved
 owner: maintainers
 created: 2026-09-13
-updated: 2026-09-27
+updated: 2026-10-16
 sidebar_position: 6
 tags: [docker, containers, memory, cargo, harness]
 trigger: When building or testing the Rust engine and Python harness
@@ -54,6 +54,20 @@ scripts/dev-container.sh python3 -m harness --wpt /main/.wpt run \
 ```
 
 The wrapper mounts the current worktree at `/work`, the main checkout at `/main` read-only, and a per-worktree target volume at `/work/engine/target`. Keep reports under `/work` when they must persist.
+
+## Demo pipelines on a container-built engine
+
+Host cargo builds are banned, so the engine binary exists only as a Linux binary inside the `dev-target-<worktree-name>` volume. `scripts/build-demo.sh`, `scripts/build-showcase.sh`, and `scripts/visual-qa.sh` read the engine path from the `ENGINE_BIN` environment variable. The default is the host-native `engine/target/debug/typeanvil`.
+
+To use the container-built binary, build in the container, then point `ENGINE_BIN` at the tracked adapter. The adapter forwards each render into the container and maps worktree paths onto `/work`. It needs no untracked files.
+
+```bash
+scripts/dev-container.sh cargo build --manifest-path /work/engine/Cargo.toml -j 2
+ENGINE_BIN=scripts/engine-in-container.sh scripts/build-demo.sh --dry-run
+ENGINE_BIN=scripts/engine-in-container.sh scripts/build-showcase.sh --dry-run
+```
+
+Prince, rasterization, and diffing still run on the host. A CI artifact or a native build also works as `ENGINE_BIN`. `build-demo.sh` uses the same `PY` fallback as `build-showcase.sh`: `PY`, then `.venv/bin/python`, then the main checkout venv, then `python3`.
 
 ## Resource and cache rules
 

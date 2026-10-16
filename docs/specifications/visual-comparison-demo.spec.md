@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-17
-updated: 2026-09-27
+updated: 2026-10-16
 sidebar_position: 5
 tags: [demo, comparison, prince, gallery, pipeline]
 spec_id: visual-comparison-demo
@@ -92,8 +92,13 @@ The demo SHALL implement the following, stated as "shall" rules:
    `<engine> <input.html> --page-width W --page-height H --margin-top MT
    --margin-right MR --margin-bottom MB --margin-left ML --base-url
    http://127.0.0.1:PORT/ -o <output.pdf>`. `scripts/render-prince.sh` SHALL
-   satisfy this contract for Prince; `engine/target/debug/typeanvil render`
-   is the TypeAnvil side.
+   satisfy this contract for Prince; the TypeAnvil side is
+   `$ENGINE_BIN render`. `ENGINE_BIN` defaults to
+   `engine/target/debug/typeanvil`; because host cargo builds are banned
+   (CORE-168), `ENGINE_BIN=scripts/engine-in-container.sh` runs the
+   container-built binary (see `docs/operations/dev-container.md`). The
+   pipeline scripts SHALL fall back for `PY` to `.venv/bin/python`, then the
+   main checkout venv, then `python3`.
 4. **Rasterization.** Both PDFs SHALL be rasterized page-by-page with
    `harness/rasterize.py::rasterize_pdf(pdf, dpi=96)` (the same DPI the WPT
    harness uses, so page images are 5in × 3in → 480 × 288 px for default

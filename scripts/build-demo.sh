@@ -15,7 +15,20 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-PY="${PY:-.venv/bin/python}"
+PY="${PY:-$REPO_ROOT/.venv/bin/python}"
+# Fresh worktrees have no .venv: fall back to main's venv, then bare python3
+# (same chain as build-showcase.sh, CORE-212).
+if [ ! -x "$PY" ] && [ -x "$HOME/workspace/typeanvil/.venv/bin/python" ]; then
+  PY="$HOME/workspace/typeanvil/.venv/bin/python"
+fi
+if [ ! -x "$PY" ]; then
+  PY="$(command -v python3)"
+fi
+# Engine binary (CORE-212). Host cargo builds are banned (CORE-168), so
+# ENGINE_BIN may point at scripts/engine-in-container.sh, a CI artifact, or a
+# native build. Default: the host-native debug build.
+ENGINE_BIN="${ENGINE_BIN:-$REPO_ROOT/engine/target/debug/typeanvil}"
+case "$ENGINE_BIN" in /*) ;; *) ENGINE_BIN="$REPO_ROOT/$ENGINE_BIN" ;; esac
 PRINCE_BIN="${PRINCE_BIN:-prince}"
 OUT="${OUT_DIR:-demo/corpus/out}"
 WORK="$OUT/.work"
@@ -61,8 +74,8 @@ if ! command -v "$PRINCE_BIN" >/dev/null 2>&1; then
   exit 2
 fi
 
-if [ ! -x engine/target/debug/typeanvil ]; then
-  echo "error: engine binary not found (engine/target/debug/typeanvil). Build first: cargo build --manifest-path engine/Cargo.toml" >&2
+if [ ! -x "$ENGINE_BIN" ]; then
+  echo "error: engine binary not found ($ENGINE_BIN). Host cargo builds are banned (CORE-168): build in the container and set ENGINE_BIN=scripts/engine-in-container.sh. See docs/operations/dev-container.md." >&2
   exit 2
 fi
 
@@ -121,14 +134,14 @@ for entry in "${entries[@]}"; do
 
   # --dry-run: print the exact commands (acceptance criterion 3).
   if [ "$DRY_RUN" = "1" ]; then
-    echo "[dry] engine/target/debug/typeanvil render $html $GEOM_FLAGS -o $ta_pdf"
+    echo "[dry] $ENGINE_BIN render $html $GEOM_FLAGS -o $ta_pdf"
     echo "[dry] scripts/render-prince.sh $html $GEOM_FLAGS -o $pr_pdf"
     continue
   fi
 
   # Render both engines with the identical flag set (from the corpus dir so
   # relative asset URLs resolve the same for both engines).
-  if (cd "$CORPUS_DIR" && "$REPO_ROOT/engine/target/debug/typeanvil" render "$file" $GEOM_FLAGS -o "$REPO_ROOT/$ta_pdf" 2>"$REPO_ROOT/$WORK/$base-ta.err"); then
+  if (cd "$CORPUS_DIR" && "$ENGINE_BIN" render "$file" $GEOM_FLAGS -o "$REPO_ROOT/$ta_pdf" 2>"$REPO_ROOT/$WORK/$base-ta.err"); then
     echo "TA  ok   $file"
   else
     echo "TA  FAIL $file :: $(head -1 "$WORK/$base-ta.err")"
@@ -179,7 +192,7 @@ for file in "${bench_entries[@]:-}"; do
   [ -n "$file" ] || continue
   base="$(basename "${file%.html}")"
   ta_pdf="$WORK/bench-$base-ta.pdf"
-  if (cd "$CORPUS_DIR" && "$REPO_ROOT/engine/target/debug/typeanvil" render "$file" $GEOM_FLAGS -o "$REPO_ROOT/$ta_pdf" 2>"$REPO_ROOT/$WORK/bench-$base-ta.err"); then
+  if (cd "$CORPUS_DIR" && "$ENGINE_BIN" render "$file" $GEOM_FLAGS -o "$REPO_ROOT/$ta_pdf" 2>"$REPO_ROOT/$WORK/bench-$base-ta.err"); then
     echo "BENCH ok   $file"
   else
     echo "BENCH FAIL $file :: $(head -1 "$WORK/bench-$base-ta.err")"
