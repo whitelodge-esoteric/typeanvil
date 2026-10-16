@@ -255,6 +255,21 @@ pub struct Fragment {
     /// emitter makes its whole subtree an artifact so each row enters the
     /// structure tree once (css-tables-3 §3.4 repetition is presentation).
     pub repeated: bool,
+    /// Structural part this fragment paints for its source element
+    /// (CORE-374): a list marker or a footnote body. Tagged output only.
+    pub part: FragPart,
+}
+
+/// Which structural part of its source element a fragment paints.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum FragPart {
+    /// Ordinary content of the source element.
+    #[default]
+    Content,
+    /// The painted list marker of a list item (`Lbl`).
+    ListMarker,
+    /// A line of a footnote body (`Note`).
+    FootnoteBody,
 }
 
 impl Fragment {
@@ -270,6 +285,7 @@ impl Fragment {
             source: None,
             z_index: None,
             repeated: false,
+            part: FragPart::Content,
         }
     }
 
@@ -285,6 +301,7 @@ impl Fragment {
             source: None,
             z_index: None,
             repeated: false,
+            part: FragPart::Content,
         }
     }
 }
@@ -514,6 +531,7 @@ impl Fragmentainer {
                 source: None,
                 z_index: None,
                 repeated: false,
+                part: FragPart::Content,
             },
             background: None,
             page_orientation: None,

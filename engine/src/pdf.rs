@@ -91,11 +91,24 @@ fn record_draw(
     ident: krilla::tagging::Identifier,
     owner: Option<NodeId>,
 ) {
+    record_draw_part(draws, page, ident, owner, crate::frag::FragPart::Content);
+}
+
+/// [`record_draw`] for a draw that paints a structural part (list marker,
+/// footnote body) of its owner (CORE-374).
+fn record_draw_part(
+    draws: &mut Vec<crate::tags::DrawRef>,
+    page: usize,
+    ident: krilla::tagging::Identifier,
+    owner: Option<NodeId>,
+    part: crate::frag::FragPart,
+) {
     if let Some(source) = owner {
         draws.push(crate::tags::DrawRef {
             page,
             ident,
             source: Some(source),
+            part,
         });
     }
 }
@@ -563,6 +576,7 @@ pub fn render_with_options(
                     page: page_idx,
                     ident,
                     source: Some(node),
+                    part: crate::frag::FragPart::Content,
                 });
             }
             pdf_page.finish();
@@ -787,6 +801,8 @@ struct TextItem {
     protrude_left: f32,
     protrude_right: f32,
     owner: Option<NodeId>,
+    /// Structural part painted (list marker / footnote body), CORE-374.
+    part: crate::frag::FragPart,
 }
 
 /// Flat pre-order collection for page-margin boxes (CORE-179 path, unchanged).
@@ -852,6 +868,7 @@ fn collect_flat(
                 protrude_left: run.protrude_left.to_f32(),
                 protrude_right: run.protrude_right.to_f32(),
                 owner: my_owner,
+                part: frag.part,
             });
         }
         FragmentContent::Image(run) => {
@@ -1238,6 +1255,7 @@ fn push_content(
                 protrude_left: run.protrude_left.to_f32(),
                 protrude_right: run.protrude_right.to_f32(),
                 owner,
+                part: frag.part,
             });
         }
         FragmentContent::Image(run) => {
@@ -1564,7 +1582,7 @@ fn paint_group(
                 draw_shaped(surface, t, font)?;
             }
             surface.end_tagged();
-            record_draw(draws, page_idx, ident, t.owner);
+            record_draw_part(draws, page_idx, ident, t.owner, t.part);
         } else {
             if t.glyphs.is_empty() {
                 surface.draw_text(

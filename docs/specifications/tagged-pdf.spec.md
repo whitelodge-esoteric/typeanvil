@@ -65,10 +65,13 @@ Verified krilla facts (krilla 0.8.2, checked 2026-08-24):
 
 - No `Span`-level language switching or `ActualText` (hyphenation-aware copy)
   in this pass — spans exist in the API but the emitter tags whole draws.
-- No list-item markers in `Lbl`: since CORE-385 the engine paints markers
-  (`list-markers.spec.md`), but the marker run is owned by the `li` fragment
-  and rides in `LBody` with the item. Moving it into `Lbl` is CORE-374.
-- No form fields, notes, or math tagging.
+- No `Reference` role for footnote call markers (CORE-374): the call digits
+  are spliced into the paragraph's text run and are drawn as part of it, so
+  they cannot own a separate marked-content sequence without splitting the
+  run. The call stays in the paragraph; the note body is `Note`.
+- No PDF 2.0 roles (`Aside`, `DocumentFragment`, `Title`): krilla 0.8.2
+  writes PDF 1.7 structure types only.
+- No form fields.
 - No PDF/A conformance (archival validator untouched).
 - No full Acrobat/PAC certification — krilla's validator is the recorded gate;
   external-tool runs are follow-up evidence, not blockers.
@@ -122,6 +125,21 @@ as PDF-400/UA-1 intend.
    - no draw SHALL be emitted outside a marked-content sequence: an
      unsourced text run anywhere else becomes a Layout artifact, the same
      as an unsourced fill (CORE-380).
+2b. Role table additions (CORE-374). DECIDED 2026-10-16 (agent):
+   | Source | Role | Notes |
+   | -- | -- | -- |
+   | `<caption>` | `Caption` | Placed as the FIRST child of its `Table` group, whether the caption paints above or below the grid (PDF 1.7 §14.8.4.3.3 requires Caption first or last; first keeps one rule). |
+   | `section` | `Sect` | |
+   | `article` | `Art` | |
+   | `aside` | `Sect` | PDF 1.7 has no `Aside`; krilla 0.8.2 exposes none. |
+   | `nav` | `Sect` | `TOC` requires `TOCI` children and a link per entry; a generic navigation block is not that. |
+   | `float: footnote` element | `Note` | The group sits where §2 already places it (inside the group holding the call). |
+   | list marker run | `Lbl` | The marker text painted by `list-markers.spec.md` is the only content of the `Lbl` group; the item's other content rides in `LBody`. An item with no painted marker (`list-style: none`) gets no `Lbl`: an empty `Lbl` would claim a label that is not there. The item's own text leaves ride in `LBody`. |
+   | `dl` / `dt` / `dd` | unchanged: `L` / `LI` | `dt` and `dd` stay `LI` with `LBody`; PDF 1.7 has no definition-list roles, and `Lbl` for `dt` would claim a marker that is not painted. |
+   | `::before` / `::after` / `content:` text | owner element | Generated text is drawn by fragments sourced to the generating element, so it stays in that element's group (it is content a screen reader should read). Decorative suppression is out of scope. No change. |
+   | margin boxes | Artifact | Already Header / Footer / PaginationOther (§2, CORE-380). No change. |
+   A list-marker run is identified by a `marker` flag on the fragment that
+   paints it, not by text matching.
 2a. Reading order contract (CORE-375). The tree is logical (DOM) order, never
    paint order or page order:
    - multicol columns, floats, absolutely positioned boxes and flex/grid items
@@ -290,6 +308,14 @@ tagging and overrides `--no-tagged`.
   one structure element in DOM order, nested as in the DOM, and the
   fragmented table has one `TR` per DOM row (repeats are artifacts).
   Test: `engine/tests/tagged_reading_order.rs`.
+- AC-14 (role fill, CORE-374): a fixture with a captioned table, `section`,
+  `article`, `aside`, `nav`, a footnote and ordered and unordered lists
+  renders tagged and `--tagged --ua`; read-back shows `Caption` as the first
+  child of `Table`, `Sect`/`Art`/`Sect`/`Sect` for the sectioning elements,
+  `Note` for the footnote body, and for each marked list item an `Lbl` that
+  owns the marker's leaf while `LBody` owns the item text. `role_for` has a
+  unit assertion per new element. Untagged output stays byte-identical
+  (AC-1). Test: `engine/tests/tagged_roles.rs`.
 - AC-7 (no regression): full WPT suite shows 0 regressed (untagged raster
   path cannot move; gate confirms). Engine `cargo test` green.
 

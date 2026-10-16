@@ -102,7 +102,8 @@ fn role_mapping_covers_semantics() {
     );
     assert!(matches!(role_for(&el("img", &[])), Figure(_)));
     assert_eq!(role_for(&el("style", &[])), Skipped);
-    assert_eq!(role_for(&el("section", &[])), Div);
+    assert_eq!(role_for(&el("div", &[])), Div);
+    assert_eq!(role_for(&el("section", &[])), Section); // CORE-374
 }
 
 /// AC-6: the UA validator rejects a document missing required properties

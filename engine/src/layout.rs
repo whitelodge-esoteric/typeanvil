@@ -965,6 +965,7 @@ fn attach_footnotes(
             // paragraph instead of drawing it untagged (CORE-380).
             let mut line = Fragment::line(Point::new(x, y), (w_final, lh_note), run);
             line.source = Some(*id);
+            line.part = crate::frag::FragPart::FootnoteBody;
             fragmentainer.root.children.push(line);
             y += lh_note;
         }
@@ -5127,6 +5128,7 @@ impl<'a> Ctx<'a> {
                     run,
                 );
                 line.source = Some(id);
+                line.part = crate::frag::FragPart::ListMarker;
                 children.insert(0, line);
             }
         }

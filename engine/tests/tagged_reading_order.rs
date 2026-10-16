@@ -169,9 +169,9 @@ fn float_keeps_dom_position() {
 fn footnote_body_sits_inside_the_call_paragraph() {
     let html = r#"<html lang="en"><head><title>T</title></head><body><p>A call<span class="fn">Note body</span> after</p><p>B second</p></body></html>"#;
     let s = sig(html, ".fn{float:footnote}");
-    // P(A) owns its own lines; the note (a Div) is its child; then P(B).
+    // P(A) owns its own lines; the note (a Note, CORE-374) is its child; then P(B).
     let i = s.iter().position(|x| x.starts_with("P:")).unwrap();
-    assert!(s[i + 1].starts_with("Div:"), "note must follow its call paragraph directly: {s:?}");
+    assert!(s[i + 1].starts_with("Note:"), "note must follow its call paragraph directly: {s:?}");
     assert!(s[i + 2].starts_with("P:"), "next paragraph follows the note: {s:?}");
 }
 

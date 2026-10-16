@@ -47,6 +47,15 @@ pub enum TagRole {
     Emphasis,
     BlockQuote,
     Code,
+    /// `<caption>` (CORE-374): first child of its `Table` group.
+    Caption,
+    /// `section` / `aside` / `nav` (CORE-374; PDF 1.7 has no `Aside`).
+    Section,
+    /// `article` (CORE-374).
+    Article,
+    /// A footnote body (CORE-374). Never returned by [`role_for`]: the
+    /// builder assigns it to an element that owns footnote-body draws.
+    Note,
 }
 
 impl TagRole {
@@ -83,6 +92,10 @@ impl TagRole {
             TagRole::Emphasis => TagKind::Em(Tag::Em),
             TagRole::BlockQuote => TagKind::BlockQuote(Tag::BlockQuote),
             TagRole::Code => TagKind::Code(Tag::Code),
+            TagRole::Caption => TagKind::Caption(Tag::Caption),
+            TagRole::Section => TagKind::Section(Tag::Section),
+            TagRole::Article => TagKind::Article(Tag::Article),
+            TagRole::Note => TagKind::Note(Tag::Note),
         }
     }
 }
@@ -114,6 +127,9 @@ pub fn role_for(el: &Element) -> TagRole {
         "strong" | "b" => TagRole::Strong,
         "em" | "i" => TagRole::Emphasis,
         "blockquote" => TagRole::BlockQuote,
+        "caption" => TagRole::Caption,
+        "section" | "aside" | "nav" => TagRole::Section,
+        "article" => TagRole::Article,
         "pre" | "code" | "kbd" | "samp" => TagRole::Code,
         // Head/stylesheet machinery carries no rendered content.
         "style" | "script" | "meta" | "title" | "link" | "head" => TagRole::Skipped,
@@ -142,6 +158,8 @@ pub struct DrawRef {
     pub ident: Identifier,
     /// The DOM node this draw belongs to (nearest sourced ancestor), if any.
     pub source: Option<NodeId>,
+    /// Which structural part of the owner this draw paints (CORE-374).
+    pub part: crate::frag::FragPart,
 }
 
 /// The document language from `<html lang="…">`, if declared.
@@ -237,6 +255,15 @@ pub fn build_tag_tree(dom: &Dom, draws: &[DrawRef], lang: Option<String>) -> Tag
         match role_for(kind) {
             TagRole::Skipped => return false,
             role => {
+                use crate::frag::FragPart;
+                let own: &[&DrawRef] = by_node.get(&id).map(|v| v.as_slice()).unwrap_or(&[]);
+                // A footnote body: the element owns footnote-body draws.
+                let role = if own.iter().any(|d| d.part == FragPart::FootnoteBody) {
+                    TagRole::Note
+                } else {
+                    role
+                };
+                let is_item = matches!(role, TagRole::ListItem);
                 let mut group = match &role {
                     TagRole::Heading(level) => {
                         use krilla::tagging::{kind, Tag};
@@ -270,9 +297,19 @@ pub fn build_tag_tree(dom: &Dom, draws: &[DrawRef], lang: Option<String>) -> Tag
                     }
                     _ => TagGroup::new(role.tag()),
                 };
-                // Own draws become leaves (already in paint/MCID order).
-                if let Some(mine) = by_node.get(&id) {
-                    for d in mine {
+                // Own draws become leaves (already in paint/MCID order). A
+                // list item sends its marker run to `Lbl` and the rest to
+                // `LBody` (below); every other role keeps them here.
+                let mut lbl = TagGroup::new(TagRole::Label.tag());
+                let mut lbody = TagGroup::new(role_for_list_body());
+                for d in own {
+                    if is_item {
+                        if d.part == FragPart::ListMarker {
+                            lbl.push(Node::Leaf(d.ident));
+                        } else {
+                            lbody.push(Node::Leaf(d.ident));
+                        }
+                    } else {
                         group.push(Node::Leaf(d.ident));
                     }
                 }
@@ -283,15 +320,25 @@ pub fn build_tag_tree(dom: &Dom, draws: &[DrawRef], lang: Option<String>) -> Tag
                     emit(dom, c, by_node, &mut sub);
                     child_nodes.extend(sub);
                 }
-                // List items get the Lbl/LBody split even though the engine
-                // renders no markers yet: Lbl stays empty, all content rides
-                // LBody (spec Edge Cases).
-                if matches!(role_for(kind), TagRole::ListItem) {
-                    let mut lbody = TagGroup::new(role_for_list_body());
+                if is_item {
+                    // Lbl holds the painted marker (only when one exists);
+                    // all other content rides LBody (spec §2b).
                     for n in child_nodes {
                         lbody.push(n);
                     }
+                    if !lbl.children.is_empty() {
+                        group.push(Node::Group(lbl));
+                    }
                     group.push(Node::Group(lbody));
+                } else if matches!(role, TagRole::Table) {
+                    // Caption is the first child of Table whichever side it
+                    // paints on (spec §2b).
+                    let (caps, rest): (Vec<Node>, Vec<Node>) = child_nodes.into_iter().partition(
+                        |n| matches!(n, Node::Group(g) if matches!(g.tag, TagKind::Caption(_))),
+                    );
+                    for n in caps.into_iter().chain(rest) {
+                        group.push(n);
+                    }
                 } else {
                     for n in child_nodes {
                         group.push(n);

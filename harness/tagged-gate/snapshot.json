@@ -37,10 +37,11 @@
   "coverage": 0.9512,
   "roles": {
    "BlockQuote": 1,
-   "Div": 23,
+   "Div": 19,
    "Document": 9,
    "H1": 1,
    "H2": 3,
+   "Note": 4,
    "P": 14
   }
  },
@@ -51,18 +52,22 @@
    "Document": 6,
    "H2": 1,
    "L": 2,
+   "LBody": 5,
    "LI": 6,
+   "Lbl": 5,
    "P": 9
   }
  },
  "corpus/conference-paper.html": {
   "coverage": 0.9885,
   "roles": {
-   "Div": 26,
+   "Caption": 1,
+   "Div": 23,
    "Document": 9,
    "Figure": 2,
    "H1": 1,
    "H2": 6,
+   "Note": 2,
    "P": 10,
    "TBody": 1,
    "TD": 15,
@@ -149,6 +154,7 @@
    "H1": 1,
    "H2": 2,
    "L": 3,
+   "LBody": 6,
    "LI": 6,
    "P": 5
   }
@@ -231,7 +237,9 @@
    "H1": 1,
    "H2": 4,
    "L": 4,
+   "LBody": 9,
    "LI": 10,
+   "Lbl": 8,
    "P": 4,
    "TBody": 1,
    "TD": 4,
@@ -264,17 +272,18 @@
    "Document": 12,
    "H1": 1,
    "H2": 4,
-   "Link": 2,
+   "Note": 2,
    "P": 16
   }
  },
  "corpus/preprint.html": {
   "coverage": 0.9737,
   "roles": {
-   "Div": 20,
+   "Div": 18,
    "Document": 8,
    "H1": 1,
    "H2": 5,
+   "Note": 2,
    "P": 14,
    "TBody": 1,
    "TD": 9,
@@ -309,7 +318,9 @@
    "H1": 1,
    "H2": 4,
    "L": 3,
+   "LBody": 7,
    "LI": 8,
+   "Lbl": 6,
    "P": 8,
    "TBody": 4,
    "TD": 36,
@@ -440,7 +451,8 @@
  "corpus/technical-report.html": {
   "coverage": 1.0,
   "roles": {
-   "Div": 25,
+   "Caption": 3,
+   "Div": 22,
    "Document": 10,
    "Figure": 2,
    "H1": 1,
@@ -457,10 +469,12 @@
  "corpus/thesis-excerpt.html": {
   "coverage": 0.9021,
   "roles": {
-   "Div": 25,
+   "Caption": 2,
+   "Div": 19,
    "Document": 9,
    "H1": 1,
    "H2": 4,
+   "Note": 4,
    "P": 12,
    "TBody": 4,
    "TD": 36,
@@ -521,7 +535,7 @@
    "Figure": 1,
    "H1": 1,
    "H2": 7,
-   "Link": 4,
+   "Note": 4,
    "P": 17,
    "Span": 1
   }
@@ -565,10 +579,11 @@
  "showcase/weasyprint-invoice.html": {
   "coverage": 1.0,
   "roles": {
-   "Div": 6,
+   "Div": 5,
    "Document": 1,
    "H1": 1,
    "L": 1,
+   "Sect": 1,
    "TBody": 2,
    "TD": 15,
    "TH": 7,
@@ -588,37 +603,44 @@
  "showcase/weasyprint-poster.html": {
   "coverage": 0.9767,
   "roles": {
-   "Div": 12,
+   "Art": 2,
+   "Div": 6,
    "Document": 3,
    "L": 2,
+   "LBody": 5,
    "LI": 5,
-   "P": 7
+   "P": 7,
+   "Sect": 4
   }
  },
  "showcase/weasyprint-report.html": {
   "coverage": 1.0,
   "roles": {
-   "Div": 49,
+   "Art": 11,
+   "Div": 22,
    "Document": 10,
    "H1": 1,
    "H2": 6,
    "H3": 6,
    "H4": 13,
    "L": 14,
-   "LBody": 4,
+   "LBody": 56,
    "LI": 56,
-   "P": 16
+   "P": 16,
+   "Sect": 16
   }
  },
  "showcase/weasyprint-ticket.html": {
   "coverage": 0.4444,
   "roles": {
-   "Div": 4,
+   "Div": 2,
    "Document": 1,
    "H2": 1,
    "L": 3,
+   "LBody": 13,
    "LI": 13,
-   "P": 1
+   "P": 1,
+   "Sect": 2
   }
  }
 }
