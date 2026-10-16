@@ -140,7 +140,21 @@ pub fn intrinsic_column_widths(
                 cell_max = declared;
             }
             let cell_min = cell_min + style.padding_left + style.padding_right;
-            let cell_max = cell_max + style.padding_left + style.padding_right;
+            let mut cell_max = cell_max + style.padding_left + style.padding_right;
+            // CORE-356: a cell with a definite `width` has that width as its
+            // max-content contribution (css-tables-3 §3.5.1/§4: specified
+            // width replaces max-content, floored at min-content). Without
+            // it a wrapping fixed-width cell keeps its whole-text max and
+            // takes all the surplus width in proportion to (max - min).
+            if let (Some(w), None) = (style.width, style.width_percent) {
+                let chrome = if style.box_sizing == crate::css::StyloBoxSizing::BorderBox {
+                    Scalar::ZERO
+                } else {
+                    style.padding_left + style.padding_right + style.border_left + style.border_right
+                };
+                let specified = w + chrome;
+                cell_max = if specified.get() > cell_min.get() { specified } else { cell_min };
+            }
             // CORE-96: a spanning cell contributes an EQUAL SHARE of its
             // intrinsic to each spanned column (css-tables-3 §10.4.3
             // simplification, Prince-matching: the tfoot's colspan=4 total
@@ -163,6 +177,30 @@ pub fn intrinsic_column_widths(
         }
     }
     (min_widths, max_widths)
+}
+
+/// Per column: true when any single-span scoped cell in it has a definite
+/// (non-percentage) `width` (CORE-356).
+fn fixed_columns(
+    dom: &Dom,
+    styles: &[ComputedStyle],
+    table_id: NodeId,
+    scope: &MeasureScope,
+    column_count: usize,
+) -> Vec<bool> {
+    let mut fixed = vec![false; column_count];
+    for row in scoped_table_rows(dom, styles, table_id, scope) {
+        let mut col = 0usize;
+        for cell in collect_cells(dom, styles, row) {
+            let span = cell_colspan(dom, cell);
+            let s = &styles[cell];
+            if span == 1 && s.width.is_some() && s.width_percent.is_none() && col < column_count {
+                fixed[col] = true;
+            }
+            col += span;
+        }
+    }
+    fixed
 }
 
 /// The widest margin box among `id`'s in-flow element descendants that
@@ -349,7 +387,7 @@ pub fn measure_columns_scoped(
     img_sizes: ImageSizer<'_>,
 ) -> ColumnWidths {
     let (min_widths, max_widths) =
-        intrinsic_column_widths(dom, styles, table_id, scope, img_sizes);
+        intrinsic_column_widths(dom, styles, table_id, scope.clone(), img_sizes);
     if min_widths.is_empty() {
         return ColumnWidths {
             widths: Vec::new(),
@@ -392,7 +430,35 @@ pub fn measure_columns_scoped(
             used = Scalar::ZERO;
         }
     }
-    let widths = distribute_column_widths(&min_widths, &max_widths, used);
+    let mut widths = distribute_column_widths(&min_widths, &max_widths, used);
+    // CORE-356: when the table has room beyond every column's max-content,
+    // columns with a specified width stay at it and the surplus goes to the
+    // auto columns ∝ their max-content (css-tables-3 §distributing excess
+    // width; Chromium parity). Only when both kinds exist.
+    let sum_max_f: f64 = max_widths.iter().map(|w| w.get()).sum();
+    if used.get() > sum_max_f {
+        let fixed = fixed_columns(dom, styles, table_id, &scope, min_widths.len());
+        let auto_max: f64 = max_widths
+            .iter()
+            .zip(fixed.iter())
+            .filter(|(_, f)| !**f)
+            .map(|(w, _)| w.get())
+            .sum();
+        if fixed.iter().any(|f| *f) && fixed.iter().any(|f| !*f) && auto_max > 0.0 {
+            let extra = used.get() - sum_max_f;
+            widths = max_widths
+                .iter()
+                .zip(fixed.iter())
+                .map(|(w, f)| {
+                    if *f {
+                        *w
+                    } else {
+                        Scalar(w.get() + extra * w.get() / auto_max)
+                    }
+                })
+                .collect();
+        }
+    }
     ColumnWidths {
         widths,
         min_widths,

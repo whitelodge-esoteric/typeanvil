@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-20
-updated: 2026-09-27
+updated: 2026-10-16
 sidebar_position: 13
 tags: [layout, tables, css-tables, engine, demo-parity]
 spec_id: auto-table-layout
@@ -177,6 +177,18 @@ The engine SHALL implement the following, stated as "shall" rules:
    measured at the spanned width. This is what keeps a tfoot's
    `colspan="4"` total from inflating one column to its whole-text width
    (Prince parity). `rowspan` remains unsupported (Non-Goals).
+10. **Specified-width cells and surplus width (CORE-356).** A single-span
+    cell with a definite, non-percentage `width` SHALL contribute that width
+    (plus padding and border for `content-box`), floored at its min-content,
+    as its max-content for the column. When `used > sum(max)` and the table
+    has both columns with such a cell ("specified-width columns") and
+    columns without one ("auto columns"), specified-width columns SHALL stay
+    at their max-content and the extra `used − sum(max)` SHALL be shared
+    among the auto columns ∝ their max-content. Tables with only one kind
+    of column follow rule 5 unchanged. Verified against a Chromium
+    print-to-PDF matrix (0–3 specified-width × 0–4 auto columns): every
+    column start is within 2pt of Chromium
+    (`engine/tests/core356_auto_width_surplus.rs`).
 
 ## Interfaces
 
