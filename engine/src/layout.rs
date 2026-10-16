@@ -5727,7 +5727,10 @@ impl<'a> Ctx<'a> {
                 placed = true;
                 placed_any = true;
                 spaced_any = true;
-                frag_children.push(res.fragment);
+                // CORE-375: a repeated header is page chrome, not content.
+                let mut rep = res.fragment;
+                rep.repeated = true;
+                frag_children.push(rep);
             }
         }
 
@@ -5884,7 +5887,11 @@ impl<'a> Ctx<'a> {
                     y += res.used;
                     placed = true;
                     spaced_any = true;
-                    frag_children.push(res.fragment);
+                    // CORE-375: a footer on a fragment the table continues
+                    // past is a repeat (chrome); the closing one is content.
+                    let mut ff = res.fragment;
+                    ff.repeated = !seen_all;
+                    frag_children.push(ff);
                 }
                 if let Some(tok) = res.outgoing {
                     seen_all = false;

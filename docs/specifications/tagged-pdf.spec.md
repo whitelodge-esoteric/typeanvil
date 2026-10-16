@@ -122,6 +122,22 @@ as PDF-400/UA-1 intend.
    - no draw SHALL be emitted outside a marked-content sequence: an
      unsourced text run anywhere else becomes a Layout artifact, the same
      as an unsourced fill (CORE-380).
+2a. Reading order contract (CORE-375). The tree is logical (DOM) order, never
+   paint order or page order:
+   - multicol columns, floats, absolutely positioned boxes and flex/grid items
+     (including `order` and `z-index` paint groups) keep their DOM position
+     and parent group; layout position does not move a leaf.
+   - a box split across columns or pages stays ONE group; its leaves follow
+     in (page, MCID) order inside it.
+   - a footnote body is a child of the group that holds its call (see §2),
+     never a page-bottom group.
+   - a table header or footer group repeated on a continuation page is page
+     chrome: SHALL be painted as Layout artifacts (no owner in the whole
+     subtree), so each row enters the tree exactly once. The footer on the
+     fragment where the table ends is content, not a repeat.
+   - every visible text run SHALL appear exactly once in the tree or be an
+     artifact.
+
 3. The structure tree SHALL be built from the parsed DOM in document order:
    a single pre-order walk assigns each element its `TagKind` (role table in
    Goals §1; `th` carries `scope` from the `scope` attribute, row/column
@@ -268,6 +284,12 @@ tagging and overrides `--no-tagged`.
   title, pointing at page 1; with headings, the outline is the heading tree
   as before; the untagged render has no `/Outlines`.
   Test: `engine/tests/tagged_outline_fallback.rs`.
+- AC-13 (reading order, CORE-375): fixtures for multicol, float, footnote,
+  abspos, flex `order`, grid `order` and a fragmented table with repeating
+  `thead`/`tfoot` render tagged; each element of the DOM appears as exactly
+  one structure element in DOM order, nested as in the DOM, and the
+  fragmented table has one `TR` per DOM row (repeats are artifacts).
+  Test: `engine/tests/tagged_reading_order.rs`.
 - AC-7 (no regression): full WPT suite shows 0 regressed (untagged raster
   path cannot move; gate confirms). Engine `cargo test` green.
 

@@ -250,6 +250,11 @@ pub struct Fragment {
     /// (z_index, tree order) per CSS2.1 Appendix E / css-flexbox-1 §6.6 /
     /// css-grid-1. `None` = ordinary in-flow content (no own context).
     pub z_index: Option<i32>,
+    /// Repeated page chrome (CORE-375): a table header/footer group laid
+    /// again on a continuation fragment. Painted as usual, but the tagged
+    /// emitter makes its whole subtree an artifact so each row enters the
+    /// structure tree once (css-tables-3 §3.4 repetition is presentation).
+    pub repeated: bool,
 }
 
 impl Fragment {
@@ -264,6 +269,7 @@ impl Fragment {
             break_token: None,
             source: None,
             z_index: None,
+            repeated: false,
         }
     }
 
@@ -278,6 +284,7 @@ impl Fragment {
             break_token: None,
             source: None,
             z_index: None,
+            repeated: false,
         }
     }
 }
@@ -506,6 +513,7 @@ impl Fragmentainer {
                 break_token: None,
                 source: None,
                 z_index: None,
+                repeated: false,
             },
             background: None,
             page_orientation: None,

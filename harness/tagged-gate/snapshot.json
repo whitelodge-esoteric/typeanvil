@@ -10,9 +10,9 @@
    "P": 6,
    "TBody": 5,
    "TD": 73,
-   "TH": 20,
-   "THead": 4,
-   "TR": 19,
+   "TH": 15,
+   "THead": 3,
+   "TR": 18,
    "Table": 5
   }
  },
@@ -27,9 +27,9 @@
    "P": 13,
    "TBody": 7,
    "TD": 56,
-   "TH": 28,
-   "THead": 7,
-   "TR": 21,
+   "TH": 12,
+   "THead": 3,
+   "TR": 17,
    "Table": 7
   }
  },
@@ -91,9 +91,9 @@
    "TBody": 3,
    "TD": 40,
    "TFoot": 2,
-   "TH": 15,
-   "THead": 3,
-   "TR": 14,
+   "TH": 5,
+   "THead": 1,
+   "TR": 12,
    "Table": 4
   }
  },
@@ -108,9 +108,9 @@
    "P": 6,
    "TBody": 5,
    "TD": 59,
-   "TH": 18,
-   "THead": 5,
-   "TR": 21,
+   "TH": 11,
+   "THead": 3,
+   "TR": 19,
    "Table": 5
   }
  },
@@ -125,9 +125,9 @@
    "P": 2,
    "TBody": 10,
    "TD": 160,
-   "TH": 33,
-   "THead": 10,
-   "TR": 59,
+   "TH": 13,
+   "THead": 4,
+   "TR": 53,
    "Table": 10
   }
  },
@@ -163,9 +163,9 @@
    "P": 2,
    "TBody": 8,
    "TD": 163,
-   "TH": 25,
-   "THead": 5,
-   "TR": 40,
+   "TH": 10,
+   "THead": 2,
+   "TR": 37,
    "Table": 8
   }
  },
@@ -176,16 +176,16 @@
    "Document": 5,
    "H1": 1,
    "TBody": 4,
-   "TD": 88,
-   "TFoot": 4,
-   "TH": 16,
-   "THead": 4,
-   "TR": 28,
+   "TD": 82,
+   "TFoot": 1,
+   "TH": 4,
+   "THead": 1,
+   "TR": 22,
    "Table": 4
   }
  },
  "corpus/journal-paper.html": {
-  "coverage": 0.9308,
+  "coverage": 0.9371,
   "roles": {
    "Div": 14,
    "Document": 5,
@@ -217,9 +217,9 @@
    "P": 14,
    "TBody": 4,
    "TD": 57,
-   "TH": 17,
-   "THead": 4,
-   "TR": 17,
+   "TH": 13,
+   "THead": 3,
+   "TR": 16,
    "Table": 4
   }
  },
@@ -250,9 +250,9 @@
    "P": 2,
    "TBody": 8,
    "TD": 82,
-   "TH": 38,
-   "THead": 8,
-   "TR": 27,
+   "TH": 19,
+   "THead": 4,
+   "TR": 23,
    "Table": 8
   }
  },
@@ -313,9 +313,9 @@
    "P": 8,
    "TBody": 4,
    "TD": 36,
-   "TH": 12,
-   "THead": 4,
-   "TR": 16,
+   "TH": 6,
+   "THead": 2,
+   "TR": 14,
    "Table": 4
   }
  },
@@ -330,9 +330,9 @@
    "TBody": 6,
    "TD": 70,
    "TFoot": 1,
-   "TH": 25,
-   "THead": 5,
-   "TR": 22,
+   "TH": 5,
+   "THead": 1,
+   "TR": 18,
    "Table": 6
   }
  },
@@ -357,9 +357,9 @@
    "P": 2,
    "TBody": 7,
    "TD": 78,
-   "TH": 26,
-   "THead": 6,
-   "TR": 24,
+   "TH": 13,
+   "THead": 3,
+   "TR": 21,
    "Table": 7
   }
  },
@@ -391,9 +391,9 @@
    "P": 2,
    "TBody": 8,
    "TD": 132,
-   "TH": 54,
-   "THead": 8,
-   "TR": 36,
+   "TH": 30,
+   "THead": 4,
+   "TR": 32,
    "Table": 8
   }
  },
@@ -420,11 +420,11 @@
    "Document": 52,
    "H1": 1,
    "TBody": 52,
-   "TD": 973,
-   "TFoot": 52,
-   "TH": 312,
-   "THead": 52,
-   "TR": 241,
+   "TD": 820,
+   "TFoot": 1,
+   "TH": 6,
+   "THead": 1,
+   "TR": 139,
    "Table": 52
   }
  },
@@ -455,9 +455,9 @@
    "P": 12,
    "TBody": 4,
    "TD": 36,
-   "TH": 16,
-   "THead": 4,
-   "TR": 13,
+   "TH": 8,
+   "THead": 2,
+   "TR": 11,
    "Table": 4
   }
  },
@@ -472,9 +472,9 @@
    "P": 13,
    "TBody": 2,
    "TD": 12,
-   "TH": 6,
-   "THead": 2,
-   "TR": 6,
+   "TH": 3,
+   "THead": 1,
+   "TR": 5,
    "Table": 2
   }
  },
@@ -498,9 +498,9 @@
    "P": 23,
    "TBody": 6,
    "TD": 307,
-   "TH": 10,
-   "THead": 2,
-   "TR": 71,
+   "TH": 5,
+   "THead": 1,
+   "TR": 70,
    "Table": 6
   }
  },

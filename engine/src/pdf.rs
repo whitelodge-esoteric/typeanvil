@@ -1283,6 +1283,14 @@ fn collect(
     // its source when it has one, else the inherited owner.
     let my_owner = frag.source.or(owner);
 
+    // CORE-375: a repeated table header/footer is page chrome. Paint it, but
+    // with no owner anywhere in the subtree, so the tagged emitter marks it a
+    // Layout artifact and each row enters the structure tree exactly once.
+    if frag.repeated {
+        collect_unowned(frag, parent_x, parent_y, group);
+        return;
+    }
+
     if let Some(z) = frag.z_index {
         // A keyed fragment is its own stacking-context root. An empty keyed
         // box contributes nothing and skips the subgroup.
@@ -1302,6 +1310,17 @@ fn collect(
     push_content(frag, parent_x, parent_y, abs_x, abs_y, my_owner, group);
     for child in &frag.children {
         collect(child, abs_x, abs_y, my_owner, group);
+    }
+}
+
+/// Collect a subtree with every draw unowned (CORE-375 repeated chrome).
+/// Source ids are ignored so nothing inside resolves to a DOM node.
+fn collect_unowned(frag: &Fragment, parent_x: f32, parent_y: f32, group: &mut PaintGroup) {
+    let abs_x = parent_x + frag.offset.x.to_f32();
+    let abs_y = parent_y + frag.offset.y.to_f32();
+    push_content(frag, parent_x, parent_y, abs_x, abs_y, None, group);
+    for child in &frag.children {
+        collect_unowned(child, abs_x, abs_y, group);
     }
 }
 
