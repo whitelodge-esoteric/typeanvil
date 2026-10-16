@@ -107,7 +107,12 @@ pub fn intrinsic_column_widths(
         for cell in cells {
             let span = cell_colspan(dom, cell);
             let style = &styles[cell];
-            let text = dom.text_content(cell);
+            // CORE-359: measure the transformed text (cell-level approximation).
+            let text = crate::layout::apply_text_transform(
+                &dom.text_content(cell),
+                style.text_transform,
+                None,
+            );
             let (mut cell_min, mut cell_max) = measure_intrinsics(&text, style);
             // CORE-210: a replaced child (`<img>`/inline `<svg>`) is ATOMIC —
             // its min-content == max-content == its used box. Without this
@@ -620,7 +625,11 @@ pub fn measure_rows(
             }
             let inner_w = col_w - style.padding_left - style.padding_right;
             let inner_w = if inner_w.get() < 0.0 { Scalar::ZERO } else { inner_w };
-            let text = dom.text_content(cell);
+            let text = crate::layout::apply_text_transform(
+                &dom.text_content(cell),
+                style.text_transform,
+                None,
+            );
             let mut content_h = measure_text_height(&text, style, inner_w);
 // CORE-235: a cell whose height comes from a BLOCK child — a div,
             // an image, a nested box with a declared block-size — is not

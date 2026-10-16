@@ -432,6 +432,39 @@ pub(crate) struct ImageInfo {
 /// resolve each page's spec independently, thread running-string / page-counter
 /// state, attach margin boxes, and — when `target-counter` appears — run the
 /// bounded two-pass TOC resolution.
+/// CORE-359: apply a `text-transform` case keyword to `text` (css-text-3
+/// §2.1). `prev` is the character already in the run before `text`, so
+/// `capitalize` does not re-capitalize mid-word across inline element
+/// boundaries. Uses Unicode full case mapping (`ß` → `SS`). Language
+/// tailoring (Turkish dotted i) is not implemented: the engine carries no
+/// `lang` to the style layer.
+pub fn apply_text_transform(
+    text: &str,
+    tt: crate::css::TextTransform,
+    prev: Option<char>,
+) -> String {
+    use crate::css::TextTransform as T;
+    match tt {
+        T::None => text.to_string(),
+        T::Uppercase => text.to_uppercase(),
+        T::Lowercase => text.to_lowercase(),
+        T::Capitalize => {
+            let mut out = String::with_capacity(text.len());
+            let mut prev = prev;
+            for ch in text.chars() {
+                let in_word = prev.is_some_and(|p| p.is_alphanumeric() || p == '\'' || p == '\u{2019}');
+                if !in_word && ch.is_alphanumeric() {
+                    out.extend(ch.to_uppercase());
+                } else {
+                    out.push(ch);
+                }
+                prev = Some(ch);
+            }
+            out
+        }
+    }
+}
+
 pub fn layout(dom: &Dom, stylesheet: &Stylesheet, geometry: PageGeometry) -> Layout {
     layout_with_images(dom, stylesheet, geometry, None)
 }
@@ -7296,7 +7329,17 @@ impl<'a> Ctx<'a> {
     ) {
         for &child in &self.dom.nodes[id].children {
             match &self.dom.nodes[child].kind {
-                NodeKind::Text(t) => pending.push_str(t),
+                NodeKind::Text(t) => {
+                    // CORE-359: text-transform applies before shaping and
+                    // line breaking; the text's style is its parent's.
+                    let tt = self.styles[id].text_transform;
+                    if tt == crate::css::TextTransform::None {
+                        pending.push_str(t);
+                    } else {
+                        let prev = pending.chars().next_back();
+                        pending.push_str(&apply_text_transform(t, tt, prev));
+                    }
+                }
                 NodeKind::Element(_) => {
                     // CORE-159: `<br>` folds a forced-break sentinel into the
                     // run; the typography breaker turns it into a forced line

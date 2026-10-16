@@ -823,6 +823,22 @@ pub enum TextAlign {
     End,
 }
 
+/// The `text-transform` case keyword (css-text-3 §2.1). Read from stylo,
+/// which computes inheritance; `full-width` and `full-size-kana` are not
+/// implemented and map to `None` (CORE-359).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum TextTransform {
+    /// `none` (initial).
+    #[default]
+    None,
+    /// `uppercase`.
+    Uppercase,
+    /// `lowercase`.
+    Lowercase,
+    /// `capitalize`.
+    Capitalize,
+}
+
 /// The `hyphens` computed value (css-text-3 §6). `hyphens` is
 /// `engine = "gecko"` in stylo's servo build, so — like `orphans`/`widows` —
 /// it is absent from `ComputedValues` and filled by the author-CSS pass
@@ -1194,6 +1210,9 @@ pub struct ComputedStyle {
     /// `text-align` computed value (typography layer: justify must reach
     /// layout). Read from stylo in [`convert`]; inherited.
     pub text_align: TextAlign,
+    /// `text-transform` case keyword (CORE-359); inherited, applied to text
+    /// at item collection, before shaping and line breaking.
+    pub text_transform: TextTransform,
     /// Inline base direction (css-writing-modes-1 §1.2): `false` = ltr
     /// (initial), `true` = rtl. Drives `text-align: start/end` resolution
     /// and the block-box anchor side (over/under-constrained margins
@@ -1247,6 +1266,7 @@ impl ComputedStyle {
         s.orphans = self.orphans;
         s.widows = self.widows;
         s.text_align = self.text_align;
+        s.text_transform = self.text_transform;
         s.rtl = self.rtl;
         s.writing_mode = self.writing_mode;
         s.hyphens = self.hyphens;
@@ -1339,6 +1359,7 @@ impl ComputedStyle {
             orphans: 2,
             widows: 1,
             text_align: TextAlign::Start,
+            text_transform: TextTransform::None,
             rtl: false,
             writing_mode: PageWritingMode::HorizontalTb,
             hyphens: Hyphens::Manual,
@@ -2374,6 +2395,15 @@ impl CascadeSession {
             orphans: 2,
             widows: 1,
             text_align,
+            text_transform: {
+                use style::values::specified::text::TextTransformCase as C;
+                match text.clone_text_transform().case() {
+                    C::Uppercase => TextTransform::Uppercase,
+                    C::Lowercase => TextTransform::Lowercase,
+                    C::Capitalize => TextTransform::Capitalize,
+                    _ => TextTransform::None,
+                }
+            },
             rtl,
             writing_mode,
             hyphens: Hyphens::Manual,
