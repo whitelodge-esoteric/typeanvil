@@ -595,6 +595,32 @@ fn test_two_column_probe_width() {
     );
 }
 
+// CORE-355: every column declares a definite width and their sum exceeds the
+// table width. Columns keep their declared widths (the table grows past
+// `width`, Prince behavior; CSS 2.1 §17.5.2.1 table width = max(width, sum)).
+#[test]
+fn test_over_constrained_declared_columns_keep_declared_widths() {
+    let html = r#"<!DOCTYPE html><style>
+        table { border-collapse: collapse; width: 288pt; table-layout: fixed; }
+        td { padding: 0; font-size: 9pt; font-family: Arial, sans-serif; }
+        td.c1 { width: 144pt; }
+        td.c2 { width: 144pt; padding-left: 8pt; }
+    </style><table><tr><td class="c1">Left cell declared</td><td class="c2">Right cell declared plus padding</td></tr></table>"#;
+    let (dom, styles) = parse(html);
+    let tid = table_id_of(&dom);
+    let cols = measure_columns(&dom, &styles, tid, Scalar(288.0), Some(Scalar(288.0)), &no_images);
+    assert!(
+        (cols.widths[0].get() - 144.0).abs() < 0.5,
+        "col0 = {} (expect 144)",
+        cols.widths[0].get()
+    );
+    assert!(
+        (cols.widths[1].get() - 152.0).abs() < 0.5,
+        "col1 = {} (expect 152)",
+        cols.widths[1].get()
+    );
+}
+
 // --- CORE-89 first-page column freeze acceptance tests -----------------------
 // Each maps to an acceptance criterion in
 // `docs/specifications/table-first-page-column-freeze.spec.md`.

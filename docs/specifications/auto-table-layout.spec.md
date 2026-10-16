@@ -189,6 +189,13 @@ The engine SHALL implement the following, stated as "shall" rules:
     print-to-PDF matrix (0–3 specified-width × 0–4 auto columns): every
     column start is within 2pt of Chromium
     (`engine/tests/core356_auto_width_surplus.rs`).
+11. **Over-constrained declared widths (CORE-355).** When EVERY column has
+    a specified-width cell (rule 10) and `used < sum(max)`, each column
+    SHALL keep its declared max-content width and the table SHALL grow to
+    the sum (CSS 2.1 §17.5.2.1: table width = max(`width`, sum of columns)).
+    DECIDED: Prince's "grow" over Chromium's "scale to fit" — the author's
+    column widths hold and no column shrinks alone. Test:
+    `engine/tests/tables.rs::test_over_constrained_declared_columns_keep_declared_widths`.
 
 ## Interfaces
 

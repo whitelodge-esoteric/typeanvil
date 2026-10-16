@@ -459,6 +459,17 @@ pub fn measure_columns_scoped(
                 .collect();
         }
     }
+    // CORE-355: over-constrained — every column declares a definite width and
+    // their sum exceeds the used width. Keep the declared widths; the table
+    // grows to the sum (CSS 2.1 §17.5.2.1: table width = max(width, sum of
+    // columns); Prince parity). Shrinking only the low-slack column would end
+    // short of the declared widths in every engine.
+    if used.get() < sum_max_f {
+        let fixed = fixed_columns(dom, styles, table_id, &scope, min_widths.len());
+        if fixed.iter().all(|f| *f) {
+            widths = max_widths.clone();
+        }
+    }
     ColumnWidths {
         widths,
         min_widths,
