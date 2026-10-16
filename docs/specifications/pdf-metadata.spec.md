@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-21
-updated: 2026-09-27
+updated: 2026-10-16
 sidebar_position: 13
 tags: [engine, pdf, metadata, determinism]
 spec_id: pdf-metadata
@@ -43,19 +43,22 @@ Verified krilla facts (krilla 0.8.2, checked 2026-08-21):
 
 ## Non-Goals
 
-- No fixed default metadata when the document declares none (see Decision).
+- No invented document metadata (title etc.) when the document declares none (see Decision).
 - No creation/modification dates from any source — the clock is never read.
 - No XMP custom schemas, no PDF/A or PDF/UA conformance (`tagged-pdf.spec.md` owns tagged
   PDF, which will revisit validation errors).
 - No woff/woff2 concerns here (fonts are `font-resolution.spec.md`'s territory).
 
-## Decision: absent metadata stays absent
+## Decision: absent document metadata stays absent; Producer is always set
 
 When the document declares no title and no `--title` override, the engine sets
-NO metadata at all (current behavior, byte-for-byte). Rationale: inventing a
-default ("Untitled", producer strings) would put non-document content into the
-output, and krilla writes the Info dict only when at least one field is set
-(`has_document_info()`), so absence is free and keeps existing outputs stable.
+no document-derived field (no invented "Untitled"). Since CORE-389 the engine
+always sets `Producer` = `TypeAnvil <CARGO_PKG_VERSION>` so every output
+identifies its engine (Prince, WeasyPrint, Chromium and Adobe do the same).
+DECIDED 2026-10-13 (user): the string includes the version. The cost is that
+PDFs from different releases differ in those bytes. A constant string keeps
+same-binary output byte-identical, so determinism holds. `Creator` names the
+source authoring application, which is the user's, so the engine never sets it.
 
 ## Behavior
 
@@ -68,9 +71,10 @@ output, and krilla writes the Info dict only when at least one field is set
 2. `--title <s>` SHALL replace the document-derived Title; `--author <s>`
    SHALL replace the document-derived Author. Other fields are not
    CLI-overridable in this pass.
-3. If (and only if) at least one field resolves non-empty, `render` SHALL call
-   `Document::set_metadata` with exactly those fields. No `creation_date`,
-   `creator`, or `producer` shall ever be set by the engine.
+3. `render` SHALL always call `Document::set_metadata` with the non-empty
+   document fields plus `Producer` = `TypeAnvil <CARGO_PKG_VERSION>`. The
+   engine SHALL never set `creation_date` (no `CreationDate`, `ModDate` or
+   `xmp:CreateDate`) and SHALL never set `creator`.
 4. Rendering behavior (pages, text, fonts, `/ID`) SHALL be unchanged whether or
    not metadata is present.
 5. The harness adapter contract stays additive: existing flags keep their exact
@@ -121,8 +125,14 @@ pub fn extract_metadata(dom: &Dom, title_override: Option<String>, author_overri
   Then Document Properties show `Quarterly Report`.
   Test: `engine/tests/metadata.rs::title_lands_in_document_properties`.
 - AC-3 (absence): a document without title/meta and without CLI overrides
-  produces output with NO Info-dict metadata keys.
+  produces an Info dict whose only entry is `Producer (TypeAnvil <version>)`.
+  No Title/Author/Subject/Keywords/Creator key appears.
   Test: `engine/tests/metadata.rs::no_metadata_when_document_declares_none`.
+- AC-6 (producer, CORE-389): every render carries
+  `Producer (TypeAnvil <CARGO_PKG_VERSION>)`, alongside any document fields
+  unchanged. Two renders are byte-identical, and the file has no
+  `CreationDate`, `ModDate`, `xmp:CreateDate` or `Creator`.
+  Test: `engine/tests/metadata.rs::producer_always_set_without_dates`.
 - AC-4 (overrides): `--title`/`--author` replace doc-derived values.
   Test: `engine/tests/metadata.rs::cli_overrides_replace_document_values`
   (exercised through `parse_render_args` + extraction, since main.rs is a

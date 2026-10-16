@@ -12,10 +12,10 @@
 //! our layout coordinate system, so no axis flip is needed.
 //!
 //! Determinism: krilla derives the PDF `/ID` from a stable content hash (no
-//! wall-clock), metadata is written only when the document declares it and is
-//! input-derived only — never `creation_date`, `creator`, or `producer` (so no
-//! `CreationDate` appears anywhere) — and we always embed the exact same font
-//! bytes. Identical input therefore yields identical output bytes.
+//! wall-clock), document metadata fields are input-derived only, `producer`
+//! is the constant `TypeAnvil <version>` (CORE-389), and `creation_date` /
+//! `creator` are never set (so no `CreationDate` appears anywhere) — and we
+//! always embed the exact same font bytes. Identical input therefore yields identical output bytes.
 
 use anyhow::{anyhow, Context, Result};
 use krilla::color::rgb;
@@ -183,8 +183,9 @@ fn font_for(face: crate::fonts::FaceId) -> Result<&'static Font> {
 
 /// Document-level metadata derived from the HTML input (CORE-105).
 ///
-/// All fields are input-derived only: the engine never sets `creation_date`,
-/// `creator`, or `producer`, so identical input stays byte-identical.
+/// All fields are input-derived only. The engine also always sets the constant
+/// `producer` (`TypeAnvil <version>`, CORE-389) and never `creation_date` or
+/// `creator`, so identical input stays byte-identical.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct DocumentMetadata {
     pub title: Option<String>,
@@ -611,15 +612,15 @@ pub fn render_with_options(
         document.set_outline(outline);
     }
 
-    // Document metadata (CORE-105): written only when at least one field is
-    // non-empty — krilla then emits the Info dict. No `creation_date`,
-    // `creator`, or `producer` is ever set.
-    if meta.title.is_some()
-        || !meta.authors.is_empty()
-        || meta.subject.is_some()
-        || !meta.keywords.is_empty()
+    // Document metadata (CORE-105, CORE-389): always written. Document fields
+    // are set only when non-empty; `producer` is the constant
+    // `TypeAnvil <version>` (deterministic). `creation_date` and `creator`
+    // are never set.
     {
-        let mut m = Metadata::new();
+        let mut m = Metadata::new().producer(format!(
+            "TypeAnvil {}",
+            env!("CARGO_PKG_VERSION")
+        ));
         if let Some(title) = &meta.title {
             m = m.title(title.clone());
         }

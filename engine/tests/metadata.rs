@@ -138,12 +138,14 @@ p { font-family: Arial; font-size: 12pt; margin: 0; }
         "a metadata-free document must extract to the empty default"
     );
     let bytes = pdf_bytes_with_metadata(html, &meta);
-    for key in [b"/Title".as_slice(), b"/Author", b"/Subject", b"/Keywords"] {
+    for key in [b"/Title".as_slice(), b"/Author", b"/Subject", b"/Keywords", b"/Creator"] {
         assert!(
             !contains(&bytes, key),
             "unexpected Info-dict key {key:?} in metadata-free render"
         );
     }
+    // CORE-389: the Producer is the only Info entry.
+    assert!(contains(&bytes, producer_needle().as_bytes()));
     // The plain `render` path (no metadata at all) matches.
     let l = lay(html);
     let bytes = render(&l).unwrap();
@@ -153,6 +155,44 @@ p { font-family: Arial; font-size: 12pt; margin: 0; }
             "unexpected Info-dict key {key:?} in plain render"
         );
     }
+}
+
+fn producer_needle() -> String {
+    format!("/Producer(TypeAnvil {})", env!("CARGO_PKG_VERSION"))
+}
+
+/// CORE-389: Producer is always set (with and without document metadata),
+/// never a date or Creator, and output stays byte-identical.
+#[test]
+fn producer_always_set_without_dates() {
+    let html = r#"<!DOCTYPE html><html><head><style>
+p { font-family: Arial; font-size: 12pt; margin: 0; }
+</style></head><body><p>The quick brown fox.</p></body></html>"#;
+    let l = lay(html);
+    let b1 = render(&l).unwrap();
+    let b2 = render(&l).unwrap();
+    assert_eq!(b1, b2, "renders must be byte-identical");
+    assert!(
+        contains(&b1, producer_needle().as_bytes()),
+        "Producer missing from plain render"
+    );
+    for key in [
+        b"/CreationDate".as_slice(),
+        b"/ModDate",
+        b"CreateDate",
+        b"ModifyDate",
+        b"/Creator",
+    ] {
+        assert!(!contains(&b1, key), "unexpected {key:?}");
+    }
+    // Alongside document metadata, the document fields are unchanged.
+    let dom = Dom::parse(FULL_METADATA_HTML).unwrap();
+    let meta = extract_metadata(&dom, None, None);
+    let b = pdf_bytes_with_metadata(FULL_METADATA_HTML, &meta);
+    assert!(contains(&b, producer_needle().as_bytes()));
+    assert!(contains(&b, b"(Quarterly Report)"));
+    assert!(contains(&b, b"(A. Author)"));
+    assert!(!contains(&b, b"/CreationDate"));
 }
 
 // --- AC 4: CLI overrides replace document values --------------------------------
