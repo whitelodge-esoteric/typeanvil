@@ -227,6 +227,13 @@ struct Flow {
     /// this to distinguish first/last on the page; cleared after each page's
     /// margin boxes attach.
     page_string_sets: Vec<(String, String)>,
+    /// Running elements (`position: running(name)`, CORE-390) reached during
+    /// THIS page's body layout, in document order; cleared per page.
+    page_running: Vec<(String, NodeId)>,
+    /// The current `element(name)` value per name, carried across pages.
+    running_elems: Vec<(String, NodeId)>,
+    /// True while a margin box lays a running element out itself.
+    laying_running: bool,
     /// Named counter values (`counter-reset`/`counter-increment` on non-`page`
     /// names, CORE-128): threaded in document order, read by
     /// `bookmark-label: ... counter(name)` resolution. A sorted Vec keeps any
@@ -1046,6 +1053,9 @@ fn paginate(
         abspos_finished: Vec::new(),
         pending_footnotes: Vec::new(),
         page_string_sets: Vec::new(),
+        page_running: Vec::new(),
+        running_elems: Vec::new(),
+        laying_running: false,
         counters: Vec::new(),
     };
     // The `html` root is never laid out (layout starts at `body`), but its
@@ -1142,6 +1152,7 @@ fn paginate(
         // §Behavior 4; Prince-verified — a top-of-page assignment does not
         // count). Margin boxes resolve against this snapshot.
         let page_start_strings = flow.running.clone();
+        let page_start_elems = flow.running_elems.clone();
         // Each fragmentainer starts with only the carry-over floats: floats
         // that suspended at the previous page boundary resume at the content
         // top and keep intruding on this page's text. The abspos containing
@@ -1378,6 +1389,12 @@ fn paginate(
         // page 1 — are seen first). A reset shadows the threaded counter for
         // this page only; an increment on a non-reset name threads.
         let page_local = apply_page_named_counters(&spec, &mut flow);
+        // CORE-390: lay out each margin box's running element (if any).
+        let running_copies: Vec<Option<RunningCopy>> = spec
+            .margin_boxes
+            .iter()
+            .map(|mb| build_running_copy(&ctx, &flow, &page_start_elems, mb, content.width))
+            .collect();
         // Margin boxes resolve against the running-string / counter state now
         // in effect at the end of this page's flow (spec §6, §7); `start`
         // reads the page-start snapshot.
@@ -1394,11 +1411,13 @@ fn paginate(
             &page_local,
             images,
             base_url,
+            &running_copies,
         );
         // The page's assignment log is consumed: the next page's `first`/
         // `last`/`first-except` must see only THEIR assignments; `running`
         // keeps the carried values (spec §Behavior 5).
         flow.page_string_sets.clear();
+        flow.page_running.clear();
 
         // Out-of-flow fragments attach to the page root (css-break-3: the
         // fragmentainer is their parent, not the CSS containing block).
@@ -1708,6 +1727,7 @@ fn paginate(
             &page_local,
             images,
             base_url,
+            &[],
         );
         pages.push(fragmentainer);
     }
@@ -1742,6 +1762,9 @@ fn paginate(
             abspos_finished: Vec::new(),
             pending_footnotes: Vec::new(),
             page_string_sets: Vec::new(),
+            page_running: Vec::new(),
+            running_elems: Vec::new(),
+            laying_running: false,
             counters: Vec::new(),
         };
         let mut fixed_frags: Vec<(Option<i32>, Fragment, Point)> = Vec::new();
@@ -2379,6 +2402,27 @@ impl<'a> Ctx<'a> {
                 outgoing: None,
                 empty: true,
             };
+        }
+        // CORE-390: `position: running(name)` removes the element from the
+        // flow. Reaching it in document order makes it the page's (and the
+        // carried) value of `element(name)`; margin boxes lay it out later.
+        // `running_layout` is set only while a margin box lays the element
+        // itself out, which must paint it normally.
+        if let Some(name) = &style.running_name {
+            if !flow.laying_running {
+                flow.page_running.push((name.clone(), id));
+                flow.running_elems.retain(|(n, _)| n != name);
+                flow.running_elems.push((name.clone(), id));
+                return BlockResult {
+                    fragment: Fragment::block(
+                        Point::new(origin_x, top),
+                        (Scalar::ZERO, Scalar::ZERO),
+                    ),
+                    used: Scalar::ZERO,
+                    outgoing: None,
+                    empty: true,
+                };
+            }
         }
         // Replaced element: `<img>` and inline `<svg>` (CORE-131) lay out as
         // a monolithic block-level box (CORE-106 spec Behavior 2). Sizing per
@@ -7391,7 +7435,10 @@ impl<'a> Ctx<'a> {
                     // its own item or it folds into the parent's text run
                     // and vanishes.
                     let is_img = self.is_replaced_image(child);
+                    // CORE-390: a running element is block-level whatever its
+                    // `display`; `layout_box` registers it and paints nothing.
                     if is_img
+                        || self.styles[child].running_name.is_some()
                         || self.styles[child].display == Display::Block
                         || matches!(
                             self.styles[child].display,
@@ -7621,6 +7668,7 @@ impl<'a> Ctx<'a> {
                     count_reserved(&v, false);
                     push_side(&mut before, &mut after, leader_char, &v);
                 }
+                ContentPiece::ElementRef(..) => {}
                 ContentPiece::TargetText { attr } => {
                     let v = self.resolve_target_text(id, attr);
                     count_reserved(&v, false);
@@ -8103,6 +8151,7 @@ fn attach_margin_boxes(
     page_local: &[(String, i32)],
     images: &mut crate::images::ImageStore,
     base_url: Option<&std::path::Path>,
+    running: &[Option<RunningCopy>],
 ) {
     if spec.margin_boxes.is_empty() {
         return;
@@ -8183,11 +8232,20 @@ fn attach_margin_boxes(
         } else {
             text_block
         };
-        metrics.push(crate::margin_box::BoxMetrics {
+        let mut bm = crate::margin_box::BoxMetrics {
             min_inline: text_min + img_w,
             max_inline: text_max + img_w,
             block,
-        });
+        };
+        // A running element (CORE-390) sizes the box from its own box.
+        if let Some(Some(rc)) = running.get(metrics.len()) {
+            bm = crate::margin_box::BoxMetrics {
+                min_inline: rc.w,
+                max_inline: rc.w,
+                block: rc.h,
+            };
+        }
+        metrics.push(bm);
         shaped.push(runs);
         line_texts.push(lines);
         box_images.push(image);
@@ -8407,6 +8465,19 @@ fn attach_margin_boxes(
                 fragment.children.push(img);
             }
         }
+        // CORE-390: the running element's laid-out subtree, aligned inside
+        // the content box like a line of inline content.
+        if let Some(Some(rc)) = running.get(i) {
+            let rx = match mb.text_align {
+                TextAlign::Center => Scalar(cx.get() + (cw.get() - rc.w.get()) * 0.5),
+                TextAlign::Right | TextAlign::End => Scalar(cx.get() + cw.get() - rc.w.get()),
+                _ => cx,
+            };
+            let ry = cy + vertical_slot(mb.vertical_align, ch, rc.h);
+            let mut clone = rc.frag.clone();
+            clone.offset = Point::new(rx - box_x, ry - box_y);
+            fragment.children.push(clone);
+        }
         // css-page-3 §3.1: each margin box is its own stacking context and
         // the boxes never interleave with document content, so they leave the
         // content tree here. The emitter paints them as UNITS — one box's
@@ -8420,6 +8491,81 @@ fn attach_margin_boxes(
             fragment,
         });
     }
+}
+
+/// A running element laid out for one margin box (CORE-390).
+struct RunningCopy {
+    /// The laid-out subtree; `offset` is rewritten when the box is emitted.
+    frag: Fragment,
+    w: Scalar,
+    h: Scalar,
+}
+
+/// Pick the running element for `element(name, kw)` on the current page
+/// (css-gcpm-3 §1.3). `start_elems` is the page-start snapshot.
+fn resolve_running_element(
+    name: &str,
+    kw: crate::paged::StringKeyword,
+    flow: &Flow,
+    start_elems: &[(String, NodeId)],
+) -> Option<NodeId> {
+    let carried = |list: &[(String, NodeId)]| {
+        list.iter().find(|(n, _)| n == name).map(|(_, id)| *id)
+    };
+    let on_page: Vec<NodeId> = flow
+        .page_running
+        .iter()
+        .filter(|(n, _)| n == name)
+        .map(|(_, id)| *id)
+        .collect();
+    match kw {
+        crate::paged::StringKeyword::First => {
+            on_page.first().copied().or_else(|| carried(&flow.running_elems))
+        }
+        crate::paged::StringKeyword::Last => {
+            on_page.last().copied().or_else(|| carried(&flow.running_elems))
+        }
+        crate::paged::StringKeyword::Start => carried(start_elems),
+        crate::paged::StringKeyword::FirstExcept => {
+            if on_page.is_empty() {
+                carried(&flow.running_elems)
+            } else {
+                None
+            }
+        }
+    }
+}
+
+/// Lay out the running element a margin box names, if any (CORE-390). The
+/// subtree lays out monolithically at its shrink-to-fit width inside the
+/// page content width; the margin box sizes from the result.
+fn build_running_copy(
+    ctx: &Ctx,
+    flow: &Flow,
+    start_elems: &[(String, NodeId)],
+    mb: &MarginBoxSpec,
+    max_width: Scalar,
+) -> Option<RunningCopy> {
+    let (name, kw) = mb.content.iter().find_map(|p| match p {
+        ContentPiece::ElementRef(n, k) => Some((n.as_str(), *k)),
+        _ => None,
+    })?;
+    let id = resolve_running_element(name, kw, flow, start_elems)?;
+    let (w, h) = ctx.measure_float(id, max_width);
+    let mut scratch = flow.clone();
+    scratch.laying_running = true;
+    scratch.abspos.clear();
+    let res = ctx.layout_box(
+        id,
+        Scalar::ZERO,
+        w,
+        Scalar::ZERO,
+        Scalar(f64::MAX),
+        false,
+        &BreakToken::break_before(),
+        &mut scratch,
+    );
+    Some(RunningCopy { frag: res.fragment, w, h })
 }
 
 /// Break margin-box generated content into its lines (CORE-178).
@@ -8582,6 +8728,8 @@ fn render_margin_content(
             // An image piece contributes no text; the margin-box emitter
             // places it as replaced content on the same line.
             ContentPiece::Image(_) => {}
+            // Running elements paint as laid-out fragments (CORE-390).
+            ContentPiece::ElementRef(..) => {}
             ContentPiece::CounterPage => out.push_str(&flow.page_number().to_string()),
             ContentPiece::CounterPages => out.push_str(&total_pages.to_string()),
             ContentPiece::CounterRef(name) => {
@@ -8880,6 +9028,7 @@ fn resolve_bookmark_label(
                 }
             }
             crate::paged::ContentPiece::StringRef(..) => {}
+            crate::paged::ContentPiece::ElementRef(..) => {}
             crate::paged::ContentPiece::CounterPage => {}
             crate::paged::ContentPiece::CounterPages => {}
             crate::paged::ContentPiece::TargetCounter { .. } => {}

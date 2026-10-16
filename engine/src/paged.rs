@@ -214,6 +214,10 @@ pub enum ContentPiece {
     /// with css-gcpm-3 §7 keyword semantics (default `first`; probed against
     /// Prince 16.2, see docs/research/css-gcpm/prince-string-keywords-probe.md).
     StringRef(String, StringKeyword),
+    /// `element(name[, keyword])` — a running element (`position:
+    /// running(name)`) cloned into the margin box (css-gcpm-3 §1.3, CORE-390).
+    /// Same page-based keywords as `string()`.
+    ElementRef(String, StringKeyword),
     /// `counter(page)` — the decimal page counter.
     CounterPage,
     /// `counter(pages)` — the total page count, resolved by a bounded
@@ -1886,6 +1890,15 @@ pub fn parse_content(value: &str) -> Vec<ContentPiece> {
                     None => (args.trim(), StringKeyword::First),
                 };
                 pieces.push(ContentPiece::StringRef(name.to_string(), kw));
+            }
+            "element" => {
+                let (name, kw) = match args.split_once(',') {
+                    Some((n, k)) => (n.trim(), StringKeyword::parse(k)),
+                    None => (args.trim(), StringKeyword::First),
+                };
+                if !name.is_empty() {
+                    pieces.push(ContentPiece::ElementRef(name.to_string(), kw));
+                }
             }
             "url" => {
                 // `url(<path>)` — strip quotes/whitespace; an empty path is

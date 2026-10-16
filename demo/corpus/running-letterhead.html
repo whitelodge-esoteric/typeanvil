@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Northwind Systems — Running Letterhead</title>
+<style>
+  /* Geometry via CLI flags only (demo spec). CORE-390: the letterhead block
+     is a running element (position: running) placed into @top-center on
+     every page with content: element(). */
+  @page {
+    margin: 0.75in;
+    @top-center { content: element(letterhead); }
+    @bottom-center { content: "Page " counter(page) " of " counter(pages); font-family: Arial, Helvetica, sans-serif; font-size: 10pt; }
+  }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; color: #222; line-height: 1.2; }
+  .letterhead { position: running(letterhead); text-align: center; font-family: Arial, Helvetica, sans-serif; }
+  .letterhead .brand { font-size: 12pt; font-weight: bold; color: #1d3557; }
+  .letterhead .sub { font-size: 8pt; color: #457b9d; }
+  h1 { font-size: 14pt; color: #1d3557; margin: 0 0 6pt 0; }
+  p { margin: 0 0 6pt 0; text-align: justify; }
+</style>
+</head>
+<body>
+  <div class="letterhead"><div class="brand">Northwind Systems</div><div class="sub">Paged-media typesetting, done properly.</div></div>
+
+  <h1>Re: running elements in page margins</h1>
+  <p>Dear Evaluator,</p>
+  <p>The two-line letterhead above this letter is written once, in the
+  document source, and marked as a running element. The engine removes it
+  from the body flow and paints a copy of it in the top margin of every
+  page, which is how rich headers and logos are built in print CSS.</p>
+  <p>Because the copy is a laid-out clone of the element, its own styles
+  (font size, colour, alignment and weight) travel with it. The page
+  margin box only provides the place where it is drawn.</p>
+  <p>A body this long exists so that the letter runs across several pages
+  at the corpus geometry. Each page then shows the same letterhead, and the
+  page number of total in the footer keeps counting.</p>
+  <p>Paragraph four continues the letter with a little more text so that
+  the page count is stable across engines. Northwind Systems builds
+  deterministic typesetting software: identical input always yields
+  identical output, byte for byte.</p>
+  <p>Paragraph five adds further length. The engine fragments the body
+  across pages with orphan and widow control, repeats the running header in
+  the margin box, and resolves the total page count in a second pass.</p>
+  <p>Paragraph six closes the main argument. Running elements remove the
+  need to duplicate header markup, and they keep the header out of the body
+  so that it never competes with content for space on the page.</p>
+  <p>Paragraph seven is here to carry the letter onto a third page at the
+  small corpus geometry, where every page holds only a few lines of body
+  text between the running header and the footer.</p>
+  <p>Yours sincerely,</p>
+  <p><strong>The Northwind Systems team</strong></p>
+</body>
+</html>

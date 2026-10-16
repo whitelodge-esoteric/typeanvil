@@ -1183,6 +1183,10 @@ pub struct ComputedStyle {
     /// Declared `list-style-type` (CORE-385). `None` = not declared on this
     /// element; layout resolves inheritance by walking ancestors.
     pub list_style_type: Option<ListStyleType>,
+    /// `position: running(<name>)` (css-gcpm-3 §1.1, CORE-390): the element
+    /// leaves the flow and is available to margin boxes as `element(<name>)`.
+    /// Parsed by the manual author-CSS pass (stylo rejects the value).
+    pub running_name: Option<String>,
     /// `string-set` declarations: `(string name, value)` pairs.
     pub string_set: Vec<(String, StringSetValue)>,
     /// `counter-reset` declarations: `(counter name, value)` pairs.
@@ -1368,6 +1372,7 @@ impl ComputedStyle {
             ot_features: Vec::new(),
             page: None,
             writing_mode_declared: false,
+            running_name: None,
             string_set: Vec::new(),
             counter_reset: Vec::new(),
             counter_increment: Vec::new(),
@@ -2436,6 +2441,7 @@ impl CascadeSession {
             // stylo build; filled by `apply_paged_properties` (see `cascade`).
             page: None,
             writing_mode_declared: false,
+            running_name: None,
             string_set: Vec::new(),
             counter_reset: Vec::new(),
             counter_increment: Vec::new(),
@@ -4118,6 +4124,8 @@ mod paged_props {
         Display(super::Display),
         /// `position: <value>` from an inline style (CORE-127, same seam gap).
         Position(super::Position),
+        /// `position: running(<name>)` (CORE-390).
+        Running(String),
         /// `float: left | right` from an inline style (CORE-127, same seam
         /// gap; `float: footnote` is handled by `FloatFootnote`).
         FloatSide(super::Float),
@@ -4239,6 +4247,15 @@ mod paged_props {
                     "relative" => Some(PagedDecl::Position(super::Position::Relative)),
                     "absolute" => Some(PagedDecl::Position(super::Position::Absolute)),
                     "fixed" => Some(PagedDecl::Position(super::Position::Fixed)),
+                    // CORE-390: `running(<name>)` is invisible to stylo.
+                    _ if v.starts_with("running(") && v.ends_with(')') => {
+                        let name = v["running(".len()..v.len() - 1].trim();
+                        if name.is_empty() {
+                            None
+                        } else {
+                            Some(PagedDecl::Running(name.to_string()))
+                        }
+                    }
                     _ => None,
                 }
             }
@@ -4493,6 +4510,11 @@ mod paged_props {
                             // Filtered out of stylesheet rules in
                             // `parse_rules` (stylo owns them, CORE-368).
                             PagedDecl::Display(_) | PagedDecl::Position(_) => {}
+                            PagedDecl::Running(n) => {
+                                // Later/more specific `position` wins; any
+                                // non-running position clears it below.
+                                styles[id].running_name = Some(n.clone());
+                            }
                             PagedDecl::FloatSide(v) => {
                                 if won[id].float.is_none_or(|w| prio >= w) {
                                     styles[id].float = *v;
@@ -4594,6 +4616,9 @@ mod paged_props {
                     }
                     PagedDecl::Position(v) => {
                         styles[id].position = v;
+                    }
+                    PagedDecl::Running(n) => {
+                        styles[id].running_name = Some(n);
                     }
                     PagedDecl::FloatSide(v) => {
                         styles[id].float = v;

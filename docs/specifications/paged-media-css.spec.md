@@ -73,9 +73,9 @@ market.
 
 **Non-Goals** (deferred; noted here so scope stays honest)
 
-- `element()` running *elements* (cloning a styled element subtree into a
-  margin box) — `string()` covers the demo; element() needs subtree cloning
-  and margin-box styling and is a later pass.
+- Running elements inside a multi-fragment margin box (a running element
+  that itself breaks across fragmentainers). Running copies lay out
+  monolithically (see "Running elements" below; CORE-390).
 - Full css-page WPT parity — the fitness gate is a growing subset; the full
   367-file suite is a stretch goal, not this issue.
 - `@page :blank`, `:nth()`, or other page pseudo-classes beyond
@@ -910,6 +910,41 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
   pinned inset-abspos model (`bottom: -100vh`) never advances the page
   loop. The ref-pagination of inset-anchored abspos is a documented
   residual, not a defect of this change.
+
+## Running elements (CORE-390)
+
+Stylo path: `position: running(<name>)` is not a stylo value (verified
+2026-10-16: the servo build rejects it), so the manual author-CSS pass
+(`css.rs` `PagedDecl::Running`) records it as `ComputedStyle.running_name`.
+`content: element(...)` parses in `paged.rs` as `ContentPiece::ElementRef`.
+
+**Behavior**
+
+1. An element with `position: running(<name>)` shall leave the flow: it
+   occupies no space and paints nothing in the body.
+2. Reaching the element in document order shall make it the page's
+   assignment for `<name>` and the carried value for later pages.
+3. `content: element(<name>[, first | start | last | first-except])` shall
+   place a laid-out copy of the selected element in the margin box. The
+   policy is the `string()` policy applied to elements: `first` (default),
+   `last`, `start` (the value entering the page), `first-except` (empty on
+   pages that assign).
+4. The copy keeps the element's own styles. It lays out monolithically at
+   its shrink-to-fit width (capped at the page content width). The margin
+   box sizes from the copy's width and height and aligns it by the box's
+   `text-align` and `vertical-align`.
+5. Every margin-box copy is page chrome: tagged output shall emit it as an
+   Artifact (Header/Footer). The source element is out of flow and enters
+   no structure-tree entry (decision: the first occurrence does not enter
+   the tree).
+
+**Acceptance criteria** (`engine/tests/core390_running_elements.rs`)
+
+- AC1: a running element is absent from the body and present in a margin
+  box on every page.
+- AC2-AC5: one test per `element()` policy (`first`, `start`, `last`,
+  `first-except`).
+- AC6: a running element containing an image and text keeps both.
 
 ## References
 

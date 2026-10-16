@@ -66,6 +66,19 @@
     ]
   },
   {
+    "name": "Running Letterhead",
+    "file": "running-letterhead.html",
+    "wedge_features": [
+      "paged-media-css",
+      "fragmentation-core"
+    ],
+    "known_limitations": [],
+    "expected_deltas": [
+      "CORE-390: the letterhead is a position: running() element drawn in @top-center on every page via content: element()",
+      "Margin-box fonts pinned to Arial in both engines; residual diffs are layout-metric"
+    ]
+  },
+  {
     "name": "Inventory Ledger — Table Fragmentation Stress",
     "file": "table-stress.html",
     "wedge_features": [

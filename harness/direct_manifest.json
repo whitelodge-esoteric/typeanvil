@@ -58,6 +58,20 @@
       "provenance": "reviewed corpus: measured 11 pages 2026-09-15 with the release-tip binary (sha256 19e2038e0f4480a7...); the range tolerates one page of drift, while the per-document capture comparison catches any change exactly"
     },
     {
+      "id": "running-letterhead-text-present",
+      "input": "demo/corpus/running-letterhead.html",
+      "input_source": "corpus",
+      "expectation": {"text_present": ["Paged-media typesetting, done properly."]},
+      "provenance": "docs/specifications/paged-media-css.spec.md Running elements (CORE-390); the tagline occurs only inside the position: running() letterhead, so it is present only if the margin-box copy paints"
+    },
+    {
+      "id": "running-letterhead-last-page-header",
+      "input": "demo/corpus/running-letterhead.html",
+      "input_source": "corpus",
+      "expectation": {"paint_region": {"page": 4, "rect_pt": [100.0, 14.0, 260.0, 36.0], "min_dark_fraction": 0.01}},
+      "provenance": "css-gcpm-3 section 1.3 (element(name) repeats on every page); CORE-390: the letterhead copy paints in @top-center on the last page (index 4 of 5); measured 2026-10-16: header ink spans y 17.5pt, x 109-249pt on all 5 pages"
+    },
+    {
       "id": "invoice-corpus-rows-preserved",
       "input": "demo/corpus/invoice.html",
       "input_source": "corpus",

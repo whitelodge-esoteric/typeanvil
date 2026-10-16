@@ -381,6 +381,15 @@
    "Table": 1
   }
  },
+ "corpus/running-letterhead.html": {
+  "coverage": 0.9754,
+  "roles": {
+   "Div": 10,
+   "Document": 5,
+   "H1": 1,
+   "P": 13
+  }
+ },
  "corpus/sales-summary.html": {
   "coverage": 1.0,
   "roles": {
