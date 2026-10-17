@@ -807,7 +807,9 @@ impl<'a> Ctx<'a> {
             let border_box = BorderBox {
                 top: style.border_top,
                 right: style.border_right,
-                bottom: style.border_bottom,
+                // css-break-3 §5.4 (slice): the bottom band belongs to the
+                // LAST fragment only (CORE-478).
+                bottom: if broke { Scalar::ZERO } else { style.border_bottom },
                 left: style.border_left,
                 top_color: style.border_top_color.unwrap_or(crate::css::Color::BLACK),
                 right_color: style.border_right_color.unwrap_or(crate::css::Color::BLACK),
@@ -1195,7 +1197,9 @@ impl<'a> Ctx<'a> {
             let border_box = BorderBox {
                 top: style.border_top,
                 right: style.border_right,
-                bottom: style.border_bottom,
+                // css-break-3 §5.4 (slice): the bottom band belongs to the
+                // LAST fragment only (CORE-478).
+                bottom: if broke { Scalar::ZERO } else { style.border_bottom },
                 left: style.border_left,
                 top_color: style.border_top_color.unwrap_or(crate::css::Color::BLACK),
                 right_color: style.border_right_color.unwrap_or(crate::css::Color::BLACK),

@@ -29,6 +29,7 @@ mod core467_flex_column_text_beside_tall_box;
 mod core468_viewport_border_width;
 mod core469_grid_direct_text;
 mod core477_declared_width_overflow;
+mod core478_nested_column_flex_border;
 mod core481_transform;
 mod core241_zero_height_overflow;
 mod core352_cell_valign;
