@@ -6608,14 +6608,15 @@ impl<'a> Ctx<'a> {
                 used_h = res.used;
             }
             if let Some(tok) = res.outgoing {
-                // The cell continues on the next fragmentainer; the row stops
-                // here (cells in a row fragment together — css-tables-3 §3.3).
+                // The cell continues on the next fragmentainer. The row still
+                // lays its remaining cells on THIS fragmentainer so all cells
+                // split in step (CORE-392: css-break-3 parallel flows).
                 broke_inside = true;
                 outcomes[ordinal] = Some(ChildToken {
                     index: ordinal,
                     token: tok,
                 });
-                break;
+                continue;
             }
             // Done marker: the cell finished on THIS fragmentainer. A bare
             // break_before would RESTART it on resume; seen_all_children with
