@@ -231,3 +231,63 @@ fn inline_style_still_wins() {
                 <body><section id=\"wrap\"><p id=\"t\" style=\"page: b\">x</p></section></body></html>";
     assert_eq!(style_of_t(html).page.as_deref(), Some("b"));
 }
+
+// --- attribute selectors (CORE-383) -----------------------------------------
+
+fn attr_doc(css: &str, attrs: &str) -> String {
+    format!(
+        "<html><head><style>{css}</style></head><body>\
+         <p id=\"t\" {attrs}>x</p><p id=\"other\">y</p></body></html>"
+    )
+}
+
+/// Paged pass: `[data-k] { page: a }`.
+#[test]
+fn attribute_selector_matches() {
+    let html = attr_doc("[data-k] { page: a }", "data-k=\"1\"");
+    assert_eq!(style_of(&html, "t").page.as_deref(), Some("a"));
+    assert_eq!(style_of(&html, "other").page, None);
+}
+
+/// Cascade (stylo): `[data-k] { color }` applies.
+#[test]
+fn attribute_selector_applies_in_cascade() {
+    let ctl = attr_doc("p { color: rgb(255, 0, 0) }", "data-k=\"1\"");
+    let c = style_of(&ctl, "t").color;
+    assert_eq!((c.r, c.g, c.b), (255, 0, 0), "control: type selector color");
+    let alt = attr_doc("p[data-k] { color: rgb(255, 0, 0) }", "data-k=\"1\"");
+    let a = style_of(&alt, "t").color;
+    assert_eq!((a.r, a.g, a.b), (255, 0, 0), "p[data-k]");
+    let html = attr_doc("[data-k] { color: rgb(255, 0, 0) }", "data-k=\"1\"");
+    let t = style_of(&html, "t").color;
+    let o = style_of(&html, "other").color;
+    assert_eq!((t.r, t.g, t.b), (255, 0, 0));
+    assert_ne!((o.r, o.g, o.b), (255, 0, 0));
+}
+
+/// Every operator, including case flag and non-matching controls.
+#[test]
+fn attribute_operators() {
+    let cases: &[(&str, &str, bool)] = &[
+        ("[data-k=\"abc\"]", "data-k=\"abc\"", true),
+        ("[data-k=\"ab\"]", "data-k=\"abc\"", false),
+        ("[data-k~=\"b\"]", "data-k=\"a b c\"", true),
+        ("[data-k~=\"bc\"]", "data-k=\"a b c\"", false),
+        ("[data-k|=\"en\"]", "data-k=\"en-US\"", true),
+        ("[data-k|=\"e\"]", "data-k=\"en-US\"", false),
+        ("[data-k^=\"#\"]", "data-k=\"#top\"", true),
+        ("[data-k^=\"x\"]", "data-k=\"#top\"", false),
+        ("[data-k$=\".pdf\"]", "data-k=\"a.pdf\"", true),
+        ("[data-k$=\".png\"]", "data-k=\"a.pdf\"", false),
+        ("[data-k*=\"mid\"]", "data-k=\"a-mid-b\"", true),
+        ("[data-k*=\"zzz\"]", "data-k=\"a-mid-b\"", false),
+        ("[data-k=\"ABC\" i]", "data-k=\"abc\"", true),
+        ("[data-k=\"ABC\"]", "data-k=\"abc\"", false),
+        ("[data-k]", "data-other=\"1\"", false),
+    ];
+    for (sel, attrs, want) in cases {
+        let html = attr_doc(&format!("{sel} {{ page: a }}"), attrs);
+        let got = style_of(&html, "t").page.as_deref() == Some("a");
+        assert_eq!(got, *want, "{sel} vs {attrs}");
+    }
+}

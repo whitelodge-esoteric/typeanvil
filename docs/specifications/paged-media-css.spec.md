@@ -345,9 +345,6 @@ The engine shall:
       sheet, so writing them let `p { display: block }` overwrite a more
       specific author `#wrap p { display: inline }`.) The pass still carries
       them from inline `style=""` declarations.
-    - Attribute selectors match nothing, in this pass and in the cascade alike:
-      the DOM adapter's `attr_matches` is not implemented. That limitation
-      belongs to the adapter, not to this pass.
 
 ## Interfaces
 

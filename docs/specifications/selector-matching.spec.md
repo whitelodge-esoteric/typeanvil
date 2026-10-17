@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-09-09
-updated: 2026-09-27
+updated: 2026-10-17
 sidebar_position: 26
 tags: [engine, css, selectors, stylo, cascade]
 spec_id: selector-matching
@@ -52,6 +52,15 @@ accessors must satisfy, and the defect that violated it.
    index at which the selector matches.
 3. **First/last element children.** `first_element_child()` and
    `last_element_child()` shall likewise skip leading/trailing text nodes.
+4. **Attribute selectors (CORE-383).** `attr_matches` shall evaluate every
+   `AttrSelectorOperation` (exists, `=`, `~=`, `|=`, `^=`, `$=`, `*=`, and the
+   `i`/`s` case flag) against `Element::attrs`, HTML namespace only (a
+   non-empty namespace constraint never matches). Attribute names compare
+   ASCII-case-insensitively. `each_attr_name` shall list every attribute name
+   of the element, lower-cased: stylo's `SelectorMap` finds attribute-keyed
+   rules only through that walk, so an empty list hides every `[attr]` rule
+   from the cascade before `attr_matches` runs. The paged pass uses the same
+   matcher and therefore the same behavior.
 
 ## Interfaces
 
@@ -72,6 +81,12 @@ print-reftest named where applicable.
   (`nth_of_type_parity_with_and_without_whitespace`).
 - Given three divs separated by whitespace and `div:last-of-type { … }`,
   exactly the third div matches (`last_of_type_matches_only_the_last_sibling`).
+- Given `[data-k] { color }` or `[data-k] { page: a }` on `<p data-k="1">`, the
+  paragraph matches in the cascade and in the paged pass, and a paragraph
+  without the attribute does not
+  (`paged_selectors::attribute_selector_applies_in_cascade`,
+  `attribute_selector_matches`); every operator and the `i` flag are covered by
+  `paged_selectors::attribute_operators`.
 
 ## Edge Cases
 

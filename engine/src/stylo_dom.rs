@@ -22,8 +22,8 @@
 //!   Servo embeds this in its DOM.
 //! - Minimal surface per CORE-56 scope: element/class/id/descendant
 //!   selectors, inheritance of color/font-*, non-inherited display/box
-//!   properties. No shadow DOM (always `None`), no attribute selectors
-//!   (`attr_matches` → `false`), no style attribute, no animations.
+//!   properties. No shadow DOM (always `None`), no animations. Attribute
+//!   selectors match against `Element::attrs` (CORE-383).
 
 use std::cell::UnsafeCell;
 use std::collections::HashMap;
@@ -428,10 +428,17 @@ impl<'a> TElement for TyElement<'a> {
     {
     }
 
-    fn each_attr_name<F>(&self, _callback: F)
+    fn each_attr_name<F>(&self, mut callback: F)
     where
         F: FnMut(&LocalName),
     {
+        // CORE-383: stylo's SelectorMap finds attribute-keyed rules only
+        // through this walk, so it must list every attribute name.
+        if let NodeKind::Element(el) = &self.backend.dom.nodes[self.id].kind {
+            for (name, _) in &el.attrs {
+                callback(&LocalName::from(name.to_ascii_lowercase().as_str()));
+            }
+        }
     }
 
     fn has_dirty_descendants(&self) -> bool {
@@ -669,12 +676,26 @@ impl<'a> SelectorsElement for TyElement<'a> {
 
     fn attr_matches(
         &self,
-        _ns: &NamespaceConstraint<&Namespace>,
-        _local_name: &LocalName,
-        _operation: &AttrSelectorOperation<&AttrValue>,
+        ns: &NamespaceConstraint<&Namespace>,
+        local_name: &LocalName,
+        operation: &AttrSelectorOperation<&AttrValue>,
     ) -> bool {
-        // Attribute selectors are out of CORE-56 scope.
-        false
+        // CORE-383: HTML namespace only. Source attribute names are stored
+        // lower-cased by html5ever for HTML elements; match the selector's
+        // local name against them ASCII-case-insensitively.
+        if let NamespaceConstraint::Specific(n) = ns {
+            if !n.is_empty() {
+                return false;
+            }
+        }
+        let name: &str = local_name.as_ref();
+        self.backend.dom.nodes[self.id].kind.as_element_attr(|el| {
+            el.attrs
+                .iter()
+                .filter(|(k, _)| k.eq_ignore_ascii_case(name))
+                .any(|(_, v)| operation.eval_str(v.as_str()))
+        })
+        .unwrap_or(false)
     }
 
     fn match_non_ts_pseudo_class(
