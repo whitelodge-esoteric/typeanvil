@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-09-04
-updated: 2026-09-27
+updated: 2026-10-17
 sidebar_position: 21
 tags: [layout, css-grid, engine, wpt]
 spec_id: grid-layout
@@ -63,6 +63,14 @@ corpus exercise.
    row's full track offset.)
 8. Zero-area background rects (empty auto-tracked cells) shall be skipped at
    PDF emit, not treated as fatal.
+9. Exception (CORE-469): a grid with one implicit column, no explicit rows,
+   no row-gap and an auto block size that holds bare text beside block items
+   shall lay out through the block path, so the text is kept and stacks with
+   the items. With a single column and no row gap the grid stacks its items
+   like blocks, so the result matches grid layout.
+   Known limitation: true anonymous grid items are not built. Multi-column
+   grids, and grids with explicit rows, row-gap or a definite block size,
+   still drop bare text.
 
 ## Non-goals
 

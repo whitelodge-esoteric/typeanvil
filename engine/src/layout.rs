@@ -2733,10 +2733,23 @@ impl<'a> Ctx<'a> {
         // track cells; rows fragment monolithically like flex lines.
         // `inline-grid` is treated as block-level (the inline-flex model).
         if matches!(style.display, Display::Grid) {
-            let has_items = self
-                .collect_items(id)
+            let collected = self.collect_items(id);
+            let has_blocks = collected
                 .iter()
                 .any(|i| matches!(i, Item::Block(_) | Item::Atomic(_)));
+            // CORE-469: the grid collector drops direct text nodes (anonymous
+            // grid items are not built). A grid with ONE implicit column, no
+            // explicit rows, no row gap and an auto block size stacks its
+            // items exactly like a block, so bare text beside block items
+            // lays out through the block path, which places the text runs.
+            let text_beside_blocks = has_blocks
+                && collected.iter().any(|i| matches!(i, Item::Text(..)))
+                && style.grid_columns.len() <= 1
+                && style.grid_rows.is_empty()
+                && style.row_gap.get() == 0.0
+                && self.resolved_height(style).is_none()
+                && token.cross_override.is_none();
+            let has_items = has_blocks && !text_beside_blocks;
             if has_items {
                 return self.layout_grid_container(
                     id,
