@@ -137,6 +137,13 @@ The engine shall:
    flipped FAIL, exposing the abspos-across-pages and negative-margin-at-
    breaks gaps (documented residuals, not vh defects — their accidental
    passes under the fixed viewport were not spec behavior).
+   Border widths follow the same rule (CORE-468): a single `Nvw`/`Nvh`
+   width in `border`, `border-width` or a `border-<side>[-width]`
+   declaration resolves against the page content box in the cascade seam
+   (`viewport_units` pass), because the border width must be known before
+   layout. A shorthand without a visible border style stays 0. A
+   multi-value `border-width` that mixes viewport units with other lengths
+   is not captured yet (stylo's fixed-viewport value applies).
 4. **Honor named pages**: an element with `page: <name>` switches the page
    context; pages that the element's boxes start use `@page <name>` (falling
    back to the default page spec if no such rule exists). The context is the

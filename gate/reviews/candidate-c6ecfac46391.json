@@ -1,0 +1,22 @@
+{
+  "schema": "typeanvil.harness.reviews/1",
+  "candidate": {
+    "label": "candidate-c6ecfac46391c5cf3e657c25b44d2cc2bc35f996",
+    "source_commit": "c6ecfac46391c5cf3e657c25b44d2cc2bc35f996",
+    "binary_sha256": "85276ca7ba3fc9ec13f2e03060cab5aff201038eaf307c6fded0cbad80083c83"
+  },
+  "baseline": {
+    "label": "baseline-167394bff1892fb7d732d9b374e1d7618c060da8",
+    "source_commit": "167394bff1892fb7d732d9b374e1d7618c060da8",
+    "binary_sha256": "a4e3d1313fdc89611532f7982a2bd4aa342c97c742d1d4280186ee174ae70aed"
+  },
+  "dispositions": [
+    {
+      "doc_id": "css/css-page/monolithic-overflow-021-print.html",
+      "change_id": "e32f5c95de041ba6094160a5c5b6f428391929653eaa08ccde700db8e90f8608",
+      "kind": "correction",
+      "reason": "Page 2 now paints the full green content box (73728 px, rows 48-239 at 96 DPI), the same as the reference (200vh green div: 73728 px on both pages). Baseline painted 38016 px (rows 48-146). Page 1 is byte-identical between sides. The `border-bottom: 50vh` was resolved by stylo against its fixed 1024x768 viewport (about 3 px) instead of the page content box (72 pt).",
+      "provenance": "CORE-468; css-values-4 section 7.8 (viewport-percentage lengths); css-page-3 (page box is the viewport in paged media); engine/tests/it/core468_viewport_border_width.rs"
+    }
+  ]
+}

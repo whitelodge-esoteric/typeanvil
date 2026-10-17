@@ -3048,7 +3048,9 @@ pub(crate) fn cascade_evaluated(
     // Sixth pass: capture viewport-unit lengths (CORE-140). The seam records
     // the raw `vw`/`vh` fraction on the computed style so layout resolves it
     // against the page content box (stylo's fixed-viewport absolute stays).
-    viewport_units::apply_viewport_properties(dom, evaluated_css, &mut styles);
+    // CORE-468: border widths in vw/vh resolve against the page content box.
+    let icb = geometry.content_rect();
+    viewport_units::apply_viewport_properties(dom, evaluated_css, &mut styles, icb.width, icb.height);
     styles
 }
 
@@ -4917,6 +4919,50 @@ mod viewport_units {
         InsetRight(ViewportLen),
         InsetBottom(ViewportLen),
         InsetLeft(ViewportLen),
+        /// CORE-468: a border width in viewport units. Side index:
+        /// 0 top, 1 right, 2 bottom, 3 left.
+        Border(usize, ViewportLen),
+    }
+
+    /// CORE-468: border widths declared in `vw`/`vh` (`border-bottom: 50vh
+    /// solid green`, `border-width: 10vw`). stylo resolves them against its
+    /// fixed 1024x768 viewport, so the border pass sees the wrong width.
+    /// Only a single viewport-unit width token is captured per declaration;
+    /// the width resolves against the ICB content box like `width`/`height`.
+    fn parse_border_decls(prop: &str, value: &str) -> Vec<ViewportDecl> {
+        let prop = prop.trim().to_ascii_lowercase();
+        let sides: &[usize] = match prop.as_str() {
+            "border" | "border-width" => &[0, 1, 2, 3],
+            "border-top" | "border-top-width" | "border-block-start" | "border-block-start-width" => &[0],
+            "border-right" | "border-right-width" => &[1],
+            "border-bottom" | "border-bottom-width" | "border-block-end" | "border-block-end-width" => &[2],
+            "border-left" | "border-left-width" => &[3],
+            _ => return Vec::new(),
+        };
+        let toks: Vec<&str> = value.split_whitespace().collect();
+        let widths: Vec<ViewportLen> = toks
+            .iter()
+            .filter_map(|t| parse_plain(&t.to_ascii_lowercase()))
+            .map(|(vw, frac)| ViewportLen { vw, frac, offset_pt: Scalar::ZERO })
+            .collect();
+        // Only the unambiguous one-width form: a mixed list such as
+        // `border-width: 1px 5vh` stays with the absolute-length pass.
+        if widths.len() != 1 || (prop == "border-width" && toks.len() != 1) {
+            return Vec::new();
+        }
+        // A shorthand without a visible border style computes to width 0.
+        if !prop.ends_with("-width") && prop != "border-width" {
+            let styled = toks.iter().any(|t| {
+                matches!(
+                    t.to_ascii_lowercase().as_str(),
+                    "solid" | "dashed" | "dotted" | "double" | "groove" | "ridge" | "inset" | "outset"
+                )
+            });
+            if !styled {
+                return Vec::new();
+            }
+        }
+        sides.iter().map(|&s| ViewportDecl::Border(s, widths[0])).collect()
     }
 
     /// Parse a `<number>vw | <number>vh` token into a [`ViewportLen`]
@@ -5012,6 +5058,7 @@ mod viewport_units {
                     if let Some(d) = parse_decl(prop, value) {
                         decls.push(d);
                     }
+                    decls.extend(parse_border_decls(prop, value));
                 }
             }
             if !decls.is_empty() {
@@ -5034,11 +5081,28 @@ mod viewport_units {
     /// Apply parsed viewport-unit rules onto the cascaded styles, then inline
     /// `style=""` declarations (which win). Later / more-specific matches win
     /// (same priority model as [`breaks`]).
-    pub fn apply_viewport_properties(dom: &Dom, css: &str, styles: &mut [ComputedStyle]) {
+    pub fn apply_viewport_properties(
+        dom: &Dom,
+        css: &str,
+        styles: &mut [ComputedStyle],
+        icb_w: Scalar,
+        icb_h: Scalar,
+    ) {
         let rules = parse_rules(css);
+
+        // CORE-468: set one border side from a viewport-unit width.
+        fn set_border(st: &mut ComputedStyle, side: usize, w: Scalar) {
+            match side {
+                0 => st.border_top = w,
+                1 => st.border_right = w,
+                2 => st.border_bottom = w,
+                _ => st.border_left = w,
+            }
+        }
 
         #[derive(Clone, Copy, Default)]
         struct Won {
+            border: [Option<(u32, u32)>; 4],
             width: Option<(u32, u32)>,
             height: Option<(u32, u32)>,
             top: Option<(u32, u32)>,
@@ -5060,6 +5124,12 @@ mod viewport_units {
                     }
                     for decl in &rule.decls {
                         match *decl {
+                            ViewportDecl::Border(side, v) => {
+                                if won[id].border[side].is_none_or(|w| prio >= w) {
+                                    set_border(&mut styles[id], side, v.resolve(icb_w, icb_h));
+                                    won[id].border[side] = Some(prio);
+                                }
+                            }
                             ViewportDecl::Width(v) => {
                                 if won[id].width.is_none_or(|w| prio >= w) {
                                     styles[id].width_viewport = Some(v);
@@ -5112,12 +5182,23 @@ mod viewport_units {
                 continue;
             };
             for (prop, value) in super::breaks::parse_inline_decls(attr) {
+                for bd in parse_border_decls(&prop, &value) {
+                    if let ViewportDecl::Border(side, v) = bd {
+                        let prio = (u32::MAX, inline_order);
+                        inline_order += 1;
+                        if won[id].border[side].is_none_or(|w| prio >= w) {
+                            set_border(&mut styles[id], side, v.resolve(icb_w, icb_h));
+                            won[id].border[side] = Some(prio);
+                        }
+                    }
+                }
                 let Some(decl) = parse_decl(&prop, &value) else {
                     continue;
                 };
                 let prio = (u32::MAX, inline_order);
                 inline_order += 1;
                 match decl {
+                    ViewportDecl::Border(..) => {}
                     ViewportDecl::Width(v) => {
                         if won[id].width.is_none_or(|w| prio >= w) {
                             styles[id].width_viewport = Some(v);
