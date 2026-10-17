@@ -645,14 +645,32 @@ mod tests {
     #[test]
     fn bundled_ids_are_stable() {
         assert_eq!(FACE_REGULAR, FaceId(0));
-        // The bundled faces keep their fixed ids; the resolved path is the
-        // first READABLE candidate (macOS Arial when present, else the
-        // container's Liberation set — CORE-247). On macOS and in the dev
-        // container (which mounts macOS fonts) this is the Arial path.
-        assert_eq!(
-            face_path(FACE_BOLD),
-            "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
-        );
+        // The candidate order is part of the contract: macOS Arial first, so
+        // macOS hosts and the dev container render as before; Liberation
+        // second, so a Linux host without Arial (CI, the shipped image)
+        // falls back (CORE-247).
+        for (id, candidates) in BUNDLED_PATH_CANDIDATES.iter().enumerate() {
+            assert_eq!(candidates.len(), 2, "face {id} candidate count");
+            assert!(
+                candidates[0].starts_with("/System/Library/Fonts/Supplemental/Arial"),
+                "face {id}: macOS Arial must be the first candidate"
+            );
+            assert!(
+                candidates[1].starts_with("/usr/share/fonts/typeanvil/LiberationSans-"),
+                "face {id}: Liberation Sans must be the second candidate"
+            );
+            // The resolved path is one of the candidates and exists on this
+            // host, whichever font set the host has.
+            let path = face_path(FaceId(id as u32));
+            assert!(
+                candidates.contains(&path),
+                "face {id} resolved to {path}, not a candidate"
+            );
+            assert!(
+                std::path::Path::new(path).is_file(),
+                "face {id} resolved path {path} is not a file"
+            );
+        }
     }
 
     // CORE-247: the bundled fallback must never resolve to empty font bytes.

@@ -2,8 +2,10 @@
 //! `docs/specifications/font-weight-style.spec.md` (CORE-80).
 //!
 //! Face-presence assertions check the rendered PDF bytes for the PostScript
-//! base names krilla embeds (`ArialMT`, `Arial-BoldMT`, `Arial-ItalicMT`,
-//! `Arial-BoldItalicMT` — subset tags may prefix the names). Width assertions
+//! base name krilla embeds (subset tags may prefix the name). The expected
+//! names come from the face file `typeanvil::fonts::face_path` resolved on
+//! this host (macOS Arial, or Liberation Sans on Linux hosts without Arial,
+//! such as CI), so the tests hold on both font sets. Width assertions
 //! use the fragment tree's `TextRun` glyphs (sum of `x_advance`), which is
 //! the same metric the typography layer measures.
 
@@ -81,8 +83,32 @@ fn pdf_bytes(html: &str) -> Vec<u8> {
     render(&l).unwrap()
 }
 
+/// The PostScript name (nameID 6) of the face file the engine resolved for
+/// `face` on this host.
+fn expected_ps_name(face: FaceId) -> String {
+    use read_fonts::tables::name::NameId;
+    use read_fonts::TableProvider;
+    let path = typeanvil::fonts::face_path(face);
+    let data = std::fs::read(path).unwrap_or_else(|e| panic!("read {path}: {e}"));
+    let font = read_fonts::FontRef::new(&data).unwrap_or_else(|e| panic!("parse {path}: {e}"));
+    let name = font.name().unwrap_or_else(|e| panic!("name table of {path}: {e}"));
+    let strings = name.string_data();
+    name.name_record()
+        .iter()
+        .filter(|r| r.name_id() == NameId::POSTSCRIPT_NAME)
+        .find_map(|r| r.string(strings).ok().map(|s| s.to_string()))
+        .unwrap_or_else(|| panic!("no PostScript name in {path}"))
+}
+
+/// True when `bytes` contains `base_name` as a whole name: the byte after
+/// the match is not a name character. `LiberationSans` is a prefix of
+/// `LiberationSans-Bold`, so a plain substring test cannot tell them apart.
 fn contains_face(bytes: &[u8], base_name: &str) -> bool {
-    String::from_utf8_lossy(bytes).contains(base_name)
+    let needle = base_name.as_bytes();
+    bytes.windows(needle.len() + 1).any(|w| {
+        &w[..needle.len()] == needle
+            && !(w[needle.len()].is_ascii_alphanumeric() || w[needle.len()] == b'-')
+    })
 }
 
 /// The four-face fixture used by several tests (regular, bold, italic, and
@@ -113,13 +139,14 @@ p { font-family: Arial; font-size: 12pt; margin: 0; }
 <p class="bold">The quick brown fox jumps over the lazy dog.</p>
 </body></html>"#;
     let bytes = pdf_bytes(html);
+    let (regular, bold) = (expected_ps_name(FACE_REGULAR), expected_ps_name(FACE_BOLD));
     assert!(
-        contains_face(&bytes, "ArialMT"),
-        "regular face ArialMT missing from PDF"
+        contains_face(&bytes, &regular),
+        "regular face {regular} missing from PDF"
     );
     assert!(
-        contains_face(&bytes, "Arial-BoldMT"),
-        "bold face Arial-BoldMT missing from PDF"
+        contains_face(&bytes, &bold),
+        "bold face {bold} missing from PDF"
     );
 }
 
@@ -133,9 +160,12 @@ p { font-family: Arial; font-size: 12pt; margin: 0; }
 <p class="plain">The quick brown fox jumps over the lazy dog.</p>
 </body></html>"#;
     let bytes = pdf_bytes(html);
-    assert!(contains_face(&bytes, "ArialMT"), "regular face missing");
     assert!(
-        !contains_face(&bytes, "Arial-BoldMT"),
+        contains_face(&bytes, &expected_ps_name(FACE_REGULAR)),
+        "regular face missing"
+    );
+    assert!(
+        !contains_face(&bytes, &expected_ps_name(FACE_BOLD)),
         "bold face embedded despite no bold usage"
     );
 }
@@ -153,9 +183,10 @@ p { font-family: Arial; font-size: 12pt; margin: 0; }
 <p class="italic">The quick brown fox jumps over the lazy dog.</p>
 </body></html>"#;
     let bytes = pdf_bytes(html);
+    let italic = expected_ps_name(FACE_ITALIC);
     assert!(
-        contains_face(&bytes, "Arial-ItalicMT"),
-        "italic face Arial-ItalicMT missing from PDF"
+        contains_face(&bytes, &italic),
+        "italic face {italic} missing from PDF"
     );
 }
 
@@ -170,9 +201,10 @@ p { font-family: Arial; font-size: 12pt; margin: 0; }
 <p class="bi">The quick brown fox jumps over the lazy dog.</p>
 </body></html>"#;
     let bytes = pdf_bytes(html);
+    let bold_italic = expected_ps_name(FACE_BOLD_ITALIC);
     assert!(
-        contains_face(&bytes, "Arial-BoldItalicMT"),
-        "bold-italic face Arial-BoldItalicMT missing from PDF"
+        contains_face(&bytes, &bold_italic),
+        "bold-italic face {bold_italic} missing from PDF"
     );
 }
 
@@ -238,7 +270,7 @@ p { font-family: Arial; font-size: 12pt; margin: 0; }
 </body></html>"#;
     let bytes = pdf_bytes(html);
     assert!(
-        contains_face(&bytes, "Arial-ItalicMT"),
+        contains_face(&bytes, &expected_ps_name(FACE_ITALIC)),
         "oblique must render with the italic face (Arial has no oblique cut)"
     );
 }
@@ -279,8 +311,8 @@ p { font-family: Arial; font-size: 12pt; margin: 0; }
         );
     }
     let bytes = render(&l).unwrap();
-    assert!(contains_face(&bytes, "ArialMT"));
-    assert!(!contains_face(&bytes, "Arial-BoldMT"));
+    assert!(contains_face(&bytes, &expected_ps_name(FACE_REGULAR)));
+    assert!(!contains_face(&bytes, &expected_ps_name(FACE_BOLD)));
 }
 
 // --- CORE-361: an unstyled margin box uses the same default face as body ----

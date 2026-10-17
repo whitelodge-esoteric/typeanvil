@@ -81,3 +81,103 @@ lto = "thin"
 [dev-dependencies]
 tempfile = "3"
 flate2 = "1"
+
+[lints.rust]
+# ratchet: 9 existing hits as of 2026-10-17, CORE-474
+dead_code = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+private_interfaces = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+unexpected_cfgs = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+unreachable_patterns = "allow"
+# ratchet: 9 existing hits as of 2026-10-17, CORE-474
+unused_assignments = "allow"
+# ratchet: 13 existing hits as of 2026-10-17, CORE-474
+unused_imports = "allow"
+# ratchet: 5 existing hits as of 2026-10-17, CORE-474
+unused_mut = "allow"
+# ratchet: 24 existing hits as of 2026-10-17, CORE-474
+unused_variables = "allow"
+
+[lints.clippy]
+# ratchet: 55 existing hits as of 2026-10-17, CORE-474
+assign_op_pattern = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+clone_on_copy = "allow"
+# ratchet: 5 existing hits as of 2026-10-17, CORE-474
+collapsible_if = "allow"
+# ratchet: 4 existing hits as of 2026-10-17, CORE-474
+collapsible_match = "allow"
+# ratchet: 5 existing hits as of 2026-10-17, CORE-474
+doc_lazy_continuation = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+double_ended_iterator_last = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+explicit_auto_deref = "allow"
+# ratchet: 2 existing hits as of 2026-10-17, CORE-474
+field_reassign_with_default = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+if_same_then_else = "allow"
+# ratchet: 2 existing hits as of 2026-10-17, CORE-474
+len_zero = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+let_and_return = "allow"
+# ratchet: 2 existing hits as of 2026-10-17, CORE-474
+let_unit_value = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+manual_is_multiple_of = "allow"
+# ratchet: 4 existing hits as of 2026-10-17, CORE-474
+manual_map = "allow"
+# ratchet: 3 existing hits as of 2026-10-17, CORE-474
+manual_pattern_char_comparison = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+manual_range_contains = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+manual_strip = "allow"
+# ratchet: 2 existing hits as of 2026-10-17, CORE-474
+map_identity = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+match_single_binding = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+mut_from_ref = "allow"
+# ratchet: 5 existing hits as of 2026-10-17, CORE-474
+needless_borrow = "allow"
+# ratchet: 12 existing hits as of 2026-10-17, CORE-474
+needless_lifetimes = "allow"
+# ratchet: 5 existing hits as of 2026-10-17, CORE-474
+needless_range_loop = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+needless_return = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+no_effect_replace = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+only_used_in_recursion = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+op_ref = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+ptr_arg = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+question_mark = "allow"
+# ratchet: 2 existing hits as of 2026-10-17, CORE-474
+redundant_closure = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+same_item_push = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+single_match = "allow"
+# ratchet: 15 existing hits as of 2026-10-17, CORE-474
+too_many_arguments = "allow"
+# ratchet: 9 existing hits as of 2026-10-17, CORE-474
+type_complexity = "allow"
+# ratchet: 3 existing hits as of 2026-10-17, CORE-474
+unnecessary_cast = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+unnecessary_lazy_evaluations = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+unnecessary_map_or = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+unnecessary_to_owned = "allow"
+# ratchet: 5 existing hits as of 2026-10-17, CORE-474
+unnecessary_unwrap = "allow"
+# ratchet: 1 existing hits as of 2026-10-17, CORE-474
+while_let_on_iterator = "allow"
