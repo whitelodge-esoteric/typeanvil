@@ -141,7 +141,12 @@ static REGISTRY: LazyLock<Mutex<Registry>> = LazyLock::new(|| {
     let faces = (0..4)
         .map(|i| RegisteredFace {
             source: FaceSource::Path(bundled_path(i as u32).to_string(), 0),
-            postscript_name: BUNDLED_POSTSCRIPT[i].to_string(),
+            // Name table (nameID 6) of the resolved file; the Arial constant
+            // is only a fallback for an unreadable file (CORE-476).
+            postscript_name: std::fs::read(bundled_path(i as u32))
+                .ok()
+                .and_then(|b| postscript_name_of(&b))
+                .unwrap_or_else(|| BUNDLED_POSTSCRIPT[i].to_string()),
             weight: if i == 1 || i == 3 { 700.0 } else { 400.0 },
             italic: i >= 2,
         })

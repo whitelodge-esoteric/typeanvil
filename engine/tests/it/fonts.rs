@@ -100,6 +100,19 @@ fn expected_ps_name(face: FaceId) -> String {
         .unwrap_or_else(|| panic!("no PostScript name in {path}"))
 }
 
+/// CORE-476: a bundled face reports the PostScript name of the file the
+/// engine resolved (Arial on macOS/dev container, Liberation otherwise).
+#[test]
+fn bundled_faces_report_resolved_file_postscript_name() {
+    for face in [FACE_REGULAR, FACE_BOLD, FACE_ITALIC, FACE_BOLD_ITALIC] {
+        assert_eq!(
+            typeanvil::fonts::face_postscript_name(face),
+            expected_ps_name(face),
+            "face {face:?}"
+        );
+    }
+}
+
 /// True when `bytes` contains `base_name` as a whole name: the byte after
 /// the match is not a name character. `LiberationSans` is a prefix of
 /// `LiberationSans-Bold`, so a plain substring test cannot tell them apart.
