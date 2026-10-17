@@ -3798,7 +3798,12 @@ impl<'a> Ctx<'a> {
                     // it across pages (014/015: a `height:350vh` inline-block
                     // must reach 4 pages like the plain-block ref, CORE-237).
                     // Small atomics keep f64::MAX: they are monolithic.
-                    let declared_tall = self
+                    // CORE-394: inside a multicol column the box is
+                    // monolithic (css-break-3 §4.4; Chromium paints it whole
+                    // and overflows the column), so only paged fragmentainers
+                    // slice it.
+                    let declared_tall = self.column_height.get().is_none()
+                        && self
                         .resolved_height(cstyle)
                         .map(|h| {
                             box_y.get() + h.get() + cstyle.margin_top.get() + cstyle.margin_bottom.get()

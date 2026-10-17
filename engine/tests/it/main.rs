@@ -38,6 +38,7 @@ mod core390_running_elements;
 mod core390_running_tagged;
 mod core392_row_split_in_step;
 mod core393_multicol_background;
+mod core394_tall_atomic_in_column;
 mod core395_grid_in_multicol_hang;
 mod diagnostics;
 mod flex;

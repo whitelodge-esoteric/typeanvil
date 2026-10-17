@@ -1088,7 +1088,14 @@ impl<'a> Ctx<'a> {
                         x,
                         col_w,
                         block_y,
-                        col_bottom,
+                        // CORE-394: an atomic inline is monolithic
+                        // (css-break-3 §4.4): lay it unbounded so it
+                        // overflows the column whole, never sliced.
+                        if matches!(items[i], Item::Atomic(_)) {
+                            Scalar(f64::MAX)
+                        } else {
+                            col_bottom
+                        },
                         page_placed,
                         &child_tok,
                         flow,
