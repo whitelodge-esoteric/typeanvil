@@ -5,7 +5,7 @@ type: spec
 status: in-review
 owner: maintainers
 created: 2026-08-18
-updated: 2026-09-27
+updated: 2026-10-17
 sidebar_position: 10
 tags: [engine, layout, css-flexbox, css-break, fragmentation]
 spec_id: flexbox-fragmentation
@@ -105,7 +105,11 @@ The engine shall:
    `properties.rs`, 2026-08-20 — the same struct that carries `width`).
 2. Create a flex container for `display: flex` / `inline-flex`: children
    become flex items (in-flow block-level children; anonymous-item wrapping
-   of text children deferred with content-based wrap).
+   of text children deferred with content-based wrap). Exception (CORE-467):
+   a `flex-direction: column` container with auto height that holds bare
+   text beside its block items lays out through the block path, so the
+   text is kept and stacks after the items. With no definite main size the
+   column has no free space to distribute, so the result matches flex.
 3. Lay out the flex line: resolve main-axis sizes with the
    grow/shrink/basis algorithm (taffy reference), placing items along the
    main axis with gaps; cross-axis sizes per `align-items`/`align-self`

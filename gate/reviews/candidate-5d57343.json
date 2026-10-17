@@ -1,0 +1,22 @@
+{
+  "schema": "typeanvil.harness.reviews/1",
+  "candidate": {
+    "label": "candidate-5d57343",
+    "source_commit": "5d573437c6b592e9c590bd6fca21dc3439d1f4dc",
+    "binary_sha256": "3a7bdef2d7f544e38fe5506d2f535e3f1d920fd4acc915459a7dc12857e07c8e"
+  },
+  "baseline": {
+    "label": "baseline-6d4fc1d",
+    "source_commit": "6d4fc1d5ca6d00300898e90f89833b8d090150e2",
+    "binary_sha256": "16659dd3fc1d25101ddc26c5cf8a47ba39609f75534bb08afdf1f471fbad4f83"
+  },
+  "dispositions": [
+    {
+      "doc_id": "css/css-page/monolithic-overflow-005-print.html",
+      "change_id": "8f09fb81933adddd5cd0178a5dbc461f2476bdbfd32d7e270fe29eb216c18c45",
+      "kind": "correction",
+      "reason": "Page 4 of the test lacked the bare text 'Yellow background, page 4.' (baseline page-4 hash c0c3a3a6, text layer started at 'White background'). Candidate page 4 (a289020d) holds the text; page-4 ink is 77677 px with bbox (59,60)-(539,275), identical to the reference render. Pages 1-3 are byte-identical. The test now matches reference/monolithic-overflow-4-pages-print-ref.html.",
+      "provenance": "CORE-467; css-flexbox-1 section 4 (contiguous text in a flex container is wrapped in an anonymous flex item, so the text is content, not dropped); docs/specifications/flexbox-fragmentation.spec.md Behavior 2"
+    }
+  ]
+}

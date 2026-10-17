@@ -2703,10 +2703,19 @@ impl<'a> Ctx<'a> {
             // text flex items are a spec non-goal; without the fallback the
             // container would render empty and diverge from block
             // references (page-name-fixed-pos-001).
-            let has_items = self
-                .collect_items(id)
-                .iter()
-                .any(|i| matches!(i, Item::Block(_)));
+            let collected = self.collect_items(id);
+            let has_blocks = collected.iter().any(|i| matches!(i, Item::Block(_)));
+            // CORE-467: a column container with an auto main size and bare
+            // text beside its block items would drop the text (anonymous
+            // flex items are a non-goal). Such a column has no free space
+            // to distribute, so it stacks like a block: lay it out through
+            // the block path, which places the text runs.
+            let text_beside_blocks = has_blocks
+                && matches!(style.flex_direction, crate::css::FlexDirection::Column)
+                && collected.iter().any(|i| matches!(i, Item::Text(..)))
+                && self.specified_extent(id, style).is_none()
+                && token.cross_override.is_none();
+            let has_items = has_blocks && !text_beside_blocks;
             if has_items {
                 return self.layout_flex_container(
                     id,

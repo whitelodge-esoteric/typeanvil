@@ -24,6 +24,7 @@ mod core457_box_decoration_break;
 mod core237_monolithic_container_fragmentation;
 mod core239_br_after_tall_inline_block;
 mod core466_text_beside_fragmented_inline_block;
+mod core467_flex_column_text_beside_tall_box;
 mod core241_zero_height_overflow;
 mod core352_cell_valign;
 mod core352_cell_valign_more;
