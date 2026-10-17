@@ -23,8 +23,9 @@ Every feature starts as a spec; code follows the spec; tests prove the spec.
    is wrong — raise it in the PR, never silently drift from an approved spec.
 3. **Same-PR sync.** A PR that changes behavior updates the spec in the same
    PR. Docs are part of "done", not an afterthought.
-4. **Verify.** Run `scripts/ci-local.sh` (what CI runs) plus
-   `python3 scripts/validate_docs.py`.
+4. **Verify.** Run `python3 scripts/gate.py` on a clean, committed tree (what CI
+   runs). It writes `.gate/result.json`; the coordinator verifies it with
+   `--verify` before landing. Also run `python3 scripts/validate_docs.py`.
 
 ## How to handle documentation
 

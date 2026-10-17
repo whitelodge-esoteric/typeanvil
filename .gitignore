@@ -47,3 +47,6 @@ demo/out/
 
 # cocoindex (ccc) local semantic-code index
 /.cocoindex_code/
+
+# gate receipt and step logs from scripts/gate.py (CORE-479)
+.gate/

@@ -6,7 +6,7 @@ owner: maintainers
 created: 2026-10-17
 updated: 2026-10-17
 sidebar_position: 7
-tags: [ci, github-actions, clippy, cargo, harness]
+tags: [ci, github-actions, clippy, cargo, harness, gate]
 trigger: When a CI run fails, when you change CI, or before you push engine or harness changes
 ---
 
@@ -31,10 +31,10 @@ Details:
 ## Run CI locally
 
 ```bash
-scripts/ci-local.sh
+python3 scripts/gate.py
 ```
 
-The script runs the same steps with the same flags. Rust runs in the dev container, so Docker shall be running and the `typeanvil-dev` image shall exist (see [Containerized development environment](./dev-container.md)). The image needs the `clippy` component. Rebuild the image if clippy is missing:
+`scripts/ci-local.sh` is a thin wrapper around `scripts/gate.py`. The gate runs the same steps with the same flags as CI. CI runs the same commands natively in `.github/workflows/ci.yml` and does not call the gate. Rust runs in the dev container, so Docker shall be running and the `typeanvil-dev` image shall exist (see [Containerized development environment](./dev-container.md)). The image needs the `clippy` component. Rebuild the image if clippy is missing:
 
 ```bash
 docker build -f docker/Dockerfile.dev -t typeanvil-dev .
@@ -42,7 +42,44 @@ docker build -f docker/Dockerfile.dev -t typeanvil-dev .
 
 The harness tests run on the host with the venv from the main checkout. Set `PY=/path/to/python` to use another interpreter.
 
-The script stops at the first failing step and prints `ci-local: FAILED at step '<name>'`. On success it prints one `PASS` line per step.
+The gate runs all three steps even when one fails. It prints a table and a final `GATE PASSED` or `GATE FAILED: <reasons>` line. See [Gate receipt](#gate-receipt).
+
+## Gate receipt
+
+`scripts/gate.py` runs the CI checks and writes `.gate/result.json`. The coordinator uses the receipt to confirm that the checks ran on the exact commit to land. Do not claim "gate passed" without a receipt that `--verify` accepts.
+
+What the gate checks:
+
+1. The tree shall be clean. Untracked files under `probe/`, `gate/captures/`, and `.gate/` are allowed. Any other change stops the run with exit 2 and `gate: tree is dirty — commit first`.
+2. Each step runs with `subprocess.run`, with no shell pipes. The real exit code is recorded. Output goes to `.gate/<step>.log`.
+3. The steps are `clippy` (`-- -D warnings --all-targets`), `cargo-test` (`--no-fail-fast`), and `pytest` (`tests -q -o addopts=`, with `PYTHONPATH` unset; `pyproject.toml` already sets `-q`, and a second `-q` would hide the summary line the gate parses). Rust runs in the dev container with `-j 2`.
+4. The gate sums every `test result:` line from cargo, and reads the final pytest summary line. A test step that passes zero tests fails the gate, even with exit 0.
+5. The gate passes only when every step exits 0, no test failed, each test step passed at least one test, and the run is not filtered.
+
+`GATE_TEST_FILTER=<name>` appends a cargo test name filter. Use it for fast local runs. A filtered run records `"filtered": true` and `"ok": false`. A filtered run never counts as a gate.
+
+Exit codes: 0 pass, 1 fail, 2 refused (dirty tree or no harness python).
+
+Receipt fields (schema `typeanvil.gate/1`):
+
+| Field | Meaning |
+|---|---|
+| `ok` | `true` only when the gate passed |
+| `filtered` | `true` when `GATE_TEST_FILTER` was set |
+| `head`, `tree`, `branch` | `git rev-parse HEAD`, `git rev-parse HEAD^{tree}`, and the branch name at run time |
+| `created_at` | UTC time in ISO 8601 |
+| `steps[]` | `name`, `cmd`, `exit`, `passed`, `failed`, `skipped`, `log` (clippy has `null` counts) |
+| `reasons[]` | Why the gate failed. Empty on a pass. |
+
+The gate deletes the old receipt when a run starts, and writes a new one on pass and on fail.
+
+Verify a receipt:
+
+```bash
+python3 scripts/gate.py --verify [path]
+```
+
+`--verify` exits 0 only when the receipt exists, `ok` is `true`, `filtered` is `false`, and `tree` equals the current `git rev-parse HEAD^{tree}`. Otherwise it names each failed check and exits 1. A commit that changes the tree makes the old receipt stale. Amend or rebase without a tree change keeps the receipt valid, because the check uses the tree hash.
 
 ## Fonts in CI
 
@@ -83,14 +120,14 @@ Rules:
 
 1. A new warning from an allowed lint class does not fail CI. Do not add new hits to an allowed class. Fix the code.
 2. A warning from any other lint fails CI. Fix the code. Do not add an `allow` line to hide new work.
-3. To retire a lint class: remove its `allow` line and its comment, fix all hits, and commit. Run `scripts/ci-local.sh` before you push. The ratchet only moves toward fewer allowed lints.
+3. To retire a lint class: remove its `allow` line and its comment, fix all hits, and commit. Run `python3 scripts/gate.py` before you push. The ratchet only moves toward fewer allowed lints.
 4. Lints that are deny-by-default in clippy, such as `mut_from_ref`, are also listed as `allow` when they fire in existing code.
 
 ## Not in CI yet
 
 | Check | Where it runs today |
 |---|---|
-| `cargo fmt --check` | Not run. The current tree has about 8900 lines of formatting diff. Format the tree in one dedicated commit, then add the step to `ci.yml` and `scripts/ci-local.sh`. |
+| `cargo fmt --check` | Not run. The current tree has about 8900 lines of formatting diff. Format the tree in one dedicated commit, then add the step to `ci.yml` and `scripts/gate.py`. |
 | WPT release gate | Run by hand; see the [release gate runbook](./release-gate.md). |
 | Tagged-PDF gate | Run by hand; see the [tagged gate runbook](./tagged-gate.md). |
 | Corpus guard | Not part of CI. The repository has no corpus guard script yet. |
@@ -98,7 +135,7 @@ Rules:
 
 ## Verification
 
-A passing run exits 0 from `scripts/ci-local.sh` and shows a green `ci` check on the pull request. To confirm the ratchet still works, add a line such as `let _x = 1 == 1;` to an engine source file and run the clippy step. The step shall fail. Revert the line afterwards.
+A passing run exits 0 from `scripts/gate.py`, writes a receipt that `--verify` accepts, and shows a green `ci` check on the pull request. To confirm the ratchet still works, add a line such as `let _x = 1 == 1;` to an engine source file and run the clippy step. The step shall fail. Revert the line afterwards.
 
 ## Troubleshooting
 

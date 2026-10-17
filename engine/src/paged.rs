@@ -2309,7 +2309,6 @@ pub fn resolve_page_spec(
     // page box to area + margins (css-page-3 §3; Chromium with
     // prefer_css_page_size measured 384x324pt for dimensions-004). An explicit
     // `size:` wins and the area sits inside it (page-margin-auto-print).
-    let mut size = size;
     if !size_declared {
         if let Some(w) = resolve_area(width, size.0) {
             size.0 = w + margin_left + margin_right;
