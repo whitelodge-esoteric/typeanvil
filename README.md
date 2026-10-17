@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="typeanvil-lockup-dark.png" alt="Typeanvil" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/typeanvil-lockup-dark@2x.png">
+    <img src="docs/assets/brand/typeanvil-lockup-light@2x.png" alt="Typeanvil" width="480" />
+  </picture>
 </p>
 
 Typeanvil is an open-source HTML → PDF typesetting engine written in Rust. It

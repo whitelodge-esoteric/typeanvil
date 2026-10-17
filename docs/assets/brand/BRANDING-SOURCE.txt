@@ -1,0 +1,9 @@
+Vendored from `whitelodge-esoteric/typeanvil-branding` at commit `9713eb9`.
+
+Files in this folder are byte copies of:
+
+- `lockup/png/typeanvil-lockup-light@2x.png`
+- `lockup/png/typeanvil-lockup-dark@2x.png`
+
+The docsite copies live in `docsite/static/img/` (see `BRANDING-SOURCE.md` there).
+Do not edit these files. Re-vendor from the upstream repo instead.

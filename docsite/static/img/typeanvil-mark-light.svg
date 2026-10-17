@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!-- typeanvil-branding icon/svg/typeanvil-icon-light-transparent-simple.svg, viewBox cropped to the mark -->
-<svg xmlns="http://www.w3.org/2000/svg" width="92" height="48" viewBox="4 28 92 48">
-<g stroke="#0B0B0B" fill="none" stroke-linejoin="miter" stroke-linecap="butt">
-<g stroke-width="1.6"><path d="M6,33.5 L26,30 H74 L94,33.5 V35.5 L74,42 H26 L6,35.5 Z"/><path d="M36,42 L41,56 H59 L64,42"/><path d="M31,56 H69 L74,68 H26 Z"/><path d="M24,68 H76 V74 H24 Z"/></g>
-</g>
-<rect x="48" y="34" width="4" height="4" fill="#F25C05"/>
-</svg>

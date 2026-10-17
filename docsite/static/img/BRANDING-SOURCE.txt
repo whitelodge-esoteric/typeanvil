@@ -1,0 +1,10 @@
+Vendored from `whitelodge-esoteric/typeanvil-branding` at commit `9713eb9`.
+
+Files in this folder are byte copies of:
+
+- `icon/favicon.ico` -> `favicon.ico`
+- `icon/png/apple-touch-icon-180.png` -> `apple-touch-icon-180.png`
+- `icon/svg/typeanvil-icon-light-transparent.svg` -> same name
+- `icon/svg/typeanvil-icon-dark-transparent.svg` -> same name
+
+Do not edit these files. Re-vendor from the upstream repo instead.

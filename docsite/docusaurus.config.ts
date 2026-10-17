@@ -15,6 +15,16 @@ const config: Config = {
   // Production URL — placeholder until Typeanvil has a domain.
   url: 'https://typeanvil.dev',
   baseUrl: '/',
+  favicon: 'img/favicon.ico',
+  headTags: [
+    {
+      tagName: 'link',
+      attributes: {
+        rel: 'apple-touch-icon',
+        href: '/img/apple-touch-icon-180.png',
+      },
+    },
+  ],
 
   onBrokenLinks: 'throw',
 
@@ -56,8 +66,8 @@ const config: Config = {
       title: 'Typeanvil',
       logo: {
         alt: 'Typeanvil',
-        src: 'img/typeanvil-mark-light.svg',
-        srcDark: 'img/typeanvil-mark-dark.svg',
+        src: 'img/typeanvil-icon-light-transparent.svg',
+        srcDark: 'img/typeanvil-icon-dark-transparent.svg',
         height: 28,
       },
       items: [],
