@@ -813,6 +813,29 @@ fn pinned_abspos_in_clipped_ancestor_stays_monolithic() {
 }
 
 #[test]
+fn abspos_clip_declared_height_child_does_not_over_paginate() {
+    // CORE-240 (monolithic-overflow-028): an abspos box with `overflow-y:clip`
+    // and a declared 8in height holding a 23in child ends at its own extent.
+    // At 3in pages (2in content) the 8in extent is 4 pages; the child's
+    // overflow is clipped, not laid out on further pages (was 12).
+    let html = r#"<html><head><style>
+        @page { margin: 0.5in; }
+        body { margin: 0; }
+        .clip { position: absolute; overflow-y: clip; width: 100%; contain: size; height: 8in; }
+        .kid { height: 23in; }
+    </style></head><body>
+        <div class="clip"><div class="kid">text</div></div>
+    </body></html>"#;
+    let layout = lay(html, geometry(5.0, 3.0, 0.5));
+    assert_eq!(
+        layout.pages.len(),
+        4,
+        "clip box ends at its 8in extent, got {} pages",
+        layout.pages.len()
+    );
+}
+
+#[test]
 fn pinned_replaced_image_past_page_one_terminates() {
     // A replaced image (`content: url()`) lays MONOLITHICALLY and IGNORES
     // break tokens: `layout_image` returns an empty fragment plus a

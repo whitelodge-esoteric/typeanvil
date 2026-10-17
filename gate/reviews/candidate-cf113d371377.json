@@ -1,0 +1,22 @@
+{
+ "schema": "typeanvil.harness.reviews/1",
+ "candidate": {
+  "label": "candidate-cf113d371377",
+  "source_commit": "cf113d371377782575387ab3bc28ff4a13ee3f21",
+  "binary_sha256": "8a080dbe897b0c76cc82c8f167ee0931a120d9d1ecb43d450a7ca0185f1af1ba"
+ },
+ "baseline": {
+  "label": "baseline-838913b897b0",
+  "source_commit": "838913b897b0e018cc3099eabf4971c03a733f3f",
+  "binary_sha256": "75b0f7f94fa91f0b7b439500521040705b2ac517de708165cc5bfe095dc60544"
+ },
+ "dispositions": [
+  {
+   "doc_id": "css/css-page/monolithic-overflow-028-print.html",
+   "change_id": "7b4c566e09dcbc11a1ac1d1a1fa812b0b72bf76f9c3b46a42ba95dffa3521ed4",
+   "kind": "correction",
+   "reason": "Test page count 12 -> 4, equal to the reference's 4 pages (400vh at 3in pages). Status FAIL -> PASS. The abspos overflow-y:clip box with height:8in ends at its declared extent; the 23in child overflow is clipped (css-overflow-3 clip, css-break-3 monolithic clipped content). Examined by page count and the fixture text 'four green pages'. No other document changed in the 283-test selection (PASS 184 -> 185, FAIL 99 -> 98).",
+   "provenance": "css-overflow-3 overflow:clip; css-break-3; CORE-240"
+  }
+ ]
+}

@@ -5113,6 +5113,20 @@ impl<'a> Ctx<'a> {
             }
         }
 
+        // CORE-240: a box that clips its overflow (css-overflow-3) with a
+        // declared extent ends at that extent. Child content past the extent
+        // is clipped, not laid out on further fragmentainers, so a child
+        // break on the box's LAST slice must not continue the box
+        // (monolithic-overflow-028: 8in clip box, 23in child = 4 pages).
+        if style.clips_overflow {
+            if let Some(remaining) = remaining_spec {
+                if broke && remaining.get() <= (bottom_limit - box_top).get() + 1e-6 {
+                    broke = false;
+                    seen_all = true;
+                }
+            }
+        }
+
         // CORE-152 addendum: the declared extent may continue even though no
         // CHILD broke (`broke` above is child-driven only). When the remaining
         // extent runs past the fragmentainer, slice this fragment at the
