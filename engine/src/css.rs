@@ -2389,6 +2389,12 @@ impl CascadeSession {
             (resolution.primary, resolution.fallbacks)
         };
         let line_height = match font.clone_line_height() {
+            // CORE-456: an author @font-face face uses its own hhea metrics
+            // for `normal`; bundled and system faces keep the historical
+            // 1.2 factor so existing output is unchanged.
+            LineHeight::Normal if crate::fonts::is_font_face_bytes(font_face) => {
+                font_size * crate::typography::normal_line_height_em(font_face)
+            }
             LineHeight::Normal => font_size * NORMAL_LINE_HEIGHT_FACTOR,
             LineHeight::Number(n) => font_size * n.0 as f64,
             LineHeight::Length(l) => px_to_pt(l.px() as f64),

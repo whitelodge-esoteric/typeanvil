@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-18
-updated: 2026-09-27
+updated: 2026-10-17
 sidebar_position: 6
 tags: [engine, css, typography, line-height]
 spec_id: line-height
@@ -88,6 +88,11 @@ The engine shall:
    mirrors laid-out line boxes: `measure_text_height` (table cell/row
    measure) and `measure_block` (`break-inside: avoid` measure). Measured
    height stays equal to laid-out height.
+7a. (CORE-456) For an element whose primary face comes from an author
+   `@font-face` rule, `normal` shall resolve to `font_size * (hhea ascent −
+   descent + lineGap) / unitsPerEm` (css2 §10.8.1). Bundled and system faces
+   keep the `1.2` factor. Example: ArchivoBlack has hhea 878 / −210 / 0, so
+   `normal` is 1.088 em, matching Prince (21.8pt pitch at 20pt).
 8. Keep the default (`font_size * 1.2`) byte-for-byte unchanged when
    `line-height` is not declared, so existing engine tests and demo fixtures
    without a declaration do not regress.

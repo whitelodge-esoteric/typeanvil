@@ -344,6 +344,30 @@ fn first_baseline_uses_half_leading() {
     }
 }
 
+/// CORE-456: `line-height: normal` on a registered @font-face face is the
+/// face's hhea ascent + descent + lineGap. ArchivoBlack: (878 + 210) / 1000
+/// = 1.088 em, not the 1.2 factor (Prince: 21.8pt pitch at 20pt).
+#[test]
+fn normal_line_height_uses_registered_face_hhea() {
+    let font = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../demo/showcase/assets/weasyprint-samples/poster/archivoblack-regular.ttf");
+    let font = font.canonicalize().expect("ArchivoBlack fixture font");
+    let html = format!(
+        r#"<html><head><style>
+        @font-face {{ font-family: AB; src: url("{}"); }}
+        p {{ font-family: AB; font-size: 20pt; }}
+    </style></head><body><p>Normal.</p></body></html>"#,
+        font.display()
+    );
+    let style = p_style(&html);
+    // Ratio, not absolute: font-size passes through stylo's f32 px.
+    let ratio = style.line_height.get() / style.font_size.get();
+    assert!(
+        (ratio - 1.088).abs() < 0.001,
+        "ArchivoBlack normal line-height ratio {ratio:.4}, want 1.088"
+    );
+}
+
 #[test]
 fn baseline_offset_matches_prince_formula() {
     // The pure function itself, against the Prince-verified numbers

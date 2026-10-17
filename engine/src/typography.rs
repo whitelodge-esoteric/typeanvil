@@ -185,6 +185,18 @@ pub fn font_metrics(face: FaceId) -> (f64, f64) {
     (asc, desc)
 }
 
+/// `line-height: normal` for a face, as a multiple of the font size:
+/// hhea ascent + descent + lineGap (css2 §10.8.1 "normal"; CORE-456).
+pub fn normal_line_height_em(face: FaceId) -> f64 {
+    let (font, _) = face_shaper(face);
+    let hhea = font.hhea().expect("hhea table for font metrics");
+    let upem = font.head().expect("head table").units_per_em() as f64;
+    let asc = hhea.ascender().to_i16() as f64;
+    let desc = hhea.descender().to_i16() as f64;
+    let gap = hhea.line_gap().to_i16() as f64;
+    (asc - desc + gap) / upem
+}
+
 /// The CSS2.1 §10.8.1 baseline offset: the distance from a line box's top to
 /// its text baseline. `ascent + half-leading`, where leading = line-height −
 /// (ascent + descent) and ascent/descent are the font's hhea metrics scaled

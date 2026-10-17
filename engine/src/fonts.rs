@@ -585,6 +585,16 @@ pub fn face_bytes(id: FaceId) -> &'static [u8] {
     leaked
 }
 
+/// True when the face came from an author `@font-face` rule (inline bytes).
+pub fn is_font_face_bytes(id: FaceId) -> bool {
+    with_registry(|reg| {
+        matches!(
+            reg.faces.get(id.0 as usize).map(|f| &f.source),
+            Some(FaceSource::Bytes(_))
+        )
+    })
+}
+
 /// The TrueType-collection index a face was registered with.
 pub fn face_index(id: FaceId) -> u32 {
     with_registry(|reg| match &reg.faces[id.0 as usize].source {
