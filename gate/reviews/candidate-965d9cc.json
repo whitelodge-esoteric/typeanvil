@@ -1,0 +1,43 @@
+{
+  "schema": "typeanvil.harness.reviews/1",
+  "candidate": {
+    "label": "candidate-965d9cc",
+    "source_commit": "965d9cc80b739e5afa710c54aa284665d5ddf5f1",
+    "binary_sha256": "709ce01a4dca1a83a2d8a0be8dde045c93a9784db3dd113a4d25136dc16ad6a4"
+  },
+  "baseline": {
+    "label": "baseline-823c010",
+    "source_commit": "823c010c9a2b889aa14c2440b786a3cd11465dfb",
+    "binary_sha256": "b6b01ec0986c22f211c75a48e53f719159b19367e69b1c78209583c35e5f8c5d"
+  },
+  "dispositions": [
+    {
+      "doc_id": "css/css-multicol/column-balancing-paged-001-print.html",
+      "change_id": "054b20934d633a9b28b02d1e5010397536491c0fca2e0059b47d45a8a2fcbdd8",
+      "kind": "correction",
+      "reason": "Examined page 1 raster with both binaries. Baseline painted no lightgreen behind the .inner multicol container; candidate paints it behind the columns (visible beside and under the yellow block1). Test stays FAIL -> FAIL (no status flip). Pages 1 and 3 changed, page 2 identical.",
+      "provenance": "CORE-393; css-multicol-1 section 2 and css2 section 14.2 (the multicol container is a block container and paints its own background)"
+    },
+    {
+      "doc_id": "css/css-multicol/column-balancing-paged-001-print-ref.html",
+      "change_id": "a457c1b1a1eeb03cd691e83b3858a15d92947e01057d479bee88f59c96c8b6bc",
+      "kind": "correction",
+      "reason": "The ref uses the same .inner multicol background markup; its page 1 and 3 fingerprints equal the test side's (both pairs identical in the gate output). Same correction as the test side.",
+      "provenance": "CORE-393; css-multicol-1 section 2 and css2 section 14.2"
+    },
+    {
+      "doc_id": "css/css-multicol/moz-multicol3-column-balancing-break-inside-avoid-1.html",
+      "change_id": "2d1008aac6081231b07431cea0399cd4cad528faf9cedf7b2845e72256354752",
+      "kind": "correction",
+      "reason": "Examined page 1 raster. The .colset boxes declare border: solid silver; baseline drew no border, candidate draws the silver border box around the 3-column container (text positions unchanged). Test stays FAIL -> FAIL.",
+      "provenance": "CORE-393; css-backgrounds-3 section 4 (borders paint on the box)"
+    },
+    {
+      "doc_id": "css/css-multicol/moz-multicol3-column-balancing-break-inside-avoid-1-ref.html",
+      "change_id": "67032dde162bc8f7b1b08184924a9f9460fbe06eb37803c1684890a4a6374f34",
+      "kind": "correction",
+      "reason": "The ref uses the same silver-bordered .colset markup and gains the same border. Same correction as the test side.",
+      "provenance": "CORE-393; css-backgrounds-3 section 4"
+    }
+  ]
+}

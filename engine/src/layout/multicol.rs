@@ -450,6 +450,52 @@ impl<'a> Ctx<'a> {
 
         let mut fragment = Fragment::block(Point::new(inner_left, top), (inner_width, box_height));
         fragment.children = children;
+        // CORE-393: paint the container's own background and border BEHIND
+        // the columns, at its border-box size, on every fragment. Both ride
+        // as leading children (pre-order paint = under the column content),
+        // positioned relative to the fragment origin (inner_left, top).
+        {
+            let bx = Scalar::ZERO - (style.border_left + style.padding_left);
+            let bw = inner_width
+                + style.border_left
+                + style.padding_left
+                + style.padding_right
+                + style.border_right;
+            let bh = if done {
+                box_height + style.padding_bottom + style.border_bottom
+            } else {
+                box_height
+            };
+            let has_border = style.border_top.get() > 0.0
+                || style.border_right.get() > 0.0
+                || style.border_bottom.get() > 0.0
+                || style.border_left.get() > 0.0;
+            if bh.get() > 0.0 {
+                let mut lead: Vec<Fragment> = Vec::new();
+                if let Some(bg) = style.background_color {
+                    let mut f = Fragment::block(Point::new(bx, margin_top), (bw, bh));
+                    f.content = FragmentContent::Background(bg);
+                    lead.push(f);
+                }
+                if has_border {
+                    let mut f = Fragment::block(Point::new(bx, margin_top), (bw, bh));
+                    f.content = FragmentContent::Border(crate::frag::BorderBox {
+                        top: style.border_top,
+                        right: style.border_right,
+                        bottom: style.border_bottom,
+                        left: style.border_left,
+                        top_color: style.border_top_color.unwrap_or(crate::css::Color::BLACK),
+                        right_color: style.border_right_color.unwrap_or(crate::css::Color::BLACK),
+                        bottom_color: style.border_bottom_color.unwrap_or(crate::css::Color::BLACK),
+                        left_color: style.border_left_color.unwrap_or(crate::css::Color::BLACK),
+                    });
+                    lead.push(f);
+                }
+                if !lead.is_empty() {
+                    fragment.children.splice(0..0, lead);
+                }
+            }
+        }
         fragment.source = Some(id);
         let empty = children_empty(&fragment) && outgoing.is_none() && box_height.get() <= 0.0;
 
