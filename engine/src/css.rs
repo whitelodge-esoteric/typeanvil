@@ -996,6 +996,21 @@ impl PageWritingMode {
     }
 }
 
+/// A `min-*` / `max-*` size limit (CORE-388): an absolute length in points or
+/// a 0..=1 fraction of the containing block.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SizeLimit {
+    pub length: Option<f64>,
+    pub percent: Option<f64>,
+}
+
+impl SizeLimit {
+    /// Resolve against `basis` (containing-block extent) in points.
+    pub fn resolve(&self, basis: f64) -> Option<f64> {
+        self.length.or_else(|| self.percent.map(|p| p * basis))
+    }
+}
+
 /// Fully computed style for one element. This is the cascade's output contract;
 /// layout and PDF read only this.
 #[derive(Clone, Debug)]
@@ -1068,6 +1083,12 @@ pub struct ComputedStyle {
     /// The raw `height` percentage as a 0..=1 fraction, kept for flex item
     /// sizing against the flex line's cross size / container height.
     pub height_percent: Option<f64>,
+    /// `min-width` / `max-width` / `min-height` / `max-height` (CORE-388).
+    /// `None` = initial value (`auto`/`0` for min, `none` for max).
+    pub min_width: Option<SizeLimit>,
+    pub max_width: Option<SizeLimit>,
+    pub min_height: Option<SizeLimit>,
+    pub max_height: Option<SizeLimit>,
     /// The raw `width` viewport-unit fraction (CORE-140): set when the winning
     /// `width` declaration is a plain `vw`/`vh` length. `None` = not viewport.
     /// Layout resolves it against the page content box; the fixed-viewport
@@ -1313,6 +1334,10 @@ impl ComputedStyle {
             width_percent: None,
             height: None,
             height_percent: None,
+            min_width: None,
+            max_width: None,
+            min_height: None,
+            max_height: None,
             width_viewport: None,
             height_viewport: None,
             box_sizing: StyloBoxSizing::ContentBox,
@@ -2017,6 +2042,22 @@ impl CascadeSession {
             }
             _ => (None, None),
         };
+        let size_limit = |lp: &style::values::computed::NonNegativeLengthPercentage| SizeLimit {
+            length: lp.0.to_length().map(|l| px_to_pt(l.px() as f64).get()),
+            percent: lp.0.to_percentage().map(|p| p.0 as f64),
+        };
+        let min_of = |s: StyloSize| match s {
+            StyloSize::LengthPercentage(lp) => Some(size_limit(&lp)),
+            _ => None,
+        };
+        let max_of = |s: style::values::computed::MaxSize| match s {
+            style::values::computed::MaxSize::LengthPercentage(lp) => Some(size_limit(&lp)),
+            _ => None,
+        };
+        let min_width = min_of(position.clone_min_width());
+        let min_height = min_of(position.clone_min_height());
+        let max_width = max_of(position.clone_max_width());
+        let max_height = max_of(position.clone_max_height());
         // The computed `height` is carried above for FLEX item sizing only
         // (CORE-65). The BLOCK path deliberately ignores it: the skeleton
         // has no containing-block/block-size resolution (CORE-66: adding it
@@ -2346,6 +2387,10 @@ impl CascadeSession {
             width_percent,
             height,
             height_percent,
+            min_width,
+            max_width,
+            min_height,
+            max_height,
             width_viewport: None,
             height_viewport: None,
             position: position_prop,

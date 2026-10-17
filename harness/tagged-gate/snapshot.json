@@ -604,13 +604,13 @@
   "coverage": 0.9767,
   "roles": {
    "Art": 2,
-   "Div": 6,
-   "Document": 3,
-   "L": 2,
+   "Div": 4,
+   "Document": 2,
+   "L": 1,
    "LBody": 5,
    "LI": 5,
    "P": 7,
-   "Sect": 4
+   "Sect": 3
   }
  },
  "showcase/weasyprint-report.html": {

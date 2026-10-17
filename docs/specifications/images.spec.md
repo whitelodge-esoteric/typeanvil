@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-21
-updated: 2026-09-27
+updated: 2026-10-16
 sidebar_position: 23
 tags: [engine, pdf, images, layout, determinism]
 spec_id: images
@@ -121,6 +121,14 @@ space directly.
    - One dimension specified → the other is computed from the intrinsic
      aspect ratio.
    - Neither specified → intrinsic size.
+   - **Min/max constraints (CORE-388).** After the rules above, the used
+     size SHALL be clamped by `min-width`, `max-width`, `min-height` and
+     `max-height` following the CSS2.1 §10.4 constraint-violation table,
+     which keeps the intrinsic aspect ratio where the table says so. Example:
+     `max-height: 60px` on a 483×557 px image gives 39×45 pt. Width
+     percentages resolve against the containing block width. Height
+     percentages resolve to none (as `height` does). `shrink_to_fit` and
+     `content_width` use the clamped image width.
    - A broken image uses the attribute sizes if present, else the CSS2.1
      default suggested size 300 px × 150 px (225 pt × 112.5 pt).
 
@@ -194,8 +202,9 @@ pub struct StoredImage {
 
 Layout threads `&mut ImageStore` through the same context that carries the
 font/shaping state; pdf.rs reads the store at emit time. `ComputedStyle`
-needs NO new fields — `width`/`height`/`width_percent`/`height_percent`
-already exist (stylo accessors verified in the implementation).
+needs `width`/`height`/`width_percent`/`height_percent` (already present)
+and, since CORE-388, `min_width`/`max_width`/`min_height`/`max_height`
+(`Option<SizeLimit>`, a length or a percentage).
 
 The CLI contract is unchanged (`render <in.html> … --base-url -o out.pdf`);
 `--base-url` already exists.
@@ -217,6 +226,8 @@ fixtures committed.
 | 7 | Determinism: rendering the same doc twice → byte-identical PDFs | `image_render_is_deterministic` |
 | 8 | Single embed: two `<img>` tags with the same file → one XObject image stream in the PDF | `duplicate_images_embed_once` |
 | 9 | Table cell: `<img>` inside a `<td>` paints at a positive size on page 0 and embeds once (CORE-210) | `image_in_table_cell_paints` |
+| 11 | `max-height`/`max-width` clamp an image and keep its ratio (CORE-388) | `img_max_height_and_width_clamp_keep_ratio` |
+| 12 | `min-width` grows an image and keeps its ratio (CORE-388) | `img_min_width_grows_keep_ratio` |
 | 10 | Full suite green: `cargo test` in `engine/` passes | CI |
 
 WPT gate: run the fitness buckets before merge; ship only 0 fixed /

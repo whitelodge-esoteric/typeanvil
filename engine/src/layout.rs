@@ -2160,6 +2160,54 @@ impl<'a> Ctx<'a> {
                 ),
             },
         };
+        // CORE-388: min/max constraints (css2 §10.4 table for replaced
+        // elements; the aspect ratio is kept where the table says so).
+        let (used_w, used_h) = {
+            let lim = |l: &Option<crate::css::SizeLimit>, basis: f64| l.and_then(|l| l.resolve(basis));
+            let min_w = lim(&style.min_width, avail_width.get()).unwrap_or(0.0).max(0.0);
+            let max_w = lim(&style.max_width, avail_width.get()).unwrap_or(f64::INFINITY);
+            // Height percentages resolve to auto (v1), like `height`.
+            let min_h = style.min_height.and_then(|l| l.length).unwrap_or(0.0).max(0.0);
+            let max_h = style.max_height.and_then(|l| l.length).unwrap_or(f64::INFINITY);
+            let max_w = max_w.max(min_w);
+            let max_h = max_h.max(min_h);
+            let (w, h) = (used_w.get(), used_h.get());
+            if (min_w <= 0.0 && max_w.is_infinite() && min_h <= 0.0 && max_h.is_infinite())
+                || w <= 0.0
+                || h <= 0.0
+            {
+                (used_w, used_h)
+            } else {
+                let (rw, rh) = if w > max_w && h > max_h {
+                    if max_w / w <= max_h / h {
+                        (max_w, min_h.max(max_w * h / w))
+                    } else {
+                        (min_w.max(max_h * w / h), max_h)
+                    }
+                } else if w < min_w && h < min_h {
+                    if min_w / w <= min_h / h {
+                        (max_w.min(min_h * w / h), min_h)
+                    } else {
+                        (min_w, max_h.min(min_w * h / w))
+                    }
+                } else if w > max_w && h < min_h {
+                    (max_w, min_h)
+                } else if w < min_w && h > max_h {
+                    (min_w, max_h)
+                } else if w > max_w {
+                    (max_w, min_h.max(max_w * h / w))
+                } else if w < min_w {
+                    (min_w, max_h.min(min_w * h / w))
+                } else if h > max_h {
+                    (min_w.max(max_h * w / h), max_h)
+                } else if h < min_h {
+                    (max_w.min(min_h * w / h), min_h)
+                } else {
+                    (w, h)
+                };
+                (Scalar(rw), Scalar(rh))
+            }
+        };
         // Never exceed the available width (shrink, keep ratio). CORE-210: a
         // DEGENERATE (zero or negative) available width must not shrink the
         // box to a negative size — the box keeps its used size and overflows
@@ -2678,6 +2726,27 @@ impl<'a> Ctx<'a> {
                     avail
                 }
             }
+        };
+        // CORE-388: css2 §10.4 — max-width then min-width clamp the used
+        // border-box width (min wins). Percentages resolve against the
+        // containing block width.
+        let box_border_w = {
+            let chrome = style.padding_left + style.padding_right + style.border_left + style.border_right;
+            let to_border = |v: f64| {
+                if style.box_sizing == crate::css::StyloBoxSizing::BorderBox {
+                    v
+                } else {
+                    v + chrome.get()
+                }
+            };
+            let mut w = box_border_w.get();
+            if let Some(m) = style.max_width.and_then(|l| l.resolve(avail_width.get())) {
+                w = w.min(to_border(m));
+            }
+            if let Some(m) = style.min_width.and_then(|l| l.resolve(avail_width.get())) {
+                w = w.max(to_border(m));
+            }
+            Scalar(w.max(0.0))
         };
         // Content starts INSIDE the border: border-box x + border + padding
         // (css-box-3 §3; oracle-verified 2026-09-12 — the border band overlays
@@ -4957,6 +5026,24 @@ impl<'a> Ctx<'a> {
                     box_height = target;
                 }
             }
+            // CORE-388: css2 §10.7 — max-height then min-height clamp the
+            // used border-box height (min wins). Absolute lengths only;
+            // percentages resolve against an indefinite height (v1).
+            if fresh {
+                let chrome = if style.box_sizing == crate::css::StyloBoxSizing::BorderBox {
+                    0.0
+                } else {
+                    (style.padding_top + style.padding_bottom + style.border_top + style.border_bottom).get()
+                };
+                let mut h = box_height.get();
+                if let Some(m) = style.max_height.and_then(|l| l.length) {
+                    h = h.min(m + chrome);
+                }
+                if let Some(m) = style.min_height.and_then(|l| l.length) {
+                    h = h.max(m + chrome);
+                }
+                box_height = Scalar(h);
+            }
             // Flex cross-axis stretch (css-flexbox-1 §9.4 step 4): the flex
             // container resolved a used cross size for this item. Grow the
             // paint box to it like a declared height (never shrink: overflow
@@ -7091,6 +7178,13 @@ impl<'a> Ctx<'a> {
             let _ = max_width;
             return w + st.margin_left + st.margin_right;
         }
+        // CORE-388: a replaced image's max-content width is its used
+        // (min/max-clamped) width, not the available width.
+        if let Some((w, _)) = self.image_intrinsic_box(id) {
+            if w.get() > 0.0 {
+                return if w.get() > max_width.get() { max_width } else { w };
+            }
+        }
         let style = &self.styles[id];
         let mut width = Scalar::ZERO;
         for item in self.collect_items(id) {
@@ -7128,6 +7222,11 @@ impl<'a> Ctx<'a> {
     /// float-path `max_width` fallback inflated `100px auto 100px` tracks
     /// to the full page and pushed the third column off-page).
     fn content_width(&self, id: NodeId, max_width: Scalar) -> Scalar {
+        if let Some((w, _)) = self.image_intrinsic_box(id) {
+            if w.get() > 0.0 {
+                return if w.get() > max_width.get() { max_width } else { w };
+            }
+        }
         let style = &self.styles[id];
         let mut width = Scalar::ZERO;
         for item in self.collect_items(id) {

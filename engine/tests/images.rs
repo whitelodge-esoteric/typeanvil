@@ -817,3 +817,103 @@ fn image_in_table_cell_paints() {
         hay.matches("/Subtype/Image").count() + hay.matches("/Subtype /Image").count();
     assert_eq!(image_objects, 1, "image embeds exactly once in the PDF");
 }
+
+// --- CORE-388: min/max sizing ---------------------------------------------------
+
+fn one_image(style: &str, png: (u32, u32)) -> (f64, f64) {
+    let dir = TempDir::new().unwrap();
+    let p = write_fixture(&dir, "logo.png", &make_png(png.0, png.1, [0, 0, 255]));
+    let html = format!(
+        "<html><head><style>body{{margin:0}}</style></head>\
+         <body><p><img style=\"{style}\" src=\"{}\"></p></body></html>",
+        p.display()
+    );
+    let lay = lay_in(&html, Some(&dir));
+    let frags = image_fragments(&lay);
+    assert_eq!(frags.len(), 1);
+    (frags[0].3, frags[0].4)
+}
+
+#[test]
+fn img_max_height_and_width_clamp_keep_ratio() {
+    // 483x557 px natural; max-height 60px binds -> 45pt tall, ratio kept.
+    let (w, h) = one_image("max-height:60px;max-width:150px", (483, 557));
+    assert!((h - 45.0).abs() < 0.5, "h={h}");
+    assert!((w - 45.0 * 483.0 / 557.0).abs() < 0.5, "w={w}");
+}
+
+#[test]
+fn img_min_width_grows_keep_ratio() {
+    let (w, h) = one_image("min-width:200px", (96, 48));
+    assert!((w - 150.0).abs() < 0.5 && (h - 75.0).abs() < 0.5, "{w}x{h}");
+}
+
+fn first_bg_width(html: &str) -> f64 {
+    let lay = lay_in(html, None);
+    fn walk(f: &typeanvil::frag::Fragment, out: &mut Vec<(f64, f64)>) {
+        if matches!(f.content, FragmentContent::Background(_)) {
+            out.push((f.size.0.get(), f.size.1.get()));
+        }
+        for c in &f.children {
+            walk(c, out);
+        }
+    }
+    let mut v = Vec::new();
+    walk(&lay.pages[0].root, &mut v);
+    v[0].0
+}
+
+#[test]
+fn block_max_width_clamps() {
+    let w = first_bg_width(
+        "<html><head><style>body{margin:0}#a{background:#f00;max-width:100px;height:20px}</style></head><body><div id=a></div></body></html>",
+    );
+    assert!((w - 75.0).abs() < 0.5, "w={w}");
+}
+
+#[test]
+fn block_min_width_wins_over_width() {
+    let w = first_bg_width(
+        "<html><head><style>body{margin:0}#a{background:#f00;width:50px;min-width:200px;height:20px}</style></head><body><div id=a></div></body></html>",
+    );
+    assert!((w - 150.0).abs() < 0.5, "w={w}");
+}
+
+fn bg_sizes(html: &str) -> Vec<(f64, f64)> {
+    let lay = lay_in(html, None);
+    fn walk(f: &typeanvil::frag::Fragment, out: &mut Vec<(f64, f64)>) {
+        if matches!(f.content, FragmentContent::Background(_)) {
+            out.push((f.size.0.get(), f.size.1.get()));
+        }
+        for c in &f.children {
+            walk(c, out);
+        }
+    }
+    let mut v = Vec::new();
+    walk(&lay.pages[0].root, &mut v);
+    v
+}
+
+#[test]
+fn block_min_height_grows_and_max_height_caps_declared() {
+    let v = bg_sizes(
+        "<html><head><style>body{margin:0}#a{background:#f00;min-height:60px}#b{background:#0f0;height:200px;max-height:40px}</style></head><body><div id=a></div><div id=b></div></body></html>",
+    );
+    assert!((v[0].1 - 45.0).abs() < 0.5, "min-height: {:?}", v);
+    assert!((v[1].1 - 30.0).abs() < 0.5, "max-height: {:?}", v);
+}
+
+#[test]
+fn flex_items_in_wrapping_row_respect_max_width_and_height() {
+    // Four 400px-wide items clamped to 100px (75pt) fit one 360pt row;
+    // without max-width they would wrap one per line.
+    let v = bg_sizes(
+        "<html><head><style>body{margin:0}.r{display:flex;flex-wrap:wrap;width:300px}\
+         .i{flex:none;width:400px;max-width:100px;height:100px;max-height:40px;background:#f00}\
+         </style></head><body><div class=r><div class=i></div><div class=i></div><div class=i></div><div class=i></div></div></body></html>",
+    );
+    assert_eq!(v.len(), 4, "{v:?}");
+    for s in &v {
+        assert!((s.0 - 75.0).abs() < 0.5 && (s.1 - 30.0).abs() < 0.5, "{v:?}");
+    }
+}
