@@ -343,3 +343,8 @@ body { margin: 0; }
         "unstyled margin box must use the unstyled body face"
     );
 }
+
+#[test]
+fn ci_bite_test_delete_me() {
+    assert_eq!(1 + 1, 3, "deliberate CI bite test");
+}
