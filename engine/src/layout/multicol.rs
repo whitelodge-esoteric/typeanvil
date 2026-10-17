@@ -254,6 +254,18 @@ impl<'a> Ctx<'a> {
                     // entirely (the footnote band on a `float: footnote`
                     // page, the bottom margin on any page).
                     let set_top = y;
+                    // CORE-243: no room left on this page (a spanner filled
+                    // it): defer the whole set to the next fragmentainer.
+                    if set_top.get() >= bottom_limit.get() - 0.01 && set_top > content_top {
+                        outgoing_children.push(ChildToken {
+                            index: s0,
+                            token: BreakToken::break_before(),
+                        });
+                        in_flight = s0;
+                        done = false;
+                        y = bottom_limit;
+                        break;
+                    }
                     let (cols, consumed_upto, tok) = self.fill_columns_partial(
                         id,
                         &items,
@@ -273,8 +285,19 @@ impl<'a> Ctx<'a> {
                         children.push(c.clone());
                     }
                     in_flight = consumed_upto;
+                    let had_tok = tok.is_some();
                     if let Some(t) = tok {
                         outgoing_children.push(t);
+                    }
+                    // CORE-243: the set finished but a spanner/later set
+                    // remains and does not fit this page. Without a child
+                    // token the resume index defaults to `items.len()` and
+                    // the remainder is silently dropped.
+                    if !had_tok && consumed_upto < items.len() && consumed_upto >= s1 {
+                        outgoing_children.push(ChildToken {
+                            index: consumed_upto,
+                            token: BreakToken::break_before(),
+                        });
                     }
                     if consumed_upto < items.len() {
                         // Content remains after the page's columns: the
@@ -339,8 +362,16 @@ impl<'a> Ctx<'a> {
                 let fits = y + self.measure_block(child, inner_width) <= bottom_limit;
                 if !fits && !(placed && y == content_top) {
                     // The spanner does not fit: fragment before it.
+                    // CORE-243: the resume token must name the spanner, or the
+                    // next fragment starts at `items.len()` and drops the
+                    // spanner and everything after it.
+                    outgoing_children.push(ChildToken {
+                        index: si,
+                        token: BreakToken::break_before(),
+                    });
                     done = false;
                     in_flight = si;
+                    y = bottom_limit;
                     break;
                 }
                 let res = self.layout_box(

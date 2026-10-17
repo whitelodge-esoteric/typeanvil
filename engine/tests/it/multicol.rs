@@ -789,3 +789,27 @@ fn balance_measure_collapses_margins_like_the_fill() {
     let lines: Vec<usize> = cols.iter().map(|c| count_lines(c)).collect();
     assert_eq!(lines, vec![4, 4], "balanced 4/4 lines per column, got {lines:?}");
 }
+
+#[test]
+fn spanner_that_fills_the_page_resumes_set_and_spanner_next_page() {
+    // CORE-243: 3in set (2in columns -> two columns), a 2in spanner and a
+    // 3in set on a 2in-tall page. The fragmented container used to lose the
+    // spanner and the trailing set: the resume token defaulted past the end
+    // and page 2 was empty. Chromium: 3 pages.
+    let html = r#"<html><head><style>
+        body { margin: 0; }
+        .inner { column-count: 2; background: lightgreen; }
+        .b1 { height: 3in; background: yellow; }
+        .sp { column-span: all; height: 2in; background: lightblue; }
+        .b2 { height: 3in; background: pink; }
+    </style></head><body><article class="inner"><div class="b1"></div><div class="sp"></div><div class="b2"></div></article></body></html>"#;
+    let layout = lay(html);
+    assert_eq!(layout.pages.len(), 3, "set, spanner and trailing set each get a page");
+    let dom = dom_of(html);
+    for (page, class) in [(1usize, "sp"), (2usize, "b2")] {
+        let id = node_id_by_class(&dom, class);
+        let mut found = Vec::new();
+        find_source(&layout.pages[page].root, id, &mut found);
+        assert!(!found.is_empty(), "`.{class}` must be painted on page {}", page + 1);
+    }
+}

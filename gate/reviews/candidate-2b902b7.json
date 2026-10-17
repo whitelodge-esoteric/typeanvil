@@ -1,0 +1,22 @@
+{
+  "schema": "typeanvil.harness.reviews/1",
+  "candidate": {
+    "label": "candidate-2b902b7",
+    "source_commit": "2b902b7",
+    "binary_sha256": "c08f1a81a563c1342b7829022edc64b713630defedf8e15ed7c953959fbd79fc"
+  },
+  "baseline": {
+    "label": "baseline-b0f6f7f",
+    "source_commit": "b0f6f7f",
+    "binary_sha256": "7f43630df3df0c2b7097c1e5c91ebd91e74a5841f3c73f97f0329d9d772ac8b6"
+  },
+  "dispositions": [
+    {
+      "doc_id": "css/css-multicol/column-balancing-paged-001-print.html",
+      "change_id": "271597a81c8576727c230949abb89b45cf6f80b31609ff948d527dfda6f6710c",
+      "kind": "correction",
+      "reason": "Baseline rendered 2 pages (page 2 empty, spanner and trailing set dropped). Candidate renders 3 pages: yellow set on page 1, lightblue spanner on page 2, pink set on page 3. This matches the reference (3 pages, same ink bands) and Chromium (wpt.fyi PASS). The test moves FAIL -> PASS; the ref document is byte-identical on both sides. Examined with a per-page colour-band scan of baseline and candidate renders.",
+      "provenance": "CORE-243; css-multicol-1 section 7 (column-span: all) and css-break-3 section 4 (fragmentation continues past a spanner)"
+    }
+  ]
+}
