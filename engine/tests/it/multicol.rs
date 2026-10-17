@@ -813,3 +813,55 @@ fn spanner_that_fills_the_page_resumes_set_and_spanner_next_page() {
         assert!(!found.is_empty(), "`.{class}` must be painted on page {}", page + 1);
     }
 }
+
+/// CORE-453: a balanced column set whose only child is a single-line
+/// `break-inside: avoid` block must stay on the page, exactly like the same
+/// set with `break-inside: auto` (css-break-3: an avoid box that fits stays).
+#[test]
+fn balanced_set_with_avoid_child_does_not_push_to_next_page() {
+    let page = |inside: &str| {
+        let mut body = String::new();
+        for w in ["one", "two", "three", "four", "five", "six"] {
+            body.push_str(&format!("<article><h3>{w}</h3></article>"));
+        }
+        let html = format!(
+            "<!DOCTYPE html><style>article {{ column-count: 3; width: 500px; \
+             border: 1px solid black; margin-bottom: 3px; }} \
+             h3 {{ break-inside: {inside}; }}</style><body>{body}</body>"
+        );
+        lay(&html).pages.len()
+    };
+    let auto = page("auto");
+    let avoid = page("avoid");
+    assert_eq!(avoid, auto, "avoid ({avoid} pages) must match auto ({auto} pages)");
+}
+
+/// CORE-453: two `break-inside: avoid` blocks glued by `break-after: avoid`
+/// must share a column, so the balanced target covers their combined height
+/// (WPT balance-break-avoidance-001).
+#[test]
+fn balanced_target_covers_an_avoid_chain() {
+    let html = "<!DOCTYPE html><style></style><p>Test passes if there is a filled green square and \
+        <strong>no red</strong>.</p>\
+        <div style=\"width:100px; height:100px; background:red;\">\
+        <div style=\"columns:4; background:green;\">\
+        <div style=\"break-inside:avoid; break-after:avoid; height:50px;\"></div>\
+        <div style=\"break-inside:avoid; height:50px;\"></div></div></div>";
+    let layout = lay(html);
+    assert_eq!(layout.pages.len(), 1);
+    fn bgs(f: &Fragment, out: &mut Vec<f64>) {
+        if matches!(f.content, FragmentContent::Background(_)) {
+            out.push(f.size.1.get());
+        }
+        for c in &f.children {
+            bgs(c, out);
+        }
+    }
+    let mut hs = Vec::new();
+    bgs(&layout.pages[0].root, &mut hs);
+    // The green set background must cover the 75pt (100px) red wrapper.
+    let per_col: Vec<usize> = columns_on(&layout, 0).iter().map(|c| c.children.len()).collect();
+    // The chain shares one column; the green set is as tall as the red box.
+    assert!(per_col.contains(&2), "chain must share a column, got {per_col:?}");
+    assert!(hs.iter().all(|h| *h >= 74.0), "green set must fill the red box: {hs:?}");
+}

@@ -1,0 +1,22 @@
+{
+  "schema": "typeanvil.harness.reviews/1",
+  "candidate": {
+    "label": "candidate-9ea0b7c",
+    "source_commit": "9ea0b7c",
+    "binary_sha256": "27045ec99d61471dcffb1b0a833677a841bb9c148420e1de57e17a372de4bb00"
+  },
+  "baseline": {
+    "label": "baseline-c72b051",
+    "source_commit": "c72b05136437",
+    "binary_sha256": "d081fbb4178c214bc165314505473205744a25873b97b02b9bde3aa1fa992b1b"
+  },
+  "dispositions": [
+    {
+      "doc_id": "css/css-multicol/moz-multicol3-column-balancing-break-inside-avoid-1.html",
+      "change_id": "d75f5d82bdf4c965d6a189bba93a90714f921c9ee60fd991202c679c6310563e",
+      "kind": "correction",
+      "reason": "Test side moves from 3 pages to 2 pages. The ref (unchanged, byte-identical between sides) renders 2 pages. The fourth colset holds a single div.short (height 5px, break-inside: avoid) wrapping a paragraph; the balanced column target was shorter than the avoid block, so the set was pushed whole to the next page. Candidate keeps it on the page. Measured with render-inventory: base test pages=3 ink 3414/3748/3603; cand test pages=2 ink 5793/2422; ref pages=2 ink 5382/3369 on both. The test stays FAIL -> FAIL (pixel residual recorded in multicol.spec.md edge cases); no PASS -> FAIL flip.",
+      "provenance": "CORE-453; css-break-3 section 4 (a break-inside: avoid box that fits stays in the fragmentainer); css-multicol-1 section 8"
+    }
+  ]
+}

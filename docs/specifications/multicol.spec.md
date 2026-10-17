@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-18
-updated: 2026-10-13
+updated: 2026-10-17
 sidebar_position: 8
 tags: [engine, layout, css-multicol, fragmentation]
 spec_id: multicol
@@ -252,6 +252,18 @@ Each criterion maps to a test in `engine/tests/multicol.rs` (helpers mirror
   balance measure apply the same rule, so balancing stays consistent. A
   text run between blocks breaks the adjacency, and each column starts with
   no carried margin (CORE-364).
+- A balanced set never uses a column target shorter than its tallest
+  `break-inside: avoid` in-flow block (CORE-453). A run of such blocks glued
+  by `break-after: avoid` / `break-before: avoid` counts as one block, because
+  the chain must share a column. The trailing `margin-bottom` of the block
+  truncates at the column end, so it does not count toward the target. Without
+  this rule every column rejects the block, the container fragments, and the
+  whole set moves to the next page (WPT `multicol-span-all-010` with
+  `h3 { break-inside: avoid }`: 6 pages instead of 2). Floats, abspos boxes and
+  spanners do not raise the target.
+- Known residual: WPT `moz-multicol3-column-balancing-break-inside-avoid-1`
+  now renders 2 pages like its reference (it was 3), but the page pixels still
+  differ. The reference is a manual test with no browser ground truth.
 
 ## References
 

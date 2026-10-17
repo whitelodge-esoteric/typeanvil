@@ -228,6 +228,18 @@ impl<'a> Ctx<'a> {
                 // such a set through the partial-fill path, which fills
                 // columns to the page bottom.
                 let tallest = self.tallest_unsplittable(&items, s0, s1, col_w, style);
+                // CORE-453: a `break-inside: avoid` block is not monolithic,
+                // but it cannot split across columns either. A balanced
+                // target shorter than it (rounded to whole lines, margins
+                // excluded) makes every column reject it and fragments the
+                // container, pushing the whole set to the next page.
+                // Columns are never shorter than the tallest avoid block.
+                let avoid_h = self.tallest_avoid(&items, s0, s1, col_w);
+                let target = if avoid_h.get() > target.get() {
+                    avoid_h
+                } else {
+                    target
+                };
                 let fits = y + target <= bottom_limit && tallest.get() <= target.get();
                 if !fits {
                     // The set does not fit the page: fill the remaining page
@@ -658,6 +670,44 @@ impl<'a> Ctx<'a> {
         }
         max
     }
+    /// The tallest `break-inside: avoid` in-flow block in a set (CORE-453).
+    fn tallest_avoid(&self, items: &[Item], s0: usize, s1: usize, col_w: Scalar) -> Scalar {
+        use crate::frag::BreakBetween;
+        let mut max = Scalar::ZERO;
+        // Height of the earlier blocks glued to the next one by an `avoid`
+        // break between them (a chain must share a column).
+        let mut chain = Scalar::ZERO;
+        let mut prev_after_avoid = false;
+        for item in &items[s0..s1] {
+            if let Item::Block(child) = item {
+                let cs = &self.styles[*child];
+                if cs.column_span == ColumnSpan::All
+                    || cs.float != crate::css::Float::None
+                    || matches!(cs.position, Position::Absolute | Position::Fixed)
+                    || cs.break_inside == crate::frag::BreakInside::Auto
+                {
+                    chain = Scalar::ZERO;
+                    prev_after_avoid = false;
+                    continue;
+                }
+                if !(prev_after_avoid || cs.break_before == BreakBetween::Avoid) {
+                    chain = Scalar::ZERO;
+                }
+                let full = self.measure_block(*child, col_w);
+                // The trailing margin-bottom truncates at a column end.
+                let h = chain + full - cs.margin_bottom;
+                if h.get() > max.get() {
+                    max = h;
+                }
+                prev_after_avoid = cs.break_after == BreakBetween::Avoid;
+                chain = if prev_after_avoid { chain + full } else { Scalar::ZERO };
+            } else {
+                chain = Scalar::ZERO;
+                prev_after_avoid = false;
+            }
+        }
+        max
+    }
     fn balanced_target(&self, total: Scalar, n: u32, style: &ComputedStyle) -> Scalar {
         if total.get() <= 0.0 {
             return Scalar::ZERO;
@@ -1063,7 +1113,14 @@ impl<'a> Ctx<'a> {
                     // rounded estimate by a hair (e.g. 0.005pt) — rejecting a
                     // block that genuinely fits the balanced column fragments
                     // the container and spills a page (CORE-246).
-                    let fits = block_y + h <= col_bottom + Scalar(0.01);
+                    // CORE-453: an unsplittable avoid block's trailing
+                    // margin-bottom truncates at the column end.
+                    let trailing = if cs.break_inside == crate::frag::BreakInside::Auto {
+                        Scalar::ZERO
+                    } else {
+                        cs.margin_bottom
+                    };
+                    let fits = block_y + h - trailing <= col_bottom + Scalar(0.01);
                     let last_resort = !page_placed && y == set_top;
                     // A block that does not fit may still SPLIT at the column
                     // bottom (css-multicol-1 §8 / css-break-3 §4: columns are
