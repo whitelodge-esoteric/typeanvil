@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-16
-updated: 2026-10-16
+updated: 2026-10-17
 sidebar_position: 3
 tags: [css, paged-media, page, layout, engine]
 spec_id: paged-media-css
@@ -272,12 +272,16 @@ The engine shall:
       tile never bleeds into a neighbour, and UNDER the border. The
       shorthand may carry a colour AND an image; the colour paints below the
       tiled image.
-    - A declared page area (`@page { width; height }`) shall be honoured
-      INSIDE the page box and shall NOT resize the page box: the
-      requested page size is the page size. An earlier attempt grew the box to
-      area + margins; it flipped no tests, `width`/`height` are not css-page-3
-      page descriptors, Chromium keeps the requested size, and the CLI contract
-      requires the page-size flags to be honoured exactly.
+    - A declared page area (`@page { width; height }`) with NO `size:`
+      declaration shall size the page box to the declared area plus the
+      margins on that axis (css-page-3 §3; CORE-258). An explicit `size:`
+      wins: the area is honoured INSIDE that box and the box is not resized.
+      Ground truth: Chromium with `prefer_css_page_size=True` renders the
+      dimensions-004/005/006 pairs at 384x324pt
+      (`docs/research/css-page/page-box-growth-chromium.md`). This supersedes
+      the earlier rule "shall NOT resize the page box", which rested on a
+      measurement taken with `prefer_css_page_size=False`. Ruling: DECIDED
+      2026-10-17 (agent, hands-off card) per the CORE-258 ticket text.
 17. **Page-margin box painting order and `z-index`**: the engine
     shall paint a page in css-page-3 §3.1's layer order — page background,
     document canvas, page borders, document contents, then page-margin boxes —

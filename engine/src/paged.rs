@@ -2138,8 +2138,10 @@ pub fn resolve_page_spec(
         }
     };
 
+    let mut size_declared = false;
     for r in matching {
         if let Some(s) = r.size {
+            size_declared = true;
             size = match s {
                 SizeDecl::Abs(w, h) => (w, h),
                 // Orientation keywords orient the *running* size (the default
@@ -2303,14 +2305,19 @@ pub fn resolve_page_spec(
     let area_w = resolve_area(width, size.0).unwrap_or(size.0 - margin_left - margin_right);
     let area_h = resolve_area(height, size.1).unwrap_or(size.1 - margin_top - margin_bottom);
 
-    // NOTE (CORE-141 follow-up): an earlier attempt grew the page box to a
-    // declared page area plus its margins. It flipped no tests (the one flip in
-    // that landing came from the §5.3 margin-box geometry, and the fixture it
-    // was credited with declares no area at all), `width`/`height` are not
-    // css-page-3 page descriptors, and Chromium keeps the page at the requested
-    // size. Growing the box also contradicts the CLI contract ("honour the
-    // page-size and margin flags exactly"). The area is still honoured inside
-    // the page box, as CORE-144 specified.
+    // CORE-258: with no `size:` declaration, a declared width/height sets the
+    // page box to area + margins (css-page-3 §3; Chromium with
+    // prefer_css_page_size measured 384x324pt for dimensions-004). An explicit
+    // `size:` wins and the area sits inside it (page-margin-auto-print).
+    let mut size = size;
+    if !size_declared {
+        if let Some(w) = resolve_area(width, size.0) {
+            size.0 = w + margin_left + margin_right;
+        }
+        if let Some(h) = resolve_area(height, size.1) {
+            size.1 = h + margin_top + margin_bottom;
+        }
+    }
 
     // Leftover space on each axis: distributed to auto margins (equal split
     // when both auto), or to the end margin when overconstrained (css-page-3
@@ -2673,6 +2680,31 @@ mod tests {
         assert_eq!(spec.margins.right, Scalar(48.0));
         assert_eq!(spec.margins.top, Scalar(24.0));
         assert_eq!(spec.margins.bottom, Scalar(24.0));
+    }
+
+    #[test]
+    fn declared_area_without_size_grows_page_box() {
+        // CORE-258: dimensions-004 test shape. margin 4em 5em 8em 7em, area
+        // 20em x 15em -> page box (20+5+7)em x (15+4+8)em = 384 x 324pt.
+        let rules = parse_page_rules(
+            "@page { margin: 4em 5em 8em 7em; width: 20em; height: 15em; }",
+        );
+        let cli = PageGeometry {
+            width: Scalar(360.0),
+            height: Scalar(216.0),
+            margin_top: Scalar(36.0),
+            margin_right: Scalar(36.0),
+            margin_bottom: Scalar(36.0),
+            margin_left: Scalar(36.0),
+        };
+        let spec = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero(), false, crate::css::PageWritingMode::HorizontalTb);
+        assert_eq!(spec.size, (Scalar(384.0), Scalar(324.0)));
+        // An explicit `size:` keeps the box and the area sits inside it.
+        let rules = parse_page_rules(
+            "@page { size: 20em 7em; margin: 0; width: 12em; height: 3em; }",
+        );
+        let spec = resolve_page_spec(&rules, None, 0, &cli, PageMargins::zero(), false, crate::css::PageWritingMode::HorizontalTb);
+        assert_eq!(spec.size, (Scalar(240.0), Scalar(84.0)));
     }
 
     #[test]
