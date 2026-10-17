@@ -1,0 +1,22 @@
+{
+ "schema": "typeanvil.harness.reviews/1",
+ "candidate": {
+  "label": "candidate-f6b63caffa66",
+  "source_commit": "f6b63caffa6640bae59377df95eee2bb405ff56e",
+  "binary_sha256": "7a9bbb26efbe8c59b0874d2e7d8fabd950c47e4d2dee7a598bcd2cef9af1c87e"
+ },
+ "baseline": {
+  "label": "baseline-6c5e57f1166a",
+  "source_commit": "6c5e57f1166aabc858d9664d44717e8cd9db12bd",
+  "binary_sha256": "59e34035f0316d07aaecd22eae91e040ca03f6bfeba0fc42b0c85e9e67b9fa1c"
+ },
+ "dispositions": [
+  {
+   "doc_id": "css/css-page/media-queries-002-print.html",
+   "change_id": "c6f14433cdeb634fb6ae24229706afdd730af006ea173cbf04d1fd98a525372b",
+   "kind": "correction",
+   "reason": "An iframe now lays out its nested document at the iframe viewport, so the inner @media (width:100px) and (height:100px) matches. Status FAIL -> PASS (WPT 196 -> 197 pass, 87 -> 86 fail). Measured at 5in x 3in: red pixels 5625 -> 0, green pixels 0 -> 5625 on page 1. Examined by pixel count.",
+   "provenance": "mediaqueries-4 section 4 (viewport = iframe box); html iframe replaced element; CORE-482"
+  }
+ ]
+}

@@ -5,7 +5,7 @@ type: spec
 status: in-review
 owner: maintainers
 created: 2026-09-09
-updated: 2026-09-27
+updated: 2026-10-17
 sidebar_position: 44
 tags: [engine, css, media-queries, paged-media, stylo]
 spec_id: print-media-queries
@@ -68,8 +68,10 @@ passes at the harness's 5x3in / 0.5in setup.)
 
 ## Non-Goals
 
-- iframe and frameset layout (media-queries-002/003 need them; out of
-  scope).
+- frameset layout (media-queries-003 needs it; out of scope).
+- Full iframe support. CORE-482 adds a v1 only (Behavior 12 below): first
+  page of the nested document, `<style>` elements only, no nested images,
+  links or `<link>` sheets, no nested-document pagination.
 - Changing the cascade session's viewport used for `vw`/`vh` unit
   resolution: it stays at the fixed 1024x768 (the fixed-viewport decision;
   `vw`/`vh` correctness is tracked separately). Only media evaluation uses the page box.
@@ -118,6 +120,16 @@ passes at the harness's 5x3in / 0.5in setup.)
    border properties inside a true `@media` SHALL apply; inside a false
    `@media` they SHALL NOT apply. Cascade order among rules inside
    different `@media` blocks SHALL follow source order.
+12. (CORE-482, iframe v1) A block-level `<iframe>` carrying a `srcdoc`
+    attribute SHALL lay out as a monolithic replaced box (default
+    300x150 CSS px). The CLI SHALL read a local `<iframe src>` file into
+    `srcdoc` before layout. The nested document SHALL be laid out as a
+    one-page document whose page box is the iframe box with zero margins,
+    so dimensional media features inside it evaluate against the iframe
+    viewport. The nested first page paints inside the iframe box; the
+    iframe's own background paints beneath it. The nested document reads
+    `<style>` elements only. Further pages, nested images, links and
+    `<link>` sheets are Non-Goals.
 
 ## Interfaces
 
@@ -210,8 +222,9 @@ Tests in `engine/tests/print_media_queries.rs`; each maps to a Behavior.
 - Valid rule blocks may be closed implicitly at EOF under CSS Syntax 3.
 - Media Queries 4 requires whitespace around the `and` keyword. For example,
   `(width: 5in)and(height: 3in)` is invalid and does not match.
-- `media-queries-002/003` remain FAIL because iframe and frameset layout
-  is outside this feature's scope.
+- `media-queries-002` passes since CORE-482 (iframe v1, Behavior 12).
+  `media-queries-003` remains FAIL because frameset layout is outside this
+  feature's scope.
 - `@scope` blocks and custom media definitions are unsupported. Unsupported
   block rules are removed; unsupported media conditions do not match.
 - Known opaque at-rules (`@property`, keyframes, counter-style,

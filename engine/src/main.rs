@@ -123,7 +123,8 @@ fn render(args: Vec<String>) -> Result<()> {
     let html = std::fs::read_to_string(&opts.input)
         .with_context(|| format!("reading input {}", opts.input.display()))?;
 
-    let dom = Dom::parse(&html).context("parsing HTML")?;
+    let mut dom = Dom::parse(&html).context("parsing HTML")?;
+    inline_iframe_sources(&mut dom, &opts.input);
     let stylesheet = extract_stylesheet(&dom, &opts.input);
 
     let geometry = PageGeometry {
@@ -185,6 +186,28 @@ fn render(args: Vec<String>) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// CORE-482: load each `<iframe src>` file and store its text as the
+/// element's `srcdoc` attribute, so the library lays the nested document out
+/// without touching the filesystem. Unreadable or remote sources stay
+/// as plain boxes.
+fn inline_iframe_sources(dom: &mut Dom, input: &Path) {
+    let input_dir = input.parent().unwrap_or(Path::new("."));
+    for node in dom.nodes.iter_mut() {
+        if let dom::NodeKind::Element(el) = &mut node.kind {
+            if el.tag != "iframe" || el.attr("srcdoc").is_some() {
+                continue;
+            }
+            let Some(src) = el.attr("src") else { continue };
+            let Some(path) = resolve_asset_path(input_dir, src) else {
+                continue;
+            };
+            if let Ok(text) = std::fs::read_to_string(path) {
+                el.attrs.push(("srcdoc".to_string(), text));
+            }
+        }
+    }
 }
 
 /// Collect and parse `<style>` element text and `<link rel="stylesheet">`

@@ -2556,6 +2556,87 @@ impl<'a> Ctx<'a> {
         }
     }
 
+    /// CORE-482: lay out an `<iframe srcdoc>` as a monolithic replaced box. The
+    /// nested document is laid out as a one-page document whose page box is the
+    /// iframe's content box (so `@media (width/height)` match the iframe
+    /// viewport, mediaqueries-4 §4) and its first page is grafted into the box.
+    /// v1 limits (spec `print-media-queries.spec.md`): only the first page
+    /// paints, `<style>` elements only (no `<link>`), nested images/links are
+    /// not carried, the iframe must be block-level.
+    #[allow(clippy::too_many_arguments)]
+    fn layout_iframe(
+        &self,
+        id: NodeId,
+        origin_x: Scalar,
+        avail_width: Scalar,
+        top: Scalar,
+        bottom_limit: Scalar,
+        page_has_content: bool,
+        style: &ComputedStyle,
+    ) -> BlockResult {
+        // HTML default iframe size: 300x150 CSS px.
+        let used_w = self.resolved_width(style, avail_width).unwrap_or(Scalar(225.0));
+        let used_h = self.resolved_height(style).unwrap_or(Scalar(112.5));
+        let margin_top = style.margin_top;
+        let box_top = top + margin_top;
+        let box_left = origin_x + style.margin_left;
+        let box_w = used_w + style.margin_left + style.margin_right;
+        if box_top + used_h > bottom_limit && page_has_content {
+            return BlockResult {
+                fragment: Fragment::block(Point::new(origin_x, top), (avail_width, Scalar::ZERO)),
+                used: Scalar::ZERO,
+                outgoing: Some(BreakToken::break_before()),
+                empty: true,
+            };
+        }
+        let mut fragment = Fragment::block(Point::new(box_left, box_top), (box_w, used_h));
+        if let Some(bg) = style.background_color {
+            fragment.content = FragmentContent::Background(bg);
+        }
+        let srcdoc = self.dom.nodes[id]
+            .kind
+            .element()
+            .and_then(|el| el.attr("srcdoc"))
+            .unwrap_or("");
+        if let Ok(inner) = Dom::parse(srcdoc) {
+            let mut css = String::new();
+            for (nid, node) in inner.nodes.iter().enumerate() {
+                if node.kind.element().is_some_and(|e| e.tag == "style") {
+                    css.push_str(&inner.text_content(nid));
+                    css.push('\n');
+                }
+            }
+            let sheet = Stylesheet::parse(&css);
+            let geo = PageGeometry {
+                width: used_w,
+                height: used_h,
+                margin_top: Scalar::ZERO,
+                margin_right: Scalar::ZERO,
+                margin_bottom: Scalar::ZERO,
+                margin_left: Scalar::ZERO,
+            };
+            let mut nested = layout(&inner, &sheet, geo);
+            if !nested.pages.is_empty() {
+                let page = nested.pages.remove(0);
+                if let Some(c) = page.canvas_background {
+                    let mut canvas = Fragment::block(Point::new(Scalar::ZERO, Scalar::ZERO), (used_w, used_h));
+                    canvas.content = FragmentContent::Background(c);
+                    fragment.children.push(canvas);
+                }
+                let mut root = page.root;
+                // Source ids name nodes of the nested DOM; drop them all.
+                drop_anonymous_sources(&mut root, 0);
+                fragment.children.extend(root.children);
+            }
+        }
+        BlockResult {
+            used: used_h + margin_top,
+            fragment,
+            outgoing: None,
+            empty: false,
+        }
+    }
+
     /// Lay the root/body box directly into the page content box. The root box
     /// itself carries no page margin; its children flow from `content_top`.
     fn layout_root(
@@ -2648,6 +2729,14 @@ impl<'a> Ctx<'a> {
         // CORE-363: `<math>` is a monolithic box laid out by `math.rs`.
         if crate::math::is_math(self.dom, id) {
             return self.layout_math_box(id, origin_x, avail_width, top, bottom_limit, page_has_content, style);
+        }
+        // CORE-482: `<iframe srcdoc>` is a nested document with its own viewport.
+        if self.dom.nodes[id]
+            .kind
+            .element()
+            .is_some_and(|el| el.tag == "iframe" && el.attr("srcdoc").is_some())
+        {
+            return self.layout_iframe(id, origin_x, avail_width, top, bottom_limit, page_has_content, style);
         }
         let is_img = self.is_replaced_image(id);
         if is_img {

@@ -645,3 +645,37 @@ fn property_inside_media() {
         "@property inside a false @media must not register"
     );
 }
+
+/// CORE-482 — an `<iframe srcdoc>` is a nested document whose viewport is
+/// the iframe box: `@media (width:100px) and (height:100px)` inside it
+/// matches, so the inner div paints green (not red). 100px = 75pt.
+#[test]
+fn iframe_srcdoc_media_query_matches_iframe_viewport() {
+    use typeanvil::frag::{Fragment, FragmentContent};
+    let inner = "<style>body{margin:0}div{background:red}\
+        @media (width:100px) and (height:100px){div{background:green}}</style>\
+        <div style=\"height:100px\"></div>";
+    let html = format!(
+        "<style>iframe{{display:block;border:none;width:100px;height:100px}}</style>\
+         <iframe srcdoc='{inner}'></iframe>"
+    );
+    let laid = lay(&html, wpt_geometry());
+    fn walk(f: &Fragment, out: &mut Vec<(u8, u8, u8)>) {
+        if let FragmentContent::Background(c) = &f.content {
+            out.push((c.r, c.g, c.b));
+        }
+        for c in &f.children {
+            walk(c, out);
+        }
+    }
+    let mut colors = Vec::new();
+    walk(&laid.pages[0].root, &mut colors);
+    assert!(
+        colors.iter().any(|&(r, g, b)| g > 100 && r < 60 && b < 60),
+        "inner div must paint green, got {colors:?}"
+    );
+    assert!(
+        !colors.iter().any(|&(r, g, b)| r > 200 && g < 60 && b < 60),
+        "no red may paint, got {colors:?}"
+    );
+}
