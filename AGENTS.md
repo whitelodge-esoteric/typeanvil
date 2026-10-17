@@ -26,6 +26,9 @@ Every feature starts as a spec; code follows the spec; tests prove the spec.
 4. **Verify.** Run `python3 scripts/gate.py` on a clean, committed tree (what CI
    runs). It writes `.gate/result.json`; the coordinator verifies it with
    `--verify` before landing. Also run `python3 scripts/validate_docs.py`.
+5. **Land.** Changes land only through `python3 scripts/land.py CORE-<N>`. It
+   opens a pull request with auto-merge. Direct pushes to `release/*` and
+   `main` are rejected. See `docs/operations/ci.md`.
 
 ## How to handle documentation
 

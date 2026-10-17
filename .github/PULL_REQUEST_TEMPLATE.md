@@ -16,9 +16,19 @@ Signed-off-by: Your Name <your.email@example.com>
 
 <!-- What does this PR change? -->
 
-## Related issues
+## Issue
 
-<!-- e.g. CORE-123 -->
+Fixes CORE-<N>
+
+## Verification
+
+<!-- Gate receipt summary, e.g. `gate: PASSED at abc1234 — cargo 100 passed, pytest 50 passed` -->
+
+## Visual changes
+
+<!-- visual-diff:start -->
+_Filled in by CI once the regression gate lands (CORE-498)._
+<!-- visual-diff:end -->
 
 ## Checklist
 
