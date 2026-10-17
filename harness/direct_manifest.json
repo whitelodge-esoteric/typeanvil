@@ -6,7 +6,7 @@
       "input": "css/css-page/page-name-orthogonal-writing-003-print.html",
       "input_source": "wpt",
       "expectation": {"page_count": 1},
-      "provenance": "engine/tests/page_boundaries.rs::page_change_suppressed_when_inner_mode_orthogonal_to_page_flow; docs/research/wpt-harness/core182-interior-writing-mode-scoping.md; measured 1 page 2026-09-15 (its reference is also 1 page)"
+      "provenance": "engine/tests/it/page_boundaries.rs::page_change_suppressed_when_inner_mode_orthogonal_to_page_flow; docs/research/wpt-harness/core182-interior-writing-mode-scoping.md; measured 1 page 2026-09-15 (its reference is also 1 page)"
     },
     {
       "id": "orthogonal-writing-vertical-text",

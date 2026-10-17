@@ -67,6 +67,12 @@ gif = "0.13"
 # Errors.
 anyhow = "1"
 
+[profile.dev]
+# CORE-458: line tables keep file:line in panics and backtraces but cut the
+# per-binary debuginfo. For a full debugger session, build with
+# `CARGO_PROFILE_DEV_DEBUG=2`.
+debug = "line-tables-only"
+
 [profile.release]
 # Deterministic: no fast-math / reassociation. IEEE-754 semantics preserved by
 # default in rustc; we additionally forbid FMA contraction at call sites.

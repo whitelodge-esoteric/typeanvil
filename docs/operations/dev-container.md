@@ -4,7 +4,7 @@ type: runbook
 status: approved
 owner: maintainers
 created: 2026-09-13
-updated: 2026-10-16
+updated: 2026-10-17
 sidebar_position: 6
 tags: [docker, containers, memory, cargo, harness]
 trigger: When building or testing the Rust engine and Python harness
@@ -75,6 +75,8 @@ Prince, rasterization, and diffing still run on the host. A CI artifact or a nat
 - Treat a report from an interrupted or failed container as incomplete.
 - Build artifacts use a worktree-specific `dev-target-<worktree-name>` volume.
 - Shared Cargo cache volumes and the `typeanvil-dev` image serve all worktrees. Keep them.
+- Integration tests build as one binary (`cargo test --test it <module>::`). Dev builds use `debug = "line-tables-only"`.
+- Remove a closed issue's volume with `scripts/clean-dev-volumes.sh --worktree <name>`. `--sweep --dry-run` lists volumes whose worktree is gone.
 - A worktree-specific volume can be removed only after the work is closed, no contributor is using it, and required evidence is retained.
 
 ## Verification

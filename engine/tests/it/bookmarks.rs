@@ -2,7 +2,7 @@
 //!
 //! Covers: UA defaults (h1-h6 -> levels 1-6, label contents()), explicit
 //! bookmark-level/label/state, destination y-offsets, and broken-anchor
-//! diagnostics. Run with `cargo test -p typeanvil --test bookmarks`.
+//! diagnostics. Run with `cargo test -p typeanvil --test it bookmarks::`.
 
 use typeanvil::css::{BookmarkLevel, ComputedStyle, Stylesheet};
 use typeanvil::dom::{Dom, NodeId, NodeKind};
