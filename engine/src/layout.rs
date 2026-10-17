@@ -4993,6 +4993,34 @@ impl<'a> Ctx<'a> {
                         };
                         y = y - overlap;
                     }
+                    // CORE-483 margin collapse (CSS 2.1 §8.3.1): a block's top
+                    // margin collapses with its first in-flow child's top
+                    // margin when no border, padding, clearance or BFC
+                    // separates them. The cursor already carries the
+                    // parent's margin-top; the child adds its own on top, so
+                    // remove the overlap and the gap becomes max(mt_parent,
+                    // mt_child). The child's border edge then coincides with
+                    // the parent's.
+                    if i == 0
+                        && fresh
+                        && children.is_empty()
+                        && child_tok.is_break_before()
+                        && matches!(items[0], Item::Block(_))
+                        && style.display == Display::Block
+                        && style.float == Float::None
+                        && matches!(style.position, Position::Static | Position::Relative)
+                        && !style.clips_overflow
+                        && style.border_top.get() <= 0.0
+                        && style.padding_top.get() <= 0.0
+                        && style.margin_top.get() > 0.0
+                        && self.styles[*child].margin_top.get() > 0.0
+                        // Child larger than parent would need the parent's
+                        // fragment to start above its own cursor; deferred
+                        // (spec Non-Goals).
+                        && self.styles[*child].margin_top.get() <= style.margin_top.get()
+                    {
+                        y = y - self.styles[*child].margin_top;
+                    }
 
                     let res = self.layout_box(
                         *child,

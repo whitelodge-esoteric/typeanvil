@@ -165,3 +165,51 @@ Bare text between.
     assert!(joined.contains("Framed."));
     assert!(joined.contains("Closer."));
 }
+
+/// CORE-483: a parent's top margin collapses with its first in-flow child's
+/// top margin (CSS 2.1 §8.3.1) when nothing separates them.
+#[test]
+fn first_child_top_margin_collapses_through_parent() {
+    let html = |ul: &str| {
+        format!(
+            r#"<html><head><style>
+body {{ margin: 0; }}
+section {{ margin-top: 30pt; }}
+ul {{ margin: {ul}; padding: 0; list-style: none; font-size: 10pt; line-height: 10pt; }}
+</style></head><body><section><ul><li>MARK</li></ul></section></body></html>"#
+        )
+    };
+    let top = |h: &str| {
+        let l = lay(h);
+        let mut t = Vec::new();
+        line_tops_with_prefix(&l.pages[0].root, "MARK", 0.0, &mut t);
+        assert_eq!(t.len(), 1);
+        t[0]
+    };
+    // Child margin 12 < parent 30: result max(30,12)=30, so adding the
+    // child margin moves nothing. Summing would move it 12pt.
+    let delta = top(&html("12pt 0")) - top(&html("0"));
+    assert!(delta.abs() < 0.05, "expected 0pt delta, got {delta}");
+}
+
+/// A border on the parent separates the margins: no collapse.
+#[test]
+fn parent_border_blocks_first_child_collapse() {
+    let html = |ul: &str| {
+        format!(
+            r#"<html><head><style>
+body {{ margin: 0; }}
+section {{ margin-top: 30pt; border-top: 1pt solid black; }}
+ul {{ margin: {ul}; padding: 0; list-style: none; font-size: 10pt; line-height: 10pt; }}
+</style></head><body><section><ul><li>MARK</li></ul></section></body></html>"#
+        )
+    };
+    let top = |h: &str| {
+        let l = lay(h);
+        let mut t = Vec::new();
+        line_tops_with_prefix(&l.pages[0].root, "MARK", 0.0, &mut t);
+        t[0]
+    };
+    let delta = top(&html("12pt 0")) - top(&html("0"));
+    assert!((delta - 12.0).abs() < 0.05, "expected 12pt delta, got {delta}");
+}

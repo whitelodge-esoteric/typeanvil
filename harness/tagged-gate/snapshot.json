@@ -103,7 +103,7 @@
   }
  },
  "corpus/data-sheet.html": {
-  "coverage": 0.9807,
+  "coverage": 0.9871,
   "roles": {
    "Div": 18,
    "Document": 7,
@@ -310,7 +310,7 @@
   }
  },
  "corpus/product-manual.html": {
-  "coverage": 0.9862,
+  "coverage": 0.9931,
   "roles": {
    "Div": 22,
    "Document": 9,
@@ -604,8 +604,8 @@
   "coverage": 0.9767,
   "roles": {
    "Art": 2,
-   "Div": 4,
-   "Document": 2,
+   "Div": 2,
+   "Document": 1,
    "L": 1,
    "LBody": 5,
    "LI": 5,

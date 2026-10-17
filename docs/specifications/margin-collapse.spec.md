@@ -4,7 +4,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-08-24
-updated: 2026-09-27
+updated: 2026-10-17
 slug: /specifications/margin-collapse
 sidebar_position: 42
 tags: [layout, css-box, margins]
@@ -43,7 +43,10 @@ them:
 
 - Empty self-collapsing boxes (a box with no content collapses its own top
   and bottom margins through itself).
-- Parent-child collapse through unbroken top/bottom edges.
+- Parent-child collapse of the BOTTOM edge, and top-edge collapse when the
+  first child's margin-top exceeds the parent's (the parent fragment would
+  have to start above its own cursor). Only the parent-top / first-child-top
+  case with child ≤ parent is implemented (Behavior 6, CORE-483).
 - Clearance and BFC-isolation exceptions.
 - **Float adjacency:** floats do not participate in vertical margin
   collapse. The engine treats a float as a break in the sibling chain — the
@@ -67,6 +70,15 @@ them:
    start (css-break-3 §3.1 preserves a fresh box's margin; the former
    comparison-engine truncation did not match the standard);
    no collapse applies.
+6. (CORE-483) A fresh in-flow block's top margin SHALL collapse with its
+   first in-flow block child's top margin (CSS 2.1 §8.3.1) when the parent
+   is `display: block`, not floated, not absolutely/fixed positioned, does
+   not clip overflow, has zero `border-top` and `padding-top`, and the
+   child's margin-top is positive and ≤ the parent's. The cursor SHALL be
+   reduced by the child's margin-top, so the gap equals the parent's
+   margin-top (`max`). Probe: `<section style="margin-top:30pt"><ul
+   style="margin:12pt 0">` places the text 12pt higher than the summed
+   result (Prince: 31.8pt vs 43.7pt before the fix).
 
 ## Interfaces
 
@@ -97,6 +109,11 @@ Each criterion maps to a test in `engine/tests/margin_collapse.rs`.
 - **AC-3 (tracker reset):** A bare text run between two blocks renders all
   three pieces in order with no collapse carry-through.
   → `text_run_between_blocks_blocks_collapse`.
+- **AC-5 (parent/first child):** Given `section { margin-top: 30pt }`
+  containing `ul { margin: 12pt 0 }`, adding the ul margin moves the text by
+  0pt; with `border-top` on the section it moves 12pt.
+  → `first_child_top_margin_collapses_through_parent`,
+  `parent_border_blocks_first_child_collapse`.
 - **AC-4 (no regression):** Full engine suite stays green; WPT buckets
   (css-page / css-break / css-multicol) show no status regressions vs
   main's binary.
