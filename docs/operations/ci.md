@@ -81,6 +81,50 @@ python3 scripts/gate.py --verify [path]
 
 `--verify` exits 0 only when the receipt exists, `ok` is `true`, `filtered` is `false`, and `tree` equals the current `git rev-parse HEAD^{tree}`. Otherwise it names each failed check and exits 1. A commit that changes the tree makes the old receipt stale. Amend or rebase without a tree change keeps the receipt valid, because the check uses the tree hash.
 
+## Landing a change
+
+Changes land through a pull request. Do not push to `release/**` or `main`.
+
+```bash
+python3 scripts/land.py CORE-<N> [--base release/X] [--message-file F] [--no-auto] [--wait] [--dry-run]
+```
+
+Run it from the issue branch with a clean tree, after `python3 scripts/gate.py` passes. The script:
+
+1. Refuses (exit 2) on a dirty tree, on `main` or `release/*`, on a detached HEAD, or when the id is not `CORE-<digits>`.
+2. Fetches `origin`. The base is `--base`, or the newest `origin/release/YYYY.M`. The newest branch is chosen by numeric CalVer order, so `release/2026.10` is newer than `release/2026.9`.
+3. Rebases the branch onto the base. On a conflict it aborts the rebase, lists the conflicting files, and exits 1.
+4. Exits 0 with "nothing to land" when the branch has no commit ahead of the base.
+5. Squashes the branch to one commit with `git commit-tree`, and moves the branch ref with `git update-ref`. The tree does not change. The subject shall be `fix|feat|docs|chore: <text> (CORE-<N>)`. The message comes from `--message-file`, or from the newest commit whose subject ends with `(CORE-<N>)`. The script adds a `Signed-off-by` trailer when it is missing.
+6. Pushes with `--force-with-lease`.
+7. Opens the PR, or updates the open PR for the same branch and base. The PR body follows `.github/PULL_REQUEST_TEMPLATE.md`. The Verification section holds the gate receipt summary when `.gate/result.json` passes `gate.py --verify`. Otherwise it reads `gate: no verified receipt for this tree`.
+8. Enables auto-merge with squash, unless `--no-auto` is set. GitHub merges the PR when the required checks are green.
+9. Prints the PR URL. With `--wait` it polls every 30 seconds for up to 60 minutes, prints the merge sha, and exits 1 if the PR closes or the wait ends.
+
+`--dry-run` runs the refusal checks, the fetch, and the rebase. It prints the plan and changes nothing else.
+
+Rules:
+
+- Each issue lands as one squash commit. The repository allows squash merges only.
+- The `agent-landed` label marks a PR that automation opened. Create the label once in the repository.
+- The `visual-diff` markers in the PR body are reserved for CI (CORE-498). Do not edit them.
+
+## Branch rules
+
+GitHub rulesets protect the integration branches.
+
+| Branch | Rule |
+|---|---|
+| `release/**` | A change shall arrive through a pull request. The checks `engine`, `harness`, and `validate` shall pass. Force-push and deletion are blocked. |
+| `main` | The same checks shall pass on push. Force-push is blocked. |
+
+Details:
+
+- `engine` and `harness` come from `ci.yml`. `validate` comes from `docs-validation.yml`.
+- A required check that never reports blocks the pull request forever. For this reason `docs-validation.yml` has no `paths:` filter and runs on every push and pull request. Do not add a path filter to a workflow that provides a required check.
+- Promotion to `main` stays a fast-forward push of a tip that is already green on `release/**`.
+- Merged branches are deleted automatically.
+
 ## Fonts in CI
 
 CI has the Liberation Sans faces only. It has no macOS Arial, and the repository shall not ship Arial (licence). The engine picks the first readable file from each face's candidate list in `engine/src/fonts.rs`: macOS Arial first, Liberation Sans second.

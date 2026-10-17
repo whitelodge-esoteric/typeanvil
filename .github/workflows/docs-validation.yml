@@ -1,18 +1,15 @@
 # Docs frontmatter validation — runs the same check as the pre-commit hook.
 # Activates when the repo has a GitHub remote and this workflow is pushed.
+#
+# This workflow has no `paths:` filter on purpose. `validate` is a required
+# status check for `release/**` and `main`. A required check that a path filter
+# skips never reports, and GitHub then blocks the pull request forever. The job
+# shall run on every push and every pull request.
 name: docs-validation
 
 on:
   push:
-    paths:
-      - "docs/**"
-      - "scripts/validate_docs.py"
-      - ".pre-commit-config.yaml"
   pull_request:
-    paths:
-      - "docs/**"
-      - "scripts/validate_docs.py"
-      - ".pre-commit-config.yaml"
   workflow_dispatch: {}
 
 jobs:
