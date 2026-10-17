@@ -17,10 +17,12 @@ dependencies: [pdf-metadata]
 
 ## Overview
 
-TypeAnvil supports opt-in tagged PDFs through krilla 0.8.2's tagging API.
-The `--tagged` path emits a logical structure tree for headings, paragraphs,
-lists, tables, figures, links, and language. Since CORE-378 tagging is the
-default; `--no-tagged` yields the earlier untagged output, byte-identical.
+TypeAnvil tags every PDF by default through krilla 0.8.2's tagging API.
+The structure tree covers headings, paragraphs, lists, tables, captions,
+figures, links, and language. Page chrome is marked as artifacts. A tagged
+CI gate (`scripts/tagged_gate.py`) checks the corpus and showcase on every
+release. `--no-tagged` yields the earlier untagged output, byte-identical.
+`--ua` adds PDF/UA-1 validation. The epic CORE-372 closed this feature.
 
 Verified krilla facts (krilla 0.8.2, checked 2026-08-24):
 
