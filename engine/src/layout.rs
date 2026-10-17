@@ -3508,6 +3508,89 @@ impl<'a> Ctx<'a> {
                         {
                             src_offset = crate::typography::FORCED_BREAK_CHAR.len_utf8();
                         }
+                        // CORE-454: text that follows an atomic inline box
+                        // continues the box's line (css2 §9.4.2) while its
+                        // first word fits beside the pen; only the remainder
+                        // flows to fresh lines below.
+                        if resume_offset.is_none()
+                            && atomic_line_active
+                            && !atomic_line_from_text
+                            && flow.active_floats.is_empty()
+                            && atomic_pen_x.get() > inner_left.get()
+                            && src_offset < text.len()
+                            && !text.starts_with(crate::typography::FORCED_BREAK_CHAR)
+                        {
+                            let rem_w = inner_left + inner_width - atomic_pen_x;
+                            if rem_w.get() > 0.0 {
+                                let lines = self.break_paragraph(&text[src_offset..], rem_w, style);
+                                if let Some(lr) = lines.first() {
+                                    if !lr.text.trim().is_empty()
+                                        && lr.drawn_width().get() <= rem_w.get() + 1e-6
+                                    {
+                                        let extra = if atomic_line_h.get() > lh.get() {
+                                            atomic_line_h - lh
+                                        } else {
+                                            Scalar::ZERO
+                                        };
+                                        let x = self.aligned_x(
+                                            atomic_pen_x,
+                                            rem_w,
+                                            lr.drawn_width(),
+                                            style,
+                                        );
+                                        let baseline = atomic_line_top
+                                            + extra
+                                            + crate::typography::baseline_offset(
+                                                style.font_size,
+                                                lh,
+                                                style.font_face,
+                                            );
+                                        if !link_spans.is_empty() {
+                                            let mut rects = Vec::new();
+                                            collect_line_links(
+                                                &mut rects,
+                                                self.page_index,
+                                                lr,
+                                                src_offset,
+                                                x,
+                                                atomic_line_top + extra,
+                                                lh,
+                                                link_spans,
+                                            );
+                                            for r in rects {
+                                                self.links.borrow_mut().push(r);
+                                            }
+                                        }
+                                        let run = TextRun {
+                                            text: lr.text.clone(),
+                                            baseline: Point::new(x, baseline),
+                                            font_size: style.font_size,
+                                            color: style.color,
+                                            font_face: style.font_face,
+                                            glyphs: lr.glyphs.clone(),
+                                            expansion: lr.expansion,
+                                            protrude_left: lr.protrude_left,
+                                            protrude_right: lr.protrude_right,
+                                        };
+                                        children.push(Fragment::line(
+                                            Point::new(atomic_pen_x, atomic_line_top + extra),
+                                            (rem_w, lh),
+                                            run,
+                                        ));
+                                        let ls = src_offset;
+                                        let le = ls + lr.consumed;
+                                        self.register_placed_markers(flow, fn_markers, 0, ls, le);
+                                        atomic_pen_x = x + lr.drawn_width() + lr.trailing_space;
+                                        src_offset += lr.consumed;
+                                        let line_bottom = atomic_line_top + atomic_line_h;
+                                        if line_bottom.get() > y.get() {
+                                            y = line_bottom;
+                                        }
+                                        placed = true;
+                                    }
+                                }
+                            }
+                        }
                         let mut run_broke = false;
                         'segments: while src_offset < text.len() {
                             // Floats whose bottom has passed stop intruding.
