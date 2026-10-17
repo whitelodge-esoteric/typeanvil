@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-20
-updated: 2026-10-16
+updated: 2026-10-17
 sidebar_position: 12
 tags: [engine, ua-stylesheet, prince-parity, css-break, css-page]
 spec_id: ua-print-defaults
@@ -84,17 +84,21 @@ The engine SHALL implement the following, stated as "shall" rules:
    carry `margin-top: 1.12em; margin-bottom: 1.12em`; `blockquote` SHALL
    additionally carry `margin-left/right: 22.5pt`; `ul`/`ol` SHALL carry
    `padding-left: 40pt`.
-4. **Top-of-fragmentainer truncation.** A fresh (break-before) box that is
-   the first IN-FLOW box on a fragmentainer SHALL have its `margin-top`
-   truncated to zero (css-break-3 §4). Truncation applies to UA and author
-   margins alike (it is a fragmentation rule, not a UA rule).
+4. **Top-of-fragmentainer truncation.** Only a fragmented box's
+   CONTINUATION `margin-top` at a fragmentainer edge SHALL be truncated to
+   zero (css-break-3 §3.1). A fresh box at a page start KEEPS its top margin
+   (see the refined Goal above and `margin-collapse` B5). This supersedes
+   the earlier rule that truncated every first in-flow box.
 5. **Floats/abspos do not consume first-in-flow.** A float or absolutely
    positioned box placed before the first in-flow box SHALL NOT clear the
-   first-in-flow state; the following in-flow box still truncates.
-6. **Columns are fragmentainers.** Each multicol column SHALL truncate its
-   first in-flow box's top margin, and a multicol container that is itself
-   first-in-flow on the page SHALL truncate its own top margin.
-7. **Body margin stays zero.** The print `body { margin: 0 }` SHALL remain.
+   first-in-flow state. Behavior 4 limits truncation to continuation
+   margins, so this matters only for those.
+6. **Columns are fragmentainers.** Truncation per Behavior 4 applies at
+   each multicol column edge for a continuation box.
+7. **Body margin is 8px.** `UA_CSS` SHALL declare `body { margin: 8px }`
+   (CORE-153; Chromium keeps it in print, and the CSS specification wins
+   over PrinceXML). The earlier `body { margin: 0 }` rule (CORE-92) is
+   superseded.
 8. **Bold table headers.** `UA_CSS` SHALL declare `th { font-weight: bold }`
    (Prince 16.2 `html.css` line 482; browsers' UA sheets use `bolder`).
    Without it, header cells measure ~10% narrower than Prince's, the frozen

@@ -19,9 +19,12 @@ dependency.
 ## CLI
 
 ```
-npx typeanvil render input.html -o output.pdf
+npx typeanvil render input.html \
+  --page-width 8.5in --page-height 11in -o output.pdf
 typeanvil --help
 ```
+
+`--page-width` and `--page-height` are required.
 
 All arguments pass through to the native binary; the exit code is preserved.
 
@@ -30,12 +33,16 @@ All arguments pass through to the native binary; the exit code is preserved.
 ```js
 import { render } from 'typeanvil';
 
-const { pdf } = await render(['render', 'input.html', '-o', 'output.pdf']);
+const { pdf } = await render([
+  'render', 'input.html',
+  '--page-width', '8.5in', '--page-height', '11in',
+  '-o', 'output.pdf',
+]);
 // `pdf` is a Uint8Array of the rendered PDF.
 ```
 
-To render to a buffer instead of a file, pass `-o -` if your engine version
-supports stdout output, or render to a temp file and read it.
+The engine does not write to stdout. `-o -` creates a file named `-`.
+Always pass a real output path.
 
 ## Override the binary
 

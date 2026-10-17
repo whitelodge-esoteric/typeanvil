@@ -4,7 +4,7 @@ type: runbook
 status: approved
 owner: maintainers
 created: 2026-08-26
-updated: 2026-08-26
+updated: 2026-10-17
 sidebar_position: 3
 tags: [cli, usage, reference]
 ---
@@ -29,9 +29,9 @@ typeanvil render <input.html> [flags] -o <output.pdf>
 | `--margin-right` | length | `0` | Right page margin. |
 | `--margin-bottom` | length | `0` | Bottom page margin. |
 | `--margin-left` | length | `0` | Left page margin. |
-| `--base-url` | URL/path | empty | Base for resolving document-relative resources. |
+| `--base-url` | directory path | empty | Filesystem directory against which relative `<img>` paths resolve. Affects nothing else. |
 | `--title` | string | from `<title>` | PDF metadata title (overrides the document). |
-| `--author` | string | from document | PDF metadata author. |
+| `--author` | string | from `<meta name="author">` | PDF metadata author. |
 | `--no-tagged` | flag | off | Omit the tagged-PDF logical structure tree. Tagging is on by default (CORE-378). |
 | `--tagged` | flag | on | Emit a tagged-PDF logical structure tree. Accepted as a no-op; this is the default. |
 | `--ua` | flag | off | Tagged output plus krilla's PDF/UA-1 validation. Overrides `--no-tagged`. |
@@ -87,8 +87,22 @@ typeanvil render paper.html \
 
 ## Notes
 
-- Use `typeanvil render --help` to inspect the current command surface.
+- Use `typeanvil --help` (or `-h`) to inspect the command surface. `--help`
+  and `--version` work only as the FIRST argument. `typeanvil render --help`
+  is an error (exit 1).
 - Author CSS wins over CLI geometry: an `@page { size: … }` rule in the
-  document overrides the command-line page size.
-- Styles come from `<style>` elements in the document. External stylesheet
-  files via `<link rel="stylesheet">` are not supported yet.
+  document overrides the command-line page size, but only on the pages
+  that rule matches. Other pages keep the command-line size.
+- Styles come from `<style>` elements and from local files named by
+  `<link rel="stylesheet" href="…">`. Remote stylesheets are not fetched.
+- The full user-facing reference is the [CLI guide](/guides/cli). If this
+  page and the guide disagree, the guide wins.
+
+## Version, help, and exit codes
+
+- `typeanvil --version` (or `-V`) prints `typeanvil <version>` and exits 0.
+- `typeanvil --help` (or `-h`) prints usage and exits 0.
+- Exit code 0 means success. Exit code 1 means any error.
+- On error, the engine prints `typeanvil: error: <message>` to stderr.
+  With no arguments the message is
+  ``missing subcommand (expected `render`)``.

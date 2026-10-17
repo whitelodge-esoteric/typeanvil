@@ -4,7 +4,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-09-27
-updated: 2026-10-13
+updated: 2026-10-17
 slug: /specifications/container-distribution
 sidebar_position: 47
 tags: [container, distribution, docker, fonts, release]
@@ -31,7 +31,7 @@ binary:
 
 ```bash
 docker run --rm -v "$PWD:/work" -v "$HOME/.fonts:/usr/share/fonts/user:ro" \
-  ghcr.io/typeanvil/typeanvil render /work/in.html -o /work/out.pdf
+  ghcr.io/whitelodge-esoteric/typeanvil render /work/in.html -o /work/out.pdf
 ```
 
 The image bundles an open-source font set so fallback text renders with valid
@@ -146,7 +146,7 @@ Liberation Serif / Liberation Mono; `sans-serif` keeps the bundled set.
 ### Container image
 
 ```text
-ghcr.io/typeanvil/typeanvil:<tag>
+ghcr.io/whitelodge-esoteric/typeanvil:<tag>
   /usr/bin/typeanvil          # the musl release binary
   /usr/share/fonts/typeanvil/ # bundled Liberation Sans/Serif/Mono (12 faces) + OFL license
   /usr/share/fonts/user/      # user mount point (documented contract)
@@ -177,7 +177,10 @@ ghcr.io/typeanvil/typeanvil:<tag>
 - **User font directory empty:** fontdb discovers nothing; the bundled set
   stands.
 - **User font shadows a bundled family name:** user faces resolve first
-  (Behavior 2); the bundled set is the fallback.
+  (Behavior 2); the bundled set is the fallback. Exception: the names
+  `Arial` and `Helvetica` always resolve to the bundled set
+  (`engine/src/fonts.rs`), so a user font with one of those names does not
+  shadow it. (Aligned to the code, CORE-399.)
 - **Arial/Helvetica name path on Linux:** resolves to the bundled open-source
   set (metric-compatible with Arial), not empty bytes.
 - **Multi-arch pull on an unsupported platform:** GHCR serves the matching

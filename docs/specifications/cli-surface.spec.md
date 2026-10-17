@@ -4,7 +4,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-09-03
-updated: 2026-09-27
+updated: 2026-10-17
 slug: /specifications/cli-surface
 sidebar_position: 44
 tags: [cli, version, help, distribution]
@@ -43,8 +43,10 @@ machine-readable version and discoverable help text from the binary itself.
 3. Both flags shall be honored only as the FIRST argument. In any other
    position they shall be rejected with a non-zero exit and a message on
    stderr.
-4. `typeanvil` with no arguments shall print short usage to stderr and exit
-   non-zero (unchanged from current behavior).
+4. `typeanvil` with no arguments shall print only the error line
+   ``typeanvil: error: missing subcommand (expected `render`)`` to stderr and
+   exit 1. It prints no usage text. (Spec aligned to `engine/src/main.rs`,
+   CORE-399.)
 5. The existing render-flag contract (used by `harness/engine.py`) shall not
    change.
 
@@ -54,7 +56,7 @@ machine-readable version and discoverable help text from the binary itself.
 typeanvil --version | -V      # stdout: "typeanvil 0.0.1"; exit 0
 typeanvil --help | -h         # stdout: usage text; exit 0
 typeanvil render ...          # unchanged (see module doc in main.rs)
-typeanvil <nothing>           # stderr: short usage; exit 1 (unchanged)
+typeanvil <nothing>           # stderr: "typeanvil: error: missing subcommand ..."; exit 1
 typeanvil render doc.html --version   # stderr: error; exit != 0
 ```
 

@@ -99,8 +99,11 @@ market.
   `body-background-*` / `block-00{1,2}-wm-*` / `page-box-008` targets.
 - Footnotes, cross-references beyond `target-counter(..., page)`, named
   counter styles (roman etc.), `target-text`.
-- CSS `size: landscape/portrait` keywords beyond the named page-size keywords
-  (A4, Letter, Legal) and explicit lengths.
+- Page-size keywords beyond those `paged.rs::parse_size` accepts. That set
+  is A5–A3, B4/B5, JIS-B4/B5, letter, legal, ledger, the `landscape` and
+  `portrait` keywords, and one- or two-length sizes (see
+  `paged-media-hardening`). (Corrected CORE-399; the earlier text limited
+  the set to A4, Letter and Legal.)
 
 ## Behavior
 
@@ -581,9 +584,10 @@ Given/When/Then, each mapping to a real test in `engine/tests/paged_media.rs`:
     its resolved share of the page area and the fill is visible, with the
     content placed inside the content box.
 26. **Page box grows to a declared area** — Given `@page { margin: 6em;
-    width: 20em; height: 16em }` on a 5in×3in CLI default, when rendered, then
-    the page box is 32em×28em and the page area is 20em×16em, so a reference
-    that declares the same 32em box renders at the same size.
+    width: 20em; height: 16em }` (no `size:`) on a 5in×3in CLI default, when
+    rendered, then the page box is 32em×28em and the page area is 20em×16em,
+    so a reference that declares the same 32em box renders at the same size.
+    With an explicit `size:` the box is not resized (Behavior 16).
 
 27. **Margin-box image content** — Given
     `@page { margin: 0; margin-top: 50px; @top-left { content: "Ti "

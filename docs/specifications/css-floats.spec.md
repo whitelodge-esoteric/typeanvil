@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-19
-updated: 2026-09-27
+updated: 2026-10-17
 sidebar_position: 7
 tags: [engine, css, floats, fragmentation, layout]
 spec_id: css-floats
@@ -62,7 +62,8 @@ read it from stylo like `float`.
 **Non-Goals** (deferred; scope stays honest)
 
 - The `clear` property (floats will not be cleared; a `clear` declaration is
-  ignored this pass).
+  ignored). The engine has no computed `clear` value today.
+  `floats-fragmentation.spec.md` records the intended design as deferred.
 - Full CSS2 float stacking (side-by-side placement with line-wrap when the
   float line fills; float continuation below a tall float on the same line
   area). One float per side per y-band, placed at the edge.

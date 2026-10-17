@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-18
-updated: 2026-09-27
+updated: 2026-10-17
 sidebar_position: 7
 tags: [engine, layout, css-float, css-break, fragmentation]
 spec_id: floats-fragmentation
@@ -27,6 +27,13 @@ The engine has zero float support today: `layout.rs` lays out block and inline
 boxes only (the only "float" hits in the source are the `geom.rs` FMA comment
 and table-column widths). This issue adds `float`/`clear` placement and
 fragmentation on top of the fragment tree.
+
+> **Status note (CORE-399, 2026-10-17):** `clear` is NOT implemented. The
+> engine has no computed `clear` value; a `clear` declaration is ignored
+> (see the `css-floats` spec Non-Goals). The `clear` statements in this
+> spec (Behavior 1 and 5, the `ComputedStyle.clear` interface, Acceptance
+> Criterion 3) describe the intended design and are deferred until a
+> ticket implements them.
 
 **Path chosen: stylo.** Verified 2026-08-18 against stylo 0.20.0
 `properties/longhands.toml`: `float` (type `Float`) and `clear` (type `Clear`)
