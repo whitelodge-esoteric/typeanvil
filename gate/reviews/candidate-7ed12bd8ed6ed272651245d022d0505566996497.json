@@ -1,0 +1,85 @@
+{
+ "schema": "typeanvil.harness.reviews/1",
+ "candidate": {
+  "label": "candidate-7ed12bd8ed6ed272651245d022d0505566996497",
+  "source_commit": "7ed12bd8ed6ed272651245d022d0505566996497",
+  "binary_sha256": "f5228422c9d90439d84305c9cdcde6e73455de780493c6d0003f05971f8929ad"
+ },
+ "baseline": {
+  "label": "baseline-2ba75c9642fa1064e3caf66650ce7b4e837c5e50",
+  "source_commit": "2ba75c9642fa1064e3caf66650ce7b4e837c5e50",
+  "binary_sha256": "16b4209f0b0cd807849f163c5c920143e0efc4973f8e47040d57ec42bdc3f404"
+ },
+ "dispositions": [
+  {
+   "doc_id": "css/css-break/table/table-fragmentation-001c-print-ref.html",
+   "change_id": "977f00d6eb716b483d2d193e58cc08b3c0c5a47837fed659087ebb4b44906dff",
+   "kind": "correction",
+   "reason": "Ref uses box-decoration-break: clone on a fragmented div table. Bands measured with probe/bands.py: baseline 2 pages (p1 black 36-179), candidate 3 pages, black band 36-179 on every page (cloned top and bottom border). Matches the test document 001c-print band for band (p1 gold 108-143, p2 gold 72-143, p3 gold 72-107). Not diffed visually beyond the bands.",
+   "provenance": "css-break-3 section 5.4 box-decoration-break; docs/specifications/box-decoration-break.spec.md behavior 3"
+  },
+  {
+   "doc_id": "css/css-break/table/table-fragmentation-001c-print.html",
+   "change_id": "804a3799e0dc3fc3ae539ca15f746b1847369a01b01a914fdf8cb4f62db57662",
+   "kind": "correction",
+   "reason": "Table with box-decoration-break: clone now repeats border and padding on every fragment and reserves the bottom chrome in row_limit. Baseline 2 pages, candidate 3 pages. Bands equal the ref (p1 gold 108-143, p2 72-143, p3 72-107; black 36-179 on each page). Status unchanged (no flip).",
+   "provenance": "css-break-3 section 5.4; docs/specifications/box-decoration-break.spec.md behavior 5"
+  },
+  {
+   "doc_id": "css/css-break/table/table-fragmentation-001d-print.html",
+   "change_id": "1496dfbc5b6afb5349b1d3aae6b2caa40a197646df3322e7965d082d30e0dfa4",
+   "kind": "correction",
+   "reason": "Same markup family as 001c (same ref). Candidate renders are byte-identical to 001c (same rendered_image hashes), 2 -> 3 pages with cloned chrome on every page.",
+   "provenance": "css-break-3 section 5.4; docs/specifications/box-decoration-break.spec.md behavior 5"
+  },
+  {
+   "doc_id": "css/css-break/table/table-fragmentation-002c-print-ref.html",
+   "change_id": "34d4e8f17e991ca4e34f84019d9c3d596c32b0849fc4929c0410f4a73ead09f0",
+   "kind": "variation",
+   "reason": "Ref uses box-decoration-break: clone. Baseline 3 pages, candidate 4 pages (p1 black 43-125, p2 black 36-179, p3 black 36-215, p4 black 39-46). Test and ref both moved by one page and both still FAIL (FAIL -> FAIL, no status move). The p3 band reaching 215 pt is a pre-existing overflow also present at baseline (black 36-215 on p2). Residual belongs to the 002 family, not to clone. Not diffed visually.",
+   "provenance": "css-break-3 section 5.4; ref movement alone is not engine correctness; 002c/d were FAIL before this change"
+  },
+  {
+   "doc_id": "css/css-break/table/table-fragmentation-002c-print.html",
+   "change_id": "2b116656aa5248186fcd0681f09b86d5772dd10885f55e1b45f3d7117915f866",
+   "kind": "variation",
+   "reason": "Clone chrome now repeats on every fragment: 3 -> 4 pages (p1 black 43-143, p2 black 36-179, p3 black 36-197, p4 black 39-46). FAIL -> FAIL at baseline and candidate (no flip). Clone behavior is correct per spec; the residual mismatch with the ref is the pre-existing 002 overflow at baseline (black to 215 pt).",
+   "provenance": "css-break-3 section 5.4; docs/specifications/box-decoration-break.spec.md behavior 5"
+  },
+  {
+   "doc_id": "css/css-break/table/table-fragmentation-002d-print.html",
+   "change_id": "9de573b81dc3f37438bfc7a52e78a3e9a4ed098121e60fd1cca40fd7ee3c17fd",
+   "kind": "variation",
+   "reason": "Same rendered hashes as 002c-print (same markup family): 3 -> 4 pages, FAIL -> FAIL, no flip.",
+   "provenance": "css-break-3 section 5.4; docs/specifications/box-decoration-break.spec.md behavior 5"
+  },
+  {
+   "doc_id": "css/css-break/table/table-fragmentation-003a-print-ref.html",
+   "change_id": "355b8d597aa5c3e9092d0e9f31b23c13f704c076d5636fd6f89721a4c217ddb4",
+   "kind": "correction",
+   "reason": "Ref (div table, clone) page count unchanged at 3; images changed because logical border-block-start/end-width are now parsed (CORE-457 gap A) and clone is honored. 003a-print and 003b-print flip FAIL -> PASS in this capture.",
+   "provenance": "css-break-3 section 5.4; css-logical-1 border-block-start-width / border-block-end-width (horizontal-tb: top/bottom)"
+  },
+  {
+   "doc_id": "css/css-break/table/table-fragmentation-003c-print-ref.html",
+   "change_id": "b80cd167a8b44f12856bac83bf03e59b685f2541183f44af25690fad31455d28",
+   "kind": "correction",
+   "reason": "Baseline 2 pages with black band to 206 pt (past the 180 pt content box). Candidate 3 pages, black 36-179 on every page, matching the ref comments (row slices 0.125in / 0.5in / 0.125in). Bands: p1 blue 72-89 gold 117-125 orange 99-116 purple 135-152; p2 blue 63-80 gold 90-125 purple 135-152; p3 blue 63-80 gold 90-98 orange 99-116 purple 126-143.",
+   "provenance": "css-break-3 section 5.4; css-logical-1 border-block-*-width; docs/specifications/box-decoration-break.spec.md behaviors 3 and 8"
+  },
+  {
+   "doc_id": "css/css-break/table/table-fragmentation-003c-print.html",
+   "change_id": "bf9954cd0a8a9d70b0ba88c39430801dfdfba4c6071c10ef107f3915de8acae7",
+   "kind": "correction",
+   "reason": "FAIL -> PASS. Baseline 2 pages; candidate 3 pages. Bands are identical to the ref render band for band (same list as 003c-print-ref); rendered_image hashes equal the ref's (40cc1249..., 3485ccce..., 17e7bdb0...).",
+   "provenance": "css-break-3 section 5.4; docs/specifications/box-decoration-break.spec.md behaviors 5 and 6"
+  },
+  {
+   "doc_id": "css/css-break/table/table-fragmentation-003d-print.html",
+   "change_id": "f18ce887940230fd6f99ad8b594ef1930c2f59017a33ec0604213c01ed9a39e9",
+   "kind": "correction",
+   "reason": "FAIL -> PASS. Same markup family and same rendered_image hashes as 003c-print, and equal to the 003c ref hashes.",
+   "provenance": "css-break-3 section 5.4; docs/specifications/box-decoration-break.spec.md behaviors 5 and 6"
+  }
+ ]
+}

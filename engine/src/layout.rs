@@ -2768,10 +2768,23 @@ impl<'a> Ctx<'a> {
         } else {
             Scalar::ZERO
         };
-        let padding_top = if fresh {
+        // CORE-457: box-decoration-break: clone (css-break-3 §5.4) repeats
+        // the top/bottom border and padding on every fragment, and the
+        // bottom chrome is reserved out of the child limit.
+        // Declared-height boxes keep `slice`: their continuation counts
+        // consumed block size against the declared extent, which cloned
+        // chrome would break (monolithic-overflow-031 moved 5 -> 6 pages).
+        let clone_deco = style.box_decoration_clone
+            && self.resolved_height_or_percent(id, style).is_none();
+        let padding_top = if fresh || clone_deco {
             style.padding_top
         } else {
             Scalar::ZERO
+        };
+        let bottom_limit = if clone_deco {
+            bottom_limit - style.padding_bottom - style.border_bottom
+        } else {
+            bottom_limit
         };
 
         let box_top = top + margin_top;
@@ -2869,7 +2882,7 @@ impl<'a> Ctx<'a> {
             - style.border_left
             - style.border_right;
         let content_top = box_top
-            + (if fresh { style.border_top } else { Scalar::ZERO })
+            + (if fresh || clone_deco { style.border_top } else { Scalar::ZERO })
             + padding_top;
 
         // Build the ordered child-item list (stable, document order).
@@ -5052,7 +5065,7 @@ impl<'a> Ctx<'a> {
         flow.abspos_cb = saved_abspos_cb;
 
         // Padding-bottom / margin-bottom only apply when the box finished.
-        let padding_bottom = if broke {
+        let padding_bottom = if broke && !clone_deco {
             Scalar::ZERO
         } else {
             style.padding_bottom
@@ -5067,7 +5080,7 @@ impl<'a> Ctx<'a> {
         // cursor under-advanced (table-fragmentation-001's td measured
         // 126pt instead of 144pt). Cell borders on the table path go through
         // this same block path, so the bottom band now lands on the box edge.
-        if !broke {
+        if !broke || clone_deco {
             y += style.border_bottom;
         }
 
@@ -5370,9 +5383,9 @@ impl<'a> Ctx<'a> {
             // the gold content is positioned correctly; the border bands were
             // painting over it on the continuation fragment).
             let border_box = BorderBox {
-                top: if fresh { style.border_top } else { Scalar::ZERO },
+                top: if fresh || clone_deco { style.border_top } else { Scalar::ZERO },
                 right: style.border_right,
-                bottom: if broke { Scalar::ZERO } else { style.border_bottom },
+                bottom: if broke && !clone_deco { Scalar::ZERO } else { style.border_bottom },
                 left: style.border_left,
                 top_color: style.border_top_color.unwrap_or(crate::css::Color::BLACK),
                 right_color: style.border_right_color.unwrap_or(crate::css::Color::BLACK),
@@ -5976,8 +5989,16 @@ impl<'a> Ctx<'a> {
         let separate = tstyle.border_collapse == crate::css::BorderCollapse::Separate;
         let sp_h = if separate { tstyle.border_spacing_h } else { Scalar::ZERO };
         let sp_v = if separate { tstyle.border_spacing_v } else { Scalar::ZERO };
+        // CORE-457: box-decoration-break: clone (css-break-3 §5.4) repeats
+        // the top and bottom chrome on every fragment.
+        let clone_deco = tstyle.box_decoration_clone;
+        // Border-spacing at a fragmentation break is truncated (the ref of
+        // table-fragmentation-003c: spacing only above the first and below
+        // the last fragment), so a clone continuation takes border+padding.
         let chrome_top = if fresh {
             tstyle.border_top + tstyle.padding_top + sp_v
+        } else if clone_deco {
+            tstyle.border_top + tstyle.padding_top
         } else {
             Scalar::ZERO
         };
@@ -6034,11 +6055,16 @@ impl<'a> Ctx<'a> {
         let reserve_footer = footer_index.is_some_and(|f| repeatable(children[f]))
             && footer_height.get() > 0.0
             && footer_height.get() <= repeat_max.get() + 0.01;
-        let row_limit = if reserve_footer {
+        let mut row_limit = if reserve_footer {
             bottom_limit - footer_height
         } else {
             bottom_limit
         };
+        // CORE-457: clone chrome at the fragment bottom is reserved out of
+        // the row budget (the slice model only reserves it on the last one).
+        if clone_deco {
+            row_limit = row_limit - (tstyle.padding_bottom + tstyle.border_bottom);
+        }
 
         // Repeating header (spec rule 7): on continuation fragments the
         // table-header-group re-lays-out at the top of the page even though
@@ -6266,6 +6292,8 @@ impl<'a> Ctx<'a> {
         // fragment leaves the bottom chrome to its last fragment (slice).
         if seen_all {
             y += sp_v + tstyle.padding_bottom + tstyle.border_bottom;
+        } else if clone_deco {
+            y += tstyle.padding_bottom + tstyle.border_bottom;
         }
 
         // Rebase children to be parent-relative.
@@ -6309,9 +6337,9 @@ impl<'a> Ctx<'a> {
             || tstyle.border_left.get() > 0.0
         {
             let border_box = BorderBox {
-                top: if fresh { tstyle.border_top } else { Scalar::ZERO },
+                top: if fresh || clone_deco { tstyle.border_top } else { Scalar::ZERO },
                 right: tstyle.border_right,
-                bottom: if seen_all { tstyle.border_bottom } else { Scalar::ZERO },
+                bottom: if seen_all || clone_deco { tstyle.border_bottom } else { Scalar::ZERO },
                 left: tstyle.border_left,
                 top_color: tstyle.border_top_color.unwrap_or(crate::css::Color::BLACK),
                 right_color: tstyle.border_right_color.unwrap_or(crate::css::Color::BLACK),

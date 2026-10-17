@@ -20,6 +20,7 @@ mod core174_space_before_atomic;
 mod core175_atomic_after_aligned_text;
 mod core176_grid_overflow_pages;
 mod core201_per_side_border_colors;
+mod core457_box_decoration_break;
 mod core237_monolithic_container_fragmentation;
 mod core239_br_after_tall_inline_block;
 mod core241_zero_height_overflow;

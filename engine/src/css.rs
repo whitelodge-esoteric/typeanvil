@@ -1096,6 +1096,9 @@ pub struct ComputedStyle {
     /// (the element's `color`, resolved to a concrete Color by consumers —
     /// the CORE-165 model).
     pub border_top_color: Option<Color>,
+    /// CORE-457: `box-decoration-break: clone` (css-break-3 §5.4). Not
+    /// inherited; default `slice` (false).
+    pub box_decoration_clone: bool,
     pub border_right_color: Option<Color>,
     pub border_bottom_color: Option<Color>,
     pub border_left_color: Option<Color>,
@@ -1381,6 +1384,7 @@ impl ComputedStyle {
             border_bottom: Scalar::ZERO,
             border_left: Scalar::ZERO,
             border_top_color: None,
+            box_decoration_clone: false,
             border_right_color: None,
             border_bottom_color: None,
             border_left_color: None,
@@ -2501,6 +2505,7 @@ impl CascadeSession {
             border_bottom,
             border_left,
             border_top_color: stylo_border_top_color,
+            box_decoration_clone: false,
             border_right_color: stylo_border_right_color,
             border_bottom_color: stylo_border_bottom_color,
             border_left_color: stylo_border_left_color,
@@ -3735,6 +3740,8 @@ mod borders {
             side: Side,
             color: Color,
         },
+        /// `box-decoration-break` (CORE-457): true = clone, false = slice.
+        DecorationBreak(bool),
     }
 
     #[derive(Clone, Copy, Debug, PartialEq)]
@@ -3951,7 +3958,16 @@ mod borders {
                     None
                 }
             }
-            "border-top" | "border-top-width" => Some(BorderDecl::Side {
+            // CORE-457: box-decoration-break (css-break-3 §5.4). Parsed in
+            // this pass because stylo's servo build omits the property.
+            "box-decoration-break" => match value.to_ascii_lowercase().as_str() {
+                "clone" => Some(BorderDecl::DecorationBreak(true)),
+                "slice" => Some(BorderDecl::DecorationBreak(false)),
+                _ => None,
+            },
+            // CORE-457: logical block-axis border widths (horizontal-tb:
+            // block-start = top, block-end = bottom).
+            "border-top" | "border-top-width" | "border-block-start" | "border-block-start-width" => Some(BorderDecl::Side {
                 side: Side::Top,
                 width: wt,
                 color: c,
@@ -3961,7 +3977,7 @@ mod borders {
                 width: wr,
                 color: c,
             }),
-            "border-bottom" | "border-bottom-width" => Some(BorderDecl::Side {
+            "border-bottom" | "border-bottom-width" | "border-block-end" | "border-block-end-width" => Some(BorderDecl::Side {
                 side: Side::Bottom,
                 width: wb,
                 color: c,
@@ -4138,6 +4154,9 @@ mod borders {
                 BorderDecl::SideColor { side, color } => {
                     // `border-<side>-color` — ONE side only (CORE-201).
                     apply_color(st, won, *side, *color, prio);
+                }
+                BorderDecl::DecorationBreak(clone) => {
+                    st.box_decoration_clone = *clone;
                 }
             }
         }
