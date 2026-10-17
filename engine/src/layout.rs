@@ -3266,6 +3266,17 @@ impl<'a> Ctx<'a> {
                         // its bottom return to full width. Runs resume by source
                         // offset so a width change across a page break is safe.
                         let mut src_offset = resume_offset.unwrap_or(0).min(text.len());
+                        // CORE-239: a `<br>` that directly follows an atomic
+                        // inline box ends THAT line; it must not open an
+                        // extra empty line below the box.
+                        if resume_offset.is_none()
+                            && atomic_line_active
+                            && !atomic_line_from_text
+                            && flow.active_floats.is_empty()
+                            && text.starts_with(crate::typography::FORCED_BREAK_CHAR)
+                        {
+                            src_offset = crate::typography::FORCED_BREAK_CHAR.len_utf8();
+                        }
                         let mut run_broke = false;
                         'segments: while src_offset < text.len() {
                             // Floats whose bottom has passed stop intruding.
