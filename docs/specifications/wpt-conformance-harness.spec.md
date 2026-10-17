@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-08-16
-updated: 2026-09-27
+updated: 2026-10-17
 sidebar_position: 1
 tags: [harness, wpt, conformance, testing]
 spec_id: wpt-conformance-harness
@@ -75,6 +75,8 @@ The harness shall:
    overflow containers — stay out until their tickets land). The list grows
    as features land; every entry must parse, be script-free, and have
    resolvable references (unit-tested in `tests/test_multicol_subset.py`).
+   The curated MathML subset (`harness/mathml_subset.py`, `MATHML_SUBSET`,
+   CORE-455) is enumerated the same way (`tests/test_mathml_subset.py`).
 4. **Parse metadata**: for each candidate, parse `rel` reference links
    (relative paths resolved against the test file, absolute `/...` paths
    against the WPT root), `<meta name="fuzzy">` tolerances (both `a-b` ranges
@@ -258,6 +260,46 @@ Named residual drivers (attribution follows `demo/corpus/TRIAGE.md` conventions)
   page-count mismatches.
 - **css-break/table** (5 fails): `table-fragmentation-002a–d` pixel-budget
   (deferred, unowned) + `fixedpos-in-footer-forced-break`.
+
+### MathML subset baseline (CORE-455)
+
+`mathml` is in `TEST_PATHS`, so `python -m harness fetch` brings it into the
+sparse checkout. The curated list lives in `harness/mathml_subset.py`
+(`MATHML_SUBSET`, 26 tests, always enumerated). Most WPT MathML tests load
+`/mathml/support/feature-detection.js` through a `<script>`; the manifest rejects
+any file with `<script`, so only script-free reftests qualify. Elements covered:
+mfrac (invalid-markup cases), mo, munder, mover, munderover, msup, mtable.
+No script-free reftest exists for mi, mn, msqrt, mroot, msub or msubsup.
+
+Baseline 2026-10-17, release/2026.10 `e334866`, engine leg in the dev container,
+Chromium and Prince legs on the host (`python -m harness triage mathml/
+--legs chromium,prince`):
+
+| Leg | Pass | Rate |
+|---|---|---|
+| Engine | 18/26 | 69% |
+| Chromium | 15/26 | 58% |
+| Prince | 15/26 | 58% |
+
+Engine failures (8), classified by the other two legs:
+
+| Test (under `mathml/presentation-markup/`) | Engine | Chromium | Prince | Reading |
+|---|---|---|---|---|
+| `fractions/frac-invalid-3` | FAIL | PASS | FAIL | Chromium reference satisfied; engine gap |
+| `operators/mo-lspace-rspace` | FAIL | FAIL | FAIL | No ground truth |
+| `operators/mo-lspace-rspace-2` | FAIL | FAIL | FAIL | No ground truth |
+| `scripts/munderover-align-accent-true` | FAIL | FAIL | FAIL | No ground truth |
+| `scripts/munderover-align-accent-false` | FAIL | FAIL | FAIL | No ground truth |
+| `scripts/stretchy-mover-1a` | FAIL | PASS | FAIL | Chromium reference satisfied; engine gap |
+| `scripts/stretchy-mover-2a` | FAIL | FAIL | FAIL | No ground truth |
+| `scripts/stretchy-mover-2b` | FAIL | PASS | PASS | Engine gap (two legs pass) |
+
+Tests where the engine passes and Chromium fails (`stretchy-msup-1a`..`1d`,
+`stretchy-mover-1b`, `stretchy-mover-3`) are likely self-consistency passes:
+test and reference both render through the same engine. Treat them as unproven
+until a stretchy-operator implementation lands.
+The five "No ground truth" tests are not engine defects to chase. Details and
+raw reports: `~/workspace/typeanvil-evidence/CORE-455/`.
 
 Reproduce the baseline:
 

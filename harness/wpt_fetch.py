@@ -22,6 +22,7 @@ TEST_PATHS: tuple[str, ...] = (
     "css/css-page",
     "css/css-break",
     "css/css-multicol",
+    "mathml",
 )
 
 # Repo-root support paths those tests reference by absolute URL (fonts, shared CSS,

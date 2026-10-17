@@ -362,6 +362,7 @@ def enumerate_tests(
     CORE-77) is always included regardless of the print-only gate: those tests are
     ordinary screen reftests, hand-triaged to exercise shipped engine features.
     """
+    from .mathml_subset import MATHML_SUBSET
     from .multicol_subset import MULTICOL_SUBSET
     from .wpt_fetch import TEST_PATHS
 
@@ -378,10 +379,10 @@ def enumerate_tests(
                 continue
             if _is_reference_file(path):
                 continue
+            rel = path.relative_to(wpt_root).as_posix()
             is_curated = (
-                d == "css/css-multicol"
-                and path.relative_to(wpt_root).as_posix() in MULTICOL_SUBSET
-            )
+                d == "css/css-multicol" and rel in MULTICOL_SUBSET
+            ) or (d == "mathml" and rel in MATHML_SUBSET)
             if print_only and not _looks_like_print_test(path) and not is_curated:
                 continue
             tc = parse_test(path, wpt_root)
