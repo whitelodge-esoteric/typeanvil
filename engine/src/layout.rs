@@ -2900,8 +2900,8 @@ impl<'a> Ctx<'a> {
 
         let box_top = top + margin_top;
         // Declared `width` on a block (CORE-126): the fragment (border box)
-        // is the smaller of the declared width and the available width — the
-        // stretch-to-fill default only applies when width is auto
+        // is the declared width (CORE-477: not clamped to the available
+        // width) — the stretch-to-fill default only applies when width is auto
         // (css-sizing-3 §5.1). Border-box sizing subtracts chrome like the
         // atomic path (css-ui-3). The parent cursor still advances by the
         // full `avail_width` via `used` (a block keeps its containing-block
@@ -2920,14 +2920,9 @@ impl<'a> Ctx<'a> {
             })
         };
         let box_border_w = match declared_border_w {
-            Some(w) => {
-                let avail = avail_width - style.margin_left - style.margin_right;
-                if w.get() > avail.get() {
-                    avail
-                } else {
-                    w
-                }
-            }
+            // CORE-477: a declared width is used as is and overflows the
+            // containing block when wider (css-sizing-3 §5.1).
+            Some(w) => w,
             None => {
                 let avail = avail_width - style.margin_left - style.margin_right;
                 if avail.get() < 0.0 {
