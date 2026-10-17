@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-08-24
-updated: 2026-10-16
+updated: 2026-10-17
 sidebar_position: 16
 tags: [engine, pdf, accessibility, tagging, determinism]
 spec_id: tagged-pdf
@@ -63,8 +63,8 @@ Verified krilla facts (krilla 0.8.2, checked 2026-08-24):
 
 ## Non-Goals
 
-- No `Span`-level language switching or `ActualText` (hyphenation-aware copy)
-  in this pass — spans exist in the API but the emitter tags whole draws.
+- No `Span`-level language switching in this pass — the emitter tags whole
+  draws. (`ActualText` for hyphenated lines is in scope: Behavior 10.)
 - No `Reference` role for footnote call markers (CORE-374): the call digits
   are spliced into the paragraph's text run and are drawn as part of it, so
   they cannot own a separate marked-content sequence without splitting the
@@ -196,6 +196,18 @@ as PDF-400/UA-1 intend.
 9. The harness adapter contract stays additive: existing flags keep their
    exact meaning.
 
+10. **ActualText for hyphenated lines (CORE-376).** When a line ends in a
+    hyphen the engine inserted at a hyphenation break (not a hyphen present
+    in the source), a tagged draw of that line SHALL use a `Span` content tag
+    whose `ActualText` is the line text without that synthetic hyphen. The
+    line before the break then reads `hyphen` and the next line reads `ation`,
+    so a tag-aware reader joins the source word. A hyphen that exists in the
+    source (`well-known` broken after its hyphen) SHALL stay in the text. The
+    span covers one line, as krilla advises. Ligatures need no `ActualText`:
+    the glyph cluster ranges already map a ligature glyph back to its source
+    letters in `ToUnicode`. Untagged output SHALL stay byte-identical, and
+    lines without a synthetic hyphen SHALL keep the plain `Other` tag.
+
 ## Interfaces
 
 New module `engine/src/tags.rs` (registered in `lib.rs`):
@@ -316,6 +328,11 @@ tagging and overrides `--no-tagged`.
   owns the marker's leaf while `LBody` owns the item text. `role_for` has a
   unit assertion per new element. Untagged output stays byte-identical
   (AC-1). Test: `engine/tests/tagged_roles.rs`.
+- AC-15 (ActualText, CORE-376): a fixture with a forced hyphenation break
+  and `fi`/`fl` ligatures, rendered tagged, carries `/ActualText` on the
+  marked content of the hyphenated line (value without the synthetic
+  hyphen); an untagged render stays byte-identical and `--ua` stays clean.
+  Test: `engine/tests/it/tagged_actualtext.rs`.
 - AC-7 (no regression): full WPT suite shows 0 regressed (untagged raster
   path cannot move; gate confirms). Engine `cargo test` green.
 

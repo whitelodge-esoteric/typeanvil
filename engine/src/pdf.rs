@@ -26,7 +26,7 @@ use krilla::num::NormalizedF32;
 use krilla::outline::{Outline, OutlineNode};
 use krilla::page::PageSettings;
 use krilla::paint::{Fill, FillRule};
-use krilla::tagging::{Artifact, ArtifactType, ContentTag};
+use krilla::tagging::{Artifact, ArtifactType, ContentTag, SpanTag};
 use krilla::text::{Font, GlyphId, KrillaGlyph, TextDirection};
 use krilla::{Document, SerializeSettings};
 use std::collections::HashMap;
@@ -1566,7 +1566,20 @@ fn paint_group(
             if t.glyphs.is_empty() && t.text.is_empty() {
                 continue;
             }
-            let ident = surface.start_tagged(tag_for_owner(t.owner));
+            // CORE-376: a line ending in the hyphen the breaker inserted
+            // carries ActualText without it, so readers rejoin the word.
+            let actual: Option<&str> = if t.owner.is_some()
+                && t.glyphs.last().is_some_and(|g| g.synthetic)
+            {
+                t.text.strip_suffix('-')
+            } else {
+                None
+            };
+            let tag = match actual {
+                Some(a) => ContentTag::Span(SpanTag::empty().with_actual_text(Some(a))),
+                None => tag_for_owner(t.owner),
+            };
+            let ident = surface.start_tagged(tag);
             if t.glyphs.is_empty() {
                 // Fallback text path (empty run — nothing shaped). All
                 // normal runs — body text, generated content, margin

@@ -219,6 +219,10 @@ pub struct ShapedGlyph {
     /// it belongs to the run's own face. The PDF writer splits a run at
     /// every change of face.
     pub face: Option<FaceId>,
+    /// True only for the hyphen glyph the line breaker appends at a
+    /// hyphenation break (not a hyphen present in the source). The tagged
+    /// PDF writer drops it from `ActualText` (CORE-376).
+    pub synthetic: bool,
 }
 
 /// A shaped word or segment.
@@ -482,6 +486,7 @@ fn shape_word_uncached(
                 x_offset: g.x_offset,
                 range: (s + g.range.start)..(s + g.range.end),
                 face: fb,
+                synthetic: false,
             });
         }
     }
@@ -561,6 +566,7 @@ fn shape_single_face(
             x_offset: Scalar(off),
             range: start..end,
             face: None,
+            synthetic: false,
         });
     }
 
@@ -1279,6 +1285,7 @@ fn materialize_line(
                             // (CORE-85).
                             range: sp..sp + 1,
                             face: None,
+                            synthetic: false,
                         });
                         spaces.push((gi, g.width.get(), g.stretch.get(), g.shrink.get()));
                     }
@@ -1295,6 +1302,7 @@ fn materialize_line(
                     x_offset: g.x_offset,
                     range: (base + g.range.start)..(base + g.range.end),
                     face: g.face,
+                    synthetic: false,
                 }));
             }
             Item::Glue(g) => {
@@ -1335,6 +1343,7 @@ fn materialize_line(
             x_offset: g.x_offset,
             range: hp..hp + 1,
             face: g.face,
+            synthetic: true,
         }));
     }
     // A forced break (`<br>`) adds no glyphs or width, but the line CONSUMES

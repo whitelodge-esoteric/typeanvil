@@ -76,6 +76,7 @@ mod smoke;
 mod table_caption;
 mod table_header_break;
 mod tables;
+mod tagged_actualtext;
 mod tagged_default;
 mod tagged_link_alt;
 mod tagged_outline_fallback;
