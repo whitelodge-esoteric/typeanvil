@@ -44,6 +44,32 @@ The harness tests run on the host with the venv from the main checkout. Set `PY=
 
 The script stops at the first failing step and prints `ci-local: FAILED at step '<name>'`. On success it prints one `PASS` line per step.
 
+## Fonts in CI
+
+CI has the Liberation Sans faces only. It has no macOS Arial, and the repository shall not ship Arial (licence). The engine picks the first readable file from each face's candidate list in `engine/src/fonts.rs`: macOS Arial first, Liberation Sans second.
+
+Rules for tests:
+
+1. A test shall not assert a macOS font path or an `Arial*MT` PostScript name for a bundled face.
+2. A test shall read the expected name from the face file the engine resolved. `engine/tests/fonts.rs` does this with `expected_ps_name(face)`, which reads nameID 6 from `typeanvil::fonts::face_path(face)`.
+3. A test that needs a macOS system face shall carry `#[cfg(target_os = "macos")]`.
+
+`scripts/dev-container.sh` mounts the Mac Arial, so the tests also pass there when they depend on Arial by mistake. To run the CI font setup locally, run the tests in a container without that mount. The container copies Liberation to `/usr/share/fonts/typeanvil/`, then runs cargo as the `dev` user. Run it from the worktree root:
+
+```bash
+W="$(basename "$PWD")"
+docker run --rm --user root --memory 6g --cpus 4 --env CARGO_HOME=/cargo-home \
+  -v dev-cargo-home:/cargo-home -v dev-cargo-git:/cargo-home/git \
+  -v dev-cargo-registry:/cargo-home/registry \
+  -v "dev-target-$W:/work/engine/target" -v "$PWD:/work:ro" -w /work \
+  typeanvil-dev bash -c 'mkdir -p /usr/share/fonts/typeanvil \
+    && cp docker/fonts/typeanvil/*.ttf /usr/share/fonts/typeanvil/ \
+    && exec setpriv --reuid=dev --regid=dev --init-groups "$@"' bash \
+  cargo test --manifest-path /work/engine/Cargo.toml -j 2 --test fonts
+```
+
+Replace the last line to run other tests, for example `--lib fonts::`. The `:ro` mount of the worktree is enough for `cargo test` because the build output lives in the volume.
+
 ## The clippy ratchet
 
 CI shall fail on any new warning and shall not fail on existing ones. `engine/Cargo.toml` achieves this with two tables:
