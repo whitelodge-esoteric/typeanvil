@@ -3145,6 +3145,11 @@ impl<'a> Ctx<'a> {
         // alignment offset is meaningful; a line started by an atomic is
         // packed from the segment origin with no realignment).
         let mut atomic_line_from_text = false;
+        // CORE-466: a declared-height atomic that spans fragmentainers
+        // keeps its line box open on every page it occupies, so the text
+        // run that follows it lays beside it at the line top. Holds the
+        // cursor to restore and the atomic's node id while that run lays.
+        let mut beside_tall_atomic: Option<(Scalar, NodeId)> = None;
         // CORE-365: rollback points for the current run of consecutive avoid
         // boundaries (see `AvoidSnap`).
         let mut avoid_chain: Vec<AvoidSnap> = Vec::new();
@@ -3190,6 +3195,18 @@ impl<'a> Ctx<'a> {
             // Inline-level atomic items (CORE-120) share the current line:
             // `pen_x`/`line_top`/`line_h` alias the loop-persistent atomic
             // line state so consecutive items pack side by side.
+            // CORE-466: the run beside a tall atomic is laid; resume the
+            // cursor below the atomic's page piece and drop the intrusion.
+            if let Some((y_after, aid)) = beside_tall_atomic {
+                if !matches!(&items[i], Item::Text(..)) || deferred_break_at == Some(i) {
+                    beside_tall_atomic = None;
+                    flow.active_floats.retain(|f| f.id != aid);
+                    if y_after.get() > y.get() {
+                        y = y_after;
+                    }
+                    atomic_line_active = false;
+                }
+            }
             let lh = line_height(style);
             if !atomic_line_active {
                 atomic_pen_x = inner_left;
@@ -3982,6 +3999,48 @@ impl<'a> Ctx<'a> {
                             token: tok,
                         });
                         broke = true;
+                    }
+                    // CORE-466: the line box that holds a declared-height
+                    // atomic spanning fragmentainers stays open beside it on
+                    // every page it occupies (css2 §9.4.2). Model the piece
+                    // placed on this page as a left intrusion for the text
+                    // run that follows, and lay that run from the line top.
+                    if declared_tall
+                        && beside_tall_atomic.is_none()
+                        && matches!(
+                            items.get(i + 1),
+                            Some(Item::Text(t, ..))
+                                if !t.starts_with(crate::typography::FORCED_BREAK_CHAR)
+                        )
+                        && self.child_incoming(token, i + 1).consumed_chars.is_none()
+                    {
+                        let top = box_y;
+                        // The intrusion carries the box's REMAINING declared
+                        // extent, like a tall float: the container's height
+                        // encloses it (css2 §10.6.3), so a continued
+                        // background fills to the page edge as it does for
+                        // the float-based equivalent.
+                        let remaining = self
+                            .resolved_height(cstyle)
+                            .map_or(Scalar::ZERO, |h| {
+                                h + cstyle.margin_top + cstyle.margin_bottom
+                                    - child_tok.consumed_block_size
+                            });
+                        let beside_h = if remaining.get() > (y - top).get() {
+                            remaining
+                        } else {
+                            y - top
+                        };
+                        flow.active_floats.push(PlacedFloat {
+                            id: *child,
+                            x: inner_left,
+                            y: top,
+                            width: pen_x + aw - inner_left,
+                            height: beside_h,
+                            side: Float::Left,
+                        });
+                        beside_tall_atomic = Some((y, *child));
+                        y = top;
                     }
 
                     // css-page-3 §4.2 — the placed side of the boundary
@@ -5062,6 +5121,18 @@ impl<'a> Ctx<'a> {
             });
         }
 
+        // CORE-466: the loop ended while the run beside a tall atomic was
+        // the last item laid; restore the cursor below the atomic's piece.
+        // The intrusion stays in `active_floats` until the float-containment
+        // step below has enclosed it, then is dropped (`beside_drop`).
+        let mut beside_drop: Option<NodeId> = None;
+        if let Some((y_after, aid)) = beside_tall_atomic.take() {
+            beside_drop = Some(aid);
+            if y_after.get() > y.get() {
+                y = y_after;
+            }
+        }
+
         flow.abspos_cb = saved_abspos_cb;
 
         // Padding-bottom / margin-bottom only apply when the box finished.
@@ -5103,6 +5174,9 @@ impl<'a> Ctx<'a> {
             if bottom.get() > y.get() {
                 y = bottom;
             }
+        }
+        if let Some(aid) = beside_drop {
+            flow.active_floats.retain(|f| f.id != aid);
         }
 
         let mut box_height = y - box_top;

@@ -1,0 +1,22 @@
+{
+  "schema": "typeanvil.harness.reviews/1",
+  "candidate": {
+    "label": "candidate-c6a9e7b",
+    "source_commit": "c6a9e7b",
+    "binary_sha256": "16659dd3fc1d25101ddc26c5cf8a47ba39609f75534bb08afdf1f471fbad4f83"
+  },
+  "baseline": {
+    "label": "baseline-e6de230",
+    "source_commit": "e6de2304e9ea",
+    "binary_sha256": "f5228422c9d90439d84305c9cdcde6e73455de780493c6d0003f05971f8929ad"
+  },
+  "dispositions": [
+    {
+      "doc_id": "css/css-page/monolithic-overflow-014-print.html",
+      "change_id": "5ce9f39c9a3a046c56d4e655f96c9f245ac1c5528120bf403d6f656a7daf8813",
+      "kind": "correction",
+      "reason": "Intended fix. Baseline laid the yellow wrapper's first line only on page 4 (text layer p1-p3 empty). Candidate repeats 'On the first page' beside the tall inline-block on pages 1-3 and fills the yellow wrapper to the page edge, matching the float-based reference. Candidate render vs reference render are pixel-identical on all 4 pages (pixdiff over pypdfium2 rasters at scale 1: 0 differing pixels); the baseline differed by 10368 px per page on pages 1-3 plus the missing text. Page count stays 4. The reference document is byte-identical between sides, and the capture moves the test from FAIL to PASS (FAIL 92 to 91, PASS 191 to 192). No other document changed.",
+      "provenance": "CORE-466; docs/specifications/inline-block.spec.md Behavior 15; css2 section 9.4.2 and 10.6.3"
+    }
+  ]
+}

@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-08-25
-updated: 2026-10-14
+updated: 2026-10-17
 sidebar_position: 24
 tags: [css-display-3, layout]
 spec_id: SPEC-inline-block
@@ -139,6 +139,17 @@ this residual.
     them the margin box (origin = pen, width = the margin-box advance) and
     shall not add those margins or padding a second time. Before this rule,
     `margin-left: 1cm` indented the box by 2cm and narrowed it by 2cm.
+
+15. A declared-height inline-block that spans several fragmentainers shall
+    keep its line box open beside it on every page it occupies (CORE-466,
+    css2 §9.4.2). When bare text follows the box on the same line, the
+    text run shall lay from the line top on each of those pages, beside the
+    piece of the box placed there (modelled as a left intrusion of the
+    box's margin-box width). The run's first line therefore repeats on
+    each page the box occupies, as it does beside a tall float. After the
+    run, the cursor shall resume below the box piece.
+    Test: `core466_text_beside_fragmented_inline_block.rs`; WPT
+    `css-page/monolithic-overflow-014-print`.
 
 ## Interfaces
 
