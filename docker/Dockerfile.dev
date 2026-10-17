@@ -16,6 +16,10 @@ RUN python3 --version && python3 -m pip install --no-cache-dir --break-system-pa
       pyyaml \
  && python3 -m playwright install chromium --with-deps
 
+# clippy + rustfmt: the official rust image ships the minimal profile. CI
+# (.github/workflows/ci.yml) and scripts/ci-local.sh need both (CORE-474).
+RUN rustup component add clippy rustfmt
+
 # Non-root user matching common CI practice; work mounted at /work.
 RUN useradd -ms /bin/bash dev
 USER dev
