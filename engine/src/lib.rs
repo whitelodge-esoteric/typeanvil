@@ -23,4 +23,5 @@ pub mod pdf;
 pub mod stylo_dom;
 pub mod table;
 pub mod tags;
+pub mod transform;
 pub mod typography;

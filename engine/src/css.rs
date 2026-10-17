@@ -1195,6 +1195,10 @@ pub struct ComputedStyle {
     pub inset_left_viewport: Option<ViewportLen>,
     /// `z-index`, `None` = `auto` (paint in tree order).
     pub z_index: Option<i32>,
+    /// `transform` function list (CORE-481). Empty = `none`.
+    pub transform: Vec<crate::transform::TransformOp>,
+    /// `transform-origin` x/y; `None` = initial `50% 50%` (CORE-481).
+    pub transform_origin: Option<(crate::transform::LenPct, crate::transform::LenPct)>,
     /// `column-count`, `None` = `auto` (css-multicol-1).
     pub column_count: Option<u32>,
     /// `column-width`, `None` = `auto`. Points.
@@ -1426,6 +1430,8 @@ impl ComputedStyle {
             inset_bottom_viewport: None,
             inset_left_viewport: None,
             z_index: None,
+            transform: Vec::new(),
+            transform_origin: None,
             column_count: None,
             column_width: None,
             column_span: ColumnSpan::None,
@@ -2544,6 +2550,8 @@ impl CascadeSession {
             inset_bottom_viewport: None,
             inset_left_viewport: None,
             z_index,
+            transform: Vec::new(),
+            transform_origin: None,
             column_count,
             column_width,
             column_span,
@@ -4348,6 +4356,10 @@ mod paged_props {
         ColumnFill(bool),
         /// `list-style-type` / `list-style` shorthand (CORE-385).
         ListStyleType(super::ListStyleType),
+        /// `transform` (CORE-481); empty list = `none`.
+        Transform(Vec<crate::transform::TransformOp>),
+        /// `transform-origin` x/y (CORE-481).
+        TransformOrigin((crate::transform::LenPct, crate::transform::LenPct)),
     }
 
     /// Parse `string-set: name content();` (comma-separated pairs).
@@ -4522,6 +4534,10 @@ mod paged_props {
                     _ => None,
                 }
             }
+            "transform" => crate::transform::parse_transform(value).map(PagedDecl::Transform),
+            "transform-origin" => {
+                crate::transform::parse_origin(value).map(PagedDecl::TransformOrigin)
+            }
             "column-fill" => {
                 let v = value.trim().to_ascii_lowercase();
                 match v.as_str() {
@@ -4669,6 +4685,8 @@ mod paged_props {
             writing_mode: Option<(u32, u32)>,
             column_fill: Option<(u32, u32)>,
             list_style_type: Option<(u32, u32)>,
+            transform: Option<(u32, u32)>,
+            transform_origin: Option<(u32, u32)>,
         }
         let mut won = vec![Won::default(); styles.len()];
 
@@ -4787,6 +4805,18 @@ mod paged_props {
                                     won[id].column_fill = Some(prio);
                                 }
                             }
+                            PagedDecl::Transform(v) => {
+                                if won[id].transform.is_none_or(|w| prio >= w) {
+                                    styles[id].transform = v.clone();
+                                    won[id].transform = Some(prio);
+                                }
+                            }
+                            PagedDecl::TransformOrigin(v) => {
+                                if won[id].transform_origin.is_none_or(|w| prio >= w) {
+                                    styles[id].transform_origin = Some(*v);
+                                    won[id].transform_origin = Some(prio);
+                                }
+                            }
                         }
                     }
                 }
@@ -4885,6 +4915,12 @@ mod paged_props {
                     }
                     PagedDecl::ColumnFill(v) => {
                         styles[id].column_fill_auto = v;
+                    }
+                    PagedDecl::Transform(v) => {
+                        styles[id].transform = v;
+                    }
+                    PagedDecl::TransformOrigin(v) => {
+                        styles[id].transform_origin = Some(v);
                     }
                 }
             }

@@ -1171,6 +1171,9 @@ struct PaintGroup {
     /// `Some(z)` for a keyed child context; `None` for the root (ordinary
     /// in-flow fragments never get a subgroup at all).
     z_index: Option<i32>,
+    /// CSS `transform` (CORE-481) in PAGE coordinates; the whole group paints
+    /// under it.
+    transform: Option<crate::transform::Affine>,
     backgrounds: Vec<BackgroundItem>,
     bg_images: Vec<BgImageItem>,
     borders: Vec<BorderItem>,
@@ -1185,6 +1188,7 @@ impl PaintGroup {
     fn new(z_index: Option<i32>) -> PaintGroup {
         PaintGroup {
             z_index,
+            transform: None,
             backgrounds: Vec::new(),
             bg_images: Vec::new(),
             borders: Vec::new(),
@@ -1308,11 +1312,15 @@ fn collect(
         return;
     }
 
-    if let Some(z) = frag.z_index {
-        // A keyed fragment is its own stacking-context root. An empty keyed
+    if frag.z_index.is_some() || frag.transform.is_some() {
+        // A keyed or transformed fragment is its own stacking-context root
+        // (CORE-481: `transform` creates one, css-transforms-1 §3). An empty
         // box contributes nothing and skips the subgroup.
         if has_paint(frag) || !frag.children.is_empty() {
-            let mut subgroup = PaintGroup::new(Some(z));
+            let mut subgroup = PaintGroup::new(frag.z_index);
+            subgroup.transform = frag
+                .transform
+                .map(|t| crate::transform::to_abs(&t, abs_x as f64, abs_y as f64));
             push_content(frag, parent_x, parent_y, abs_x, abs_y, my_owner, &mut subgroup);
             for child in &frag.children {
                 collect(child, abs_x, abs_y, my_owner, &mut subgroup);
@@ -1346,6 +1354,27 @@ fn collect_unowned(frag: &Fragment, parent_x: f32, parent_y: f32, group: &mut Pa
 /// its keyed child contexts in CSS2.1 Appendix E order — negative ascending,
 /// zero in tree order, positive ascending.
 fn paint_group(
+    surface: &mut krilla::surface::Surface<'_>,
+    layout: &Layout,
+    group: &PaintGroup,
+    tagged: bool,
+    draws: &mut Vec<crate::tags::DrawRef>,
+    page_idx: usize,
+) -> Result<()> {
+    // CORE-481: a transformed group paints under its matrix.
+    if let Some(m) = group.transform {
+        let xf = krilla::geom::Transform::from_row(
+            m[0] as f32, m[1] as f32, m[2] as f32, m[3] as f32, m[4] as f32, m[5] as f32,
+        );
+        surface.push_transform(&xf);
+        let res = paint_group_body(surface, layout, group, tagged, draws, page_idx);
+        surface.pop();
+        return res;
+    }
+    paint_group_body(surface, layout, group, tagged, draws, page_idx)
+}
+
+fn paint_group_body(
     surface: &mut krilla::surface::Surface<'_>,
     layout: &Layout,
     group: &PaintGroup,

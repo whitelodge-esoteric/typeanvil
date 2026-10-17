@@ -3027,10 +3027,14 @@ impl<'a> Ctx<'a> {
         // descendants (its padding box on this page). Save/restore so this
         // box's SIBLINGS resolve against the OUTER block.
         let saved_abspos_cb = flow.abspos_cb;
+        // CORE-481: abspos fragments pooled from here on are this box's
+        // descendants; a transform on the box moves them too.
+        let abspos_mark = flow.abspos.len();
         if matches!(
             style.position,
             Position::Relative | Position::Absolute | Position::Fixed
-        ) {
+        ) || !style.transform.is_empty()
+        {
             // A relative box's abspos descendants resolve against the
             // box's SHIFTED origin (css-position-3 §6.2): the paint shift
             // moves the containing block with it. Absolute/fixed resolve
@@ -4210,7 +4214,24 @@ impl<'a> Ctx<'a> {
                             Position::Fixed => page_cb,
                             _ => flow.abspos_cb.unwrap_or(page_cb),
                         };
-                        let (fw, fh) = self.measure_float(*child, cb_width);
+                        let (mut fw, fh) = self.measure_float(*child, cb_width);
+                        // CORE-481: a DECLARED width on an abspos box is not
+                        // clamped to the containing block (css-position-3
+                        // §5.3: it may overflow). `measure_float` and
+                        // `layout_box` both clamp to the available width,
+                        // which collapsed a 51px child of a 0-wide
+                        // containing block to 0 (transform-023).
+                        if let Some(dw) = self.resolved_width(cstyle, cb_width) {
+                            let border_w = if cstyle.box_sizing == crate::css::StyloBoxSizing::BorderBox {
+                                dw
+                            } else {
+                                dw + cstyle.padding_left
+                                    + cstyle.padding_right
+                                    + cstyle.border_left
+                                    + cstyle.border_right
+                            };
+                            fw = border_w + cstyle.margin_left + cstyle.margin_right;
+                        }
                         // Insets position the margin box against the
                         // containing block's padding edges (css-position-3).
                         // `bottom` resolves against the fragmentainer content
@@ -4297,6 +4318,14 @@ impl<'a> Ctx<'a> {
                             Some(l) => cb_origin.x + l,
                             None => match self.resolved_inset(cstyle.inset_right, cstyle.inset_right_viewport) {
                                 Some(r) => cb_origin.x + cb_width - fw - r,
+                                // CORE-481: both horizontal insets auto →
+                                // the box sits at its STATIC position
+                                // (css-position-3 §3.4), the parent's
+                                // content-box left edge, not the
+                                // containing block's padding edge. An
+                                // abspos child of a body with a margin
+                                // starts inside that margin.
+                                None if cstyle.position == Position::Absolute => inner_left,
                                 None => cb_origin.x,
                             },
                         };
@@ -5594,6 +5623,7 @@ impl<'a> Ctx<'a> {
         // static position plus its insets. The shift lands on the FRAGMENT
         // only — the parent cursor advanced via `used`, so siblings and
         // following content never reflow.
+        self.apply_transform(style, &mut fragment, flow, abspos_mark);
         RelativeInsetShift::resolve(style, self.icb_width, self.icb_height).apply(&mut fragment);
 
         BlockResult {
@@ -5602,6 +5632,42 @@ impl<'a> Ctx<'a> {
             outgoing,
             empty,
         }
+    }
+
+    /// CSS `transform` (CORE-481): attach the box's matrix to its fragment
+    /// and compose it onto every abspos fragment pooled since `abspos_mark`
+    /// (descendants whose fragments attach at the page root, not under this
+    /// box). The matrix is local to the fragment's top-left with
+    /// `transform-origin` folded in. Pooled fragments carry page-absolute
+    /// offsets, so their copy is re-based to their own top-left.
+    fn apply_transform(&self, style: &ComputedStyle, fragment: &mut Fragment, flow: &mut Flow, abspos_mark: usize) {
+        if style.transform.is_empty() {
+            return;
+        }
+        let font = style.font_size.get();
+        let (w, h) = (fragment.size.0.get(), fragment.size.1.get());
+        let m = crate::transform::build(&style.transform, font, w, h);
+        let (ox, oy) = match style.transform_origin {
+            Some((x, y)) => (x.resolve(font, w), y.resolve(font, h)),
+            None => (w * 0.5, h * 0.5),
+        };
+        let local = crate::transform::about_origin(&m, ox, oy);
+        if crate::transform::is_identity(&local) {
+            return;
+        }
+        // The box's page-absolute top-left, for the pooled descendants.
+        let (bx, by) = (fragment.offset.x.get(), fragment.offset.y.get());
+        let abs = crate::transform::about_origin(&m, bx + ox, by + oy);
+        for (_, frag) in flow.abspos.iter_mut().skip(abspos_mark) {
+            let (fx, fy) = (frag.offset.x.get(), frag.offset.y.get());
+            let inner_abs = match frag.transform {
+                Some(t) => crate::transform::to_abs(&t, fx, fy),
+                None => crate::transform::IDENTITY,
+            };
+            let total = crate::transform::mul(&abs, &inner_abs);
+            frag.transform = Some(crate::transform::to_local(&total, fx, fy));
+        }
+        fragment.transform = Some(local);
     }
 
     fn layout_table_like(

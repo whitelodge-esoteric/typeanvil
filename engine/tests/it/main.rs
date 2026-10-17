@@ -27,6 +27,7 @@ mod core466_text_beside_fragmented_inline_block;
 mod core467_flex_column_text_beside_tall_box;
 mod core468_viewport_border_width;
 mod core469_grid_direct_text;
+mod core481_transform;
 mod core241_zero_height_overflow;
 mod core352_cell_valign;
 mod core352_cell_valign_more;

@@ -1,0 +1,43 @@
+{
+ "schema": "typeanvil.harness.reviews/1",
+ "candidate": {
+  "label": "candidate-0e06b6fe7d258240d0f9ca9fa02914877bb17994",
+  "source_commit": "0e06b6fe7d258240d0f9ca9fa02914877bb17994",
+  "binary_sha256": "59e34035f0316d07aaecd22eae91e040ca03f6bfeba0fc42b0c85e9e67b9fa1c"
+ },
+ "baseline": {
+  "label": "baseline-7ea5c7a505ac",
+  "source_commit": "7ea5c7a505ac180e2473b5b61873b51da244dd22",
+  "binary_sha256": "f8ac84ecbab87af65062b3476887a86d1353c1711801153015c96fee7aa4685a"
+ },
+ "dispositions": [
+  {
+   "doc_id": "css/css-break/transform-023-print.html",
+   "change_id": "299036a31df79cf29c74622d78327495250548ffb823c279fbde126d289003c9",
+   "kind": "correction",
+   "reason": "Page 2 went from 3225 red + 2850 green px to 5625 green px and no red; the test went FAIL -> PASS (FAIL 88 -> 87, PASS 195 -> 196). Page 1 is byte-identical. translateX(49px) on the 0x0 abspos box now shifts its 51px abspos child, which also keeps its declared width in the 0-wide containing block, and both abspos boxes sit at their static x.",
+   "provenance": "css-transforms-1 section 3 (a transformed box is the containing block for abspos descendants) and section 6; css-position-3 section 5.3 (declared width is kept); WPT css/css-break/transform-023-print.html; CORE-481"
+  },
+  {
+   "doc_id": "css/css-page/page-name-003-print.html",
+   "change_id": "cf539736f04a1c3a243d3fc7dfb7e678771b31efed660d1b79e4f94ec744dd26",
+   "kind": "variation",
+   "reason": "Still FAIL -> FAIL. The abspos wrapper with both horizontal insets auto now sits at its static x (body margin 8px = 6pt): first text x 36.53 -> 42.53, the same x as the reference's text (42.53 on page 2, 43.06 on page 1). Pixel counts of the white background are unchanged (77207). The remaining failure is the page-name break inside an abspos subtree, which this change does not touch.",
+   "provenance": "css-position-3 section 3.4 (static position of an abspos box with auto insets); measured with pypdfium2 char boxes, base vs candidate vs reference; CORE-481"
+  },
+  {
+   "doc_id": "css/css-break/firefox-bug-2026295-print.html",
+   "change_id": "abfda91df419a695645f11bded3114ba4b50293c28f23e3d9d6442d2301826e9",
+   "kind": "variation",
+   "reason": "PASS -> PASS (a non-blank crashtest-style reftest). Page 3 image moved from x 36..324 to x 42..330, the body margin offset, by the static-x rule for an abspos box with auto left/right. Pixel counts per colour on page 3 are identical (5508/1350/432); pages 1 and 2 are byte-identical.",
+   "provenance": "css-position-3 section 3.4 (static position); measured with pypdfium2 image bounds, base vs candidate; CORE-481"
+  },
+  {
+   "doc_id": "css/css-break/transform-024-print.html",
+   "change_id": "178f3ecb54f85fdd6560fa69c6cdaceb348baeb8235eeff535e3129a2a20763b",
+   "kind": "variation",
+   "reason": "Still FAIL -> FAIL, 4 pages against the reference's 5 on both sides (CORE-242 owns the page count). The transform is now applied, so red appears where the baseline (no transform at all) showed none. rotate(180deg) on the 250vh container is applied per fragment about each fragment's own centre, not about the whole box's centre across pages. This is a transform-on-fragmented-box residual, recorded here and in the spec Non-Goals item 4; it does not flip any PASS.",
+   "provenance": "css-transforms-1 section 2 (a fragmented box is transformed as one box); base and candidate page colour counts; CORE-242; CORE-481"
+  }
+ ]
+}

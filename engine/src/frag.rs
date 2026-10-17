@@ -304,6 +304,11 @@ pub struct Fragment {
     /// Structural part this fragment paints for its source element
     /// (CORE-374): a list marker or a footnote body. Tagged output only.
     pub part: FragPart,
+    /// CSS `transform` (CORE-481): a 2D affine matrix in this fragment's
+    /// own coordinate space (origin = its top-left, `transform-origin`
+    /// already folded in). The PDF emitter paints the fragment's whole
+    /// subtree under it, as its own stacking context. `None` = untransformed.
+    pub transform: Option<crate::transform::Affine>,
 }
 
 /// Which structural part of its source element a fragment paints.
@@ -332,6 +337,7 @@ impl Fragment {
             z_index: None,
             repeated: false,
             part: FragPart::Content,
+            transform: None,
         }
     }
 
@@ -348,6 +354,7 @@ impl Fragment {
             z_index: None,
             repeated: false,
             part: FragPart::Content,
+            transform: None,
         }
     }
 }
@@ -578,6 +585,7 @@ impl Fragmentainer {
                 z_index: None,
                 repeated: false,
                 part: FragPart::Content,
+                transform: None,
             },
             background: None,
             page_orientation: None,
