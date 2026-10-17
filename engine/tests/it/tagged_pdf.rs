@@ -130,3 +130,51 @@ fn ua_validator_gates_conformance() {
         panic!("complete document should pass UA validation: {e:?}");
     }
 }
+
+/// CORE-396: a draw that paints nothing must not open a marked-content
+/// sequence. Scans every content stream for an empty `BDC` .. `EMC` body.
+#[test]
+fn no_empty_marked_content_sequences() {
+    use std::io::Read;
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../demo/showcase/");
+    for name in ["weasyprint-ticket", "weasyprint-invoice", "weasyprint-report"] {
+        let html = std::fs::read_to_string(format!("{dir}{name}.html")).unwrap();
+        let mut css = String::new();
+        let mut rest = html.as_str();
+        while let Some(a) = rest.find("<style") {
+            let body = &rest[a..];
+            let s = body.find('>').unwrap() + 1;
+            let e = body.find("</style>").unwrap();
+            css.push_str(&body[s..e]);
+            rest = &body[e + 8..];
+        }
+        let dom = Dom::parse(&html).unwrap();
+        let layout = layout::layout(&dom, &Stylesheet::parse(&css), geometry());
+        let pdf = render_with_options(&layout, Some(&dom), &DocumentMetadata::default(), true, false)
+            .unwrap();
+        let mut pos = 0;
+        let mut streams = 0;
+        while let Some(i) = pdf[pos..].windows(6).position(|w| w == b"stream") {
+            let start = pos + i + 6;
+            let start = start + if pdf[start] == b'\r' { 2 } else { 1 };
+            let Some(end) = pdf[start..].windows(9).position(|w| w == b"endstream") else {
+                break;
+            };
+            let mut out = Vec::new();
+            if flate2::read::ZlibDecoder::new(&pdf[start..start + end])
+                .read_to_end(&mut out)
+                .is_ok()
+                && out.windows(3).any(|w| w == b"BDC")
+            {
+                streams += 1;
+                let text = String::from_utf8_lossy(&out);
+                assert!(
+                    !text.contains("BDC\nEMC") && !text.contains("BDC EMC"),
+                    "{name}: empty BDC..EMC sequence"
+                );
+            }
+            pos = start + end + 9;
+        }
+        assert!(streams > 0, "{name}: no tagged content stream found");
+    }
+}

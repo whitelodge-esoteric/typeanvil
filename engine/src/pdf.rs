@@ -1482,7 +1482,11 @@ fn paint_group(
                     }
                 }
             }
-        } else if sides.is_empty() {
+        } else if !sides.iter().any(|(px, py, pw, ph, _)| {
+            // CORE-396: open the sequence only when at least one side
+            // paints (positive, finite rect), else it would be empty.
+            *pw > 0.0 && *ph > 0.0 && Rect::from_xywh(*px, *py, *pw, *ph).is_some()
+        }) {
             continue;
         } else {
             // One marked-content sequence wraps ALL border sides of the
@@ -1557,6 +1561,11 @@ fn paint_group(
         // Unsourced text is a Layout artifact, like an unsourced fill — never
         // drawn outside marked content (CORE-380).
         if tagged {
+            // CORE-396: a run with no glyphs and no text paints nothing, so
+            // it must not open an (empty) marked-content sequence.
+            if t.glyphs.is_empty() && t.text.is_empty() {
+                continue;
+            }
             let ident = surface.start_tagged(tag_for_owner(t.owner));
             if t.glyphs.is_empty() {
                 // Fallback text path (empty run — nothing shaped). All
