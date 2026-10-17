@@ -818,7 +818,7 @@ fn collect_flat(
     borders: &mut Vec<BorderItem>,
     texts: &mut Vec<TextItem>,
     images: &mut Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)>,
-    bg_images: &mut Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)>,
+    bg_images: &mut Vec<BgImageItem>,
 ) {
     let abs_x = parent_x + frag.offset.x.to_f32();
     let abs_y = parent_y + frag.offset.y.to_f32();
@@ -889,6 +889,7 @@ fn collect_flat(
                 frag.size.1.to_f32(),
                 run.key,
                 my_owner,
+                run.clone(),
             ));
         }
         FragmentContent::None => {}
@@ -931,7 +932,7 @@ fn paint_margin_box(
     // the structure tree once per page (CORE-380). No draws are recorded.
     let chrome = || ContentTag::Artifact(Artifact::with_kind(kind));
     let mut backgrounds: Vec<(f32, f32, f32, f32, Color, Option<NodeId>)> = Vec::new();
-    let mut bg_images: Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)> = Vec::new();
+    let mut bg_images: Vec<BgImageItem> = Vec::new();
     let mut borders: Vec<BorderItem> = Vec::new();
     let mut images: Vec<(f32, f32, f32, f32, [u8; 32], Option<NodeId>)> = Vec::new();
     let mut texts: Vec<TextItem> = Vec::new();
@@ -972,7 +973,7 @@ fn paint_margin_box(
         }
     }
 
-    for (x, y, w, h, key, owner) in &bg_images {
+    for (x, y, w, h, key, owner, run) in &bg_images {
         if !x.is_finite() || !y.is_finite() || !w.is_finite() || !h.is_finite() {
             continue;
         }
@@ -985,8 +986,8 @@ fn paint_margin_box(
         let crate::images::ImageEntry::Loaded(img) = stored else {
             continue;
         };
-        let tile_w = img.width_px as f32 * 0.75;
-        let tile_h = img.height_px as f32 * 0.75;
+        let tile_w = run.tile_w.to_f32();
+        let tile_h = run.tile_h.to_f32();
         if tile_w <= 0.0 || tile_h <= 0.0 {
             continue;
         }
@@ -1008,25 +1009,21 @@ fn paint_margin_box(
             continue;
         };
         surface.push_clip_path(&clip_path, &FillRule::NonZero);
-        let cols = (*w / tile_w).ceil() as i32;
-        let rows = (*h / tile_h).ceil() as i32;
-        for row in 0..rows {
-            let ty = *y + row as f32 * tile_h;
-            for col in 0..cols {
-                let tx = *x + col as f32 * tile_w;
-                let Some(size) = krilla::geom::Size::from_wh(tile_w, tile_h) else {
-                    continue;
-                };
-                surface.push_transform(&krilla::geom::Transform::from_row(1.0, 0.0, 0.0, 1.0, tx, ty));
-                if tagged {
-                    surface.start_tagged(chrome());
-                    surface.draw_image(kimg.clone(), size);
-                    surface.end_tagged();
-                } else {
-                    surface.draw_image(kimg.clone(), size);
-                }
-                surface.pop();
+        for (ox, oy) in run.tile_origins(*w as f64, *h as f64) {
+            let tx = *x + ox as f32;
+            let ty = *y + oy as f32;
+            let Some(size) = krilla::geom::Size::from_wh(tile_w, tile_h) else {
+                continue;
+            };
+            surface.push_transform(&krilla::geom::Transform::from_row(1.0, 0.0, 0.0, 1.0, tx, ty));
+            if tagged {
+                surface.start_tagged(chrome());
+                surface.draw_image(kimg.clone(), size);
+                surface.end_tagged();
+            } else {
+                surface.draw_image(kimg.clone(), size);
             }
+            surface.pop();
         }
         surface.pop();
     }
@@ -1163,6 +1160,7 @@ type BorderItem = (
 );
 /// (x, y, w, h, store key, owner) — one replaced image or background image.
 type ImageItem = (f32, f32, f32, f32, [u8; 32], Option<NodeId>);
+type BgImageItem = (f32, f32, f32, f32, [u8; 32], Option<NodeId>, crate::frag::BackgroundImageRun);
 
 /// One in-flow stacking-context paint group (CORE-202).
 ///
@@ -1174,7 +1172,7 @@ struct PaintGroup {
     /// in-flow fragments never get a subgroup at all).
     z_index: Option<i32>,
     backgrounds: Vec<BackgroundItem>,
-    bg_images: Vec<ImageItem>,
+    bg_images: Vec<BgImageItem>,
     borders: Vec<BorderItem>,
     images: Vec<ImageItem>,
     texts: Vec<TextItem>,
@@ -1276,6 +1274,7 @@ fn push_content(
                 frag.size.1.to_f32(),
                 run.key,
                 owner,
+                run.clone(),
             ));
         }
         FragmentContent::None => {}
@@ -1389,7 +1388,7 @@ fn paint_group(
     // natural size from the box's top-left (default background-position
     // 0% 0%), clipped to the border box so an edge tile never bleeds into
     // a neighbouring box. Broken images carry no payload and paint nothing.
-    for (x, y, w, h, key, owner) in &group.bg_images {
+    for (x, y, w, h, key, owner, run) in &group.bg_images {
         if !x.is_finite() || !y.is_finite() || !w.is_finite() || !h.is_finite() {
             continue;
         }
@@ -1402,8 +1401,8 @@ fn paint_group(
         let crate::images::ImageEntry::Loaded(img) = stored else {
             continue;
         };
-        let tile_w = img.width_px as f32 * 0.75;
-        let tile_h = img.height_px as f32 * 0.75;
+        let tile_w = run.tile_w.to_f32();
+        let tile_h = run.tile_h.to_f32();
         if tile_w <= 0.0 || tile_h <= 0.0 {
             continue;
         }
@@ -1430,28 +1429,24 @@ fn paint_group(
             continue;
         };
         surface.push_clip_path(&clip_path, &FillRule::NonZero);
-        let cols = (*w / tile_w).ceil() as i32;
-        let rows = (*h / tile_h).ceil() as i32;
-        for row in 0..rows {
-            let ty = *y + row as f32 * tile_h;
-            for col in 0..cols {
-                let tx = *x + col as f32 * tile_w;
-                let Some(size) = krilla::geom::Size::from_wh(tile_w, tile_h) else {
-                    continue;
-                };
-                surface.push_transform(&krilla::geom::Transform::from_row(
-                    1.0, 0.0, 0.0, 1.0, tx, ty,
-                ));
-                if tagged {
-                    let ident = surface.start_tagged(tag_for_owner(*owner));
-                    surface.draw_image(kimg.clone(), size);
-                    surface.end_tagged();
-                    record_draw(draws, page_idx, ident, *owner);
-                } else {
-                    surface.draw_image(kimg.clone(), size);
-                }
-                surface.pop();
+        for (ox, oy) in run.tile_origins(*w as f64, *h as f64) {
+            let tx = *x + ox as f32;
+            let ty = *y + oy as f32;
+            let Some(size) = krilla::geom::Size::from_wh(tile_w, tile_h) else {
+                continue;
+            };
+            surface.push_transform(&krilla::geom::Transform::from_row(
+                1.0, 0.0, 0.0, 1.0, tx, ty,
+            ));
+            if tagged {
+                let ident = surface.start_tagged(tag_for_owner(*owner));
+                surface.draw_image(kimg.clone(), size);
+                surface.end_tagged();
+                record_draw(draws, page_idx, ident, *owner);
+            } else {
+                surface.draw_image(kimg.clone(), size);
             }
+            surface.pop();
         }
         surface.pop();
     }

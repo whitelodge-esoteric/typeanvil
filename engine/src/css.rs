@@ -1011,12 +1011,81 @@ impl SizeLimit {
     }
 }
 
+/// One `background-size` dimension (CORE-319).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum BgDim {
+    Auto,
+    /// Absolute length, points.
+    Length(f64),
+    /// Fraction (1.0 = 100%) of the background positioning area.
+    Percent(f64),
+}
+
+/// Computed `background-size` (CORE-319).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum BgSize {
+    Cover,
+    Contain,
+    Explicit(BgDim, BgDim),
+}
+
+/// One `background-position` axis: `fraction * (area - image) + offset`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BgPos {
+    pub fraction: f64,
+    /// Points.
+    pub offset: f64,
+}
+
+/// Element-level `background-image: url(...)` (first layer only, CORE-319).
+/// `space`/`round` repeat keywords are approximated as `repeat`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BackgroundImageStyle {
+    /// Source as the loader expects it (document-relative path or `data:`).
+    pub src: String,
+    pub size: BgSize,
+    pub pos_x: BgPos,
+    pub pos_y: BgPos,
+    pub repeat_x: bool,
+    pub repeat_y: bool,
+    /// Filled by layout after interning: `(store key, natural width pt,
+    /// natural height pt)`. `None` = not interned or failed to load.
+    pub loaded: Option<([u8; 32], f64, f64)>,
+}
+
+/// Recover the author's `url()` string from stylo's resolved URL. The
+/// stylesheet base is `http://localhost/`, so a relative reference resolves
+/// under it; strip that prefix and percent-decode.
+fn bg_url_to_src(u: &str) -> String {
+    let rest = u.strip_prefix("http://localhost/").unwrap_or(u);
+    if rest.starts_with("data:") {
+        return rest.to_string();
+    }
+    let b = rest.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() && rest.is_char_boundary(i + 3.min(b.len() - i)) {
+            if let Ok(v) = u8::from_str_radix(&rest[i + 1..i + 3], 16) {
+                out.push(v);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
 /// Fully computed style for one element. This is the cascade's output contract;
 /// layout and PDF read only this.
 #[derive(Clone, Debug)]
 pub struct ComputedStyle {
     pub color: Color,
     pub background_color: Option<Color>,
+    /// Element `background-image: url(...)` with position/size/repeat.
+    pub background_image: Option<BackgroundImageStyle>,
     /// Border widths (points) on each side; 0 = no border.
     pub border_top: Scalar,
     pub border_right: Scalar,
@@ -1306,6 +1375,7 @@ impl ComputedStyle {
         ComputedStyle {
             color: Color::BLACK,
             background_color: None,
+            background_image: None,
             border_top: Scalar::ZERO,
             border_right: Scalar::ZERO,
             border_bottom: Scalar::ZERO,
@@ -2349,9 +2419,75 @@ impl CascadeSession {
         let stylo_border_bottom_color = stylo_side_color(&border.clone_border_bottom_color());
         let stylo_border_left_color = stylo_side_color(&border.clone_border_left_color());
 
+        // CORE-319: first `url()` layer + its position/size/repeat.
+        let background_image = background
+            .clone_background_image()
+            .0
+            .iter()
+            .next()
+            .and_then(|img| match img {
+                StyloImage::Url(u) => u.url().map(|u| bg_url_to_src(u.as_str())),
+                _ => None,
+            })
+            .map(|src| {
+                use style::values::computed::background::BackgroundSize as SBs;
+                let dim = |d: &style::values::generics::length::LengthPercentageOrAuto<
+                    style::values::computed::NonNegativeLengthPercentage,
+                >| match d {
+                    style::values::generics::length::LengthPercentageOrAuto::Auto => BgDim::Auto,
+                    style::values::generics::length::LengthPercentageOrAuto::LengthPercentage(lp) => {
+                        if let Some(p) = lp.0.to_percentage() {
+                            BgDim::Percent(p.0 as f64)
+                        } else if let Some(l) = lp.0.to_length() {
+                            BgDim::Length(px_to_pt(l.px() as f64).get())
+                        } else {
+                            BgDim::Auto
+                        }
+                    }
+                };
+                let size = match background.clone_background_size().0.iter().next() {
+                    Some(SBs::Cover) => BgSize::Cover,
+                    Some(SBs::Contain) => BgSize::Contain,
+                    Some(SBs::ExplicitSize { width, height }) => {
+                        BgSize::Explicit(dim(width), dim(height))
+                    }
+                    None => BgSize::Explicit(BgDim::Auto, BgDim::Auto),
+                };
+                let pos = |lp: Option<&style::values::computed::LengthPercentage>| match lp {
+                    Some(lp) => {
+                        if let Some(p) = lp.to_percentage() {
+                            BgPos { fraction: p.0 as f64, offset: 0.0 }
+                        } else if let Some(l) = lp.to_length() {
+                            BgPos { fraction: 0.0, offset: px_to_pt(l.px() as f64).get() }
+                        } else {
+                            BgPos { fraction: 0.0, offset: 0.0 }
+                        }
+                    }
+                    None => BgPos { fraction: 0.0, offset: 0.0 },
+                };
+                let px = background.clone_background_position_x();
+                let py = background.clone_background_position_y();
+                let rep = background.clone_background_repeat();
+                use style::values::specified::background::BackgroundRepeatKeyword as Rk;
+                let (rx, ry) = match rep.0.iter().next() {
+                    Some(r) => (r.0 != Rk::NoRepeat, r.1 != Rk::NoRepeat),
+                    None => (true, true),
+                };
+                BackgroundImageStyle {
+                    src,
+                    size,
+                    pos_x: pos(px.0.iter().next()),
+                    pos_y: pos(py.0.iter().next()),
+                    repeat_x: rx,
+                    repeat_y: ry,
+                    loaded: None,
+                }
+            });
+
         ComputedStyle {
             color,
             background_color,
+            background_image,
             box_sizing,
             cell_valign: CellVAlign::Middle,
             clips_overflow,

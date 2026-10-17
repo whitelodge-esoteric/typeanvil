@@ -168,8 +168,54 @@ pub struct BackgroundImageRun {
     pub tile_w: Scalar,
     /// Natural tile height in points.
     pub tile_h: Scalar,
+    /// Position of the first tile's top-left relative to the fragment's
+    /// top-left, points (CORE-319; margin boxes use 0, 0).
+    pub offset_x: Scalar,
+    pub offset_y: Scalar,
+    /// Tile along each axis (`background-repeat`; CORE-319).
+    pub repeat_x: bool,
+    pub repeat_y: bool,
     /// True when the source failed to load or decode (paints nothing).
     pub broken: bool,
+}
+
+impl BackgroundImageRun {
+    /// Tile origins `(x, y)` relative to the fragment's top-left that
+    /// intersect a `w` x `h` box. Pure geometry shared by the painters.
+    pub fn tile_origins(&self, w: f64, h: f64) -> Vec<(f64, f64)> {
+        let (tw, th) = (self.tile_w.get(), self.tile_h.get());
+        if tw <= 0.0 || th <= 0.0 {
+            return Vec::new();
+        }
+        let axis = |off: f64, tile: f64, extent: f64, rep: bool| -> Vec<f64> {
+            if !rep {
+                return vec![off];
+            }
+            // First tile start at or before 0, then walk to the far edge.
+            let mut start = off - ((off / tile).ceil()) * tile;
+            if start > 0.0 {
+                start -= tile;
+            }
+            let mut v = Vec::new();
+            let mut p = start;
+            while p < extent && v.len() < 100_000 {
+                if p + tile > 0.0 {
+                    v.push(p);
+                }
+                p += tile;
+            }
+            v
+        };
+        let xs = axis(self.offset_x.get(), tw, w, self.repeat_x);
+        let ys = axis(self.offset_y.get(), th, h, self.repeat_y);
+        let mut out = Vec::with_capacity(xs.len() * ys.len());
+        for &y in &ys {
+            for &x in &xs {
+                out.push((x, y));
+            }
+        }
+        out
+    }
 }
 
 /// Border rendering data for a table cell/row (border-collapse: collapse)

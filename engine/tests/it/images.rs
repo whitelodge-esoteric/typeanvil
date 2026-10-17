@@ -36,7 +36,7 @@ fn geometry() -> PageGeometry {
 
 /// Minimal PNG encoder: 8-bit RGB, no filtering (filter byte 0 per row).
 /// Enough for solid-color test images; keeps the test suite dependency-free.
-fn make_png(width: u32, height: u32, rgb: [u8; 3]) -> Vec<u8> {
+pub(crate) fn make_png(width: u32, height: u32, rgb: [u8; 3]) -> Vec<u8> {
     use std::io::Write;
 
     let mut out = Vec::new();
@@ -122,7 +122,7 @@ fn make_png(width: u32, height: u32, rgb: [u8; 3]) -> Vec<u8> {
     out
 }
 
-fn write_fixture(dir: &TempDir, name: &str, bytes: &[u8]) -> PathBuf {
+pub(crate) fn write_fixture(dir: &TempDir, name: &str, bytes: &[u8]) -> PathBuf {
     let path = dir.path().join(name);
     std::fs::write(&path, bytes).unwrap();
     path

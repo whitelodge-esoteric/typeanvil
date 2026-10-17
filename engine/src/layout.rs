@@ -542,6 +542,21 @@ pub fn layout_with_images_and_store(
     // are content hashes, so repeated references collapse for free.
     let mut image_infos: BTreeMap<NodeId, ImageInfo> = BTreeMap::new();
     collect_image_sources(dom, root, &styles, images, &mut image_infos, base_url);
+    // CORE-319: intern element `background-image` sources (document order
+    // = node id order) and stash key + natural size on the style.
+    for st in styles.iter_mut() {
+        if let Some(bg) = st.background_image.as_mut() {
+            if let Ok(key) = images.intern(&bg.src, base_url, None) {
+                if let Some(crate::images::ImageEntry::Loaded(img)) = images.get(&key) {
+                    bg.loaded = Some((
+                        key,
+                        img.width_px as f64 * 0.75,
+                        img.height_px as f64 * 0.75,
+                    ));
+                }
+            }
+        }
+    }
 
     // A `display: none` on the document root ELEMENT (html) suppresses the
     // whole document: one valid empty page, no page-box chrome (CORE-66,
@@ -1002,6 +1017,77 @@ fn collect_fixed_ids(dom: &Dom, styles: &[ComputedStyle], root: NodeId) -> Vec<N
 /// whose page exists because the box's extent occupies it; dropping it broke
 /// the fragments-sum-to-extent contract). A Text run only when it has no
 /// glyphs; an Image always paints (even a broken image draws a placeholder).
+/// Build the `background-image` child fragment for an element box
+/// (CORE-319). The positioning area is the padding box (the initial
+/// `background-origin`); the child spans the whole border box so the clip
+/// covers the border area (initial `background-clip: border-box`).
+/// `box_w`/`box_h` are the border-box size in points.
+pub(crate) fn element_background_image(
+    style: &ComputedStyle,
+    box_w: f64,
+    box_h: f64,
+) -> Option<Fragment> {
+    use crate::css::{BgDim, BgSize};
+    let bg = style.background_image.as_ref()?;
+    let (key, nat_w, nat_h) = bg.loaded?;
+    if box_w <= 0.0 || box_h <= 0.0 || nat_w <= 0.0 || nat_h <= 0.0 {
+        return None;
+    }
+    let bl = style.border_left.get();
+    let bt = style.border_top.get();
+    let area_w = (box_w - bl - style.border_right.get()).max(0.0);
+    let area_h = (box_h - bt - style.border_bottom.get()).max(0.0);
+    let ratio = nat_w / nat_h;
+    let (tw, th) = match bg.size {
+        BgSize::Cover | BgSize::Contain => {
+            if area_w <= 0.0 || area_h <= 0.0 {
+                return None;
+            }
+            let fit_w = area_h * ratio; // width when height fills the area
+            let cover = matches!(bg.size, BgSize::Cover);
+            // cover: the larger scale; contain: the smaller.
+            if (fit_w >= area_w) == cover {
+                (fit_w, area_h)
+            } else {
+                (area_w, area_w / ratio)
+            }
+        }
+        BgSize::Explicit(w, h) => {
+            let rw = |d: BgDim, basis: f64| match d {
+                BgDim::Auto => None,
+                BgDim::Length(l) => Some(l),
+                BgDim::Percent(p) => Some(p * basis),
+            };
+            match (rw(w, area_w), rw(h, area_h)) {
+                (Some(w), Some(h)) => (w, h),
+                (Some(w), None) => (w, w / ratio),
+                (None, Some(h)) => (h * ratio, h),
+                (None, None) => (nat_w, nat_h),
+            }
+        }
+    };
+    if tw <= 0.0 || th <= 0.0 {
+        return None;
+    }
+    let ox = bl + bg.pos_x.fraction * (area_w - tw) + bg.pos_x.offset;
+    let oy = bt + bg.pos_y.fraction * (area_h - th) + bg.pos_y.offset;
+    let mut f = Fragment::block(
+        Point::new(Scalar::ZERO, Scalar::ZERO),
+        (Scalar(box_w), Scalar(box_h)),
+    );
+    f.content = FragmentContent::BackgroundImage(crate::frag::BackgroundImageRun {
+        key,
+        tile_w: Scalar(tw),
+        tile_h: Scalar(th),
+        offset_x: Scalar(ox),
+        offset_y: Scalar(oy),
+        repeat_x: bg.repeat_x,
+        repeat_y: bg.repeat_y,
+        broken: false,
+    });
+    Some(f)
+}
+
 fn paints_nothing(f: &Fragment) -> bool {
     let own = match &f.content {
         FragmentContent::None => f.size.1.get() <= 0.0,
@@ -5252,6 +5338,14 @@ impl<'a> Ctx<'a> {
             .iter()
             .any(|c| matches!(c.kind, crate::frag::FragmentKind::Block));
         fragment.children = children;
+        // CORE-319: element `background-image` (below borders and content).
+        if let Some(bif) = element_background_image(
+            style,
+            fragment.size.0.get(),
+            fragment.size.1.get(),
+        ) {
+            fragment.children.insert(0, bif);
+        }
         // Table cells attach their borders in the table path (border-collapse
         // aware); a block-path attach here would double the band.
         let is_table_cell = style.display == crate::css::Display::TableCell;
@@ -8574,6 +8668,10 @@ fn attach_margin_boxes(
                                 key,
                                 tile_w: Scalar(img.width_px as f64 * 0.75),
                                 tile_h: Scalar(img.height_px as f64 * 0.75),
+                                offset_x: Scalar::ZERO,
+                                offset_y: Scalar::ZERO,
+                                repeat_x: true,
+                                repeat_y: true,
                                 broken: false,
                             });
                         fragment.children.push(bif);

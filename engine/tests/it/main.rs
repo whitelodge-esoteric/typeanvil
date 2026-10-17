@@ -9,6 +9,7 @@ mod bookmarks;
 mod br_wrap_probe;
 mod break_between_avoid;
 mod cli_surface;
+mod core319_background_image;
 mod core116_oversized_row;
 mod core119_cell_height;
 mod core119_margin_box_overflow;
