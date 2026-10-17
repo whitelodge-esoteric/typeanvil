@@ -1,0 +1,22 @@
+{
+ "schema": "typeanvil.harness.reviews/1",
+ "candidate": {
+  "label": "candidate-3f5f678",
+  "source_commit": "3f5f6785a09f25bdfb1c31a69124b9393c4dd0f9",
+  "binary_sha256": "715eb65c70a844c5c1327f08dc80c7870387ea3728cc42e0eca51662a9775b5d"
+ },
+ "baseline": {
+  "label": "baseline-f93ac63",
+  "source_commit": "f93ac635b0e30d507f4913d4fa57290e16e2e5db",
+  "binary_sha256": "8a080dbe897b0c76cc82c8f167ee0931a120d9d1ecb43d450a7ca0185f1af1ba"
+ },
+ "dispositions": [
+  {
+   "doc_id": "css/css-page/monolithic-overflow-031-print-ref.html",
+   "change_id": "a1b97078d2d28299c65dd3e1747578c53b8b84b17d9115704b5605595d1060b2",
+   "kind": "correction",
+   "reason": "Reference page count 8 -> 5. The ref wraps a 675px and a 50px block child in a `height:0` div. A box with a declared zero extent takes no flow space and its overflow is not continued across fragmentainers, so the document is the 1450px yellow box over 5 pages. The test side already rendered 5 pages; both sides now agree on page count (5 = 5), pages 2-5 are pixel-identical, and Chromium passes this test. Measured with probe/pixdiff.py: page 1 differs only in the wrap width of the 350px text (split to a separate issue); owning status monolithic-overflow-031-print.html stays FAIL -> FAIL.",
+   "provenance": "css-sizing-3 5.1 (declared height is the box's extent) and css-break-3 5.1 / 5.3 (overflow of a fixed-extent box does not create fragments of that box); docs/specifications/ none amended (no spec rule prescribes the old 8-page output)."
+  }
+ ]
+}

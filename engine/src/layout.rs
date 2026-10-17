@@ -5118,7 +5118,11 @@ impl<'a> Ctx<'a> {
         // is clipped, not laid out on further fragmentainers, so a child
         // break on the box's LAST slice must not continue the box
         // (monolithic-overflow-028: 8in clip box, 23in child = 4 pages).
-        if style.clips_overflow {
+        // CORE-241: a FRESH box with a declared `height: 0` ends at its
+        // extent too, so block children overflowing it do not continue it
+        // across pages (monolithic-overflow-031 ref). `fresh` matters: a
+        // resumed box's remaining extent also reaches 0 on its last slice.
+        if style.clips_overflow || (fresh && remaining_spec.is_some_and(|r| r.get() <= 0.0)) {
             if let Some(remaining) = remaining_spec {
                 if broke && remaining.get() <= (bottom_limit - box_top).get() + 1e-6 {
                     broke = false;
@@ -5360,7 +5364,13 @@ impl<'a> Ctx<'a> {
             // `height`). Without this, a grown item's `used` still advances
             // the parent cursor by the declared height and siblings collide
             // (paint box 108.75 vs cursor 7.5 in the CORE-207 probe).
-            Some(remaining) if fresh && !has_block_child && token.cross_override.is_none() => {
+            // CORE-241: a declared `height: 0` box takes no flow space even
+            // when block children overflow it.
+            Some(remaining)
+                if fresh
+                    && (!has_block_child || remaining.get() <= 0.0)
+                    && token.cross_override.is_none() =>
+            {
                 if remaining.get() < box_height.get() {
                     remaining
                 } else {
