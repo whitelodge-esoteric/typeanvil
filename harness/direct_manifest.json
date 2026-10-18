@@ -105,6 +105,34 @@
       "input_source": "fixture",
       "expectation": {"text_present": ["Quarterly Summary", "Rows preserved"]},
       "provenance": "harness/direct_fixtures/report-links.html reviewed contents"
+    },
+    {
+      "id": "markdown-basic-headings",
+      "input": "markdown/basic.md",
+      "input_source": "fixture",
+      "expectation": {"text_present": ["Basic Heading", "Second Heading", "second item"]},
+      "provenance": "docs/specifications/markdown-input.spec.md AC1; engine/tests/it/markdown.rs::md_extension_renders_and_is_deterministic"
+    },
+    {
+      "id": "markdown-gfm-table-text",
+      "input": "markdown/gfm-table.md",
+      "input_source": "fixture",
+      "expectation": {"text_present": ["Item", "Qty", "Hammer", "struck"]},
+      "provenance": "docs/specifications/markdown-input.spec.md AC6; engine/tests/it/markdown.rs::gfm_and_raw_html_in_generated_html"
+    },
+    {
+      "id": "markdown-code-fence-text",
+      "input": "markdown/code-fence.md",
+      "input_source": "fixture",
+      "expectation": {"text_present": ["forge_anvil", "42"]},
+      "provenance": "docs/specifications/markdown-input.spec.md AC7"
+    },
+    {
+      "id": "markdown-raw-html-text",
+      "input": "markdown/raw-html.md",
+      "input_source": "fixture",
+      "expectation": {"text_present": ["Raw HTML Fixture", "raw block"]},
+      "provenance": "docs/specifications/markdown-input.spec.md AC8"
     }
   ]
 }

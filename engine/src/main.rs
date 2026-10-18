@@ -34,7 +34,12 @@ fn main() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("typeanvil: error: {e:#}");
-            ExitCode::FAILURE
+            // CORE-513 B14: usage errors for the Markdown flags exit 2.
+            if e.downcast_ref::<UsageError>().is_some() {
+                ExitCode::from(2)
+            } else {
+                ExitCode::FAILURE
+            }
         }
     }
 }
@@ -60,15 +65,28 @@ fn run() -> Result<()> {
     }
 }
 
+/// A command-line usage error (exit code 2).
+#[derive(Debug)]
+struct UsageError(String);
+
+impl std::fmt::Display for UsageError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for UsageError {}
+
 const HELP: &str = "\
 typeanvil — AI-first HTML to PDF typesetting engine
 
-Usage: typeanvil render <input.html> [flags] -o <output.pdf>
+Usage: typeanvil render <input.html|input.md> [flags] -o <output.pdf>
        typeanvil --version
        typeanvil --help
 
 Subcommands:
-  render        Render an HTML document to a paged PDF
+  render        Render an HTML or Markdown document to a paged PDF
+                (.md, .markdown, .mdown select Markdown)
 
 Flags (render):
   -o, --output <path>       Output PDF path (required)
@@ -82,6 +100,9 @@ Flags (render):
       --tagged              Emit a logical structure tree (default; accepted for compatibility)
       --ua                  Tagged PDF + PDF/UA-1 validation (overrides --no-tagged)
       --diagnostics <mode>  css diagnostics: json (stdout) | text (stderr)
+      --from <format>       Input format: html | markdown (default: by extension)
+      --css <file>          Markdown only: append an author stylesheet (repeatable)
+      --no-default-css      Markdown only: omit the embedded default stylesheet
   -h, --help                Print this help
   -V, --version             Print version
 
@@ -108,6 +129,12 @@ struct RenderArgs {
     ua: bool,
     /// CORE-112: emit machine-readable diagnostics (`json` or `text`).
     diagnostics: Option<DiagnosticsMode>,
+    /// CORE-513: resolved input format (`--from` or the file extension).
+    markdown: bool,
+    /// CORE-513: `--css` files, in order (Markdown only).
+    css_files: Vec<PathBuf>,
+    /// CORE-513: `--no-default-css` (Markdown only).
+    no_default_css: bool,
 }
 
 /// Output format for `--diagnostics`.
@@ -122,6 +149,25 @@ fn render(args: Vec<String>) -> Result<()> {
 
     let html = std::fs::read_to_string(&opts.input)
         .with_context(|| format!("reading input {}", opts.input.display()))?;
+
+    // CORE-513: Markdown input becomes one HTML string here; everything after
+    // this block is the unchanged HTML path.
+    let mut md_events = Vec::new();
+    let html = if opts.markdown {
+        let mut sheets = Vec::new();
+        for f in &opts.css_files {
+            sheets.push(
+                std::fs::read_to_string(f)
+                    .with_context(|| format!("reading --css {}", f.display()))?,
+            );
+        }
+        let doc = typeanvil::markdown::convert(&html, &sheets, !opts.no_default_css)
+            .context("converting Markdown")?;
+        md_events = doc.diagnostics;
+        doc.html
+    } else {
+        html
+    };
 
     let mut dom = Dom::parse(&html).context("parsing HTML")?;
     inline_iframe_sources(&mut dom, &opts.input);
@@ -161,7 +207,8 @@ fn render(args: Vec<String>) -> Result<()> {
     // Diagnostics (CORE-112): analyze the stylesheet only when asked. The
     // render above is untouched either way — byte-stable PDFs, zero cost.
     if let Some(mode) = opts.diagnostics {
-        let mut events = typeanvil::diagnostics::analyze(stylesheet.source());
+        let mut events = md_events;
+        events.extend(typeanvil::diagnostics::analyze(stylesheet.source()));
         // CORE-128: broken bookmark anchors collected during layout join the
         // stream as trailing warning events (no source position — 0,0).
         for msg in typeanvil::diagnostics::take_broken_anchors() {
@@ -376,6 +423,9 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
     let mut no_tagged = false;
     let mut ua = false;
     let mut diagnostics: Option<DiagnosticsMode> = None;
+    let mut from: Option<String> = None;
+    let mut css_files: Vec<PathBuf> = Vec::new();
+    let mut no_default_css = false;
 
     let mut it = args.into_iter();
     while let Some(arg) = it.next() {
@@ -403,6 +453,9 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
                     other => bail!("invalid --diagnostics mode `{other}` (expected json|text)"),
                 });
             }
+            "--from" => from = Some(next_value(&mut it, &arg)?),
+            "--css" => css_files.push(PathBuf::from(next_value(&mut it, &arg)?)),
+            "--no-default-css" => no_default_css = true,
             other if other.starts_with('-') => bail!("unknown flag `{other}`"),
             _ => {
                 if input.is_none() {
@@ -414,8 +467,39 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
         }
     }
 
+    let input = input.ok_or_else(|| anyhow!("missing input HTML path"))?;
+    // CORE-513 D2: `--from` overrides the extension.
+    let markdown = match from.as_deref() {
+        Some("markdown") => true,
+        Some("html") => false,
+        Some(other) => {
+            return Err(UsageError(format!(
+                "invalid --from format `{other}` (expected html|markdown)"
+            ))
+            .into())
+        }
+        None => input
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| {
+                ["md", "markdown", "mdown"]
+                    .iter()
+                    .any(|m| e.eq_ignore_ascii_case(m))
+            })
+            .unwrap_or(false),
+    };
+    if !markdown && (!css_files.is_empty() || no_default_css) {
+        return Err(UsageError(
+            "--css and --no-default-css apply to Markdown input only".to_string(),
+        )
+        .into());
+    }
+
     Ok(RenderArgs {
-        input: input.ok_or_else(|| anyhow!("missing input HTML path"))?,
+        input,
+        markdown,
+        css_files,
+        no_default_css,
         output: output.ok_or_else(|| anyhow!("missing -o output path"))?,
         page_width: page_width.ok_or_else(|| anyhow!("missing --page-width"))?,
         page_height: page_height.ok_or_else(|| anyhow!("missing --page-height"))?,

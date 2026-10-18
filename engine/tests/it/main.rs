@@ -66,6 +66,7 @@ mod line_height;
 mod links;
 mod margin_box_paint_order;
 mod margin_collapse;
+mod markdown;
 mod metadata;
 mod multicol;
 mod overlong_word_wrap;

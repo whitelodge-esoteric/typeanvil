@@ -221,14 +221,23 @@ pub fn to_json(events: &[Diagnostic]) -> String {
         out.push('\n');
         for (idx, d) in events.iter().enumerate() {
             let comma = if idx + 1 == events.len() { "" } else { "," };
+            // CORE-513: events from the Markdown converter (code prefix
+            // `markdown-`) carry `"source": "markdown"`; CSS events keep the
+            // schema-1 shape byte-for-byte.
+            let source = if d.code.starts_with("markdown-") {
+                ", \"source\": \"markdown\""
+            } else {
+                ""
+            };
             let _ = writeln!(
                 out,
-                "    {{\"code\": {}, \"severity\": {}, \"message\": {}, \"line\": {}, \"column\": {}}}{}",
+                "    {{\"code\": {}, \"severity\": {}, \"message\": {}, \"line\": {}, \"column\": {}{}}}{}",
                 json_string(&d.code),
                 json_string(&d.severity),
                 json_string(&d.message),
                 d.line,
                 d.column,
+                source,
                 comma
             );
         }

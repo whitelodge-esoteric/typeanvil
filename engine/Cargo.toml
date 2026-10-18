@@ -66,6 +66,9 @@ resvg = "0.45"
 # work is `weezl`. Animated GIFs print their first frame, matching Chromium's
 # static-medium behaviour.
 gif = "0.13"
+# Markdown input (CORE-513, D1): CommonMark + GFM to an HTML string. Default
+# features (syntect highlighter, CLI deps) are off.
+comrak = { version = "0.56", default-features = false }
 # Errors.
 anyhow = "1"
 
