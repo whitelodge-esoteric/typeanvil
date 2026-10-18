@@ -133,6 +133,20 @@
       "input_source": "fixture",
       "expectation": {"text_present": ["Raw HTML Fixture", "raw block"]},
       "provenance": "docs/specifications/markdown-input.spec.md AC8"
+    },
+    {
+      "id": "markdown-footnote-areas",
+      "input": "markdown/footnote.md",
+      "input_source": "fixture",
+      "expectation": {"text_present": ["Alpha footnote text", "Beta footnote text", "[^nope]"]},
+      "provenance": "docs/specifications/markdown-input.spec.md AC10; engine/tests/it/markdown.rs::footnote_refs_become_float_spans"
+    },
+    {
+      "id": "markdown-footnote-table-list",
+      "input": "markdown/footnote-table-list.md",
+      "input_source": "fixture",
+      "expectation": {"text_present": ["Cell footnote text", "List footnote text"]},
+      "provenance": "docs/specifications/markdown-input.spec.md Gap 6; engine/tests/it/markdown.rs::footnote_inside_table_and_list_converts"
     }
   ]
 }

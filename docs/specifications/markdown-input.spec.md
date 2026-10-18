@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-18
 sidebar_position: 71
 tags: [cli, markdown, input, metadata]
 spec_id: markdown-input
@@ -276,6 +276,25 @@ DECIDED 2026-10-17 (agent), recorded at implementation:
 - **Diagnostics:** events whose code starts `markdown-` print
   `"source": "markdown"` in JSON. CSS events keep the schema-1 shape.
 - **Usage errors (exit 2)** use a `UsageError` type in `main.rs`.
+
+## Slice 2 decisions (CORE-514)
+
+DECIDED 2026-10-18 (agent), recorded at implementation:
+
+- **Footnote form (Behavior 9):** each defined reference becomes
+  `<span class="footnote" style="float: footnote">` holding the definition
+  as inline content. The converter writes `float: footnote` as an inline
+  style because the paged pass reads inline styles. Multi-paragraph
+  definitions are joined with a space (a `<span>` holds no block tags). The
+  back-reference link is dropped, and so is the trailing list.
+- **Undefined reference:** stays literal `[^label]` text. One
+  `markdown-unresolved-footnote` diagnostic (source `markdown`, line 0) per
+  such occurrence. References inside `<pre>` or `<code>` do not count.
+- **Gap 6 result (resolved, no engine change):** a `float: footnote` span in a
+  table cell and in a list item both paginate. Each note lands on the page of
+  its call, numbered continuously. Probe `footnote-table-list.md` at 5in x
+  3in: cell note `1.` on page 1, list note `2.` on page 2. Fixtures
+  `footnote.md` and `footnote-table-list.md` pin this.
 
 ## Acceptance Criteria
 
