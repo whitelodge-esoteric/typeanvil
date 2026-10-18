@@ -100,3 +100,41 @@ fn nested_column_flex_contains_bordered_children() {
         "fragmented outer flex box paints a bottom border: {own:?}"
     );
 }
+
+/// CORE-485: the top border band belongs to the FIRST fragment of a split
+/// flex box. On the continuation page it overpainted the first child.
+#[test]
+fn continuation_fragment_has_no_top_border() {
+    let dom = Dom::parse(HTML).expect("parses");
+    let s = HTML.find("<style>").unwrap() + 7;
+    let e = HTML.find("</style>").unwrap();
+    let ss = Stylesheet::parse(&HTML[s..e]);
+    let geom = PageGeometry {
+        width: inches(5.0),
+        height: inches(3.0),
+        margin_top: inches(0.5),
+        margin_right: inches(0.5),
+        margin_bottom: inches(0.5),
+        margin_left: inches(0.5),
+    };
+    let laid = layout(&dom, &ss, geom);
+    let outer_id = id_by_class(&dom, "flexbox", 0);
+    let mut outer = Vec::new();
+    find_source(&laid.pages[1].root, outer_id, &mut outer);
+    fn tops(f: &Fragment, out: &mut Vec<f64>) {
+        if let FragmentContent::Border(b) = &f.content {
+            out.push(b.top.get());
+        }
+        for c in &f.children {
+            if c.source.is_none() {
+                tops(c, out);
+            }
+        }
+    }
+    let mut own = Vec::new();
+    tops(outer[0], &mut own);
+    assert!(
+        own.iter().all(|t| t.abs() < 1e-6),
+        "continuation outer flex box paints a top border: {own:?}"
+    );
+}

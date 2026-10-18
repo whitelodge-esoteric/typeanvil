@@ -279,6 +279,7 @@ impl<'a> Ctx<'a> {
         box_top: Scalar,
         top: Scalar,
     ) -> BlockResult {
+        let fresh = token.is_break_before();
         let wrap = matches!(style.flex_wrap, FlexWrap::Wrap | FlexWrap::WrapReverse);
         let reverse = matches!(style.flex_direction, FlexDirection::RowReverse);
         let gap = style.flex_column_gap;
@@ -805,7 +806,9 @@ impl<'a> Ctx<'a> {
             || style.border_left.get() > 0.0
         {
             let border_box = BorderBox {
-                top: style.border_top,
+                // The top band belongs to the FIRST fragment only (CORE-485);
+                // content_top already skips it on a continuation.
+                top: if fresh { style.border_top } else { Scalar::ZERO },
                 right: style.border_right,
                 // css-break-3 §5.4 (slice): the bottom band belongs to the
                 // LAST fragment only (CORE-478).
@@ -1195,7 +1198,9 @@ impl<'a> Ctx<'a> {
             || style.border_left.get() > 0.0
         {
             let border_box = BorderBox {
-                top: style.border_top,
+                // The top band belongs to the FIRST fragment only (CORE-485);
+                // content_top already skips it on a continuation.
+                top: if fresh { style.border_top } else { Scalar::ZERO },
                 right: style.border_right,
                 // css-break-3 §5.4 (slice): the bottom band belongs to the
                 // LAST fragment only (CORE-478).
