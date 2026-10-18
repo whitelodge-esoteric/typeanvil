@@ -1174,6 +1174,8 @@ struct PaintGroup {
     /// CSS `transform` (CORE-481) in PAGE coordinates; the whole group paints
     /// under it.
     transform: Option<crate::transform::Affine>,
+    /// CSS `opacity` (CORE-518): the whole group composites at this alpha.
+    opacity: f32,
     backgrounds: Vec<BackgroundItem>,
     bg_images: Vec<BgImageItem>,
     borders: Vec<BorderItem>,
@@ -1189,6 +1191,7 @@ impl PaintGroup {
         PaintGroup {
             z_index,
             transform: None,
+            opacity: 1.0,
             backgrounds: Vec::new(),
             bg_images: Vec::new(),
             borders: Vec::new(),
@@ -1312,12 +1315,13 @@ fn collect(
         return;
     }
 
-    if frag.z_index.is_some() || frag.transform.is_some() {
+    if frag.z_index.is_some() || frag.transform.is_some() || frag.opacity < 1.0 {
         // A keyed or transformed fragment is its own stacking-context root
         // (CORE-481: `transform` creates one, css-transforms-1 §3). An empty
         // box contributes nothing and skips the subgroup.
         if has_paint(frag) || !frag.children.is_empty() {
             let mut subgroup = PaintGroup::new(frag.z_index);
+            subgroup.opacity = frag.opacity;
             subgroup.transform = frag
                 .transform
                 .map(|t| crate::transform::to_abs(&t, abs_x as f64, abs_y as f64));
@@ -1354,6 +1358,25 @@ fn collect_unowned(frag: &Fragment, parent_x: f32, parent_y: f32, group: &mut Pa
 /// its keyed child contexts in CSS2.1 Appendix E order — negative ascending,
 /// zero in tree order, positive ascending.
 fn paint_group(
+    surface: &mut krilla::surface::Surface<'_>,
+    layout: &Layout,
+    group: &PaintGroup,
+    tagged: bool,
+    draws: &mut Vec<crate::tags::DrawRef>,
+    page_idx: usize,
+) -> Result<()> {
+    // CORE-518: group opacity composites the whole subtree as one unit.
+    if group.opacity < 1.0 {
+        let alpha = NormalizedF32::new(group.opacity).unwrap_or(NormalizedF32::ONE);
+        surface.push_opacity(alpha);
+        let res = paint_group_transformed(surface, layout, group, tagged, draws, page_idx);
+        surface.pop();
+        return res;
+    }
+    paint_group_transformed(surface, layout, group, tagged, draws, page_idx)
+}
+
+fn paint_group_transformed(
     surface: &mut krilla::surface::Surface<'_>,
     layout: &Layout,
     group: &PaintGroup,

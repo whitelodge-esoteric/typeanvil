@@ -18,6 +18,52 @@
    "Table": 1
   }
  },
+ "library/academic/dissertation.html": {
+  "coverage": 0.9848,
+  "roles": {
+   "Caption": 20,
+   "Div": 323,
+   "Document": 141,
+   "Figure": 30,
+   "H1": 16,
+   "H2": 50,
+   "L": 9,
+   "LBody": 183,
+   "LI": 188,
+   "Lbl": 180,
+   "Link": 90,
+   "P": 578,
+   "Sect": 140,
+   "TBody": 43,
+   "TD": 4500,
+   "TH": 100,
+   "THead": 20,
+   "TR": 920,
+   "Table": 43
+  }
+ },
+ "library/academic/journal-article.html": {
+  "coverage": 0.9382,
+  "roles": {
+   "Div": 43,
+   "Document": 13,
+   "Formula": 36,
+   "H1": 1,
+   "H2": 15,
+   "H3": 15,
+   "H4": 14,
+   "L": 5,
+   "LBody": 87,
+   "LI": 87,
+   "Lbl": 84,
+   "Note": 5,
+   "P": 73,
+   "TBody": 18,
+   "TD": 1634,
+   "TR": 205,
+   "Table": 18
+  }
+ },
  "library/academic/journal-paper.html": {
   "coverage": 0.9371,
   "roles": {
@@ -100,6 +146,18 @@
    "H2": 3,
    "Note": 4,
    "P": 14
+  }
+ },
+ "library/book/pride-and-prejudice.html": {
+  "coverage": 0.9951,
+  "roles": {
+   "Div": 637,
+   "Document": 318,
+   "H1": 62,
+   "H2": 1,
+   "Link": 37,
+   "P": 2357,
+   "Sect": 317
   }
  },
  "library/book/prose.html": {
@@ -243,6 +301,21 @@
    "Table": 2
   }
  },
+ "library/flyers/product-flyer.html": {
+  "coverage": 0.9368,
+  "roles": {
+   "Div": 15,
+   "Document": 1,
+   "H1": 1,
+   "H2": 1,
+   "L": 1,
+   "LBody": 3,
+   "LI": 3,
+   "Lbl": 3,
+   "P": 8,
+   "Span": 3
+  }
+ },
  "library/letters/business-letter.html": {
   "coverage": 1.0,
   "roles": {
@@ -339,6 +412,20 @@
    "Table": 5
   }
  },
+ "library/manual/field-manual.html": {
+  "coverage": 0.9956,
+  "roles": {
+   "Div": 581,
+   "Document": 212,
+   "Figure": 82,
+   "H1": 26,
+   "H2": 290,
+   "H3": 320,
+   "Link": 23,
+   "P": 2684,
+   "Sect": 211
+  }
+ },
  "library/manual/price-catalog.html": {
   "coverage": 1.0,
   "roles": {
@@ -390,6 +477,15 @@
    "THead": 4,
    "TR": 24,
    "Table": 4
+  }
+ },
+ "library/posters/event-poster.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 5,
+   "Document": 1,
+   "H1": 1,
+   "P": 6
   }
  },
  "library/posters/poster.html": {
@@ -573,6 +669,15 @@
    "THead": 1,
    "TR": 138,
    "Table": 26
+  }
+ },
+ "library/tickets/concert-ticket.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 5,
+   "Document": 1,
+   "H1": 1,
+   "P": 7
   }
  },
  "library/tickets/weasyprint-ticket.html": {

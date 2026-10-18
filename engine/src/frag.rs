@@ -309,6 +309,9 @@ pub struct Fragment {
     /// already folded in). The PDF emitter paints the fragment's whole
     /// subtree under it, as its own stacking context. `None` = untransformed.
     pub transform: Option<crate::transform::Affine>,
+    /// CSS `opacity` (CORE-518): group opacity for the fragment's whole
+    /// subtree, which is its own stacking context. `1.0` = opaque.
+    pub opacity: f32,
 }
 
 /// Which structural part of its source element a fragment paints.
@@ -338,6 +341,7 @@ impl Fragment {
             repeated: false,
             part: FragPart::Content,
             transform: None,
+            opacity: 1.0,
         }
     }
 
@@ -355,6 +359,7 @@ impl Fragment {
             repeated: false,
             part: FragPart::Content,
             transform: None,
+            opacity: 1.0,
         }
     }
 }
@@ -586,6 +591,7 @@ impl Fragmentainer {
                 repeated: false,
                 part: FragPart::Content,
                 transform: None,
+                opacity: 1.0,
             },
             background: None,
             page_orientation: None,

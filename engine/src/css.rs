@@ -1195,6 +1195,8 @@ pub struct ComputedStyle {
     pub inset_left_viewport: Option<ViewportLen>,
     /// `z-index`, `None` = `auto` (paint in tree order).
     pub z_index: Option<i32>,
+    /// `opacity` (CORE-518), clamped to 0..=1. 1.0 = opaque (initial).
+    pub opacity: f32,
     /// `transform` function list (CORE-481). Empty = `none`.
     pub transform: Vec<crate::transform::TransformOp>,
     /// `transform-origin` x/y; `None` = initial `50% 50%` (CORE-481).
@@ -1430,6 +1432,7 @@ impl ComputedStyle {
             inset_bottom_viewport: None,
             inset_left_viewport: None,
             z_index: None,
+            opacity: 1.0,
             transform: Vec::new(),
             transform_origin: None,
             column_count: None,
@@ -2556,6 +2559,7 @@ impl CascadeSession {
             inset_bottom_viewport: None,
             inset_left_viewport: None,
             z_index,
+            opacity: values.get_effects().clone_opacity().clamp(0.0, 1.0),
             transform: Vec::new(),
             transform_origin: None,
             column_count,

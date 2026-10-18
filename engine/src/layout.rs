@@ -5819,6 +5819,9 @@ impl<'a> Ctx<'a> {
         // only — the parent cursor advanced via `used`, so siblings and
         // following content never reflow.
         self.apply_transform(style, &mut fragment, flow, abspos_mark);
+        // CORE-518: `opacity` < 1 makes the box a stacking context whose
+        // whole subtree composites as one group (css-color-4 §3.2).
+        fragment.opacity = style.opacity;
         RelativeInsetShift::resolve(style, self.icb_width, self.icb_height).apply(&mut fragment);
 
         BlockResult {
