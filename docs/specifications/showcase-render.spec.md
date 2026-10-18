@@ -60,10 +60,11 @@ repository (CourtBouillon/weasyprint-samples, public domain) as
   on real-world documents at their designed page sizes: invoice, letter,
   poster, report, ticket. These are the shared test bed for the future
   WeasyPrint comparison (CORE-318).
-- Output committed like the comparison gallery: per-page PNGs plus the
-  gallery written into `library/SHOWCASE.md`, viewable directly on
-  GitHub. Each track's README is its own gallery, and neither build touches
-  the other's.
+- Output is NOT committed (CORE-495): per-page PNGs and the generated gallery
+  (`gallery.md`) go to the ignored `library/out/showcase/` tree. Releases
+  publish them to the `typeanvil-showcase` repo
+  (`showcase-publish.spec.md`). `library/SHOWCASE.md` is a hand-written
+  pointer to that repo. Neither build touches the other's output.
 
 ## Non-Goals
 
@@ -91,9 +92,10 @@ repository (CourtBouillon/weasyprint-samples, public domain) as
 2. The renderer SHALL rasterize each render's pages to PNG at 300 DPI into
    `library/out/showcase/images/<fixture>/page-NNN-ta.png`.
 3. The build SHALL write the showcase gallery into
-   `library/SHOWCASE.md` below the `BEGIN GENERATED SHOWCASE` marker:
-   fixture name, per-page images referenced as `out/images/...` so they
-   resolve from `library/`, and the manifest notes. The
+   `library/out/showcase/gallery.md` (ignored, CORE-495) below the
+   `BEGIN GENERATED SHOWCASE` marker:
+   fixture name, per-page images referenced as `images/...` so they
+   resolve from `library/out/showcase/`, and the manifest notes. The
    hand-maintained preamble above the marker is never rewritten. The build
    SHALL NOT emit an intermediate `index.md` — the README is the single
    gallery artifact for this track. The comparison track's README is never
@@ -137,8 +139,8 @@ repository (CourtBouillon/weasyprint-samples, public domain) as
   expected_deltas) minus the diff-specific fields.
 - Gallery writer: `scripts/demo_compare.py assemble-showcase --manifest
   library/manifest.json --images-dir library/out/showcase/images --readme
-  library/SHOWCASE.md --marker "<!-- BEGIN GENERATED SHOWCASE -->"
-  --image-prefix out/images`. The splice itself lives in `splice_readme`,
+  library/out/showcase/gallery.md --marker "<!-- BEGIN GENERATED SHOWCASE -->"
+  --image-prefix images`. The splice itself lives in `splice_readme`,
   shared with the comparison track, so both tracks replace only their own
   README's generated section and neither emits an `index.md`.
 - Gallery ownership: each track owns its directory and its README. GitHub
