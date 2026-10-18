@@ -2,7 +2,7 @@
 title: Markdown Input
 slug: /specifications/markdown-input
 type: spec
-status: draft
+status: approved
 owner: maintainers
 created: 2026-10-17
 updated: 2026-10-17
@@ -57,7 +57,7 @@ follow-on work (see Follow-on issues).
 
 ### D1. Converter: comrak, Markdown → HTML string → html5ever DOM
 
-DECIDED 2026-10-17 (agent). Use the `comrak` crate to render HTML, then call
+DECIDED 2026-10-17 (agent; approved by owner 2026-10-17). Use the `comrak` crate to render HTML, then call
 the existing `Dom::parse`.
 
 Rationale:
@@ -80,7 +80,7 @@ highlighter or CLI dependencies.
 
 ### D2. Input contract: `render` accepts `.md` directly
 
-DECIDED 2026-10-17 (agent). No new subcommand.
+DECIDED 2026-10-17 (agent; approved by owner 2026-10-17). No new subcommand.
 
 - `typeanvil render input.md` selects Markdown when the extension is `.md`,
   `.markdown`, or `.mdown` (ASCII case-insensitive). Every other extension is
@@ -94,7 +94,7 @@ DECIDED 2026-10-17 (agent). No new subcommand.
 
 ### D3. Dialect: CommonMark 0.31 plus a named GFM subset
 
-DECIDED 2026-10-17 (agent). The baseline is CommonMark. The enabled
+DECIDED 2026-10-17 (agent; approved by owner 2026-10-17). The baseline is CommonMark. The enabled
 extensions are:
 
 | Extension | Maps to |
@@ -119,7 +119,7 @@ stripping HTML gives no safety gain and would break documents that embed
 
 ### D4. Default stylesheet: shipped, small, replaceable
 
-DECIDED 2026-10-17 (agent). Markdown output has no author CSS, and the UA
+DECIDED 2026-10-17 (agent; approved by owner 2026-10-17). Markdown output has no author CSS, and the UA
 print defaults (`ua-print-defaults.spec.md`) are plain. The engine shall
 insert one embedded stylesheet as the FIRST `<style>` element in the
 generated `<head>`. It supplies body font and size, heading scale and
