@@ -53,7 +53,7 @@ OUT="library/out/showcase"
 WORK="$OUT/.work"
 IMAGES="$OUT/images"
 MANIFEST="library/manifest.json"
-SHOWCASE_README="library/SHOWCASE.md"
+SHOWCASE_README="library/out/showcase/gallery.md"
 MARKER="<!-- BEGIN GENERATED SHOWCASE -->"
 # Unstressed Prince reference overlay (CORE-217). Lives inside out/ so the
 # existing check-determinism walk covers it; never spliced into the README.
@@ -271,7 +271,7 @@ if [ "$FAILED" = "0" ]; then
   --images-dir "$IMAGES" \
   --readme "$SHOWCASE_README" \
   --marker "$MARKER" \
-  --image-prefix out/showcase/images \
+  --image-prefix images \
   --typeanvil-version "$TA_VERSION" \
   ${FILTER_ARGS[@]+"${FILTER_ARGS[@]}"}
 fi

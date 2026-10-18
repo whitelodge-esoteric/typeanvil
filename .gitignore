@@ -19,17 +19,12 @@ docsite/build/
 docsite/.docusaurus/
 docsite/.cache/
 
-# Generated library output (CORE-488). Everything lives under library/:
-# fixtures, manifest, README galleries, and the generated out/ tree. The
-# committed baseline was force-added (CORE-72); later rebuilds update those
-# tracked files in place.
-#
-# To refresh the committed baseline, force-add the deliverables BY NAME — a
-# bare `git add -f library/out` also sweeps in the .work/ and .results/
-# scratch trees:
-#   git add -f library/out/compare/images library/out/compare/scoreboard.json
-#   git add -f library/out/showcase/images library/out/showcase/inspect.md
-#   git add library/README.md library/SHOWCASE.md   # the galleries
+# Generated library output (CORE-488). Rendered images, galleries and
+# inspect pages are NOT committed (CORE-495): they are published to the
+# typeanvil-showcase repo instead. Never force-add anything under
+# library/out/. The one exception is library/out/compare/scoreboard.json,
+# which stays tracked as the build-demo.sh --guard reference and is no
+# longer refreshed by hand.
 library/out/
 library/out/compare.baseline/
 library/out/showcase.baseline/

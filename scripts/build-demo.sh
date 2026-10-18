@@ -45,7 +45,7 @@ BENCH_MANIFEST="repros/manifest.json"
 # so both engines resolve `assets/...` identically.
 LIBRARY_DIR="library"
 REPROS_DIR="repros"
-README_OUT="library/README.md"
+README_OUT="library/out/compare/gallery.md"
 
 usage() {
   cat <<'EOF'
@@ -258,7 +258,7 @@ done
   --benchmark-manifest "$BENCH_MANIFEST" \
   --out-dir "$OUT" \
   --readme "$README_OUT" \
-  --image-prefix out/compare/images \
+  --image-prefix images \
   --typeanvil-version "$TA_VERSION" \
   --prince-version "$PR_VERSION"
 

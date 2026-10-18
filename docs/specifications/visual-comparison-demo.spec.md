@@ -45,7 +45,7 @@ strength.
 
 - A deterministic `scripts/build-demo.sh` that renders the corpus through
   both engines with **identical CLI flags**, rasterizes page-by-page, diffs,
-  and writes a gallery into `library/README.md` plus a scoreboard at
+  and writes a gallery into `library/out/compare/gallery.md` plus a scoreboard at
   `library/out/compare/scoreboard.json`. Every comparison artifact SHALL live
   under `library/` (CORE-488; see document-library.spec.md).
 - A corpus of 6–8 real documents, each exercising a **shipped** wedge feature
@@ -62,8 +62,9 @@ strength.
 - Chromium headless comparison (an explicit non-goal).
 - Any engine feature work (floats, multicol, and flexbox remain backlog items
   and may appear only as "known gap" notes, never as features we claim).
-- A live/web-served gallery — the artifact is static files committed to the
-  repo, openable from disk.
+- A live/web-served gallery in this repo. Since CORE-495 the gallery output is
+  not committed; it is generated under the ignored `library/out/compare/`
+  tree, and published renders live in the `typeanvil-showcase` repo.
 - WPT-style pass/fail semantics — the scoreboard is a **diff percentage +
   bucket**, not a conformance gate.
 
@@ -129,21 +130,21 @@ The demo SHALL implement the following, stated as "shall" rules:
    follow-up issue; `missing-feature` may produce one only when the gap is
    undocumented.
 8. **Gallery interface.** The gallery SHALL be a GitHub-viewable markdown
-   document, and it SHALL be the `README.md` of the corpus track itself
-   (`library/README.md`) — not a separate `index.md`, and not an HTML
+   document, and it SHALL be `library/out/compare/gallery.md` (CORE-495; it was
+   `library/README.md` before) — not a separate `index.md`, and not an HTML
    page. The generated body SHALL contain, per doc: a header (name + the
    manifest's wedge features, known limitations, and expected deltas), the
    two page sequences side by side in a markdown table (TypeAnvil left,
    Prince right) with the per-page diff percentage between them, a markdown
    scoreboard table (doc × pages × overall diff % + bucket), and the
    benchmark section. It SHALL reference the rasterized PNGs with relative
-   `<img>` paths (`out/images/...`) so GitHub's file browser renders them
-   without a build step. The build SHALL replace only the content below the
-   `BEGIN GENERATED GALLERY` marker, leaving the hand-maintained preamble
-   above it untouched.
-   A build SHALL NOT emit an HTML gallery: the markdown README is the single
-   committed gallery artifact (the HTML page and its inlined base64 images
-   were dropped as redundant, superseded by this requirement).
+   `<img>` paths (`images/...`, relative to the gallery file). Since CORE-495
+   the gallery is written to `library/out/compare/gallery.md`, beside
+   `library/out/compare/images/`, and is not committed. The build SHALL
+   replace only the content below the `BEGIN GENERATED GALLERY` marker.
+   A build SHALL NOT emit an HTML gallery: the markdown file is the single
+   gallery artifact (the HTML page and its inlined base64 images were
+   dropped as redundant).
 9. **Determinism.** Re-running `scripts/build-demo.sh` on an unchanged tree
    SHALL produce byte-identical `library/out/compare/` (sorted iteration, no
    timestamps in image files; the only timestamp is `generated` in the
@@ -166,7 +167,7 @@ The demo SHALL implement the following, stated as "shall" rules:
   `prince --version`.
 - `scripts/build-demo.sh` — full pipeline: for each corpus doc → render both
   → rasterize → diff → write `library/out/compare/scoreboard.json` and splice the
-  gallery into `library/README.md`.
+  gallery into `library/out/compare/gallery.md`.
 - `scripts/demo_compare.py assemble` — owns the README splice for BOTH tracks
   (`--readme`, `--marker`, `--image-prefix`), so the corpus and showcase
   galleries share one implementation and neither emits an intermediate

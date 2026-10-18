@@ -91,9 +91,9 @@ Epic: CORE-486. Issue: CORE-488.
    SHALL have a matching entry there.
 7. Generated output SHALL live under `library/out/` (`compare/` for
    build-demo.sh, `showcase/` for build-showcase.sh). The comparison gallery
-   splices into `library/README.md` and the showcase gallery into
-   `library/SHOWCASE.md`. Both files keep a hand-maintained preamble above
-   their marker.
+   is written to `library/out/compare/gallery.md` and the showcase gallery to
+   `library/out/showcase/gallery.md` (CORE-495). Generated output is
+   ignored and never committed.
 8. `demo/` SHALL hold no fixtures. The reusable helper scripts moved to
    `scripts/demo/`.
 
