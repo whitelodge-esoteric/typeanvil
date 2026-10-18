@@ -1661,9 +1661,10 @@ fn paginate(
                 pinned_pending.push(job);
                 continue;
             }
-            // The offset's local y within this page. `ty` is ALREADY
-            // page-local — the out-of-flow branch computes it from the page's
-            // content origin — so only whole content heights come off.
+            // The offset's local y within this page. `ty` is in document
+            // coordinates (the out-of-flow branch adds the queuing page's
+            // offset for a positioned-ancestor containing block, CORE-242) with the page's content origin already in,
+            // so only whole content heights come off.
             // Subtracting `content.y` again moved the box up by the top margin:
             // fixedpos-004's reference paints its `bottom:-100vh`/`-200vh`
             // boxes 0.5in too high on pages 2-3, where Chromium (and this
@@ -4539,9 +4540,21 @@ impl<'a> Ctx<'a> {
                         // CORE-185 past-page defer: compare against the real fragmentainer bottom
                         // instead of bottom_limit (which is f64::MAX for nested boxes)
                         if !page_anchored && y.get() >= (self.content_y + self.page_height).get() {
+                            // CORE-242: `y` is local to THIS page when the
+                            // containing block is a positioned ancestor laid
+                            // here; the drain counts pages from the document
+                            // start, so add the pages already laid (a job queued
+                            // on page 2 at +200vh belongs on page 4, not 3). The
+                            // initial containing block (and a fixed box's page
+                            // box) sits on page 1, so its offset is already
+                            // document-relative.
+                            let cb_is_ancestor =
+                                cstyle.position != Position::Fixed && flow.abspos_cb.is_some();
+                            let page_off = if cb_is_ancestor { self.page_index as f64 } else { 0.0 };
+                            let y_doc = y + Scalar(page_off * self.page_height.get());
                             flow.abspos_jobs.push(AbsposJob {
                                 id: *child,
-                                target: Some((x, y)),
+                                target: Some((x, y_doc)),
                                 defer_one_page: false,
                             });
                             i += 1;

@@ -661,6 +661,55 @@ fn page_anchored_abspos_fragments_across_pages() {
     );
 }
 
+// --- CORE-242: pinned job pushed on a LATER page keeps its page offset ---
+
+#[test]
+fn pinned_abspos_job_from_later_page_counts_from_its_own_page() {
+    // The containing block starts on page 2 (after a 100vh block). Its child
+    // sits at top:200vh, so it belongs on page 4 (100vh + 200vh = 300vh at a
+    // 216pt content height). The drain used to read the job's y as if it were
+    // queued on page 1 and laid the box on page 3 (transform-024: 4 vs 5 pages).
+    let html = r#"<html><head><style>
+        @page { margin: 0; }
+        body { margin: 0; }
+        .lead { height: 100vh; }
+        .cb { position: relative; height: 50vh; }
+        .a { position: absolute; top: 200vh; height: 50vh; width: 10px; }
+    </style></head><body>
+        <div class="lead"></div>
+        <div class="cb"><div class="a"></div></div>
+    </body></html>"#;
+    let dom = dom_of(html);
+    let aid = node_id_by_class(&dom, "a");
+    let layout = lay(html, geometry(5.0, 3.0, 0.0));
+    assert_eq!(layout.pages.len(), 4, "box on page 4 grows the document to 4 pages");
+    assert!(page_abspos_fragments(&layout, 2, aid).is_empty(), "nothing on page 3");
+    let frags = page_abspos_fragments(&layout, 3, aid);
+    assert!(!frags.is_empty(), "box paints on page 4");
+    assert_close(frags[0].offset.y, Scalar(0.0), "box starts at page 4's top");
+}
+
+#[test]
+fn pinned_abspos_on_initial_cb_queued_late_stays_document_relative() {
+    // Guard (CORE-242): a box whose containing block is the INITIAL one is
+    // pinned to page 1's coordinates even when the body reaches it on page 3.
+    // `top:150vh` belongs on page 2 (fixedpos-in-footer-forced-break's ref).
+    let html = r#"<html><head><style>
+        @page { margin: 0; }
+        body { margin: 0; }
+        .lead { height: 200vh; }
+        .a { position: absolute; top: 150vh; height: 10px; width: 10px; }
+    </style></head><body>
+        <div class="lead"></div>
+        <div class="a"></div>
+    </body></html>"#;
+    let dom = dom_of(html);
+    let aid = node_id_by_class(&dom, "a");
+    let layout = lay(html, geometry(5.0, 3.0, 0.0));
+    assert_eq!(layout.pages.len(), 2, "no page added past the lead block");
+    assert!(!page_abspos_fragments(&layout, 1, aid).is_empty(), "box paints on page 2");
+}
+
 // --- CORE-185: a PINNED abspos whose inset lands past page 1 -------------
 
 #[test]
