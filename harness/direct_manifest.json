@@ -147,6 +147,13 @@
       "input_source": "fixture",
       "expectation": {"text_present": ["Cell footnote text", "List footnote text"]},
       "provenance": "docs/specifications/markdown-input.spec.md Gap 6; engine/tests/it/markdown.rs::footnote_inside_table_and_list_converts"
+    },
+    {
+      "id": "markdown-math-text",
+      "input": "markdown/math.md",
+      "input_source": "fixture",
+      "expectation": {"text_present": ["Math Fixture", "unsupportedcommand"]},
+      "provenance": "docs/specifications/markdown-input.spec.md AC16; engine/tests/it/markdown.rs::math_md_renders_deterministically"
     }
   ]
 }

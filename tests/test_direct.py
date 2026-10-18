@@ -121,7 +121,7 @@ def test_empty_provenance_raises(tmp_path):
 def test_checked_in_manifest_loads():
     manifest = Path(__file__).parent.parent / "harness" / "direct_manifest.json"
     checks = load_manifest(manifest)
-    assert len(checks) == 21  # 15 + 4 Markdown fixtures (CORE-513) + 2 footnote fixtures (CORE-514)
+    assert len(checks) == 22  # 15 + 4 Markdown (CORE-513) + 2 footnote (CORE-514) + 1 math (CORE-515)
     assert all(c.provenance for c in checks)
     # Every reviewed expectation carries provenance that names its source.
     # Provenance must name a real source: a repo path, a specification, or a
