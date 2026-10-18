@@ -919,3 +919,27 @@ fn pre_element_end_to_end() {
         "<pre> must preserve source line structure and indentation"
     );
 }
+
+/// CORE-519: `letter-spacing` adds extra advance after every glyph
+/// (css-text-3 §8.2). A 6pt-spaced word is 6pt wider per character than
+/// the unspaced control; inherited by descendants.
+#[test]
+fn letter_spacing_widens_each_glyph() {
+    let html = "<html><head><style>.d{letter-spacing:6pt}</style></head><body>\
+        <p class=\"d\">WIDE</p><p>WIDE</p></body></html>";
+    let l = lay(html, geometry(8.5, 11.0, 0.5));
+    let mut runs = Vec::new();
+    collect_runs(&l.pages[0].root, &mut runs);
+    let width = |r: &typeanvil::frag::TextRun| -> f64 {
+        r.glyphs.iter().map(|g| g.x_advance.get()).sum::<f64>()
+    };
+    let spaced = runs.iter().find(|r| r.text == "WIDE").expect("spaced run");
+    let plain = runs.iter().rev().find(|r| r.text == "WIDE").expect("plain run");
+    let n = spaced.glyphs.len() as f64;
+    let delta = width(spaced) - width(plain);
+    assert!(
+        (delta - 6.0 * n).abs() < 0.05,
+        "expected +6pt per glyph ({} glyphs), got delta {delta}",
+        n
+    );
+}

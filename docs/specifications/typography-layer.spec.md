@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-16
-updated: 2026-09-27
+updated: 2026-10-18
 sidebar_position: 4
 tags: [typography, line-breaking, knuth-plass, shaping, engine]
 spec_id: typography-layer
@@ -308,6 +308,14 @@ Given/When/Then, each mapping to a real test in `engine/tests/typography.rs`:
     `tounicode.rs::margin_box_tounicode_map`). This requires the stylesheet
     comment stripper to be char-safe (the old byte-wise stripper mangled
     every multi-byte UTF-8 char in the stylesheet source).
+13. **letter-spacing** (css-text-3 §8.2, CORE-519) — Given text with
+    `letter-spacing: 6pt`, when shaped, then every glyph advance is 6pt
+    wider than the unspaced control (marks sharing a cluster get none), the
+    value inherits, and `liga`/`clig` are disabled while it is nonzero. The
+    value reaches the shaper as the reserved `LSPC` entry in
+    `ComputedStyle::ot_features` (stripped before HarfRust). Percentages are
+    unsupported and compute to 0
+    (`typography.rs::letter_spacing_widens_each_glyph`).
 
 ## Edge Cases
 
