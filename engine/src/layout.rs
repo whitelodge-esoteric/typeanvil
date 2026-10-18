@@ -1536,7 +1536,15 @@ fn paginate(
             for (_, frag) in behind.drain(..).rev() {
                 fragmentainer.root.children.insert(0, frag);
             }
-            for (_, frag) in front {
+            for (z, mut frag) in front {
+                // CORE-520: a positioned box with z-index auto/0/positive
+                // paints atomically (css2 App. E 8.3.1), so the emitter
+                // must paint it as its own unit in (z, tree order). Left
+                // unstamped, its image paints in the page-wide image phase
+                // above a later sibling's background.
+                if frag.z_index.is_none() {
+                    frag.z_index = Some(z.unwrap_or(0));
+                }
                 fragmentainer.root.children.push(frag);
             }
         }
