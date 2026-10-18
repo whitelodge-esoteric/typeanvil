@@ -33,6 +33,9 @@ const config: Config = {
     locales: ['en'],
   },
 
+  // Build-time llms.txt, llms-full.txt and a .md copy of each page (CORE-507).
+  plugins: ['./plugins/llms-txt'],
+
   presets: [
     [
       'classic',

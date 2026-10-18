@@ -4,7 +4,7 @@ type: runbook
 status: approved
 owner: maintainers
 created: 2026-08-16
-updated: 2026-10-14
+updated: 2026-10-17
 sidebar_position: 1
 tags: [operations, docusaurus, docs]
 trigger: when you want to browse or deploy the docs site
@@ -65,6 +65,13 @@ docs content lives in `docs/`; the site is just a renderer — edit markdown in
 
    Output goes to `docsite/build/` (gitignored). The build fails on broken
    links, so it doubles as a docs sanity check.
+
+   The build also writes `llms.txt`, `llms-full.txt` and a `.md` copy of
+   each page (see `/specifications/llms-txt`). Check them after a build:
+
+   ```bash
+   python3 scripts/check_llms_txt.py
+   ```
 
 4. Serve the built bundle:
 
