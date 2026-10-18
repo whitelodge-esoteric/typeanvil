@@ -1,0 +1,226 @@
+# Automated release cycle (CORE-499): weekly cut -> tag -> verify; monthly rotation + promotion.
+# Runbook: docs/operations/release-cycle.md   Spec: docs/specifications/release-cycle.spec.md
+#
+# The tag is pushed with RELEASE_BOT_TOKEN (a PAT or app token with contents:write).
+# A tag pushed with the default GITHUB_TOKEN does not start release.yml.
+name: release-cut
+
+on:
+  schedule:
+    - cron: "23 7 * * 1"   # weekly cut, Monday 07:23 UTC
+    - cron: "41 5 1 * *"   # monthly rotation + promotion, 1st at 05:41 UTC
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "What to run"
+        type: choice
+        options: [cut, rotate]
+        default: cut
+      dry_run:
+        description: "Compute and report only; push nothing"
+        type: boolean
+        default: true
+
+concurrency:
+  group: release-cut
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+  statuses: read
+  checks: read
+  pull-requests: read
+  issues: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  cut:
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'cut' || github.event.schedule == '23 7 * * 1'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.cut.outputs.tag }}
+      cut: ${{ steps.cut.outputs.cut }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
+      - name: Check preconditions, compute version, tag
+        id: cut
+        env:
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+          BOT_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN }}
+        run: |
+          set -euo pipefail
+          git fetch --quiet --tags origin 'refs/heads/release/*:refs/remotes/origin/release/*'
+          branch="$(git branch -r --list 'origin/release/*' | sed 's/^ *//' | python3 scripts/nightly.py latest-release)"
+          sha="$(git rev-parse "origin/${branch}")"
+          echo "cut=false" >> "$GITHUB_OUTPUT"
+
+          # Skip when nothing landed since the newest tag on this branch's line.
+          last="$(git tag --list 'v*' --sort=-v:refname --merged "origin/${branch}" | head -n1)"
+          if [ -n "$last" ] && [ "$(git rev-list --count "${last}..origin/${branch}")" = "0" ]; then
+            echo "No commits since ${last}; skipping." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # Precondition 1: ci is green on the exact tip.
+          ci="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${sha}&status=completed" \
+            --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')"
+          # Precondition 2: the nightly (CORE-490) is green on the exact tip.
+          nightly="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${sha}/statuses" \
+            --jq '[.[] | select(.context == "nightly")][0].state // ""')"
+          if [ "$ci" = "0" ] || [ "$nightly" != "success" ]; then
+            msg="Preconditions failed on ${branch} @ ${sha}: ci green runs=${ci}, nightly='${nightly}'. No release cut."
+            echo "::warning::${msg}"
+            echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          tag="$(python3 scripts/release_cut.py next-version "$branch" $(git tag --list 'v*'))"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "Next release: ${tag} on ${branch} @ ${sha}" | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run: no tag pushed." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ -z "$BOT_TOKEN" ]; then
+            echo "::error::RELEASE_BOT_TOKEN is not set; a GITHUB_TOKEN tag would not start release.yml."
+            exit 1
+          fi
+          git config user.name "typeanvil-release-bot"
+          git config user.email "release-bot@users.noreply.github.com"
+          git tag -a "$tag" -m "${tag} — Typeanvil ${tag#v}" "$sha"
+          git push origin "refs/tags/${tag}"
+          echo "cut=true" >> "$GITHUB_OUTPUT"
+
+  notes:
+    needs: cut
+    if: needs.cut.outputs.cut == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Generate notes from merged PR titles and attach them
+        env:
+          TAG: ${{ needs.cut.outputs.tag }}
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          prev="$(git tag --list 'v*' --sort=-v:refname | grep -v "^${TAG}$" | head -n1 || true)"
+          since="$(git log -1 --format=%cI "${prev:-${TAG}~50}")"
+          gh pr list --state merged --base "$(git branch -r --contains "$TAG" --list 'origin/release/*' | head -n1 | sed 's# *origin/##')" \
+            --search "merged:>=${since}" --limit 200 --json number,title,labels > prs.json
+          python3 scripts/release_cut.py notes --prs prs.json --version "$TAG" \
+            --showcase "https://github.com/${GITHUB_REPOSITORY}/tree/${TAG}/library/SHOWCASE.md" \
+            ${prev:+--compare "https://github.com/${GITHUB_REPOSITORY}/compare/${prev}...${TAG}"} > notes.md
+          # release.yml creates the release; wait for it, then set the body.
+          for i in $(seq 1 60); do
+            gh release view "$TAG" >/dev/null 2>&1 && break
+            sleep 60
+          done
+          gh release edit "$TAG" --notes-file notes.md
+
+  verify:
+    needs: cut
+    if: needs.cut.outputs.cut == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - name: Wait for release.yml to finish on the tag
+        env:
+          TAG: ${{ needs.cut.outputs.tag }}
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 60); do
+            run="$(gh run list --workflow release.yml --branch "$TAG" --limit 1 --json databaseId,status,conclusion --jq '.[0] // empty')"
+            [ -n "$run" ] && break
+            sleep 30
+          done
+          [ -n "${run:-}" ] || { echo "::error::release.yml never started for $TAG"; exit 1; }
+          gh run watch "$(echo "$run" | python3 -c 'import json,sys; print(json.load(sys.stdin)["databaseId"])')" --exit-status
+      - name: Download one tarball and SHA256SUMS, check sums, run it
+        env:
+          TAG: ${{ needs.cut.outputs.tag }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          target=x86_64-unknown-linux-musl
+          mkdir -p dl
+          gh release download "$TAG" --dir dl --clobber \
+            --pattern SHA256SUMS --pattern "typeanvil-${version}-${target}.tar.gz"
+          python3 scripts/release_cut.py verify-sums dl/SHA256SUMS "dl/typeanvil-${version}-${target}.tar.gz"
+          tar -xzf "dl/typeanvil-${version}-${target}.tar.gz" -C dl
+          bin="dl/typeanvil-${version}-${target}/typeanvil"
+          out="$("$bin" --version)"
+          echo "$out"
+          [ "$out" = "typeanvil ${version}" ] || { echo "::error::--version mismatch: '$out'"; exit 1; }
+          "$bin" render library/financial/invoice-statement.html --page-width 5in --page-height 3in \
+            --margin-top .5in --margin-right .5in --margin-bottom .5in --margin-left .5in -o dl/smoke.pdf
+          head -c 5 dl/smoke.pdf | grep -q '%PDF-'
+          echo "Verified ${TAG}: sums ok, --version ok, render ok." >> "$GITHUB_STEP_SUMMARY"
+      - name: Open an issue when verification fails
+        if: failure()
+        env:
+          TAG: ${{ needs.cut.outputs.tag }}
+        run: |
+          gh issue create --title "Release ${TAG} failed post-release verification" \
+            --body "See ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Runbook: docs/operations/release-cycle.md"
+
+  rotate:
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'rotate' || github.event.schedule == '41 5 1 * *'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
+      - name: Create the new monthly branch and promote the old one to main
+        env:
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin 'refs/heads/release/*:refs/remotes/origin/release/*' main
+          read -r new prev < <(python3 scripts/release_cut.py rotation-names)
+          echo "Rotation: ${prev} -> ${new}" | tee -a "$GITHUB_STEP_SUMMARY"
+          if git rev-parse --verify -q "origin/${prev}" >/dev/null; then src="origin/${prev}"; else src="origin/main"; fi
+          src_sha="$(git rev-parse "$src")"
+
+          if git rev-parse --verify -q "origin/${new}" >/dev/null; then
+            if [ "$(git rev-parse "origin/${new}")" = "$src_sha" ]; then
+              echo "${new} already exists at the source tip."
+            else
+              echo "${new} exists at a different tip; leaving it alone." | tee -a "$GITHUB_STEP_SUMMARY"
+            fi
+          elif [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run: would create ${new} at ${src_sha}." | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            git push origin "${src_sha}:refs/heads/${new}"
+          fi
+
+          # Promotion: fast-forward main to the old release tip. Refuse any other shape.
+          if [ "$src" = "origin/main" ]; then exit 0; fi
+          behind="$(git rev-list --count "${src}..origin/main")"
+          if [ "$behind" != "0" ]; then
+            msg="main has ${behind} commit(s) that ${prev} lacks; not promoting. Open a PR into the release branch."
+            echo "::warning::${msg}"
+            if [ "$DRY_RUN" != "true" ]; then gh issue create --title "Promotion of ${prev} blocked" --body "$msg"; fi
+            exit 0
+          fi
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run: would fast-forward main to ${src_sha}." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if ! git push origin "${src_sha}:refs/heads/main"; then
+            gh issue create --title "Promotion of ${prev} to main was rejected" \
+              --body "Fast-forward push to main failed (branch rules or token scope). Run the manual steps in docs/operations/release-cycle.md."
+            exit 1
+          fi
