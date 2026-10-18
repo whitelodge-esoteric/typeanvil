@@ -1,0 +1,87 @@
+{
+  "engine_version": "0.0.1",
+  "file": "letters/letterhead.html",
+  "page_count": 8,
+  "pages": [
+    {
+      "dark_pixels": 1682,
+      "dhash": "4000d0c0d4d40050",
+      "page": 1,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "7b9a94ad9424adc0c75e6073f5a934f31da413a7aaf198766fb70bb3cb688391"
+    },
+    {
+      "dark_pixels": 3162,
+      "dhash": "00c0c4d4ccd40000",
+      "page": 2,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "101589e9da3274c1ee24fa9703d31a0f18a6b42531b27ef5295c7ba0deefbfa8"
+    },
+    {
+      "dark_pixels": 585,
+      "dhash": "00d4c48008000000",
+      "page": 3,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "b5e3e5e2ae32acde6e85d12c2d71e4c1afcabfb4accc0c123feec4393e78c04a"
+    },
+    {
+      "dark_pixels": 3372,
+      "dhash": "ccccc8c0c4c4b030",
+      "page": 4,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "7702469a1dc4ecf4b923eb3ebe83205d07989a9e0c70c125574762325296dac6"
+    },
+    {
+      "dark_pixels": 3600,
+      "dhash": "ccccd4d0d4dc3030",
+      "page": 5,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "11a6b601e8ad3a19b06ae3c128ed5e34bae0ee1bb9be59429cb5d33f1dbf7901"
+    },
+    {
+      "dark_pixels": 3705,
+      "dhash": "ccccf4d0c4cc3030",
+      "page": 6,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "810f20f71d6ff6a92a84d75f3e7c8f99532aca8cfefc113c2bc4429614c78b22"
+    },
+    {
+      "dark_pixels": 2718,
+      "dhash": "ccccf0e4c4c87030",
+      "page": 7,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "532ae63f33744458b5d3d9128eed0da668a3eafdab980672be88aecd188b0f62"
+    },
+    {
+      "dark_pixels": 578,
+      "dhash": "ccccd0c800003030",
+      "page": 8,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "34aca281a8d359bcc9ad112a39b584aed1ca8d52aa345660fb32a2f06dc6c767"
+    }
+  ]
+}

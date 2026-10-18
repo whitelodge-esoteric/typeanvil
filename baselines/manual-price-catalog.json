@@ -1,0 +1,47 @@
+{
+  "engine_version": "0.0.1",
+  "file": "manual/price-catalog.html",
+  "page_count": 4,
+  "pages": [
+    {
+      "dark_pixels": 2369,
+      "dhash": "b0e0e0ccd4c00252",
+      "page": 1,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "2bee097e01aedaaacf84f904d54db98e66e4b8d73cecf84be99f6d62f0ffacaf"
+    },
+    {
+      "dark_pixels": 2060,
+      "dhash": "a088d8d8c8c80202",
+      "page": 2,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "0ce8b43711a755939b14c7648ad7068f194cd3f9916806850f7a0e87cd546732"
+    },
+    {
+      "dark_pixels": 2185,
+      "dhash": "a0c898ccc8cc0282",
+      "page": 3,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "0657445abf91daed6c26f91c27ff4233801d5eb1558acce750ef5fc8272edb05"
+    },
+    {
+      "dark_pixels": 1694,
+      "dhash": "a0d8d8c4ddd8e402",
+      "page": 4,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "1c7e9ecc90cd401d7d0c29029f893190fc962128fdc520396815a645d2900ebc"
+    }
+  ]
+}

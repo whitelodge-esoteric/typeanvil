@@ -1,0 +1,97 @@
+{
+  "engine_version": "0.0.1",
+  "file": "academic/thesis-excerpt.html",
+  "page_count": 9,
+  "pages": [
+    {
+      "dark_pixels": 2762,
+      "dhash": "96a8c8d0c0c8d400",
+      "page": 1,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "c7637622be7f16ef420cf6f21f505b54e3aec5a14d69c6e75925dc482521ba9f"
+    },
+    {
+      "dark_pixels": 3982,
+      "dhash": "96d0ece0d0ec8410",
+      "page": 2,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "a3adc90c954deb84b613a7ac5681906183fcbbac1e40d45824bc7f409271ca4b"
+    },
+    {
+      "dark_pixels": 3715,
+      "dhash": "96b0c8c4dcc49010",
+      "page": 3,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "879544546d6c28ee5845ab056fab57c2e6699fd8cd65841ad605cbe9d5f42a41"
+    },
+    {
+      "dark_pixels": 2225,
+      "dhash": "96d4f0aa96a6a010",
+      "page": 4,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "977995c21e9323061ebb0416e5194fe4ff1b6f30cbf9cf0c5f9a9158d314c5f2"
+    },
+    {
+      "dark_pixels": 2481,
+      "dhash": "94ae8486a6e4d410",
+      "page": 5,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "e1e2b3685efcf1866585b02577c3973dd3e3e4455519eca8aee944432ac93183"
+    },
+    {
+      "dark_pixels": 3477,
+      "dhash": "96c6ccb0c0cca010",
+      "page": 6,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "ecd6b00185181e3b60450835142150d1eef990c78e44faf73a9e5015e34865dd"
+    },
+    {
+      "dark_pixels": 3196,
+      "dhash": "96d4f4e0a0aa9a14",
+      "page": 7,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "c3be97a2c6994fe0f540ae909dc39089c460f7ee838f5bd4075d0c5245e3bbe4"
+    },
+    {
+      "dark_pixels": 3248,
+      "dhash": "96a4aaa8d0f0a410",
+      "page": 8,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "7e48154009fc7ba6a043a18995ce8852ab522a650b341dc7896c72b40917998a"
+    },
+    {
+      "dark_pixels": 566,
+      "dhash": "96e4a00000001010",
+      "page": 9,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "eb4c9d4242610e355174f1dfc517da07fdf7b4f5116558029ddbfd36dfb90a26"
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "engine_version": "0.0.1",
+  "file": "reports/analytics-digest.html",
+  "page_count": 8,
+  "pages": [
+    {
+      "dark_pixels": 3425,
+      "dhash": "86888894f4c8c010",
+      "page": 1,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "222f7dc6b05fb1b14e70585c045f843c6b8a2dba94e39447b6eed9cf83bed2c6"
+    },
+    {
+      "dark_pixels": 1714,
+      "dhash": "96c2a4b48694b400",
+      "page": 2,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "f615c8845d2b20058012255e9659de1289c5182a45dec029ed2e8a1d3806e725"
+    },
+    {
+      "dark_pixels": 2890,
+      "dhash": "82c4a8b88088a010",
+      "page": 3,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "aec906af2604637d1287e96a55bd9a4c6498593314ee12c69b0b5459af49caa8"
+    },
+    {
+      "dark_pixels": 2388,
+      "dhash": "868284e480900090",
+      "page": 4,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "68be0c53caf7f6bd26ed52d4e94d8327c0d382a126b17c5d3d31d896b4b2202c"
+    },
+    {
+      "dark_pixels": 1732,
+      "dhash": "82aab6b696b64010",
+      "page": 5,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "4710be752a471635b0f5d07f0d4400b9ee412f7fbc8496c8c8b794948f840abc"
+    },
+    {
+      "dark_pixels": 8167,
+      "dhash": "9282545454d48810",
+      "page": 6,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "c941159b6f0100f458dd7d8bd7da35f30cd145bd3cf624c47056b4d73737bde4"
+    },
+    {
+      "dark_pixels": 2650,
+      "dhash": "828284c8e8aea810",
+      "page": 7,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "95724f81549ebeab5ae7f0fb9dfb5eb04251db786a4c8f15ba368e30c0580a15"
+    },
+    {
+      "dark_pixels": 1454,
+      "dhash": "82aeaaaaac800010",
+      "page": 8,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "833942f043a8617c9d3b8386964e952741a7065f0650e79e9a996dd330c05bb3"
+    }
+  ]
+}

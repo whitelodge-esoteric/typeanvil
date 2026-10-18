@@ -1,0 +1,57 @@
+{
+  "engine_version": "0.0.1",
+  "file": "academic/journal-paper.html",
+  "page_count": 5,
+  "pages": [
+    {
+      "dark_pixels": 3439,
+      "dhash": "c2c4a4e494d4c000",
+      "page": 1,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "ce52541b501d3e6382e35cb32a5cd4b47d94c72a3d8772763593dd0fb65dfab6"
+    },
+    {
+      "dark_pixels": 3455,
+      "dhash": "c2ccc8ee88885210",
+      "page": 2,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "17b1a66eda2fc751418f0d5a66e0a0da6dbed76a879ce51cbe5913a6bd4140c0"
+    },
+    {
+      "dark_pixels": 2857,
+      "dhash": "c698e8cec8005010",
+      "page": 3,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "176eb0bdb75aba769c6a547d9ca015f74fb9e91d4fc9e3caf9c8672252adf6d8"
+    },
+    {
+      "dark_pixels": 3096,
+      "dhash": "c298c8eac2008210",
+      "page": 4,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "00e248a0c38bef35cf08d3674df988d530386447cdb60692187c9ebf17289059"
+    },
+    {
+      "dark_pixels": 2551,
+      "dhash": "c698ca8a98001010",
+      "page": 5,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "a89ff155ddcfad0afeb1071be97a3a3998069e73cb0db56449f1f4a0ba32e461"
+    }
+  ]
+}
