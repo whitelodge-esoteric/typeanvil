@@ -225,7 +225,59 @@ fn task_list_code_wrap_and_math_fallback() {
     let h = convert("- [x] done\n- [ ] todo\n", &[], true).unwrap();
     assert!(h.html.contains("☑") && h.html.contains("☐"), "{}", h.html);
     assert!(typeanvil::markdown::DEFAULT_CSS.contains("pre-wrap"));
+    // Translatable math becomes <math>, with no diagnostic.
     let m = convert("Inline $a+b$ here.\n", &[], true).unwrap();
-    assert!(m.html.contains("<code") && m.html.contains("a+b"), "{}", m.html);
-    assert_eq!(m.diagnostics.len(), 1);
+    assert!(m.html.contains("<math") && !m.html.contains("<code class=\"math\""), "{}", m.html);
+    assert!(m.diagnostics.is_empty());
+    // Untranslatable math falls back to <code> source plus one diagnostic.
+    let f = convert("Bad $\\notacommand{x}$ here.\n", &[], true).unwrap();
+    assert!(f.html.contains("<code class=\"math\">"), "{}", f.html);
+    assert_eq!(f.diagnostics.len(), 1);
+    assert_eq!(f.diagnostics[0].code, "markdown-math-untranslated");
+}
+
+/// AC16 / B10: the subset translates to the MathML element set.
+#[test]
+fn tex_math_translates_to_mathml() {
+    use typeanvil::texmath::tex_to_mathml;
+    let m = tex_to_mathml("x^2 + \\frac{a}{b} + \\sqrt{y} + \\alpha_1", false).unwrap();
+    for needle in ["<msup>", "<mfrac>", "<msqrt>", "<msub>", "<mi>α</mi>"] {
+        assert!(m.contains(needle), "{needle} in {m}");
+    }
+    let d = tex_to_mathml("\\sum_{i=1}^{n} i", true).unwrap();
+    assert!(d.contains("display=\"block\"") && d.contains("<munderover>"), "{d}");
+    let s = tex_to_mathml("\\sum_{i=1}^{n} i", false).unwrap();
+    assert!(s.contains("<msubsup>"), "{s}");
+    let r = tex_to_mathml("\\sqrt[3]{x}", false).unwrap();
+    assert!(r.contains("<mroot>"), "{r}");
+    let t = tex_to_mathml("\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}", false).unwrap();
+    assert!(t.contains("<mtable>") && t.matches("<mtr>").count() == 2, "{t}");
+    let l = tex_to_mathml("\\left( x \\right)", false).unwrap();
+    assert!(l.contains("<mo>(</mo>") && l.contains("<mo>)</mo>"), "{l}");
+    assert!(tex_to_mathml("\\frac{a}", false).is_err());
+    assert!(tex_to_mathml("{a", false).is_err());
+    assert!(tex_to_mathml("a}", false).is_err());
+    assert!(tex_to_mathml("\\foo", false).is_err());
+    // `<` in TeX is escaped in the output.
+    assert!(tex_to_mathml("a<b", false).unwrap().contains("&lt;"));
+}
+
+/// AC16: `math.md` renders through the engine's MathML layout, byte-stable.
+#[test]
+fn math_md_renders_deterministically() {
+    let d = scratch("math");
+    let src = "# Math\n\nInline $E = mc^2$ and $\\frac{a}{b}$.\n\n$$\\int_0^1 x^2\\,dx = \\frac{1}{3}$$\n\nPrice $5 and $6 stay text. Bad $\\nope$ here.\n";
+    std::fs::write(d.join("math.md"), src).unwrap();
+    let out = render(&d, "math.md", &["--diagnostics", "json"]);
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let json = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(json.matches("markdown-math-untranslated").count(), 1, "{json}");
+    let a = std::fs::read(d.join("out.pdf")).unwrap();
+    render(&d, "math.md", &[]);
+    let b = std::fs::read(d.join("out.pdf")).unwrap();
+    assert_eq!(a, b);
+    let h = convert(src, &[], true).unwrap().html;
+    assert_eq!(h.matches("<math").count(), 3, "{h}");
+    assert!(h.contains("display=\"block\""));
+    assert!(h.contains("$5 and $6"), "currency stays text: {h}");
 }

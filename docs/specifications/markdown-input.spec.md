@@ -296,6 +296,34 @@ DECIDED 2026-10-18 (agent), recorded at implementation:
   3in: cell note `1.` on page 1, list note `2.` on page 2. Fixtures
   `footnote.md` and `footnote-table-list.md` pin this.
 
+## Slice 3 decisions (CORE-515)
+
+DECIDED 2026-10-18 (agent), recorded at implementation:
+
+- **Hand-built translator, no crate.** `engine/src/texmath.rs` is a small
+  recursive-descent parser with no dependencies. Existing TeX-to-MathML
+  crates add a dependency tree and output the engine's layout does not
+  read (it lays out only the element set in `math-rendering.spec.md`
+  Behavior 1). The module is pure and deterministic. Only `markdown.rs`
+  calls it, so the HTML path is unchanged.
+- **Coverage.** Fractions (`\frac \dfrac \tfrac \binom`), scripts
+  (`^ _ '`), radicals (`\sqrt`, `\sqrt[n]`), Greek letters, about 100
+  operator, relation, arrow and set symbols, big operators
+  (`\sum \prod \int ...`; limits become `munder/mover/munderover` only in
+  display math), named functions (`\sin \lim ...`), `\left...\right`
+  fences, accents (`\hat \vec \bar \overline ...`), `\text`, `\mathbb`,
+  spacing commands, and the `matrix pmatrix bmatrix Bmatrix vmatrix Vmatrix
+  cases` environments.
+- **Fallback (B10).** Any unknown command, unbalanced brace, missing
+  argument or unterminated environment fails the whole formula. The
+  converter then emits `<code class="math">` with the source and one
+  `markdown-math-untranslated` diagnostic carrying the reason.
+- **Output.** The `<math>` carries `alttext` (the TeX source) for the tagged
+  PDF Formula alt text. Style commands (`\mathbf`, `\mathcal`) group their
+  argument without changing the glyphs, because the engine does not read
+  `mathvariant` (`math-rendering.spec.md` Non-Goals).
+- **Dollar rules** (currency, `\$`) stay with comrak's `math_dollars`.
+
 ## Acceptance Criteria
 
 Fixtures live in `harness/direct_fixtures/markdown/` and are listed in
@@ -338,8 +366,10 @@ in `engine/tests/it/markdown.rs`. CLI tests use the `cli_surface.rs` style.
   reports one event with `source: "markdown"`.
 - **AC15** (B13, B14): `--help` text lists `--from`, `--css`,
   `--no-default-css`; `render x.html --css a.css` exits 2.
-- **AC16** (B10, after the math follow-on): `math.md` produces `<math>`
-  elements; before it lands, the fallback `<code>` source and a diagnostic.
+- **AC16** (B10): `math.md` produces `<math>` elements that render;
+  unsupported TeX falls back to `<code>` source and a diagnostic. Tests:
+  `engine/tests/it/markdown.rs::tex_math_translates_to_mathml`,
+  `math_md_renders_deterministically`; fixture `markdown/math.md`.
 - **AC17** (no regression): the full `cargo test` suite and the release gate
   show zero changes for HTML input (the Markdown code is not on the HTML path).
 

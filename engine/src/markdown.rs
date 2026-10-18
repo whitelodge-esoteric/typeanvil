@@ -98,11 +98,11 @@ pub fn convert(source: &str, css: &[String], default_css: bool) -> Result<Markdo
         .replace(" align=\"right\"", " style=\"text-align:right\"")
         .replace(" align=\"center\"", " style=\"text-align:center\"")
         .replace(" align=\"left\"", " style=\"text-align:left\"");
-    let (rendered, math_count) = math_fallback(&rendered);
-    for _ in 0..math_count {
+    let (rendered, math_errors) = translate_math(&rendered);
+    for why in math_errors {
         diagnostics.push(md_diag(
             "markdown-math-untranslated",
-            "math rendered as source text; the TeX to MathML translator is not available yet",
+            &format!("math rendered as source text: {why}"),
             0,
         ));
     }
@@ -273,34 +273,52 @@ fn footnote_inline(li: &str) -> String {
         .to_string()
 }
 
-/// B10 fallback until the TeX translator lands (slice 3): comrak's math
-/// spans become `<code class="math">` holding the source.
-fn math_fallback(html: &str) -> (String, usize) {
+/// B10: comrak's math spans become `<math>` through the TeX translator
+/// (`texmath.rs`). A formula the translator rejects becomes
+/// `<code class="math">` holding the source; the reason is returned so the
+/// caller can emit one diagnostic per failure.
+fn translate_math(html: &str) -> (String, Vec<String>) {
     const OPEN: &str = "<span data-math-style=\"";
     let mut out = String::with_capacity(html.len());
     let mut rest = html;
-    let mut n = 0;
+    let mut errors = Vec::new();
     while let Some(i) = rest.find(OPEN) {
         out.push_str(&rest[..i]);
         let tail = &rest[i + OPEN.len()..];
         let (Some(q), Some(gt)) = (tail.find('"'), tail.find('>')) else {
             out.push_str(&rest[i..]);
-            return (out, n);
+            return (out, errors);
         };
-        let _ = q;
+        let display = &tail[..q] == "display";
         let after = &tail[gt + 1..];
         let Some(close) = after.find("</span>") else {
             out.push_str(&rest[i..]);
-            return (out, n);
+            return (out, errors);
         };
-        out.push_str("<code class=\"math\">");
-        out.push_str(&after[..close]);
-        out.push_str("</code>");
-        n += 1;
+        let escaped = &after[..close];
+        let tex = unescape_html(escaped);
+        match crate::texmath::tex_to_mathml(&tex, display) {
+            Ok(ml) => out.push_str(&ml),
+            Err(why) => {
+                out.push_str("<code class=\"math\">");
+                out.push_str(escaped);
+                out.push_str("</code>");
+                errors.push(why);
+            }
+        }
         rest = &after[close + "</span>".len()..];
     }
     out.push_str(rest);
-    (out, n)
+    (out, errors)
+}
+
+/// Undo the entity escaping comrak applies to span text.
+fn unescape_html(s: &str) -> String {
+    s.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&")
 }
 
 fn md_diag(code: &str, message: &str, line: usize) -> Diagnostic {
