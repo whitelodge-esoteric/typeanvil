@@ -4,7 +4,7 @@ type: runbook
 status: approved
 owner: maintainers
 created: 2026-08-25
-updated: 2026-10-14
+updated: 2026-10-17
 sidebar_position: 2
 tags: [benchmark, performance, prince, weasyprint, chrome]
 ---
@@ -61,8 +61,38 @@ Per fixture and engine:
 Any single run longer than 60 seconds is killed (whole process group) and
 counted as a failure, so a hung render cannot hang the benchmark.
 
-Geometry matches `scripts/build-demo.sh` exactly: 5in × 3in pages with
-0.5in margins. TypeAnvil and Prince take CLI geometry flags directly;
+## Heavy documents, startup and scaling (CORE-493)
+
+The `perf` role is the release-time measurement. Process start is about 10 ms
+for TypeAnvil, so a 20 ms render of a small fixture mostly times the spawn.
+The `perf` run therefore adds three things:
+
+1. **Real geometry.** Each document renders at the page size its
+   `library/manifest.json` `geometry` entry declares (Letter, A4, 6×9, the
+   8×3.2in ticket). The forced 5×3in page applies only to documents that
+   declare it. The `perf` role includes the `visual` documents (poster,
+   ticket, flyer).
+2. **Startup cost.** A one-paragraph document is timed on every engine and
+   reported on its own. Every ms-per-page figure subtracts that engine's
+   startup median.
+3. **Scaling series.** A generated plain-flow book (deterministic text, a
+   chapter heading every 10 pages, 6×9in, 0.75in margins) at about 10, 50, 150
+   and 300 pages. Only length changes between rows. The report lists seconds,
+   actual pages and ms per page for each, plus a growth exponent: the slope of
+   log(net seconds) against log(pages). 1.00 is linear. A value clearly above
+   1.00 means time per page grows with document length.
+
+The per-run timeout is 300 s (`PERF_TIMEOUT_S`), up from 60 s, so a 300-page
+render on WeasyPrint is not killed. `--no-scaling` skips the
+startup and scaling runs; `--filter` also skips them. `--perf-json PATH`
+writes a compact per-engine record (startup, ms per page per heavy document
+and series member, growth exponent) for the `typeanvil-showcase` perf history.
+
+Run it at release time only, on the same host, with a release-profile binary.
+Do not compare a debug binary.
+
+Geometry for the small corpus matches `scripts/build-demo.sh`: 5in × 3in pages
+with 0.5in margins. TypeAnvil and Prince take CLI geometry flags directly;
 WeasyPrint has no page-size flags, so the leg routes through
 `scripts/render-weasyprint.sh`, which writes an `@page` stylesheet with the
 same geometry (appended after the fixture's own CSS). Chrome's CLI has no
