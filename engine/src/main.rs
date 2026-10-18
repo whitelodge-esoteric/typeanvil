@@ -78,7 +78,7 @@ impl std::fmt::Display for UsageError {
 impl std::error::Error for UsageError {}
 
 const HELP: &str = "\
-typeanvil — AI-first HTML to PDF typesetting engine
+typeanvil — AI-first HTML and Markdown to PDF typesetting engine
 
 Usage: typeanvil render <input.html|input.md> [flags] -o <output.pdf>
        typeanvil --version

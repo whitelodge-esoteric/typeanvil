@@ -82,8 +82,42 @@ thead { display: table-header-group; }
 </html>
 ```
 
-The CLI currently accepts standalone HTML files. Inline `<style>` elements and
-local linked stylesheets are supported. JavaScript is not executed.
+The CLI accepts standalone HTML files and Markdown files. Inline `<style>`
+elements and local linked stylesheets are supported. JavaScript is not executed.
+
+### Markdown example
+
+A file with the extension `.md`, `.markdown` or `.mdown` is read as Markdown.
+The engine converts it to HTML and applies a built-in stylesheet, so the PDF
+looks finished with no CSS. YAML frontmatter sets the PDF title and author.
+
+````markdown
+---
+title: Release Notes
+author: A. Author
+---
+
+# Release Notes
+
+| Item    | Status |
+|---------|--------|
+| Parser  | done   |
+| Layout  | done   |
+
+A note with a footnote.[^1]
+
+[^1]: Footnotes print at the bottom of the page.
+````
+
+```bash
+typeanvil render notes.md \
+  --page-width 8.5in --page-height 11in \
+  --margin-top 1in --margin-right 1in --margin-bottom 1in --margin-left 1in \
+  -o notes.pdf
+```
+
+Add your own CSS with `--css style.css`, or drop the built-in stylesheet with
+`--no-default-css`. See the [Markdown to PDF guide](docs/guides/markdown.md).
 
 ## Feature status
 

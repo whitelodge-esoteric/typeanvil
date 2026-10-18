@@ -52,12 +52,12 @@ function buildIndex(siteConfig, docs, siteDir) {
   const lines = [
     '# TypeAnvil',
     '',
-    '> TypeAnvil is an open-source HTML to PDF typesetting engine written in Rust. ' +
-      'It lays out HTML with paged-media CSS (@page, fragmentation, running headers, ' +
+    '> TypeAnvil is an open-source HTML and Markdown to PDF typesetting engine written in Rust. ' +
+      'It lays out HTML or Markdown with paged-media CSS (@page, fragmentation, running headers, ' +
       'footnotes) and writes a PDF. These docs cover the self-hosted runtime: install, ' +
       'CLI, CSS support, specifications and operations.',
     '',
-    'Use these docs when you need to install the `typeanvil` binary, render HTML to PDF ' +
+    'Use these docs when you need to install the `typeanvil` binary, render HTML or Markdown to PDF ' +
       'from the command line, or check which CSS features the engine supports.',
     '',
     'These docs are not a fit for the hosted cloud service, or for any task that needs ' +

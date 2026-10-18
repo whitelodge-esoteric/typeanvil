@@ -4,18 +4,19 @@ type: runbook
 status: approved
 owner: maintainers
 created: 2026-08-26
-updated: 2026-10-17
+updated: 2026-10-18
 sidebar_position: 3
 tags: [cli, usage, reference]
 ---
 
 # TypeAnvil CLI Reference
 
-The engine ships one subcommand, `render`. It reads an HTML file and writes
-a PDF.
+The engine ships one subcommand, `render`. It reads an HTML or Markdown file
+and writes a PDF. The extensions `.md`, `.markdown` and `.mdown` select
+Markdown; any other extension is HTML. `--from` overrides the extension.
 
 ```text
-typeanvil render <input.html> [flags] -o <output.pdf>
+typeanvil render <input.html|input.md> [flags] -o <output.pdf>
 ```
 
 ## Flags
@@ -36,6 +37,9 @@ typeanvil render <input.html> [flags] -o <output.pdf>
 | `--tagged` | flag | on | Emit a tagged-PDF logical structure tree. Accepted as a no-op; this is the default. |
 | `--ua` | flag | off | Tagged output plus krilla's PDF/UA-1 validation. Overrides `--no-tagged`. |
 | `--diagnostics` | `json` \| `text` | none | Print CSS/layout diagnostics after the render. |
+| `--from` | `html` \| `markdown` | by extension | Input format. Overrides the file extension. |
+| `--css` | file | none | Markdown only. Append an author stylesheet after the default one. Repeatable. Rejected for HTML input. |
+| `--no-default-css` | flag | off | Markdown only. Omit the built-in stylesheet. Rejected for HTML input. |
 
 ## Length units
 
@@ -84,6 +88,16 @@ typeanvil render paper.html \
   --diagnostics json \
   -o paper.pdf
 ```
+
+Render Markdown with your own stylesheet:
+
+```bash
+typeanvil render notes.md --css print.css \
+  --page-width 8.5in --page-height 11in \
+  -o notes.pdf
+```
+
+See [Markdown to PDF](/guides/markdown) for the dialect and the frontmatter keys.
 
 ## Notes
 
