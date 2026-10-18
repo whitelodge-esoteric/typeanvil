@@ -325,6 +325,11 @@ pub struct LineResult {
     pub consumed: usize,
 }
 
+/// Reserved pseudo-feature tag ("LSPC") in `ComputedStyle::ot_features`
+/// carrying `letter-spacing` (f32 bits, points) to the shaper (CORE-519).
+/// It is stripped before HarfRust sees the feature list.
+pub const LETTER_SPACING_TAG: u32 = u32::from_be_bytes(*b"LSPC");
+
 /// Shape a single word against the selected face at `font_size`.
 ///
 /// Returns a [`ShapeRun`] whose glyph advances are in points. Missing glyphs
@@ -524,8 +529,14 @@ fn shape_single_face(
 
     // Map the packed tags into HarfRust's Feature form. Full-buffer range
     // (Feature::new's default `..`), applied in resolved order.
+    let letter_spacing = features
+        .iter()
+        .find(|&&(tag, _)| tag == LETTER_SPACING_TAG)
+        .map(|&(_, bits)| f32::from_bits(bits) as f64)
+        .unwrap_or(0.0);
     let hb_features: Vec<harfrust::Feature> = features
         .iter()
+        .filter(|&&(tag, _)| tag != LETTER_SPACING_TAG)
         .map(|&(tag, value)| {
             harfrust::Feature::new(
                 harfrust::Tag::new(&tag.to_be_bytes()),
@@ -557,7 +568,14 @@ fn shape_single_face(
     let mut glyphs = Vec::with_capacity(infos.len());
     let mut width = 0.0f64;
     for (i, (info, pos)) in infos.iter().zip(positions.iter()).enumerate() {
-        let adv = pos.x_advance as f64 * scale;
+        // letter-spacing adds space after every glyph (CORE-519); a glyph
+        // sharing its cluster with the previous one (marks) gets none.
+        let ls = if letter_spacing != 0.0 && (i == 0 || clusters[i] != clusters[i - 1]) {
+            letter_spacing
+        } else {
+            0.0
+        };
+        let adv = pos.x_advance as f64 * scale + ls;
         let off = pos.x_offset as f64 * scale;
         width += adv;
         let start = clusters[i] as usize;

@@ -2237,13 +2237,32 @@ impl CascadeSession {
             == style::properties::generated::longhands::font_variant_caps::computed_value::T::SmallCaps;
         let variant_numeric = font.clone_font_variant_numeric().bits();
         let variant_east_asian = font.clone_font_variant_east_asian().bits();
-        let ot_features = resolve_ot_features(
+        let mut ot_features = resolve_ot_features(
             variant_ligatures,
             variant_caps_small,
             variant_numeric,
             variant_east_asian,
             &feature_settings,
         );
+        // letter-spacing (css-text-3 §8.2, CORE-519): carried to the shaper
+        // as a reserved pseudo-feature holding the f32 bits of the extra
+        // advance in points. Percentages are not supported (treated as 0).
+        let letter_spacing_pt = text
+            .clone_letter_spacing()
+            .0
+            .to_length()
+            .map(|len| px_to_pt(len.px() as f64))
+            .map(|s| s.get() as f32)
+            .unwrap_or(0.0);
+        if letter_spacing_pt != 0.0 {
+            // §8.2: optional ligatures are disabled when spacing is nonzero.
+            for t in [b"liga", b"clig"] {
+                if !ot_features.iter().any(|&(tag, _)| tag == tag4(t)) {
+                    ot_features.push((tag4(t), 0));
+                }
+            }
+            ot_features.push((crate::typography::LETTER_SPACING_TAG, letter_spacing_pt.to_bits()));
+        }
         // column-gap resolves `normal` to 1em against the font size.
         let column_gap = match position.clone_column_gap() {
             StyloColumnGap::Normal => font_size,
