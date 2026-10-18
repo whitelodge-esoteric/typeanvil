@@ -1,0 +1,77 @@
+{
+  "engine_version": "0.0.1",
+  "file": "reports/sales-summary.html",
+  "page_count": 7,
+  "pages": [
+    {
+      "dark_pixels": 2909,
+      "dhash": "c288c8c4f4c40090",
+      "page": 1,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "11cd4baad567ed9ef905f3498f48e906b5e75010bcfdc51623bdbebe8e07aaf7"
+    },
+    {
+      "dark_pixels": 1700,
+      "dhash": "ca80969092849810",
+      "page": 2,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "8ad63edd4dc627af81bad47f02dfe381402c3aae93a90e90618214307489e05a"
+    },
+    {
+      "dark_pixels": 2216,
+      "dhash": "c29698d096909010",
+      "page": 3,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "1adcd7e883426d56acca5558bf7f6e3c8d59ba992e919ec8d1df7c96934cdb38"
+    },
+    {
+      "dark_pixels": 1605,
+      "dhash": "c2b6888a98a00010",
+      "page": 4,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "aaa25099346a713b94024e03be04621060027a95876a45574e8c9d9abc37e783"
+    },
+    {
+      "dark_pixels": 1626,
+      "dhash": "c280969090889210",
+      "page": 5,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "83d0f08edc77a51baae2501ff868f2c186f3e798dc244c9521d84f6b8c5ed028"
+    },
+    {
+      "dark_pixels": 2066,
+      "dhash": "c2929292b6b89210",
+      "page": 6,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "776d73b0484024f3a0e233ad41162da7bc32cab823949f0273cb27a0eaccaca4"
+    },
+    {
+      "dark_pixels": 2612,
+      "dhash": "c2b694c488804010",
+      "page": 7,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "924b856dc63bbe99c700f99b4a9130f2fce534dd5478b2010b076cb5f95e6700"
+    }
+  ]
+}

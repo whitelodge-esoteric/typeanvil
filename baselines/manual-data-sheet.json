@@ -1,0 +1,77 @@
+{
+  "engine_version": "0.0.1",
+  "file": "manual/data-sheet.html",
+  "page_count": 7,
+  "pages": [
+    {
+      "dark_pixels": 2900,
+      "dhash": "a0d09880d2d8c802",
+      "page": 1,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "314354d06c6fbe1b0de1ac92e01f652738ed86a89ebbb412bc422b77435ff779"
+    },
+    {
+      "dark_pixels": 3021,
+      "dhash": "b6c2c0d89a98ce02",
+      "page": 2,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "e2da970e0c45a6435daa811197455b20e0cb5f20ff040c31deddc44b8c327beb"
+    },
+    {
+      "dark_pixels": 1883,
+      "dhash": "a29adad69a9ace02",
+      "page": 3,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "edcbe2ee759fa46aeed072b5e3fb0591561b48428ba5a0bc6f89ce91f275082f"
+    },
+    {
+      "dark_pixels": 2282,
+      "dhash": "e69e9ac2c8c8024a",
+      "page": 4,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "eebd56222ecc5f0d3f65d2febbe44de5485273ae11ecb69a3b6fee7b54399dde"
+    },
+    {
+      "dark_pixels": 8187,
+      "dhash": "b682545454f4aa02",
+      "page": 5,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "2ac50f09de4438b950e4de2e9113bcfe79a6b2bf9f4e59c3d55258ba22198062"
+    },
+    {
+      "dark_pixels": 1616,
+      "dhash": "a6e4a09ad2d6ca02",
+      "page": 6,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "526b6bda205a148182b269f1f93816f96dda0ba45734e26741a7c60f294c8043"
+    },
+    {
+      "dark_pixels": 2122,
+      "dhash": "a6ccd4c400000202",
+      "page": 7,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "b848e7be6162a91eb9dcadd0a54faecdc84cf126695911848672d8fb1c1bfa47"
+    }
+  ]
+}

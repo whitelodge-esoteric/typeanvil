@@ -1,0 +1,77 @@
+{
+  "engine_version": "0.0.1",
+  "file": "financial/multicurrency-invoice.html",
+  "page_count": 7,
+  "pages": [
+    {
+      "dark_pixels": 3155,
+      "dhash": "96a088c4e0dcc402",
+      "page": 1,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "72817032c68a20e1ceb0a8ca141fe40a2fc4b3b485a480ba4507d6f4551c4876"
+    },
+    {
+      "dark_pixels": 2304,
+      "dhash": "b6b280ccece4ee02",
+      "page": 2,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "6ac68a45399e7796e72b70394a99e9593f5e2f38d800717b563aa0a09b48c519"
+    },
+    {
+      "dark_pixels": 2255,
+      "dhash": "b6ccccb8c0ec6a02",
+      "page": 3,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "ae5494f7b0e728ae323fe828665b243a6f6dc33cf06fedc41a38557547d119af"
+    },
+    {
+      "dark_pixels": 2066,
+      "dhash": "b6c8cce4e4ccae02",
+      "page": 4,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "ea6b83410b4a72add8d869164c55513c80fd5ce292e88221d3d9a451ef927d5c"
+    },
+    {
+      "dark_pixels": 1929,
+      "dhash": "96b2c0ecececda02",
+      "page": 5,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "e079fc38132579b7510272031c16f06122a4f01dad3a952578c9a64db4e00acc"
+    },
+    {
+      "dark_pixels": 2469,
+      "dhash": "b6c8cccca4a6a602",
+      "page": 6,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "af8661a5396359fb748adeb267bb43978d1a2cfc945c8180257b1e5dbe825d8c"
+    },
+    {
+      "dark_pixels": 4598,
+      "dhash": "b6b4e8d094800202",
+      "page": 7,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "d395672f2e9537b2bb4a7a193b629faed885b3cff77840d889ed359e743800dd"
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "engine_version": "0.0.1",
+  "file": "letters/memo.html",
+  "page_count": 6,
+  "pages": [
+    {
+      "dark_pixels": 1708,
+      "dhash": "96c0c468e0e40030",
+      "page": 1,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "ce2ddb178df3e69e77cb909c20fb7030e462cc879410309d2f104b6446c1634c"
+    },
+    {
+      "dark_pixels": 3205,
+      "dhash": "86ccd4c480cccc10",
+      "page": 2,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "fd34483665483f02a4312c17e2d3fd53e0a0940727fee6cf461d21af40fc9454"
+    },
+    {
+      "dark_pixels": 2107,
+      "dhash": "868480cc60e06410",
+      "page": 3,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "9e93d5bce9dbdb7068e7fe29f5429c56e8d3009f97b390ad26d207021daa9ae8"
+    },
+    {
+      "dark_pixels": 1815,
+      "dhash": "86c4646880f07010",
+      "page": 4,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "02fe6daa68956e53da770ecd9ada23c25e53996a133cb632d53d0a8484e7e7fd"
+    },
+    {
+      "dark_pixels": 1901,
+      "dhash": "86e440606088c410",
+      "page": 5,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "8cfe1fb1688242ed1028bfcf5ad3b136db6f02ff6854fac201c97eaa292d6173"
+    },
+    {
+      "dark_pixels": 2693,
+      "dhash": "86d4c8dc94802410",
+      "page": 6,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "cc40ba996daff7a7f6d91786d87d2a13bf5b704bcafa4f15e12b242cf7c859e7"
+    }
+  ]
+}

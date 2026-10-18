@@ -1,0 +1,87 @@
+{
+  "engine_version": "0.0.1",
+  "file": "academic/preprint.html",
+  "page_count": 8,
+  "pages": [
+    {
+      "dark_pixels": 3407,
+      "dhash": "20f4c08090ecd000",
+      "page": 1,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "04aeede4c095c6b92c82aa2747165a462a29043f0671ba640cc9290aed80d63b"
+    },
+    {
+      "dark_pixels": 3902,
+      "dhash": "30e0e4c4d4d48490",
+      "page": 2,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "40ce86d1677ee6f8f930d3c784fab0777bf5b2cedc9fb74aa056f720d25f4ca3"
+    },
+    {
+      "dark_pixels": 3057,
+      "dhash": "30c0c4f4c4c2d410",
+      "page": 3,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "4bb54175b9cd1d58113c8584961f3aca92e04b596aaa3bc965849b76af011b4f"
+    },
+    {
+      "dark_pixels": 4115,
+      "dhash": "30d8cce4c4848010",
+      "page": 4,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "2b4d422244b9f0c1a4bc9ffd5c00e375d48270391e6908dc9db1e5729976d9f4"
+    },
+    {
+      "dark_pixels": 2850,
+      "dhash": "30a2a6a4c8e80090",
+      "page": 5,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "89798da189eb4080afe75900ff206232e088eb538179d31ffa13c82c950af7f9"
+    },
+    {
+      "dark_pixels": 3294,
+      "dhash": "30c8c0c48894a410",
+      "page": 6,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "316f9e51567d815764bf6c80b77fb81ca7a8ad10e5f99b6daa217282edb256e8"
+    },
+    {
+      "dark_pixels": 2916,
+      "dhash": "308098f0f888c010",
+      "page": 7,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "27108868b07d3216f7a439666df8b7e10961149e5b4709025427f4966b7f8511"
+    },
+    {
+      "dark_pixels": 614,
+      "dhash": "3084840080001010",
+      "page": 8,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "2098d647ed8dc925bf2a2fb6a872897efdcda7c6a01bc2719d41cb801f30d22e"
+    }
+  ]
+}

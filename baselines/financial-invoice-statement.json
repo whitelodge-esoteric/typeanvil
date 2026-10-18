@@ -1,0 +1,57 @@
+{
+  "engine_version": "0.0.1",
+  "file": "financial/invoice-statement.html",
+  "page_count": 5,
+  "pages": [
+    {
+      "dark_pixels": 1903,
+      "dhash": "68e0e08cd4c4c602",
+      "page": 1,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "47e3bd6458b69b6ef4e8dd00c9ea212e6ad0fc8855aff106aa216fef72605713"
+    },
+    {
+      "dark_pixels": 2048,
+      "dhash": "68ccc6c4c6c6c602",
+      "page": 2,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "8742e43187ec504a1272285f5bfbb454090a4d7b782c9dd4d92d19dc0bd72af1"
+    },
+    {
+      "dark_pixels": 1895,
+      "dhash": "68ccc6cec6c6d202",
+      "page": 3,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "600a4c245f80fadbdde22c767ec72051862eb9de77ba519cbc1beb94db777cef"
+    },
+    {
+      "dark_pixels": 4284,
+      "dhash": "e832cacccacec602",
+      "page": 4,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "4be6632ba1a469ba28f949bf6f2f6b70d7651b35e0a2a1ec23840ff68adcc063"
+    },
+    {
+      "dark_pixels": 3623,
+      "dhash": "60c8eac4cce4c002",
+      "page": 5,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "5b3958b6cc410e4ecc44a951371fa4cdd82bb5db8e827ea73038b5473e550de0"
+    }
+  ]
+}
