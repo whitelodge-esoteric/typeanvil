@@ -1122,8 +1122,32 @@ fn knuth_plass(items: &[Item], max_width: f64, justify: bool) -> Vec<usize> {
     let mut prev = vec![usize::MAX; m];
     let mut fit = vec![1i32; m];
 
+    // CORE-523: prefix sums of (natural - shrink) over items give a cheap lower
+    // bound on any line's minimal width. A line whose bound exceeds the content
+    // width can never fit (`adjustment_ratio` returns None), so it is skipped
+    // without the O(n) exact measure. Only the skip is new; every surviving
+    // candidate still goes through the exact `adjustment_ratio`, so results are
+    // identical. The bound is monotone in the start, so `lo` only moves forward.
+    let mut min_w = vec![0.0f64; n + 1];
+    for idx in 0..n {
+        let d = match &items[idx] {
+            Item::Box(b) => b.width.get(),
+            Item::Glue(g) => g.width.get() - g.shrink.get(),
+            Item::Penalty { .. } => 0.0,
+        };
+        min_w[idx + 1] = min_w[idx] + d;
+    }
+    let tol = 1e-6 * (1.0 + if max_width.is_finite() { max_width.abs() } else { 0.0 });
+    let cannot_fit = |line_start: usize, brk: usize| -> bool {
+        line_start <= brk && min_w[brk] - min_w[line_start] > max_width + tol
+    };
+    let mut lo = 0usize;
+
     for k in 0..m {
         let brk = nodes[k];
+        while lo < k && cannot_fit(nodes[lo] + 1, brk) {
+            lo += 1;
+        }
         let is_last = brk == n - 1;
         let is_forced = matches!(&items[brk], Item::Penalty { forced: true, .. });
         let penalty = match &items[brk] {
@@ -1133,6 +1157,14 @@ fn knuth_plass(items: &[Item], max_width: f64, justify: bool) -> Vec<usize> {
         // Predecessor = paragraph start (content 0..brk) or an earlier break j
         // (content nodes[j]+1..brk, skipping the break item at nodes[j]).
         for pred in 0..=k {
+            // Skip candidates that provably cannot fit; the minimal ones
+            // (single-node lines) stay, since an overfull lone word is legal.
+            if pred < lo && pred + 1 != k {
+                continue;
+            }
+            if pred == k && k != 0 && cannot_fit(0, brk) {
+                continue;
+            }
             let (line_start, base_demerit, base_fit) = if pred == k {
                 (0usize, 0.0f64, 1i32) // from paragraph start
             } else {
