@@ -1,64 +1,5 @@
 {
- "corpus/analytics-digest.html": {
-  "coverage": 1.0,
-  "roles": {
-   "Div": 27,
-   "Document": 8,
-   "Figure": 1,
-   "H1": 1,
-   "H2": 4,
-   "P": 6,
-   "TBody": 5,
-   "TD": 73,
-   "TH": 15,
-   "THead": 3,
-   "TR": 18,
-   "Table": 5
-  }
- },
- "corpus/board-report.html": {
-  "coverage": 0.9953,
-  "roles": {
-   "Div": 39,
-   "Document": 12,
-   "H1": 2,
-   "H2": 4,
-   "Link": 3,
-   "P": 13,
-   "TBody": 7,
-   "TD": 56,
-   "TH": 12,
-   "THead": 3,
-   "TR": 17,
-   "Table": 7
-  }
- },
- "corpus/book-chapter.html": {
-  "coverage": 0.9512,
-  "roles": {
-   "BlockQuote": 1,
-   "Div": 19,
-   "Document": 9,
-   "H1": 1,
-   "H2": 3,
-   "Note": 4,
-   "P": 14
-  }
- },
- "corpus/business-letter.html": {
-  "coverage": 1.0,
-  "roles": {
-   "Div": 27,
-   "Document": 6,
-   "H2": 1,
-   "L": 2,
-   "LBody": 5,
-   "LI": 6,
-   "Lbl": 5,
-   "P": 9
-  }
- },
- "corpus/conference-paper.html": {
+ "library/academic/conference-paper.html": {
   "coverage": 0.9885,
   "roles": {
    "Caption": 1,
@@ -77,15 +18,102 @@
    "Table": 1
   }
  },
- "corpus/cover-letter.html": {
-  "coverage": 0.9766,
+ "library/academic/journal-paper.html": {
+  "coverage": 0.9371,
   "roles": {
-   "Div": 23,
-   "Document": 6,
-   "P": 9
+   "Div": 14,
+   "Document": 5,
+   "H1": 1,
+   "H2": 8,
+   "P": 8,
+   "TBody": 4,
+   "TD": 8,
+   "TR": 4,
+   "Table": 4
   }
  },
- "corpus/credit-note.html": {
+ "library/academic/math.html": {
+  "coverage": 0.7109,
+  "roles": {
+   "Div": 2,
+   "Document": 1,
+   "Formula": 11,
+   "H1": 1,
+   "H2": 3,
+   "P": 5
+  }
+ },
+ "library/academic/paper.html": {
+  "coverage": 0.9523,
+  "roles": {
+   "BlockQuote": 1,
+   "Div": 24,
+   "Document": 12,
+   "H1": 1,
+   "H2": 4,
+   "Note": 2,
+   "P": 16
+  }
+ },
+ "library/academic/preprint.html": {
+  "coverage": 0.9737,
+  "roles": {
+   "Div": 18,
+   "Document": 8,
+   "H1": 1,
+   "H2": 5,
+   "Note": 2,
+   "P": 14,
+   "TBody": 1,
+   "TD": 9,
+   "TH": 3,
+   "THead": 1,
+   "TR": 4,
+   "Table": 1
+  }
+ },
+ "library/academic/thesis-excerpt.html": {
+  "coverage": 0.9021,
+  "roles": {
+   "Caption": 2,
+   "Div": 19,
+   "Document": 9,
+   "H1": 1,
+   "H2": 4,
+   "Note": 4,
+   "P": 12,
+   "TBody": 4,
+   "TD": 36,
+   "TH": 8,
+   "THead": 2,
+   "TR": 11,
+   "Table": 4
+  }
+ },
+ "library/book/book-chapter.html": {
+  "coverage": 0.9512,
+  "roles": {
+   "BlockQuote": 1,
+   "Div": 19,
+   "Document": 9,
+   "H1": 1,
+   "H2": 3,
+   "Note": 4,
+   "P": 14
+  }
+ },
+ "library/book/prose.html": {
+  "coverage": 0.9918,
+  "roles": {
+   "BlockQuote": 1,
+   "Div": 23,
+   "Document": 11,
+   "H1": 1,
+   "H2": 3,
+   "P": 13
+  }
+ },
+ "library/financial/credit-note.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 27,
@@ -102,24 +130,7 @@
    "Table": 4
   }
  },
- "corpus/data-sheet.html": {
-  "coverage": 0.9871,
-  "roles": {
-   "Div": 18,
-   "Document": 7,
-   "Figure": 2,
-   "H1": 1,
-   "H2": 4,
-   "P": 6,
-   "TBody": 5,
-   "TD": 59,
-   "TH": 11,
-   "THead": 3,
-   "TR": 19,
-   "Table": 5
-  }
- },
- "corpus/financial-statement.html": {
+ "library/financial/financial-statement.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 28,
@@ -136,30 +147,7 @@
    "Table": 10
   }
  },
- "corpus/float-showcase.html": {
-  "coverage": 0.9478,
-  "roles": {
-   "Div": 22,
-   "Document": 8,
-   "H1": 1,
-   "H2": 1,
-   "P": 14
-  }
- },
- "corpus/formal-notice.html": {
-  "coverage": 1.0,
-  "roles": {
-   "Div": 34,
-   "Document": 7,
-   "H1": 1,
-   "H2": 2,
-   "L": 3,
-   "LBody": 6,
-   "LI": 6,
-   "P": 5
-  }
- },
- "corpus/invoice-statement.html": {
+ "library/financial/invoice-statement.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 10,
@@ -175,7 +163,7 @@
    "Table": 8
   }
  },
- "corpus/invoice.html": {
+ "library/financial/invoice.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 13,
@@ -190,21 +178,106 @@
    "Table": 4
   }
  },
- "corpus/journal-paper.html": {
-  "coverage": 0.9371,
+ "library/financial/multicurrency-invoice.html": {
+  "coverage": 1.0,
   "roles": {
-   "Div": 14,
-   "Document": 5,
+   "Div": 16,
+   "Document": 7,
    "H1": 1,
-   "H2": 8,
-   "P": 8,
-   "TBody": 4,
-   "TD": 8,
-   "TR": 4,
-   "Table": 4
+   "H2": 4,
+   "P": 2,
+   "TBody": 8,
+   "TD": 82,
+   "TH": 19,
+   "THead": 4,
+   "TR": 23,
+   "Table": 8
   }
  },
- "corpus/letterhead.html": {
+ "library/financial/proforma-invoice.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 29,
+   "Document": 8,
+   "H1": 1,
+   "H2": 2,
+   "P": 1,
+   "TBody": 6,
+   "TD": 70,
+   "TFoot": 1,
+   "TH": 5,
+   "THead": 1,
+   "TR": 18,
+   "Table": 6
+  }
+ },
+ "library/financial/recurring-billing.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 14,
+   "Document": 6,
+   "H1": 1,
+   "H2": 3,
+   "P": 2,
+   "TBody": 7,
+   "TD": 78,
+   "TH": 13,
+   "THead": 3,
+   "TR": 21,
+   "Table": 7
+  }
+ },
+ "library/financial/weasyprint-invoice.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 5,
+   "Document": 1,
+   "H1": 1,
+   "L": 1,
+   "Sect": 1,
+   "TBody": 2,
+   "TD": 15,
+   "TH": 7,
+   "THead": 2,
+   "TR": 6,
+   "Table": 2
+  }
+ },
+ "library/letters/business-letter.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 27,
+   "Document": 6,
+   "H2": 1,
+   "L": 2,
+   "LBody": 5,
+   "LI": 6,
+   "Lbl": 5,
+   "P": 9
+  }
+ },
+ "library/letters/cover-letter.html": {
+  "coverage": 0.9766,
+  "roles": {
+   "Div": 23,
+   "Document": 6,
+   "P": 9
+  }
+ },
+ "library/letters/formal-notice.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 34,
+   "Document": 7,
+   "H1": 1,
+   "H2": 2,
+   "L": 3,
+   "LBody": 6,
+   "LI": 6,
+   "P": 5
+  }
+ },
+ "library/letters/letterhead.html": {
   "coverage": 0.9692,
   "roles": {
    "Div": 30,
@@ -213,23 +286,7 @@
    "P": 12
   }
  },
- "corpus/long-report.html": {
-  "coverage": 1.0,
-  "roles": {
-   "Div": 19,
-   "Document": 9,
-   "H1": 1,
-   "H2": 6,
-   "P": 14,
-   "TBody": 4,
-   "TD": 57,
-   "TH": 13,
-   "THead": 3,
-   "TR": 16,
-   "Table": 4
-  }
- },
- "corpus/memo.html": {
+ "library/letters/memo.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 15,
@@ -248,52 +305,41 @@
    "Table": 1
   }
  },
- "corpus/multicurrency-invoice.html": {
+ "library/letters/running-letterhead.html": {
+  "coverage": 0.9754,
+  "roles": {
+   "Div": 10,
+   "Document": 5,
+   "H1": 1,
+   "P": 13
+  }
+ },
+ "library/letters/weasyprint-letter.html": {
   "coverage": 1.0,
   "roles": {
-   "Div": 16,
-   "Document": 7,
-   "H1": 1,
-   "H2": 4,
-   "P": 2,
-   "TBody": 8,
-   "TD": 82,
-   "TH": 19,
-   "THead": 4,
-   "TR": 23,
-   "Table": 8
+   "Div": 13,
+   "Document": 1,
+   "P": 4
   }
  },
- "corpus/paper.html": {
-  "coverage": 0.9523,
-  "roles": {
-   "BlockQuote": 1,
-   "Div": 24,
-   "Document": 12,
-   "H1": 1,
-   "H2": 4,
-   "Note": 2,
-   "P": 16
-  }
- },
- "corpus/preprint.html": {
-  "coverage": 0.9737,
+ "library/manual/data-sheet.html": {
+  "coverage": 0.9871,
   "roles": {
    "Div": 18,
-   "Document": 8,
+   "Document": 7,
+   "Figure": 2,
    "H1": 1,
-   "H2": 5,
-   "Note": 2,
-   "P": 14,
-   "TBody": 1,
-   "TD": 9,
-   "TH": 3,
-   "THead": 1,
-   "TR": 4,
-   "Table": 1
+   "H2": 4,
+   "P": 6,
+   "TBody": 5,
+   "TD": 59,
+   "TH": 11,
+   "THead": 3,
+   "TR": 19,
+   "Table": 5
   }
  },
- "corpus/price-catalog.html": {
+ "library/manual/price-catalog.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 10,
@@ -309,7 +355,7 @@
    "Table": 9
   }
  },
- "corpus/product-manual.html": {
+ "library/manual/product-manual.html": {
   "coverage": 0.9931,
   "roles": {
    "Div": 22,
@@ -330,51 +376,95 @@
    "Table": 4
   }
  },
- "corpus/proforma-invoice.html": {
+ "library/manual/spec-sheet.html": {
   "coverage": 1.0,
   "roles": {
-   "Div": 29,
-   "Document": 8,
+   "Div": 12,
+   "Document": 5,
    "H1": 1,
-   "H2": 2,
+   "H2": 4,
    "P": 1,
-   "TBody": 6,
-   "TD": 70,
-   "TFoot": 1,
-   "TH": 5,
-   "THead": 1,
-   "TR": 18,
-   "Table": 6
+   "TBody": 4,
+   "TD": 60,
+   "TH": 36,
+   "THead": 4,
+   "TR": 24,
+   "Table": 4
   }
  },
- "corpus/prose.html": {
-  "coverage": 0.9918,
-  "roles": {
-   "BlockQuote": 1,
-   "Div": 23,
-   "Document": 11,
-   "H1": 1,
-   "H2": 3,
-   "P": 13
-  }
- },
- "corpus/recurring-billing.html": {
+ "library/posters/poster.html": {
   "coverage": 1.0,
   "roles": {
-   "Div": 14,
-   "Document": 6,
+   "Div": 4,
+   "Document": 1,
    "H1": 1,
-   "H2": 3,
-   "P": 2,
-   "TBody": 7,
-   "TD": 78,
-   "TH": 13,
+   "P": 3
+  }
+ },
+ "library/posters/weasyprint-poster.html": {
+  "coverage": 0.9767,
+  "roles": {
+   "Art": 2,
+   "Div": 2,
+   "Document": 1,
+   "L": 1,
+   "LBody": 5,
+   "LI": 5,
+   "P": 7,
+   "Sect": 3
+  }
+ },
+ "library/reports/analytics-digest.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 27,
+   "Document": 8,
+   "Figure": 1,
+   "H1": 1,
+   "H2": 4,
+   "P": 6,
+   "TBody": 5,
+   "TD": 73,
+   "TH": 15,
    "THead": 3,
-   "TR": 21,
+   "TR": 18,
+   "Table": 5
+  }
+ },
+ "library/reports/board-report.html": {
+  "coverage": 0.9953,
+  "roles": {
+   "Div": 39,
+   "Document": 12,
+   "H1": 2,
+   "H2": 4,
+   "Link": 3,
+   "P": 13,
+   "TBody": 7,
+   "TD": 56,
+   "TH": 12,
+   "THead": 3,
+   "TR": 17,
    "Table": 7
   }
  },
- "corpus/report.html": {
+ "library/reports/long-report.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 19,
+   "Document": 9,
+   "H1": 1,
+   "H2": 6,
+   "P": 14,
+   "TBody": 4,
+   "TD": 57,
+   "TH": 13,
+   "THead": 3,
+   "TR": 16,
+   "Table": 4
+  }
+ },
+ "library/reports/report.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 33,
@@ -392,16 +482,7 @@
    "Table": 1
   }
  },
- "corpus/running-letterhead.html": {
-  "coverage": 0.9754,
-  "roles": {
-   "Div": 10,
-   "Document": 5,
-   "H1": 1,
-   "P": 13
-  }
- },
- "corpus/sales-summary.html": {
+ "library/reports/sales-summary.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 15,
@@ -417,38 +498,7 @@
    "Table": 8
   }
  },
- "corpus/spec-sheet.html": {
-  "coverage": 1.0,
-  "roles": {
-   "Div": 12,
-   "Document": 5,
-   "H1": 1,
-   "H2": 4,
-   "P": 1,
-   "TBody": 4,
-   "TD": 60,
-   "TH": 36,
-   "THead": 4,
-   "TR": 24,
-   "Table": 4
-  }
- },
- "corpus/table-stress.html": {
-  "coverage": 1.0,
-  "roles": {
-   "Div": 54,
-   "Document": 26,
-   "H1": 1,
-   "TBody": 26,
-   "TD": 819,
-   "TFoot": 1,
-   "TH": 6,
-   "THead": 1,
-   "TR": 138,
-   "Table": 26
-  }
- },
- "corpus/technical-report.html": {
+ "library/reports/technical-report.html": {
   "coverage": 1.0,
   "roles": {
    "Caption": 3,
@@ -466,154 +516,7 @@
    "Table": 3
   }
  },
- "corpus/thesis-excerpt.html": {
-  "coverage": 0.9021,
-  "roles": {
-   "Caption": 2,
-   "Div": 19,
-   "Document": 9,
-   "H1": 1,
-   "H2": 4,
-   "Note": 4,
-   "P": 12,
-   "TBody": 4,
-   "TD": 36,
-   "TH": 8,
-   "THead": 2,
-   "TR": 11,
-   "Table": 4
-  }
- },
- "corpus/whitepaper.html": {
-  "coverage": 0.9725,
-  "roles": {
-   "Div": 32,
-   "Document": 10,
-   "H1": 2,
-   "H2": 4,
-   "Link": 1,
-   "P": 13,
-   "TBody": 2,
-   "TD": 12,
-   "TH": 3,
-   "THead": 1,
-   "TR": 5,
-   "Table": 2
-  }
- },
- "showcase/book.html": {
-  "coverage": 1.0,
-  "roles": {
-   "Div": 27,
-   "Document": 6,
-   "H1": 2,
-   "H2": 4,
-   "Link": 4,
-   "P": 15
-  }
- },
- "showcase/invoice.html": {
-  "coverage": 1.0,
-  "roles": {
-   "Div": 10,
-   "Document": 3,
-   "H2": 3,
-   "P": 23,
-   "TBody": 6,
-   "TD": 307,
-   "TH": 5,
-   "THead": 1,
-   "TR": 70,
-   "Table": 6
-  }
- },
- "showcase/journal.html": {
-  "coverage": 0.974,
-  "roles": {
-   "Div": 11,
-   "Document": 3,
-   "Figure": 1,
-   "H1": 1,
-   "H2": 7,
-   "Note": 4,
-   "P": 17,
-   "Span": 1
-  }
- },
- "showcase/math.html": {
-  "coverage": 0.7109,
-  "roles": {
-   "Div": 2,
-   "Document": 1,
-   "Formula": 11,
-   "H1": 1,
-   "H2": 3,
-   "P": 5
-  }
- },
- "showcase/poster.html": {
-  "coverage": 1.0,
-  "roles": {
-   "Div": 4,
-   "Document": 1,
-   "H1": 1,
-   "P": 3
-  }
- },
- "showcase/report.html": {
-  "coverage": 1.0,
-  "roles": {
-   "Div": 7,
-   "Document": 3,
-   "Figure": 2,
-   "H1": 1,
-   "H2": 6,
-   "P": 13,
-   "TBody": 1,
-   "TD": 16,
-   "TH": 4,
-   "TR": 5,
-   "Table": 1
-  }
- },
- "showcase/weasyprint-invoice.html": {
-  "coverage": 1.0,
-  "roles": {
-   "Div": 5,
-   "Document": 1,
-   "H1": 1,
-   "L": 1,
-   "Sect": 1,
-   "TBody": 2,
-   "TD": 15,
-   "TH": 7,
-   "THead": 2,
-   "TR": 6,
-   "Table": 2
-  }
- },
- "showcase/weasyprint-letter.html": {
-  "coverage": 1.0,
-  "roles": {
-   "Div": 13,
-   "Document": 1,
-   "P": 4
-  }
- },
- "showcase/weasyprint-poster.html": {
-  "coverage": 0.9767,
-  "roles": {
-   "Art": 2,
-   "Div": 2,
-   "Document": 1,
-   "L": 1,
-   "LBody": 5,
-   "LI": 5,
-   "P": 7,
-   "Sect": 3
-  }
- },
- "showcase/weasyprint-report.html": {
+ "library/reports/weasyprint-report.html": {
   "coverage": 1.0,
   "roles": {
    "Art": 11,
@@ -630,7 +533,49 @@
    "Sect": 16
   }
  },
- "showcase/weasyprint-ticket.html": {
+ "library/reports/whitepaper.html": {
+  "coverage": 0.9725,
+  "roles": {
+   "Div": 32,
+   "Document": 10,
+   "H1": 2,
+   "H2": 4,
+   "Link": 1,
+   "P": 13,
+   "TBody": 2,
+   "TD": 12,
+   "TH": 3,
+   "THead": 1,
+   "TR": 5,
+   "Table": 2
+  }
+ },
+ "library/stress/float-showcase.html": {
+  "coverage": 0.9478,
+  "roles": {
+   "Div": 22,
+   "Document": 8,
+   "H1": 1,
+   "H2": 1,
+   "P": 14
+  }
+ },
+ "library/stress/table-stress.html": {
+  "coverage": 1.0,
+  "roles": {
+   "Div": 54,
+   "Document": 26,
+   "H1": 1,
+   "TBody": 26,
+   "TD": 819,
+   "TFoot": 1,
+   "TH": 6,
+   "THead": 1,
+   "TR": 138,
+   "Table": 26
+  }
+ },
+ "library/tickets/weasyprint-ticket.html": {
   "coverage": 0.4444,
   "roles": {
    "Div": 2,

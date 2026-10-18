@@ -234,7 +234,7 @@ No changes to `ComputedStyle`'s public surface beyond the existing
    prose 11=11 pages (MET); float-showcase 8=8 (NOT met — 10, blocked by float
    fragmentation);
    paper per-page diff < 15% (NOT met — ~22%). The scoreboard regenerated
-   with `git add -f demo/corpus/out/`.
+   with `git add -f library/out/compare/`.
 6. **WPT gate** — Given the harness run (full print-reftest suite), then 0
    regressions vs the pre-change baseline (fixed − regressed ≥ 0; ship only
    0-regression states). The widows default and ragged tie-break change
@@ -261,7 +261,7 @@ No changes to `ComputedStyle`'s public surface beyond the existing
 
 ## References
 
-- Triage evidence: `demo/corpus/TRIAGE.md` §Driver 2 (packing probe PR 9 vs TA 2,
+- Triage evidence: `library/TRIAGE.md` §Driver 2 (packing probe PR 9 vs TA 2,
   PR 49 vs TA 56 body lines).
 - Justified line breaking — breakpoint glue and measure fill:
   `docs/specifications/typography-layer.spec.md` §Behavior 9/11.

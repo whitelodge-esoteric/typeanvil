@@ -1,10 +1,24 @@
-# WeasyPrint sample fonts — provenance and license
+# Third-party sources and licenses
+
+Everything under `library/` that is not authored in this repository is listed
+here. Each manifest entry names its `source` and `license`
+(`library/manifest.json`). A new third-party source (Project Gutenberg, arXiv,
+Federal Register, ...) adds a section below before its documents enter the
+manifest.
+
+| Source | Where | License |
+|---|---|---|
+| Authored in-repo | most `library/<category>/*.html`, chart PNGs under `assets/` | AGPL-3.0-only (repo license) |
+| WeasyPrint samples | `library/{financial,letters,posters,reports,tickets}/weasyprint-*.html` + `assets/weasyprint-samples/` | public-domain samples; fonts per the table below |
+| Liberation Serif | `library/letters/assets/liberation-serif.ttf` | SIL OFL 1.1; Red Hat copyright notice in `library/letters/assets/liberation-serif-LICENSE.txt` |
+
+## WeasyPrint sample fonts — provenance and license
 
 These fonts are vendored from the
 [WeasyPrint samples repository](https://github.com/CourtBouillon/weasyprint-samples)
 (CourtBouillon, public-domain samples; fonts carry their own licenses). They are
 used by the adopted WeasyPrint sample documents in the showcase
-(`demo/showcase/weasyprint-*.html`).
+(`library/*/weasyprint-*.html`).
 
 Every font below is **open source** and redistributable. Each is available on
 Google Fonts under the stated license. The Madcats "All Cats Are Beautiful"
@@ -65,10 +79,10 @@ them. The HTML body and document structure are unchanged; the CSS is adapted:
    pseudo-class; the rules are removed (behavior-preserving: they only
    suppressed margin boxes on blank pages).
 5. **Asset URLs rewritten** — `url(...)` and `<img src>` refs point at
-   `assets/weasyprint-samples/<sample>/...` so the fixtures resolve from
-   `demo/showcase/` as CWD.
+   `assets/weasyprint-samples/<sample>/...` so each fixture resolves from its
+   own category directory as CWD (CORE-488: assets moved next to the fixtures).
 
-Known rendering limitations (recorded in `demo/showcase/manifest.json`):
+Known rendering limitations (recorded in `library/manifest.json`):
 - **Element-level `background-image` is not rendered** (CORE-319) — the
   letter's header skyline and the report's cover image do not paint. The
   report's `@page :first` background is a page-level image; the page canvas

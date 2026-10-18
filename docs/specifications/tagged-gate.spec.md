@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-10-13
-updated: 2026-10-13
+updated: 2026-10-17
 sidebar_position: 48
 tags: [harness, tagging, accessibility, gate, testing]
 spec_id: tagged-gate
@@ -50,11 +50,10 @@ lane is possible later and would run the same script.
 
 ## Behavior
 
-1. The gate SHALL render each fixture listed in `demo/corpus/manifest.json`
-   (at the corpus geometry, 5in×3in with 0.5in margins) and
-   `demo/showcase/manifest.json` (Letter with 0.75in margins), in that order,
-   with the given engine binary, three times: `--tagged` twice and
-   `--tagged --ua` once. Fixture ids are `<track>/<file>`.
+1. The gate SHALL render each fixture listed in `library/manifest.json`, at
+   that entry's own `geometry` (CORE-488), in manifest order, with the given
+   engine binary, three times: `--tagged` twice and `--tagged --ua` once.
+   Fixture ids are `library/<category>/<file>`.
 2. For each fixture it SHALL evaluate these checks; each check name is
    stable:
    - `render`: the first `--tagged` render exits 0;

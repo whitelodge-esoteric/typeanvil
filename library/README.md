@@ -1,21 +1,56 @@
 # Corpus — TypeAnvil vs PrinceXML comparison
 
-The wedge's calling card: a side-by-side, page-by-page gallery proving TypeAnvil
-renders real documents like Prince. Everything for this track lives under
-`demo/corpus/`.
+The document library (CORE-488): one tagged set of fixtures that feeds the
+Prince comparison gallery, the print-resolution showcase, the performance
+benchmark, and the tagged-PDF gate. Tags in `manifest.json` decide which
+document serves which use.
 
 | Path | What it is |
 |---|---|
-| `*.html` | The corpus fixtures (self-contained HTML + CSS) |
-| `manifest.json` | Per-fixture metadata: wedge features, known limitations, expected deltas |
-| `bench/` + `benchmark_manifest.json` | One fixture per engine gap: open gaps, plus closed ones kept as regression evidence |
-| `assets/` | Fixture assets (an OFL font cut, chart PNGs) |
-| `out/` | Generated: per-page PNGs and `scoreboard.json` |
+| `<category>/*.html` | Fixtures (self-contained HTML + CSS), grouped by category |
+| `<category>/assets/` | Assets that fixture set references with a relative `assets/...` URL |
+| `manifest.json` | Per-document tags and metadata (see below) |
+| `LICENSES.md` | Third-party sources, fonts and licenses |
+| `out/compare/` | Generated: per-page PNGs and `scoreboard.json` (build-demo.sh) |
+| `out/showcase/` | Generated: Letter @ 300 DPI PNGs and `inspect.md` (build-showcase.sh) |
+| `SHOWCASE.md` | Showcase gallery (preamble + generated section) |
 | `TRIAGE.md` | Frozen triage archive (see the triage policy below) |
 | `README.md` | This file: hand-maintained preamble above the marker, generated gallery below it |
 
-The contract is `docs/specifications/visual-comparison-demo.spec.md` — manifest
-schema, scoreboard schema, triage buckets, determinism rules.
+Engine-gap repros live outside the library in `repros/` (`repros/manifest.json`,
+files named `CORE-<n>-<slug>.html`).
+
+Manifest fields per document: `name`, `file` (`<category>/<doc>.html`),
+`category`, `size` (`small` | `heavy` | `visual`), `oracle` (`prince` |
+`weasyprint` | `chromium`), `roles` (`gate`, `perf`, `showcase`), `geometry`
+(`width`, `height`, `margin`), `source`, `license`, `baseline_pages` (page
+count at that geometry on 570d3a5), plus `wedge_features`, `known_limitations`,
+`expected_deltas` and optional `expected_change`.
+
+Every script filters by tag, for example
+`scripts/build-demo.sh --role gate --size small`,
+`scripts/build-showcase.sh --category posters`,
+`scripts/benchmark.py --role perf --size small`,
+`scripts/visual-qa.sh --track corpus --oracle prince`.
+
+### Dedupe record (CORE-488)
+
+Four showcase fixtures duplicated corpus fixtures and were dropped; the corpus
+copy is kept and now carries the `gate` and `perf` roles.
+
+| Dropped (`demo/showcase/`) | Kept | Why |
+|---|---|---|
+| `invoice.html` | `financial/invoice.html` | same document family; corpus copy is in the Prince gate |
+| `report.html` | `reports/report.html` | same; the corpus copy has the Prince baseline |
+| `journal.html` | `academic/journal-paper.html` | same |
+| `book.html` | `book/book-chapter.html` | same |
+
+Also dropped: `demo/corpus/_smoke.html` (removed) (unreferenced scratch) and the four
+generated showcase chart assets those fixtures used. All stay in git history.
+
+The contracts are `docs/specifications/document-library.spec.md` (layout,
+manifest, tag filters) and `docs/specifications/visual-comparison-demo.spec.md`
+(scoreboard schema, triage buckets, determinism rules).
 
 ## Prince install (macOS)
 
@@ -64,14 +99,14 @@ geometry to `typeanvil render`.
 
 ```sh
 scripts/build-demo.sh      # corpus → both engines → gallery into this README
-scripts/build-showcase.sh  # the separate Letter @ 300 DPI track (demo/showcase/)
+scripts/build-showcase.sh  # the Letter @ 300 DPI showcase (writes SHOWCASE.md)
 ```
 
-Output: the gallery section below, `demo/corpus/out/images/` (per-page PNGs for
-both engines), and `demo/corpus/out/scoreboard.json`. Deterministic: re-running
+Output: the gallery section below, `library/out/compare/images/` (per-page PNGs
+for both engines), and `library/out/compare/scoreboard.json`. Deterministic: re-running
 produces byte-identical output except the scoreboard's `generated` timestamp.
 
-Both tracks put their gallery in their own `README.md`, and each build replaces
+The two builds write separate files (`README.md`, `SHOWCASE.md`), and each build replaces
 only its own generated section — the preamble above the marker is
 hand-maintained and never rewritten.
 

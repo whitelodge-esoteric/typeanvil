@@ -136,9 +136,13 @@ fn ua_validator_gates_conformance() {
 #[test]
 fn no_empty_marked_content_sequences() {
     use std::io::Read;
-    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../demo/showcase/");
-    for name in ["weasyprint-ticket", "weasyprint-invoice", "weasyprint-report"] {
-        let html = std::fs::read_to_string(format!("{dir}{name}.html")).unwrap();
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../library/");
+    for (cat, name) in [
+        ("tickets", "weasyprint-ticket"),
+        ("financial", "weasyprint-invoice"),
+        ("reports", "weasyprint-report"),
+    ] {
+        let html = std::fs::read_to_string(format!("{dir}{cat}/{name}.html")).unwrap();
         let mut css = String::new();
         let mut rest = html.as_str();
         while let Some(a) = rest.find("<style") {

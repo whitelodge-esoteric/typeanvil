@@ -3,7 +3,7 @@
 
 For demo triage / parity measurement (CORE-79, CORE-81): reading column
 boundaries and detecting wrapped cells from both engines' PDFs via char-box
-geometry. Run with the repo venv:  .venv/bin/python demo/scripts/col_words.py <pdf> [page_idx]
+geometry. Run with the repo venv:  .venv/bin/python scripts/demo/col_words.py <pdf> [page_idx]
 
 Usage: col_words.py <pdf> [page_idx=0] [max_lines=16]
   - Words are printed bottom-up by default (PDF charbox y is bottom-anchored);

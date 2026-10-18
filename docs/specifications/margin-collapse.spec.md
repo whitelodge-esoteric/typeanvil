@@ -26,7 +26,7 @@ blockquote/h2 boundary carried a phantom extra gap (measured 6pt on
 academic-paper p4; +7pt at every h2 boundary). This spec defines the sibling
 collapse the corpus exercises.
 
-Reference finding: `demo/corpus/TRIAGE.md` (minimal-probe evidence,
+Reference finding: `library/TRIAGE.md` (minimal-probe evidence,
 2026-08-24).
 
 ## Goals

@@ -19,31 +19,26 @@ docsite/build/
 docsite/.docusaurus/
 docsite/.cache/
 
-# Generated demo output. Each track keeps everything under its own directory
-# (demo/corpus/, demo/showcase/): fixtures, manifests, README gallery, and the
-# generated out/ tree. The committed baseline was force-added (CORE-72); later
-# rebuilds update those tracked files in place.
+# Generated library output (CORE-488). Everything lives under library/:
+# fixtures, manifest, README galleries, and the generated out/ tree. The
+# committed baseline was force-added (CORE-72); later rebuilds update those
+# tracked files in place.
 #
 # To refresh the committed baseline, force-add the deliverables BY NAME — a
-# bare `git add -f demo/corpus/out` also sweeps in the .work/ and .results/
+# bare `git add -f library/out` also sweeps in the .work/ and .results/
 # scratch trees:
-#   git add -f demo/corpus/out/images demo/corpus/out/scoreboard.json
-#   git add -f demo/showcase/out/images
-#   git add demo/corpus/README.md demo/showcase/README.md   # the galleries
-demo/corpus/out/
-demo/corpus/out.baseline/
-demo/showcase/out/
-demo/showcase/out.baseline/
+#   git add -f library/out/compare/images library/out/compare/scoreboard.json
+#   git add -f library/out/showcase/images library/out/showcase/inspect.md
+#   git add library/README.md library/SHOWCASE.md   # the galleries
+library/out/
+library/out/compare.baseline/
+library/out/showcase.baseline/
 
 # benchmark scratch renders
 benchmarks/.work/
 
 # issue-evidence dumps from scripts/pickup.py (evidence lives in Linear)
 probe/issue-evidence/
-
-# stale top-level developer renders; the tracked demo/corpus + demo/showcase
-# baselines are the deliverables
-demo/out/
 
 # cocoindex (ccc) local semantic-code index
 /.cocoindex_code/

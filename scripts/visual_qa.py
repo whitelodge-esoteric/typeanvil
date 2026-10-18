@@ -544,6 +544,7 @@ def run_visual_qa(
     work_dir: Path,
     dpi: int = 96,
     check_pr: bool = False,
+    filters: Dict[str, str] | None = None,
 ) -> int:
     """Run visual QA checks for a track over already-rendered PDFs/rasters.
 
@@ -555,14 +556,20 @@ def run_visual_qa(
 
     Returns exit code 0 (all pass) or 1 (any check failed).
     """
-    if track == 'corpus':
-        manifest_path = ROOT / 'demo' / 'corpus' / 'manifest.json'
-        fixtures_dir = ROOT / 'demo' / 'corpus'
-    else:  # showcase
-        manifest_path = ROOT / 'demo' / 'showcase' / 'manifest.json'
-        fixtures_dir = ROOT / 'demo' / 'showcase'
-
-    manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+    # One library manifest (CORE-488); `file` is <category>/<doc>.html under
+    # library/. The track picks the checks (page-box vs MediaBox overflow,
+    # TA-only vs TA+PR); the tag filters (same as visual-qa.sh passes to
+    # demo_compare.py list-manifest) pick the documents.
+    manifest_path = ROOT / 'library' / 'manifest.json'
+    fixtures_dir = ROOT / 'library'
+    sys.path.insert(0, str(ROOT / 'scripts'))
+    from demo_compare import entry_matches  # noqa: E402
+    filters = filters or {}
+    manifest = sorted(
+        (e for e in json.loads(manifest_path.read_text(encoding='utf-8'))
+         if entry_matches(e, **filters)),
+        key=lambda e: str(e.get('file', '')),
+    )
 
     report = {
         "track": track,
@@ -682,6 +689,9 @@ def main() -> int:
     parser.add_argument("--check-pr", action="store_true",
                        help="Showcase: also check the Prince reference side "
                             "(CORE-217 overlay); corpus always checks PR)")
+    for flag in ("role", "size", "oracle", "category"):
+        parser.add_argument(f"--{flag}", default=None,
+                            help=f"library/manifest.json {flag} tag filter")
 
     args = parser.parse_args()
 
@@ -689,6 +699,8 @@ def main() -> int:
         return run_visual_qa(
             args.track, args.report, Path(args.work_dir), args.dpi,
             check_pr=args.check_pr,
+            filters={k: getattr(args, k) for k in ("role", "size", "oracle", "category")
+                     if getattr(args, k)},
         )
 
     return 1

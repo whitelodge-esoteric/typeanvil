@@ -26,7 +26,7 @@ cargo build --release --manifest-path engine/Cargo.toml
 python3 scripts/benchmark.py --runs 5
 ```
 
-Prerequisites: `prince` on PATH (see demo/corpus/README.md), the `weasyprint`
+Prerequisites: `prince` on PATH (see library/README.md), the `weasyprint`
 CLI (`uv tool install weasyprint`, plus `brew install pango`; see
 [Installing WeasyPrint](#installing-weasyprint)), and `chrome-headless-shell`
 (see [Headless Chrome](#headless-chrome)).
@@ -194,7 +194,7 @@ variable rather than relying on inheritance.
 - A failed render is reported loudly (`FAILURES: ...`) and sets a non-zero
   exit code. Do not commit results containing failures.
 - **Known upstream crash (verified CORE-318):** WeasyPrint 70.0 crashes with an
-  `AssertionError` in its `float_layout` on `demo/corpus/book-chapter.html`
+  `AssertionError` in its `float_layout` on `library/book/book-chapter.html`
   (drop-cap `::first-letter` float interacting with `float: footnote`). Prince
   and TypeAnvil render it. The WeasyPrint leg therefore SKIPS that fixture
   automatically — `WEASY_KNOWN_CRASHES` in `scripts/benchmark.py` — and reports

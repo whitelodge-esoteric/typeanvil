@@ -242,7 +242,7 @@ pipeline:
    shorter than the header alone, when the scope resolves, then it degrades
    to `FirstPage { body_rows: 0 }` without panic and the table lays out
    (`test_freeze_header_only_scope`).
-6. **Table-stress page-count movement** — Given `demo/corpus/table-stress.html`
+6. **Table-stress page-count movement** — Given `library/stress/table-stress.html`
    at the demo geometry (build-demo.sh flags: `--page-width 5in --page-height
    3in`, 0.5in margins → 288pt content), when the page count is measured,
    then `typeanvil_pages` ≥ 40 (from 21; Prince 45)
@@ -292,8 +292,8 @@ pipeline:
 2. `python3 scripts/validate_docs.py` OK (this spec + amended
    `auto-table-layout` if touched).
 3. Demo regen: table-stress `typeanvil_pages` ≥ 40 in the regenerated
-   `demo/corpus/out/scoreboard.json`; two-column probe width unchanged within ±2%
-   (char-box extraction, `demo/scripts/col_words.py`).
+   `library/out/compare/scoreboard.json`; two-column probe width unchanged within ±2%
+   (char-box extraction, `scripts/demo/col_words.py`).
 4. Harness: css-break table subset pass count does not regress from the
    recorded baseline.
 5. Record the implementation, verification, and any remaining parity work in
@@ -307,7 +307,7 @@ pipeline:
   only; distribution unchanged).
 - Demo triage measurement evidence: table-stress 21 vs 45.
 - Prince ground truth: `/tmp/ts-prince-5x3.pdf` (demo geometry, 45 pages,
-  Description ≈57pt measured 2026-08-20), `demo/scripts/col_words.py`
+  Description ≈57pt measured 2026-08-20), `scripts/demo/col_words.py`
   (char-box word dumps).
 - css-tables-3 §10.4.1 (all-rows width — the deviation this spec documents),
   §10.4.2 (distribution, unchanged); CSS2.1 §17.5.2.2.

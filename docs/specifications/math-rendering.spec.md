@@ -143,7 +143,7 @@ pub struct MathBox { pub width: f64, pub ascent: f64, pub descent: f64, pub ops:
 5. Given `--tagged`, the structure tree holds a `Formula` with alt text.
    Test: `tagged_formula_has_alt`.
 6. A demo showcase fixture with real equations renders (AC4):
-   `demo/showcase/math.html`, listed in `demo/showcase/manifest.json`.
+   `library/academic/math.html`, listed in `library/manifest.json`.
 
 ## Chromium comparison (ticket AC2)
 
