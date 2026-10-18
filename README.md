@@ -91,6 +91,14 @@ See [the specifications](docs/specifications/) for exact contracts and known
 gaps. The [WPT harness](docs/specifications/wpt-conformance-harness.spec.md)
 and [release gate](docs/operations/release-gate.md) describe verification.
 
+## Showcase
+
+Rendered output for every release lives in the
+[typeanvil-showcase](https://github.com/whitelodge-esoteric/typeanvil-showcase)
+repo and on its [Pages site](https://whitelodge-esoteric.github.io/typeanvil-showcase/).
+The [latest version](https://github.com/whitelodge-esoteric/typeanvil-showcase/tree/main/latest)
+link stays stable.
+
 ## Documentation
 
 - [Architecture overview](docs/architecture/overview.md)
