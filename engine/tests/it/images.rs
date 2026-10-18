@@ -593,9 +593,45 @@ fn duplicate_inline_svgs_embed_once() {
     let hay = String::from_utf8_lossy(&bytes);
     let image_objects =
         hay.matches("/Subtype/Image").count() + hay.matches("/Subtype /Image").count();
-    // 2 objects: the image XObject plus its alpha SMask (the rasterized PNG
-    // carries alpha); krilla still dedupes the three references to one pair.
-    assert_eq!(image_objects, 2, "one image + one smask, deduped");
+    // CORE-522: a plain-shape SVG embeds as vector paths, so no image
+    // XObject (and no alpha SMask) appears at all.
+    assert_eq!(image_objects, 0, "vector svg carries no image XObject");
+}
+
+fn image_object_count(bytes: &[u8]) -> usize {
+    let hay = String::from_utf8_lossy(bytes);
+    hay.matches("/Subtype/Image").count() + hay.matches("/Subtype /Image").count()
+}
+
+/// CORE-522: a plain-shape `<img src=x.svg>` stays vector in the PDF.
+#[test]
+fn svg_img_embeds_as_vector_not_image_xobject() {
+    let dir = TempDir::new().unwrap();
+    let p = write_fixture(&dir, "chart.svg", SAMPLE_SVG.as_bytes());
+    let q = p.display();
+    let html = format!(
+        "<html><head><style>body{{margin:0}}</style></head>\
+         <body><img src=\"{q}\"><p>x</p></body></html>"
+    );
+    let lay = lay_in(&html, Some(&dir));
+    let bytes = typeanvil::pdf::render(&lay).unwrap();
+    assert_eq!(image_object_count(&bytes), 0, "no raster image XObject");
+}
+
+/// CORE-522: SVG features the vector replay cannot draw (gradients) fall
+/// back to the raster, so output never loses content.
+#[test]
+fn svg_with_gradient_falls_back_to_raster() {
+    let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"40\">\
+               <defs><linearGradient id=\"g\"><stop offset=\"0\" stop-color=\"red\"/>\
+               <stop offset=\"1\" stop-color=\"blue\"/></linearGradient></defs>\
+               <rect width=\"40\" height=\"40\" fill=\"url(#g)\"/></svg>";
+    let html = format!(
+        "<html><head><style>body{{margin:0}}</style></head><body>{svg}<p>a</p></body></html>"
+    );
+    let lay = lay_in(&html, None);
+    let bytes = typeanvil::pdf::render(&lay).unwrap();
+    assert!(image_object_count(&bytes) >= 1, "gradient svg embeds the raster");
 }
 
 /// A genuinely malformed SVG (bytes that are neither valid UTF-8 nor a
