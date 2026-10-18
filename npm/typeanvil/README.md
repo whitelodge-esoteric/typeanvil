@@ -1,6 +1,6 @@
 # typeanvil
 
-AI-first HTML → PDF typesetting engine. This npm package wraps the
+AI-first HTML and Markdown → PDF typesetting engine. This npm package wraps the
 native binary — it works in Node.js (≥ 18) and Bun.
 
 ## Install
@@ -25,6 +25,17 @@ typeanvil --help
 ```
 
 `--page-width` and `--page-height` are required.
+
+`render` also reads Markdown. A `.md`, `.markdown` or `.mdown` input is
+converted to HTML and typeset with a built-in stylesheet. Use `--from
+markdown` to force the format, `--css <file>` to add your own stylesheet, and
+`--no-default-css` to drop the built-in one:
+
+```
+npx typeanvil render notes.md \
+  --page-width 8.5in --page-height 11in --margin-top 1in --margin-right 1in \
+  --margin-bottom 1in --margin-left 1in -o notes.pdf
+```
 
 All arguments pass through to the native binary; the exit code is preserved.
 

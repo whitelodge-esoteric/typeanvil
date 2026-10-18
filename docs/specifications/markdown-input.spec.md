@@ -388,8 +388,8 @@ After the feature ships (not before), the implementation PR shall update:
 
 - npm package description and keywords, and the npm README;
 - `--help` text (Behavior 13) and `docs/` CLI reference;
-- `README.md` line "The CLI currently accepts standalone HTML files." to name
-  Markdown;
+- the `README.md` sentence that limits the CLI to HTML files, so it names
+  Markdown (landed with CORE-516);
 - the docsite tagline and the release README.
 
 Until the feature ships, all public text stays HTML-only (the correction

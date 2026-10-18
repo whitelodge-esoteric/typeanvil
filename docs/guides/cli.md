@@ -4,7 +4,7 @@ type: guide
 status: approved
 owner: maintainers
 created: 2026-10-14
-updated: 2026-10-17
+updated: 2026-10-18
 sidebar_position: 3
 tags: [guide, cli, reference]
 slug: /guides/cli
@@ -13,11 +13,11 @@ slug: /guides/cli
 # CLI reference
 
 TypeAnvil ships one command-line program, `typeanvil`. It has one subcommand,
-`render`, which reads an HTML file and writes a PDF. Two more flags print the
-version and the help text.
+`render`, which reads an HTML or Markdown file and writes a PDF. Two more flags
+print the version and the help text.
 
 ```text
-typeanvil render <input.html> [flags] -o <output.pdf>
+typeanvil render <input.html|input.md> [flags] -o <output.pdf>
 typeanvil --version
 typeanvil --help
 ```
@@ -56,10 +56,12 @@ exits `1`. Any other first argument is an unknown subcommand and also exits
 ## `render`
 
 ```text
-typeanvil render <input.html> [flags] -o <output.pdf>
+typeanvil render <input.html|input.md> [flags] -o <output.pdf>
 ```
 
-`render` takes exactly one positional argument, the input HTML file path.
+`render` takes exactly one positional argument, the input file path. The
+extensions `.md`, `.markdown` and `.mdown` (any letter case) select Markdown.
+Every other extension is HTML. See [Markdown to PDF](./markdown.md).
 Flags and the input path can come in any order after `render`.
 
 ### Flags
@@ -80,6 +82,9 @@ Flags and the input path can come in any order after `render`.
 | `--tagged` | none (switch) | on | Write a tagged PDF with a logical structure tree. This is the default, so the flag changes nothing. |
 | `--ua` | none (switch) | off | Tagged PDF plus PDF/UA-1 validation. Overrides `--no-tagged`. |
 | `--diagnostics` | `json` or `text` | off | Report stylesheet diagnostics after the PDF is written. |
+| `--from` | `html` or `markdown` | by extension | Input format. Overrides the file extension. Any other value is a usage error. |
+| `--css` | file path | none | Markdown only. Append an author stylesheet after the default one. Repeat the flag for more files. HTML input rejects it. |
+| `--no-default-css` | none (switch) | off | Markdown only. Omit the built-in stylesheet. HTML input rejects it. |
 
 Parsing rules:
 

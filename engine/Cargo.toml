@@ -2,9 +2,9 @@
 name = "typeanvil"
 version = "0.0.1"
 edition = "2021"
-description = "Open-source HTML to PDF engine with paged-media CSS, written in Rust."
+description = "Open-source HTML and Markdown to PDF engine with paged-media CSS, written in Rust."
 license = "AGPL-3.0-only"
-keywords = ["pdf", "html-to-pdf", "typesetting", "paged-media", "print-css"]
+keywords = ["pdf", "html-to-pdf", "markdown-to-pdf", "typesetting", "paged-media"]
 categories = ["text-processing", "command-line-utilities"]
 
 [[bin]]
