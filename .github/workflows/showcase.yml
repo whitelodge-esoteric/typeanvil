@@ -1,0 +1,122 @@
+# Showcase publish (CORE-494): when the release workflow succeeds, render the
+# showcase documents with the release binary and push versions/<tag>/ to
+# whitelodge-esoteric/typeanvil-showcase. Spec:
+# docs/specifications/showcase-publish.spec.md. Runbook: docs/operations/showcase.md.
+#
+# Needs the secret SHOWCASE_DEPLOY_KEY (a write deploy key on the showcase
+# repo). Without it the job skips with a notice and stays green.
+
+name: showcase
+
+on:
+  # Not `release: published`: release.yml creates the release with GITHUB_TOKEN,
+  # and events made by GITHUB_TOKEN start no workflows. workflow_run fires after
+  # the whole release workflow ends, so the tarball upload has finished too.
+  workflow_run:
+    workflows: [release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (vYYYY.M.PATCH)"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: showcase-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v'))
+    runs-on: ubuntu-22.04
+    env:
+      TAG: ${{ github.event.workflow_run.head_branch || inputs.tag }}
+      SHOWCASE_DEPLOY_KEY: ${{ secrets.SHOWCASE_DEPLOY_KEY }}
+      SHOWCASE_REPO: whitelodge-esoteric/typeanvil-showcase
+    steps:
+      - name: Check credentials
+        id: creds
+        run: |
+          if [ -n "${SHOWCASE_DEPLOY_KEY:-}" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::SHOWCASE_DEPLOY_KEY is not set, skipping showcase publish."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.creds.outputs.publish == 'true'
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Install system packages (fonts, Prince)
+        if: steps.creds.outputs.publish == 'true'
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-liberation poppler-utils > /dev/null
+          curl -fsSL -o /tmp/prince.deb \
+            https://www.princexml.com/download/prince_16.2-1_ubuntu22.04_amd64.deb
+          sudo apt-get install -y -qq /tmp/prince.deb > /dev/null || echo "::warning::Prince unavailable, rendering TypeAnvil only"
+
+      - uses: actions/setup-python@v5
+        if: steps.creds.outputs.publish == 'true'
+        with:
+          python-version: "3.12"
+
+      - name: Install python deps
+        if: steps.creds.outputs.publish == 'true'
+        run: pip install pypdfium2 pillow
+
+      - name: Download the release binary
+        if: steps.creds.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          gh release download "$TAG" --pattern "typeanvil-$VERSION-x86_64-unknown-linux-gnu.tar.gz" --dir dist
+          tar -xzf "dist/typeanvil-$VERSION-x86_64-unknown-linux-gnu.tar.gz" -C dist
+          echo "ENGINE_BIN=$PWD/dist/typeanvil-$VERSION-x86_64-unknown-linux-gnu/typeanvil" >> "$GITHUB_ENV"
+
+      - name: Render showcase documents
+        if: steps.creds.outputs.publish == 'true'
+        run: |
+          set -euo pipefail
+          start=$(date +%s)
+          PY=python3 ./scripts/build-showcase.sh --keep-work
+          echo "RENDER_SECONDS=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
+
+      - name: Clone the showcase repo
+        if: steps.creds.outputs.publish == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SHOWCASE_DEPLOY_KEY" > ~/.ssh/showcase_key
+          chmod 600 ~/.ssh/showcase_key
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/showcase_key -o IdentitiesOnly=yes"
+          # The repo starts empty (no default branch): fall back to a fresh main.
+          git clone "git@github.com:${SHOWCASE_REPO}.git" site || { git init -b main site; git -C site remote add origin "git@github.com:${SHOWCASE_REPO}.git"; }
+
+      - name: Build the site tree
+        if: steps.creds.outputs.publish == 'true'
+        run: |
+          python3 -I scripts/showcase_publish.py --site site --tag "$TAG" \
+            --commit "$(git rev-parse HEAD)" --render-seconds "$RENDER_SECONDS"
+
+      - name: Commit and push
+        if: steps.creds.outputs.publish == 'true'
+        run: |
+          set -euo pipefail
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/showcase_key -o IdentitiesOnly=yes"
+          cd site
+          git config user.name "typeanvil-showcase-bot"
+          git config user.email "showcase-bot@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && { echo "nothing to publish"; exit 0; }
+          git commit -m "showcase: $TAG"
+          git push origin HEAD:main
