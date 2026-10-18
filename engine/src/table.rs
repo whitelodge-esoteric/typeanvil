@@ -123,7 +123,13 @@ pub fn intrinsic_column_widths(
                 if let Some((w, _h)) = img_sizes(child) {
                     let cs = &styles[child];
                     let box_w = w + cs.margin_left + cs.margin_right;
-                    if box_w.get() > cell_min.get() {
+                    // CORE-521: a replaced child with a percentage `width`
+                    // is compressible (css-sizing-3 §5.2.1): its min-content
+                    // contribution is zero and its max-content is the
+                    // natural box. Using the box as min made three
+                    // `width:100%` images force every column to the full
+                    // image width and overflow the table.
+                    if cs.width_percent.is_none() && box_w.get() > cell_min.get() {
                         cell_min = box_w;
                     }
                     if box_w.get() > cell_max.get() {
@@ -701,8 +707,19 @@ pub fn measure_rows(
             // image-only cell otherwise measures 0 and its row collapses
             // under the image, so following rows would paint OVER it.
             for &child in &dom.nodes[cell].children {
-                if let Some((_w, h)) = img_sizes(child) {
+                if let Some((iw, mut h)) = img_sizes(child) {
                     let cs = &styles[child];
+                    // CORE-521: the sizer resolves a percentage width
+                    // against the image's own natural cap, so its height is
+                    // too tall for a narrower column. Re-derive the height
+                    // from the aspect ratio at the percentage of the cell's
+                    // real inner width (height stays auto only).
+                    if let Some(p) = cs.width_percent {
+                        if cs.height.is_none() && iw.get() > 0.0 {
+                            let used_w = inner_w.get() * p;
+                            h = Scalar(used_w * h.get() / iw.get());
+                        }
+                    }
                     content_h = content_h
                         + cs.margin_top
                         + cs.padding_top

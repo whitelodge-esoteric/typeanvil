@@ -818,6 +818,41 @@ fn image_in_table_cell_paints() {
     assert_eq!(image_objects, 1, "image embeds exactly once in the PDF");
 }
 
+#[test]
+fn percent_width_images_share_table_columns_core521() {
+    // `td{width:33%} img{width:100%}` in a `table{width:100%}`: the images'
+    // min-content must not force each column to the natural image width, the
+    // cell must not re-resolve its 33% against its own column, and the row
+    // height must follow the image's aspect ratio at the column width.
+    let dir = TempDir::new().unwrap();
+    let png = make_png(600, 450, [23, 84, 122]);
+    let p = write_fixture(&dir, "tile.png", &png);
+    let img = format!("<td><img src=\"{}\"></td>", p.display());
+    let html = format!(
+        "<html><head><style>body{{margin:0}} \
+         table{{width:100%;border-spacing:0}} \
+         td{{width:33%;padding:0;vertical-align:top}} \
+         td img{{width:100%;display:block}}</style></head>\
+         <body><table><tr>{img}{img}{img}</tr></table></body></html>"
+    );
+    let lay = lay_in(&html, Some(&dir));
+    let frags = image_fragments(&lay);
+    assert_eq!(frags.len(), 3, "three images, got {frags:?}");
+    let content_w = geometry().content_rect().width.get();
+    let third = content_w / 3.0;
+    for (i, f) in frags.iter().enumerate() {
+        let (_, _, _, w, h) = *f;
+        assert!(
+            (w - third).abs() < 1.0,
+            "image {i} width {w} should be a third of {content_w}"
+        );
+        assert!(
+            (h - w * 0.75).abs() < 1.0,
+            "image {i} keeps the 4:3 ratio: {w} x {h}"
+        );
+    }
+}
+
 // --- CORE-388: min/max sizing ---------------------------------------------------
 
 fn one_image(style: &str, png: (u32, u32)) -> (f64, f64) {
