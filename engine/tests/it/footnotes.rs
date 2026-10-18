@@ -264,3 +264,27 @@ fn footnote_run_uses_the_note_face() {
     );
 }
 
+/// CORE-524: the note area draws at a fixed 9pt, so the glyph advances must be
+/// shaped at 9pt whatever font-size the note's style carries. Shaping at the
+/// style size drew wider advances at 9pt and text extraction read "A lpha".
+#[test]
+fn footnote_advances_are_shaped_at_the_drawn_size() {
+    fn note_advances(note_size: &str) -> Vec<f64> {
+        let html = doc(&format!(
+            r#"<style>.fn {{ font-size: {note_size}; }}</style><p>Body.<span class="fn">Alpha footnote text.</span></p>"#
+        ));
+        let l = layout_doc(&html);
+        fn find(f: &typeanvil::frag::Fragment) -> Option<typeanvil::frag::TextRun> {
+            if let FragmentContent::Text(run) = &f.content {
+                if run.text.contains("Alpha") {
+                    return Some(run.clone());
+                }
+            }
+            f.children.iter().find_map(find)
+        }
+        let run = find(&l.pages[0].root).expect("note run");
+        run.glyphs.iter().map(|g| g.x_advance.get()).collect()
+    }
+    assert_eq!(note_advances("9pt"), note_advances("14pt"));
+}
+
