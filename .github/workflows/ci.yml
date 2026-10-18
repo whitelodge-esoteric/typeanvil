@@ -84,6 +84,101 @@ jobs:
           path: regress-artifacts
           if-no-files-found: ignore
 
+  # PR visual diffs (CORE-498). Runs after `regression` (pass or fail), renders
+  # base and head, pushes three-panel PNGs to the `pr-assets` branch of
+  # typeanvil-showcase and rewrites the marked section of the PR description.
+  # Same-repo PRs only: fork PRs get no secrets (no external contributors now).
+  # Spec: docs/specifications/pr-visual-diff.spec.md
+  visual-diff:
+    needs: regression
+    if: >-
+      always() && github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      PR: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            engine
+            base/engine
+      - name: Install bundled fonts
+        run: |
+          sudo mkdir -p /usr/share/fonts/typeanvil
+          sudo cp docker/fonts/typeanvil/* /usr/share/fonts/typeanvil/
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - name: Install harness
+        run: uv sync --python 3.12
+      - name: Build head engine
+        run: cargo build --manifest-path engine/Cargo.toml
+      - name: Build base engine
+        run: cargo build --manifest-path base/engine/Cargo.toml
+      - name: Render changed pages
+        run: |
+          uv run python scripts/pr_visual_diff.py render \
+            --base-bin base/engine/target/debug/typeanvil \
+            --head-bin engine/target/debug/typeanvil \
+            --base-root base --out visual-diff --pr "$PR" --sha "$HEAD_SHA"
+      - name: Upload images as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-diff
+          path: visual-diff
+          if-no-files-found: ignore
+      # Needs the secret SHOWCASE_DEPLOY_KEY (write deploy key on the showcase repo).
+      - name: Publish images to pr-assets
+        env:
+          SHOWCASE_DEPLOY_KEY: ${{ secrets.SHOWCASE_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SHOWCASE_DEPLOY_KEY" > ~/.ssh/showcase_key
+          chmod 600 ~/.ssh/showcase_key
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/showcase_key -o StrictHostKeyChecking=accept-new"
+          repo=git@github.com:whitelodge-esoteric/typeanvil-showcase.git
+          if git ls-remote --exit-code --heads "$repo" pr-assets >/dev/null 2>&1; then
+            git clone --depth 50 --branch pr-assets "$repo" assets
+          else
+            git init -q assets
+            git -C assets checkout -q --orphan pr-assets
+            git -C assets remote add origin "$repo"
+          fi
+          git -C assets config user.name "typeanvil-showcase-bot"
+          git -C assets config user.email "typeanvil-showcase-bot@users.noreply.github.com"
+          uv run python scripts/pr_visual_diff.py prune --root assets --days 30
+          dest="assets/pr-$PR/${HEAD_SHA:0:8}"
+          mkdir -p "$dest"
+          cp visual-diff/*.png "$dest"/ 2>/dev/null || true
+          git -C assets add -A
+          git -C assets diff --cached --quiet || git -C assets commit -q -m "pr-$PR ${HEAD_SHA:0:8}"
+          git -C assets push origin pr-assets
+      - name: Update PR description
+        run: |
+          gh pr view "$PR" --json body --jq .body > body-in.md
+          uv run python scripts/pr_visual_diff.py body \
+            --manifest visual-diff/manifest.json --body-in body-in.md --body-out body-out.md \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          gh pr edit "$PR" --body-file body-out.md
+
   harness:
     runs-on: ubuntu-latest
     steps:
