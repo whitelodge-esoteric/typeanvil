@@ -52,6 +52,7 @@ mod core394_tall_atomic_in_column;
 mod core395_grid_in_multicol_hang;
 mod diagnostics;
 mod flex;
+mod core520_abspos_paint_order;
 mod flex_z_index_paint_order;
 mod floats;
 mod fonts;
