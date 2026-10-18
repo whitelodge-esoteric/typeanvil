@@ -32,6 +32,7 @@ mod core477_declared_width_overflow;
 mod core478_nested_column_flex_border;
 mod core481_transform;
 mod core518_opacity;
+mod core523_linebreak_perf;
 mod core241_zero_height_overflow;
 mod core352_cell_valign;
 mod core352_cell_valign_more;
