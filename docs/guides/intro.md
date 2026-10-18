@@ -4,7 +4,7 @@ type: guide
 status: approved
 owner: maintainers
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-17
 sidebar_position: 1
 tags: [guide, introduction, overview]
 slug: /guides
@@ -12,16 +12,16 @@ slug: /guides
 
 # Introduction
 
-Typeanvil is an open-source HTML → PDF typesetting engine written in Rust. It
+TypeAnvil is an open-source HTML → PDF typesetting engine written in Rust. It
 turns HTML documents that use paged-media CSS into PDFs for reports, invoices,
 letters, papers, and books.
 
 It is for developers who need print-quality pagination without a commercial
 rendering engine or a headless browser.
 
-## What Typeanvil is
+## What TypeAnvil is
 
-Typeanvil is a batch document compiler. It reads one HTML file, collects its
+TypeAnvil is a batch document compiler. It reads one HTML file, collects its
 CSS, applies paged-media layout rules, and writes a PDF. You run it as a
 command-line tool, `typeanvil render`. The CLI is a thin driver over a Rust
 library, and the engine's integration tests use that library directly.
@@ -57,7 +57,7 @@ the CSS specifications. PrinceXML and Chromium are only comparison tools (see
 
 ## What documents it targets
 
-Typeanvil targets paged documents, meaning content laid out on fixed pages
+TypeAnvil targets paged documents, meaning content laid out on fixed pages
 rather than in a scrolling viewport. Typical inputs are reports, invoices,
 letters, papers, and books, including long documents with running headers,
 page counters, and tables that span many pages.
@@ -92,7 +92,7 @@ network.
 
 ## License
 
-Typeanvil is free software under the
+TypeAnvil is free software under the
 [AGPL-3.0-only](https://www.gnu.org/licenses/agpl-3.0.html) license. The engine
 has no license check, watermark, activation flow, phone-home behavior, or
 feature gate.

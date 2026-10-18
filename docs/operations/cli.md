@@ -1,5 +1,5 @@
 ---
-title: Typeanvil CLI Reference
+title: TypeAnvil CLI Reference
 type: runbook
 status: approved
 owner: maintainers
@@ -9,7 +9,7 @@ sidebar_position: 3
 tags: [cli, usage, reference]
 ---
 
-# Typeanvil CLI Reference
+# TypeAnvil CLI Reference
 
 The engine ships one subcommand, `render`. It reads an HTML file and writes
 a PDF.

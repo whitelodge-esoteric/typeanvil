@@ -4,7 +4,7 @@ type: convention
 status: approved
 owner: maintainers
 created: 2026-08-16
-updated: 2026-10-14
+updated: 2026-10-17
 sidebar_position: 1
 tags: [docs, meta, public]
 ---
@@ -19,7 +19,7 @@ to the repository and public internet. It covers the engine and its tooling.
 Keep installation and usage instructions, current architecture, lasting design
 rationale, feature contracts, tests, reusable runbooks, and cited technical
 research. A document belongs here when it helps a reader use, understand, test,
-or change Typeanvil.
+or change TypeAnvil.
 
 Keep temporary investigations, work queues, raw run records, agent prompts,
 private coordination, and hosted-service strategy in an external note store.
@@ -40,7 +40,7 @@ A narrow topic can remain here when it explains a lasting constraint or a test.
 
 | Directory | Purpose |
 |---|---|
-| `guides/` | User-facing installation and usage guides: start here to render with Typeanvil |
+| `guides/` | User-facing installation and usage guides: start here to render with TypeAnvil |
 | `architecture/` | Current composition, module boundaries, and design rationale |
 | `specifications/` | Behavior contracts and observable acceptance criteria |
 | `operations/` | Reproducible usage, testing, and release procedures |

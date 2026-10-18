@@ -4,14 +4,14 @@ type: architecture
 status: draft
 owner: maintainers
 created: 2026-10-03
-updated: 2026-10-14
+updated: 2026-10-17
 sidebar_position: 2
 tags: [typography, line-breaking, microtypography, engine]
 ---
 
 # Typography Quality
 
-Typeanvil's typography pipeline produces the even, crisp texture of
+TypeAnvil's typography pipeline produces the even, crisp texture of
 TeX-class typesetting — as the default behavior for every document, not as an
 opt-in package. This page explains the algorithmic choices that produce that
 quality, what is shipped today, and what is deliberately deferred. The
@@ -25,7 +25,7 @@ optimizes break points across the whole paragraph. The result is uniform
 inter-word spacing, no rivers, and fewer hyphens. Readers see that even
 texture as quality.
 
-Typeanvil ships the optimization approach as the default. It combines:
+TypeAnvil ships the optimization approach as the default. It combines:
 
 - **Knuth-Plass total-fit line breaking** with a real glue model
 - **Character protrusion** (hanging punctuation)
@@ -119,7 +119,7 @@ The `determinism_typography` test renders a fixture twice and asserts the
 bytes match.
 
 TeX achieves determinism with fixed-point arithmetic (scaled points).
-Typeanvil uses controlled `f64` arithmetic behind the `Scalar` type.
+TypeAnvil uses controlled `f64` arithmetic behind the `Scalar` type.
 Determinism today comes from pinned fonts, stable traversal order, and
 deterministic geometry arithmetic. `Scalar` is the documented seam for any
 future arithmetic change.
@@ -140,7 +140,7 @@ Two layers prove the behavior:
    the pages side by side in the [corpus gallery](https://github.com/whitelodge-esoteric/typeanvil/blob/main/demo/corpus/README.md).
    Typography-focused fixtures render at page-count parity with Prince. In
    that comparison, Prince does not implement Knuth-Plass protrusion to the
-   same spec — hanging punctuation is a Typeanvil advantage.
+   same spec — hanging punctuation is a TypeAnvil advantage.
 
 ## Shipped vs deferred
 

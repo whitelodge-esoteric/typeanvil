@@ -1,7 +1,7 @@
 {
   "name": "@typeanvil/linux-x64-musl",
   "version": "0.0.0-staging",
-  "description": "Typeanvil native binary for Linux x64 (musl, static)",
+  "description": "TypeAnvil native binary for Linux x64 (musl, static)",
   "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",

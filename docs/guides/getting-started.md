@@ -4,7 +4,7 @@ type: guide
 status: approved
 owner: maintainers
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-17
 sidebar_position: 2
 tags: [guide, installation, quickstart]
 slug: /guides/getting-started
@@ -16,7 +16,7 @@ This page gets you from nothing to a rendered PDF. You install the `typeanvil`
 binary, either from a release archive or by building it from source, and then
 render a document with the CLI.
 
-Typeanvil reads one local HTML file and its CSS, lays the content out on pages,
+TypeAnvil reads one local HTML file and its CSS, lays the content out on pages,
 and writes a PDF. It does not execute JavaScript.
 
 ## Option 1: download a release binary
@@ -156,7 +156,7 @@ PDF, PDF/UA validation, and diagnostics.
 - **No network access.** `http://` and `https://` stylesheets, fonts, and
   images are never fetched.
 
-## Other ways to run Typeanvil
+## Other ways to run TypeAnvil
 
 ### Container image
 

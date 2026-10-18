@@ -1,17 +1,17 @@
 ---
-title: Typeanvil Documentation
+title: TypeAnvil Documentation
 type: convention
 status: approved
 owner: maintainers
 created: 2026-08-16
-updated: 2026-10-14
+updated: 2026-10-17
 sidebar_position: 1
 tags: [docs, meta, public]
 ---
 
-# Typeanvil Documentation
+# TypeAnvil Documentation
 
-This site documents the Typeanvil engine and its tooling. It is written for
+This site documents the TypeAnvil engine and its tooling. It is written for
 users, contributors, and AI agents who have access to the public repository and
 public web resources.
 
@@ -44,7 +44,7 @@ flowchart LR
 
 ## Documentation sections
 
-- [Guides](guides/intro.md) — install Typeanvil, render a first PDF, and
+- [Guides](guides/intro.md) — install TypeAnvil, render a first PDF, and
   write paged-media CSS. Start here if you want to use the engine.
 - [Architecture](architecture/overview.md) — engine pipeline, module
   boundaries, fragmentation, PDF output, and test tooling.

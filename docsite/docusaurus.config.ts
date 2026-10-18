@@ -5,14 +5,14 @@ import type * as Preset from '@docusaurus/preset-classic';
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-  title: 'Typeanvil Docs',
+  title: 'TypeAnvil Docs',
   tagline: 'HTML → PDF typesetting engine — engineering source of truth',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   // v4 flag left off: it reworks markdown/mermaid config; verify compatibility
   // with @docusaurus/theme-mermaid before enabling.
 
-  // Production URL — placeholder until Typeanvil has a domain.
+  // Production URL — placeholder until TypeAnvil has a domain.
   url: 'https://typeanvil.dev',
   baseUrl: '/',
   favicon: 'img/favicon.ico',
@@ -63,9 +63,9 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'Typeanvil',
+      title: 'TypeAnvil',
       logo: {
-        alt: 'Typeanvil',
+        alt: 'TypeAnvil',
         src: 'img/typeanvil-icon-light-transparent.svg',
         srcDark: 'img/typeanvil-icon-dark-transparent.svg',
         height: 28,

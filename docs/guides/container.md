@@ -4,7 +4,7 @@ type: guide
 status: approved
 owner: maintainers
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-17
 sidebar_position: 4
 tags: [guide, container, docker, npm, distribution, fonts]
 slug: /guides/container
@@ -12,7 +12,7 @@ slug: /guides/container
 
 # Containers and packages
 
-You can run Typeanvil without building the native binary yourself. The
+You can run TypeAnvil without building the native binary yourself. The
 release workflow packages the same release binary in two forms:
 
 - a **container image** on the GitHub Container Registry (GHCR), for hosts
