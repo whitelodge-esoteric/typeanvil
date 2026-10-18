@@ -13,7 +13,10 @@ issue_id: CORE-305
 applies_to:
   - engine/src/main.rs
   - engine/src/markdown.rs
+  - engine/src/diagnostics.rs
+  - engine/Cargo.toml
   - engine/tests/it/markdown.rs
+  - harness/direct_manifest.json
 dependencies:
   - cli-surface
   - pdf-metadata
@@ -246,6 +249,33 @@ definition, not from a measurement.
    Behavior 10 falls back to `<code>` source with a diagnostic.
 6. **Footnote float inline form.** Verify `float: footnote` on a `<span>`
    inside a table cell and list item paginates (footnotes spec limits).
+
+## Slice 1 decisions (CORE-513)
+
+DECIDED 2026-10-17 (agent), recorded at implementation:
+
+- **comrak 0.56, `default-features = false`.** No syntax highlighter and no
+  CLI dependencies. Enabled: tables, strikethrough, tasklist, autolink,
+  footnotes, math_dollars, heading ids (`header_id_prefix = Some("")`).
+  `smart` is off. Raw HTML passes through (`render.unsafe`).
+- **Gap 1 (task checkbox): fixed in the converter.** The converter replaces
+  each checkbox `<input>` with `<span class="task">` holding U+2611 or U+2610.
+- **Gap 2 (long code lines): fixed in the default sheet.** `pre` uses
+  `white-space: pre-wrap; overflow-wrap: anywhere`.
+- **Gap 4 (YAML): restricted reader, no dependency.** `engine/src/markdown.rs`
+  reads a top-level mapping of scalars, flow lists (`[a, b]`) and block lists
+  (`- a`). Nested maps, block scalars (`|`, `>`) and flow maps are errors that
+  name the file line (Behavior 4).
+- **Table alignment** is mapped from comrak's `align` attribute to an inline
+  `style="text-align:…"`.
+- **Math (Behavior 10) in slice 1:** comrak math spans become
+  `<code class="math">` with the TeX source and one `markdown-math-untranslated`
+  diagnostic each. The translator is slice 3.
+- **Footnotes in slice 1:** plain comrak output (trailing list). The float
+  mapping is slice 2.
+- **Diagnostics:** events whose code starts `markdown-` print
+  `"source": "markdown"` in JSON. CSS events keep the schema-1 shape.
+- **Usage errors (exit 2)** use a `UsageError` type in `main.rs`.
 
 ## Acceptance Criteria
 
