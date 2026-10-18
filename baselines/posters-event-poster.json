@@ -1,0 +1,17 @@
+{
+  "engine_version": "0.0.1",
+  "file": "posters/event-poster.html",
+  "page_count": 1,
+  "pages": [
+    {
+      "dark_pixels": 451284,
+      "dhash": "b33b33928292720e",
+      "page": 1,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "b6c36d77f04717eaf271a1132be7b6bb1f309d276c740aab1b872cf66d34393e"
+    }
+  ]
+}
