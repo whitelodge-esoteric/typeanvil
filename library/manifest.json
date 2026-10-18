@@ -1,7 +1,21 @@
 [
   {
     "name": "Invoice",
-    "file": "invoice.html",
+    "file": "financial/invoice.html",
+    "category": "financial",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "tables-fragmentation",
       "paged-media-css"
@@ -14,11 +28,26 @@
       "Prince may resolve a different system font for the sans-serif stack",
       "Prince's default table-cell padding may differ from TypeAnvil's explicit padding",
       "Total row repeats at the bottom of every page (CORE-96, Prince parity)"
-    ]
+    ],
+    "baseline_pages": 5
   },
   {
     "name": "Quarterly Report",
-    "file": "report.html",
+    "file": "reports/report.html",
+    "category": "reports",
+    "size": "heavy",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "paged-media-css",
       "fragmentation-core",
@@ -31,11 +60,26 @@
       "TOC dotted leaders may use slightly different dot spacing",
       "Running-header font pinned to Arial 10pt in both engines (CORE-86); residual header diffs are layout-metric or structural",
       "Prince may hyphenate differently in table cells"
-    ]
+    ],
+    "baseline_pages": 11
   },
   {
     "name": "Academic Paper",
-    "file": "paper.html",
+    "file": "academic/paper.html",
+    "category": "academic",
+    "size": "heavy",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "typography-layer",
       "fragmentation-core",
@@ -50,11 +94,26 @@
       "Justification glue distribution may differ slightly at identical widths",
       "line-height pinned to 1.5 (CORE-75) to exercise CORE-74 convergence; page counts match Prince at 1.5 (11 = 11)",
       "Footnote band height may differ where note text wraps differently (CORE-107)"
-    ]
+    ],
+    "baseline_pages": 12
   },
   {
     "name": "Letterhead",
-    "file": "letterhead.html",
+    "file": "letters/letterhead.html",
+    "category": "letters",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only; embeds Liberation Serif (SIL OFL 1.1, see LICENSES.md)",
     "wedge_features": [
       "paged-media-css",
       "fragmentation-core"
@@ -63,11 +122,26 @@
     "expected_deltas": [
       "Margin-box fonts pinned to Arial 10pt (CORE-86); cover page margin boxes are content: none",
       "Prince may apply default margins to @page cover differently"
-    ]
+    ],
+    "baseline_pages": 8
   },
   {
     "name": "Running Letterhead",
-    "file": "running-letterhead.html",
+    "file": "letters/running-letterhead.html",
+    "category": "letters",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "paged-media-css",
       "fragmentation-core"
@@ -76,11 +150,26 @@
     "expected_deltas": [
       "CORE-390: the letterhead is a position: running() element drawn in @top-center on every page via content: element()",
       "Margin-box fonts pinned to Arial in both engines; residual diffs are layout-metric"
-    ]
+    ],
+    "baseline_pages": 5
   },
   {
     "name": "Inventory Ledger — Table Fragmentation Stress",
-    "file": "table-stress.html",
+    "file": "stress/table-stress.html",
+    "category": "stress",
+    "size": "heavy",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "tables-fragmentation",
       "fragmentation-core",
@@ -96,11 +185,26 @@
       "Collapsed-border rows include one cell-border width each (CORE-235; spec-correct, Chromium agrees: 1-line row 15.3pt vs Chromium 15.5pt). Moved 47 -> 50 pages because only 2-4 rows fit per page (CORE-244)",
       "Total row repeats at the bottom of every page (CORE-96, Prince parity)"
     ],
-    "expected_change": "CORE-348: a word wider than its line no longer forces the whole cell onto one line, and explicit hyphens are break opportunities (Chromium/Prince parity: 'Jet-/propelled', 'On / hand'). 20 Description cells that overprinted the next column now wrap, so rows grow and the ledger moves 50 -> 52 pages. CORE-353: frozen columns are floored at all-row min-content, so Description widens for the 102pt 'Disappearing/reappearing' token and the ledger moves 52 -> 26 pages (measured at release/2026.10 9e8217c; Chromium 35, Prince 45). The move is away from Prince's count and toward Chromium/WeasyPrint behavior (spec-correct, css-tables-3 min-content); see table-first-page-column-freeze.spec.md"
+    "expected_change": "CORE-348: a word wider than its line no longer forces the whole cell onto one line, and explicit hyphens are break opportunities (Chromium/Prince parity: 'Jet-/propelled', 'On / hand'). 20 Description cells that overprinted the next column now wrap, so rows grow and the ledger moves 50 -> 52 pages. CORE-353: frozen columns are floored at all-row min-content, so Description widens for the 102pt 'Disappearing/reappearing' token and the ledger moves 52 -> 26 pages (measured at release/2026.10 9e8217c; Chromium 35, Prince 45). The move is away from Prince's count and toward Chromium/WeasyPrint behavior (spec-correct, css-tables-3 min-content); see table-first-page-column-freeze.spec.md",
+    "baseline_pages": 26
   },
   {
     "name": "Float Showcase — Figure & Pull Quote",
-    "file": "float-showcase.html",
+    "file": "stress/float-showcase.html",
+    "category": "stress",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "css-floats",
       "fragmentation-core",
@@ -115,11 +219,26 @@
       "Float placement may differ by a line where line-box heights diverge (CORE-90)",
       "Prince hyphenation dictionary may differ inside float-wrapped segments",
       "Page-count gap (TA 11 vs PR 8) attributed in CORE-93: UA body margin 8px narrows lines (CORE-95, engine) + hyphenation density (CORE-53 scope)"
-    ]
+    ],
+    "baseline_pages": 8
   },
   {
     "name": "Prose Showcase",
-    "file": "prose.html",
+    "file": "book/prose.html",
+    "category": "book",
+    "size": "heavy",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "typography-layer",
       "fragmentation-core"
@@ -132,11 +251,26 @@
       "Font metrics differences shift exact break positions",
       "Prince does not implement Knuth-Plass protrusion to the same spec",
       "line-height pinned to 1.6 (CORE-75) to exercise CORE-74 convergence; page-count slope still diverges at 1.6 (tracked as CORE-90)"
-    ]
+    ],
+    "baseline_pages": 11
   },
   {
     "name": "Invoice — Statement of Account",
-    "file": "invoice-statement.html",
+    "file": "financial/invoice-statement.html",
+    "category": "financial",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "tables-fragmentation",
       "paged-media-css",
@@ -152,11 +286,26 @@
       "Running-header font pinned to Arial 8pt in both engines; residual header diffs are layout-metric or structural",
       "Section B's running balance is static text, not a computed counter, so both engines print identical digits",
       "Currency symbols and accented glyphs (Zürich, Säntis) exercise the ToUnicode path; a glyph-substitution difference would show as per-page pixel noise"
-    ]
+    ],
+    "baseline_pages": 5
   },
   {
     "name": "Consolidated Financial Statements",
-    "file": "financial-statement.html",
+    "file": "financial/financial-statement.html",
+    "category": "financial",
+    "size": "heavy",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "tables-fragmentation",
       "paged-media-css",
@@ -173,11 +322,26 @@
       "Page-break positions may differ where a row's height differs between engines",
       "Total rows are ordinary body rows (no repeated tfoot), so both engines print identical digits"
     ],
-    "expected_change": "CORE-370: h1-h6 carry Prince's UA break-after: avoid / break-inside: avoid, so the 'Statement of Financial Position' and 'Statement of Cash Flows' headings now move with their first table rows instead of stranding at a page bottom (cand p5 and p10 start with the heading). Keeping headings with their tables pushes rows down and the document moves 11 -> 12 pages (Prince 11, Chromium 2 pages at its own geometry). The move is away from Prince's count and needs the owner's call; no stranded heading remains in the candidate"
+    "expected_change": "CORE-370: h1-h6 carry Prince's UA break-after: avoid / break-inside: avoid, so the 'Statement of Financial Position' and 'Statement of Cash Flows' headings now move with their first table rows instead of stranding at a page bottom (cand p5 and p10 start with the heading). Keeping headings with their tables pushes rows down and the document moves 11 -> 12 pages (Prince 11, Chromium 2 pages at its own geometry). The move is away from Prince's count and needs the owner's call; no stranded heading remains in the candidate",
+    "baseline_pages": 12
   },
   {
     "name": "Monthly Analytics Digest",
-    "file": "analytics-digest.html",
+    "file": "reports/analytics-digest.html",
+    "category": "reports",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "tables-fragmentation",
       "paged-media-css",
@@ -192,11 +356,26 @@
       "The KPI band uses fixed table-cell padding; Prince's default cell metrics may differ slightly",
       "Chart image scaling is identical (both engines honor the explicit width/height)",
       "Prince may hyphenate differently in table cells"
-    ]
+    ],
+    "baseline_pages": 8
   },
   {
     "name": "Board Report — Q4 FY2026",
-    "file": "board-report.html",
+    "file": "reports/board-report.html",
+    "category": "reports",
+    "size": "heavy",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "paged-media-css",
       "fragmentation-core",
@@ -210,11 +389,26 @@
       "TOC dotted leaders may use slightly different dot spacing",
       "Running-header font pinned to Arial 9pt in both engines; residual header diffs are layout-metric or structural",
       "One chapter begins on a different page (TA 12 vs PR 13) from accumulated line-break differences; per-page diffs remain in the cosmetic band"
-    ]
+    ],
+    "baseline_pages": 12
   },
   {
     "name": "Sales Summary by Region",
-    "file": "sales-summary.html",
+    "file": "reports/sales-summary.html",
+    "category": "reports",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "tables-fragmentation",
       "fragmentation-core"
@@ -228,11 +422,26 @@
       "Grouped subtotal rows carry an explicit background color; fill rendering matches but sub-pixel edges may differ",
       "Page-break positions may differ where a row's height differs between engines"
     ],
-    "expected_change": "CORE-354: a table header is no longer painted twice when it resumes on a new page (p2 'Channel Q1..FY2026' duplicate gone). The freed line pulls every later row up one, and since TA's page breaks were already offset from Prince's (heading kept with the table differently) the per-page pixel diff grows 29.35 -> 33.27 pp; page count unchanged (7/7) and the duplicate-line scan is clean"
+    "expected_change": "CORE-354: a table header is no longer painted twice when it resumes on a new page (p2 'Channel Q1..FY2026' duplicate gone). The freed line pulls every later row up one, and since TA's page breaks were already offset from Prince's (heading kept with the table differently) the per-page pixel diff grows 29.35 -> 33.27 pp; page count unchanged (7/7) and the duplicate-line scan is clean",
+    "baseline_pages": 7
   },
   {
     "name": "Pro-Forma Invoice",
-    "file": "proforma-invoice.html",
+    "file": "financial/proforma-invoice.html",
+    "category": "financial",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "tables-fragmentation",
       "paged-media-css",
@@ -249,11 +458,26 @@
       "Page-count gap (TA 18 vs PR 15) from accumulated line-break and table-row-height differences; per-page diffs remain in the cosmetic band",
       "The tfoot totals repeat at the bottom of every fragment in both engines"
     ],
-    "expected_change": "CORE-368: repeated table chrome follows css-tables-3 §8 and Chromium: a header/footer repeats only within a quarter of the page. The line-item tfoot (subtotal/VAT/total rows) is taller than that, so it now closes the table once instead of repeating on every page; the freed space holds the rows and the document moves 16 -> 8 pages (Chromium 7, Prince 15 - Prince repeats any tfoot). Supersedes CORE-354 (17 -> 16)"
+    "expected_change": "CORE-368: repeated table chrome follows css-tables-3 §8 and Chromium: a header/footer repeats only within a quarter of the page. The line-item tfoot (subtotal/VAT/total rows) is taller than that, so it now closes the table once instead of repeating on every page; the freed space holds the rows and the document moves 16 -> 8 pages (Chromium 7, Prince 15 - Prince repeats any tfoot). Supersedes CORE-354 (17 -> 16)",
+    "baseline_pages": 8
   },
   {
     "name": "Credit Note",
-    "file": "credit-note.html",
+    "file": "financial/credit-note.html",
+    "category": "financial",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "tables-fragmentation",
       "paged-media-css"
@@ -266,11 +490,26 @@
       "GBP glyph and VAT number exercise the ToUnicode path; a glyph-substitution difference would show as per-page pixel noise",
       "Page-count gap (TA 12 vs PR 10) from accumulated line-break differences; per-page diffs remain in the cosmetic band"
     ],
-    "expected_change": "CORE-368: repeated table chrome follows css-tables-3 §8 and Chromium: the totals tfoot exceeds a quarter of the page, so it no longer repeats on each continuation page and closes the table once; the document moves 10 -> 7 pages (Chromium 7, Prince 10 - Prince repeats any tfoot). Supersedes CORE-354 (11 -> 10)"
+    "expected_change": "CORE-368: repeated table chrome follows css-tables-3 §8 and Chromium: the totals tfoot exceeds a quarter of the page, so it no longer repeats on each continuation page and closes the table once; the document moves 10 -> 7 pages (Chromium 7, Prince 10 - Prince repeats any tfoot). Supersedes CORE-354 (11 -> 10)",
+    "baseline_pages": 7
   },
   {
     "name": "Multi-Currency Invoice",
-    "file": "multicurrency-invoice.html",
+    "file": "financial/multicurrency-invoice.html",
+    "category": "financial",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "tables-fragmentation",
       "paged-media-css",
@@ -284,11 +523,26 @@
       "Prince may resolve a different system font for the sans-serif stack",
       "Currency symbols and right-aligned numeric columns exercise the ToUnicode path; a glyph-substitution difference would show as per-page pixel noise",
       "font-variant-numeric: tabular-nums is not honored, so digit advance is the natural shaped width in both engines"
-    ]
+    ],
+    "baseline_pages": 7
   },
   {
     "name": "Recurring Billing Statement",
-    "file": "recurring-billing.html",
+    "file": "financial/recurring-billing.html",
+    "category": "financial",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "tables-fragmentation",
       "paged-media-css",
@@ -302,11 +556,26 @@
       "Prince may resolve a different system font for the sans-serif stack",
       "Page-count gap (TA 6 vs PR 7) from accumulated line-break differences; per-page diffs remain in the cosmetic band",
       "Parenthesized negative amounts render as literal text in both engines"
-    ]
+    ],
+    "baseline_pages": 6
   },
   {
     "name": "Book Chapter — The Cartography of Rivers",
-    "file": "book-chapter.html",
+    "file": "book/book-chapter.html",
+    "category": "book",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "typography-layer",
       "fragmentation-core",
@@ -321,11 +590,26 @@
       "Justification glue distribution may differ slightly at identical widths",
       "Footnote band height may differ where note text wraps differently (CORE-107)",
       "The drop-cap first letter is a floated first-letter pseudo-element; Prince and TypeAnvil may size the cap differently"
-    ]
+    ],
+    "baseline_pages": 9
   },
   {
     "name": "Whitepaper — Deterministic Document Rendering",
-    "file": "whitepaper.html",
+    "file": "reports/whitepaper.html",
+    "category": "reports",
+    "size": "heavy",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "paged-media-css",
       "fragmentation-core",
@@ -339,11 +623,26 @@
       "TOC dotted leaders may use slightly different dot spacing",
       "Page-count gap (TA 10 vs PR 12) from accumulated line-break differences; per-page diffs remain in the cosmetic band",
       "Hyphenation points may differ (different hyphenation dictionaries)"
-    ]
+    ],
+    "baseline_pages": 10
   },
   {
     "name": "Thesis Excerpt — Sediment Transport",
-    "file": "thesis-excerpt.html",
+    "file": "academic/thesis-excerpt.html",
+    "category": "academic",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "footnotes",
       "tables-fragmentation",
@@ -358,11 +657,26 @@
       "Hyphenation points may differ (different hyphenation dictionaries)",
       "Footnote band height may differ where note text wraps differently (CORE-107)",
       "Table caption placement and spacing may differ slightly between engines"
-    ]
+    ],
+    "baseline_pages": 9
   },
   {
     "name": "Annual Operations Report — Long Report",
-    "file": "long-report.html",
+    "file": "reports/long-report.html",
+    "category": "reports",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "paged-media-css",
       "fragmentation-core",
@@ -375,11 +689,26 @@
       "Running-header font pinned to Arial 9pt in both engines; residual header diffs are layout-metric or structural",
       "Page-break positions may differ where a row's height differs between engines",
       "Prince may hyphenate differently in table cells"
-    ]
+    ],
+    "baseline_pages": 9
   },
   {
     "name": "Journal Paper — Stage–discharge hysteresis",
-    "file": "journal-paper.html",
+    "file": "academic/journal-paper.html",
+    "category": "academic",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "typography-layer",
       "fragmentation-core",
@@ -393,11 +722,26 @@
       "Two-column band width is fixed at 144pt per column; Prince may distribute the column gap slightly differently",
       "Page-count gap (TA 5 vs PR 6) from accumulated line-break differences; per-page diffs remain in the cosmetic band",
       "Hyphenation points may differ (different hyphenation dictionaries)"
-    ]
+    ],
+    "baseline_pages": 5
   },
   {
     "name": "Conference Paper — Sparse Sampling of Bedload",
-    "file": "conference-paper.html",
+    "file": "academic/conference-paper.html",
+    "category": "academic",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "tables-fragmentation",
       "typography-layer",
@@ -412,11 +756,26 @@
       "The figure image scales identically (both engines honor the explicit width/height)",
       "Prince hyphenation dictionary may differ inside float-wrapped segments"
     ],
-    "expected_change": "CORE-370: h1-h6 carry Prince's UA break-after: avoid / break-inside: avoid, so a heading stranded at a page bottom now moves with the following content. The document moves 8 -> 9 pages, which equals Prince (9)"
+    "expected_change": "CORE-370: h1-h6 carry Prince's UA break-after: avoid / break-inside: avoid, so a heading stranded at a page bottom now moves with the following content. The document moves 8 -> 9 pages, which equals Prince (9)",
+    "baseline_pages": 9
   },
   {
     "name": "Preprint — Convergence of Iterative Page Breaking",
-    "file": "preprint.html",
+    "file": "academic/preprint.html",
+    "category": "academic",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "paged-media-css",
       "fragmentation-core",
@@ -430,11 +789,26 @@
       "Footnote band height may differ where note text wraps differently (CORE-107)",
       "Justification glue distribution may differ slightly at identical widths",
       "Hyphenation points may differ (different hyphenation dictionaries)"
-    ]
+    ],
+    "baseline_pages": 8
   },
   {
     "name": "Technical Report — Capacity Planning",
-    "file": "technical-report.html",
+    "file": "reports/technical-report.html",
+    "category": "reports",
+    "size": "heavy",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "tables-fragmentation",
       "paged-media-css",
@@ -448,11 +822,26 @@
       "Figure images scale identically (both engines honor the explicit width/height)",
       "Page-break positions may differ where a row's height differs between engines",
       "Table caption placement and spacing may differ slightly between engines"
-    ]
+    ],
+    "baseline_pages": 10
   },
   {
     "name": "Product Manual — Northwind 2400 Pallet Truck",
-    "file": "product-manual.html",
+    "file": "manual/product-manual.html",
+    "category": "manual",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "tables-fragmentation",
       "paged-media-css",
@@ -466,11 +855,26 @@
       "Float placement may differ by a line where line-box heights diverge (CORE-90)",
       "The figure image scales identically (both engines honor the explicit width/height)",
       "Page-break positions may differ where a row's height differs between engines"
-    ]
+    ],
+    "baseline_pages": 9
   },
   {
     "name": "Spec Sheet — Northwind 2400 Series",
-    "file": "spec-sheet.html",
+    "file": "manual/spec-sheet.html",
+    "category": "manual",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "tables-fragmentation",
       "paged-media-css"
@@ -484,11 +888,26 @@
       "Four dense tables fragment across pages; row-boundary breaks may land on a different page where a row's height differs",
       "Header rows repeat on every fragment in both engines"
     ],
-    "expected_change": "CORE-370: h1-h6 carry Prince's UA break-after: avoid / break-inside: avoid, so section headings no longer strand before a table that moves to the next page. Page count is unchanged and the per-page pixel diff vs Prince falls 28.21 -> 21.33 pp (closer to Prince)"
+    "expected_change": "CORE-370: h1-h6 carry Prince's UA break-after: avoid / break-inside: avoid, so section headings no longer strand before a table that moves to the next page. Page count is unchanged and the per-page pixel diff vs Prince falls 28.21 -> 21.33 pp (closer to Prince)",
+    "baseline_pages": 5
   },
   {
     "name": "Price Catalog 2026 — Meridian Trading",
-    "file": "price-catalog.html",
+    "file": "manual/price-catalog.html",
+    "category": "manual",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "tables-fragmentation",
       "paged-media-css",
@@ -502,11 +921,26 @@
       "Two-column band width is fixed at 144pt per column; Prince may distribute the column gap slightly differently",
       "Nested price tables may measure header widths within a few tenths of a point between engines",
       "Prince may hyphenate differently in narrow cells"
-    ]
+    ],
+    "baseline_pages": 4
   },
   {
     "name": "Data Sheet — Fernwood Cloud Platform",
-    "file": "data-sheet.html",
+    "file": "manual/data-sheet.html",
+    "category": "manual",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "tables-fragmentation",
       "paged-media-css",
@@ -520,11 +954,26 @@
       "Float placement may differ by a line where line-box heights diverge (CORE-90)",
       "The figure image scales identically (both engines honor the explicit width/height)",
       "Page-break positions may differ where a row's height differs between engines"
-    ]
+    ],
+    "baseline_pages": 7
   },
   {
     "name": "Business Letter — Meridian Trading Co.",
-    "file": "business-letter.html",
+    "file": "letters/business-letter.html",
+    "category": "letters",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "paged-media-css",
       "fragmentation-core"
@@ -537,11 +986,26 @@
       "Margin-box fonts pinned to Arial in both engines; cover-page margin boxes are content: none",
       "Prince may apply default margins to the @page cover differently",
       "Justification glue distribution may differ slightly at identical widths"
-    ]
+    ],
+    "baseline_pages": 6
   },
   {
     "name": "Internal Memo — Platform Migration",
-    "file": "memo.html",
+    "file": "letters/memo.html",
+    "category": "letters",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "paged-media-css",
       "typography-layer"
@@ -554,11 +1018,26 @@
       "Running-header font pinned to Arial in both engines",
       "Prince may hyphenate differently in the header table cells",
       "Bulleted lists use the UA list styling; marker spacing may differ slightly"
-    ]
+    ],
+    "baseline_pages": 6
   },
   {
     "name": "Cover Letter — Application",
-    "file": "cover-letter.html",
+    "file": "letters/cover-letter.html",
+    "category": "letters",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "paged-media-css",
       "fragmentation-core",
@@ -571,11 +1050,26 @@
       "Hyphenation points may differ (different hyphenation dictionaries)",
       "Justification glue distribution may differ slightly at identical widths",
       "Margin-box page number is pinned to Arial in both engines"
-    ]
+    ],
+    "baseline_pages": 6
   },
   {
     "name": "Formal Notice — Service of Notice",
-    "file": "formal-notice.html",
+    "file": "letters/formal-notice.html",
+    "category": "letters",
+    "size": "small",
+    "oracle": "prince",
+    "roles": [
+      "gate",
+      "perf"
+    ],
+    "geometry": {
+      "width": "5in",
+      "height": "3in",
+      "margin": "0.5in"
+    },
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
     "wedge_features": [
       "paged-media-css",
       "fragmentation-core",
@@ -588,6 +1082,193 @@
       "Running-header font pinned to Arial in both engines; residual header diffs are layout-metric or structural",
       "The numbered clauses are an ordered list; marker indentation may differ slightly between engines",
       "Page-count parity expected; a one-page difference would come from accumulated line-break differences"
-    ]
+    ],
+    "baseline_pages": 7
+  },
+  {
+    "name": "Math Sample",
+    "file": "academic/math.html",
+    "category": "academic",
+    "size": "visual",
+    "roles": [
+      "showcase"
+    ],
+    "geometry": {
+      "width": "8.5in",
+      "height": "11in",
+      "margin": "0.75in"
+    },
+    "oracle": "prince",
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
+    "wedge_features": [
+      "math-rendering",
+      "paged-media-css"
+    ],
+    "known_limitations": [
+      "Text after an inline equation wraps to a new line (CORE-454)",
+      "Stretchy delimiters scale one glyph; no glyph assembly"
+    ],
+    "expected_deltas": [],
+    "baseline_pages": 1
+  },
+  {
+    "name": "Rich Media Print",
+    "file": "posters/poster.html",
+    "category": "posters",
+    "size": "visual",
+    "roles": [
+      "showcase"
+    ],
+    "geometry": {
+      "width": "8.5in",
+      "height": "11in",
+      "margin": "0.75in"
+    },
+    "oracle": "prince",
+    "source": "authored in-repo",
+    "license": "AGPL-3.0-only",
+    "wedge_features": [
+      "images",
+      "paged-media-css"
+    ],
+    "known_limitations": [],
+    "expected_deltas": [],
+    "baseline_pages": 1
+  },
+  {
+    "name": "WeasyPrint Invoice",
+    "file": "financial/weasyprint-invoice.html",
+    "category": "financial",
+    "size": "visual",
+    "roles": [
+      "showcase"
+    ],
+    "geometry": {
+      "width": "8.5in",
+      "height": "11in",
+      "margin": "0.75in"
+    },
+    "oracle": "weasyprint",
+    "source": "https://github.com/CourtBouillon/weasyprint-samples (adapted)",
+    "license": "public-domain samples; vendored fonts per LICENSES.md",
+    "wedge_features": [
+      "paged-media-css",
+      "tables-fragmentation",
+      "fragmentation-core",
+      "typography-layer"
+    ],
+    "known_limitations": [],
+    "expected_deltas": [],
+    "baseline_pages": 1
+  },
+  {
+    "name": "WeasyPrint Letter",
+    "file": "letters/weasyprint-letter.html",
+    "category": "letters",
+    "size": "visual",
+    "roles": [
+      "showcase"
+    ],
+    "geometry": {
+      "width": "8.5in",
+      "height": "11in",
+      "margin": "0.75in"
+    },
+    "oracle": "weasyprint",
+    "source": "https://github.com/CourtBouillon/weasyprint-samples (adapted)",
+    "license": "public-domain samples; vendored fonts per LICENSES.md",
+    "wedge_features": [
+      "paged-media-css",
+      "typography-layer",
+      "fragmentation-core"
+    ],
+    "known_limitations": [
+      "Header skyline background-image not rendered (CORE-319)"
+    ],
+    "expected_deltas": [],
+    "baseline_pages": 1
+  },
+  {
+    "name": "WeasyPrint Poster",
+    "file": "posters/weasyprint-poster.html",
+    "category": "posters",
+    "size": "visual",
+    "roles": [
+      "showcase"
+    ],
+    "geometry": {
+      "width": "8.5in",
+      "height": "11in",
+      "margin": "0.75in"
+    },
+    "oracle": "weasyprint",
+    "source": "https://github.com/CourtBouillon/weasyprint-samples (adapted)",
+    "license": "public-domain samples; vendored fonts per LICENSES.md",
+    "wedge_features": [
+      "paged-media-css",
+      "images",
+      "fragmentation-core"
+    ],
+    "known_limitations": [
+      "Over-paginates to 3 pages (WeasyPrint/Prince fit on 1): the flow content below the 20cm-offset title (date/sponsors/address) fragments onto page 2 and an empty page 3 is emitted — engine over-pagination family (CORE-232/237/240)"
+    ],
+    "expected_deltas": [],
+    "baseline_pages": 1
+  },
+  {
+    "name": "WeasyPrint Report",
+    "file": "reports/weasyprint-report.html",
+    "category": "reports",
+    "size": "visual",
+    "roles": [
+      "showcase"
+    ],
+    "geometry": {
+      "width": "8.5in",
+      "height": "11in",
+      "margin": "0.75in"
+    },
+    "oracle": "weasyprint",
+    "source": "https://github.com/CourtBouillon/weasyprint-samples (adapted)",
+    "license": "public-domain samples; vendored fonts per LICENSES.md",
+    "wedge_features": [
+      "paged-media-css",
+      "fragmentation-core",
+      "cross-references",
+      "typography-layer"
+    ],
+    "known_limitations": [
+      "Over-paginates to 13 pages (Prince: 8) — two-sided break-before:right/break-after:left design fragments into more near-empty pages than Prince",
+      "Cover background-image not rendered (CORE-319)",
+      "SVG figure icons wait for CORE-131 to reach main; raster figures only"
+    ],
+    "expected_deltas": [],
+    "baseline_pages": 10
+  },
+  {
+    "name": "WeasyPrint Ticket",
+    "file": "tickets/weasyprint-ticket.html",
+    "category": "tickets",
+    "size": "visual",
+    "roles": [
+      "showcase"
+    ],
+    "geometry": {
+      "width": "8.5in",
+      "height": "11in",
+      "margin": "0.75in"
+    },
+    "oracle": "weasyprint",
+    "source": "https://github.com/CourtBouillon/weasyprint-samples (adapted)",
+    "license": "public-domain samples; vendored fonts per LICENSES.md",
+    "wedge_features": [
+      "paged-media-css",
+      "fragmentation-core",
+      "typography-layer"
+    ],
+    "known_limitations": [],
+    "expected_deltas": [],
+    "baseline_pages": 1
   }
 ]

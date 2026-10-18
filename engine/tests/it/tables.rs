@@ -556,7 +556,7 @@ fn test_table_stress_page_count_grows() {
     // column ≈57pt = the header width; the standard CSS algorithm measures
     // all rows → 112pt). Tracked as a follow-up (CORE-89); this test guards
     // against regressing back to the content-scaling heuristic.
-    let src = std::fs::read_to_string("../demo/corpus/table-stress.html")
+    let src = std::fs::read_to_string("../library/stress/table-stress.html")
         .expect("table-stress corpus fixture");
     let geo = geometry(5.0, 3.0, 0.5);
     let l = lay(&src, geo);
@@ -834,7 +834,7 @@ fn test_table_stress_freeze_pages_ge_40() {
     // AC 6 (the ticket's Done line): the corpus fixture at the demo geometry
     // moves from 21 pages (standard algorithm) to ≥ 40 (Prince: 45) once the
     // first-page freeze narrows the Description column to ≈ the header width.
-    let src = std::fs::read_to_string("../demo/corpus/table-stress.html")
+    let src = std::fs::read_to_string("../library/stress/table-stress.html")
         .expect("table-stress corpus fixture");
     let geo = geometry(5.0, 3.0, 0.5);
     let l = lay(&src, geo);

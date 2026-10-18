@@ -63,7 +63,7 @@ margins → 288pt content width — the build-demo.sh flags):**
   width), Prince splits col1 ≈ 293pt / col2 ≈ 23pt, matching the css-tables-3
   middle branch within measurement error (predicted 297 / 22.9).
   Measurement method: char-box geometry from both PDFs
-  (`demo/scripts/col_words.py`), using the repository's column-geometry method.
+  (`scripts/demo/col_words.py`), using the repository's column-geometry method.
 
 **Fitness function:** the table-stress corpus fixture page count moves
 materially toward Prince's 45 (from 20), plus the parity probe below, plus
@@ -283,7 +283,7 @@ pipeline:
    and the Description column ≈ its min-content ≈ 112pt (Prince-verified
    token width) and the long descriptions wrap to 2+ lines
    (`test_table_stress_description_column_wraps`).
-7. **Table-stress page-count movement** — Given `demo/corpus/table-stress.html`
+7. **Table-stress page-count movement** — Given `library/stress/table-stress.html`
    rendered through the engine at the demo geometry (build-demo.sh flags:
    `--page-width 5in --page-height 3in`, 0.5in margins), when the page count
    is measured, then it is > 20 (measured 21; the old heuristic pinned 20 —
@@ -326,9 +326,9 @@ pipeline:
 2. `python3 scripts/validate_docs.py` OK (this spec + updated specs).
 3. Probe parity: render the two-column probe and table-stress with both
    engines; compare column boundaries and wrapped/unwrapped cell geometry via
-   char-box extraction (`demo/scripts/col_words.py <pdf>`) — the
+   char-box extraction (`scripts/demo/col_words.py <pdf>`) — the
    technique that produced the ground truth above.
-4. `demo/corpus/out/scoreboard.json` regenerated; table-stress `typeanvil_pages`
+4. `library/out/compare/scoreboard.json` regenerated; table-stress `typeanvil_pages`
    moves 20 → 21 (see Overview; first-page measurement addresses the residual gap) and the
    overall diff drops below 33.5%.
 5. Record the implementation, verification, and any remaining parity work in
@@ -345,4 +345,4 @@ pipeline:
   UAX #14 min-content note is filed under (Behavior 1 deviation).
 - Prince ground truth: `/tmp/ts-prince-5x3.pdf` (demo geometry, 45 pages),
   `/tmp/probe-constrained-prince.pdf` (320pt probe split 293/23),
-  `demo/scripts/col_words.py` (char-box word dumps, 2026-08-20).
+  `scripts/demo/col_words.py` (char-box word dumps, 2026-08-20).

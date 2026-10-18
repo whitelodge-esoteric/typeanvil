@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-17
-updated: 2026-10-16
+updated: 2026-10-17
 sidebar_position: 5
 tags: [demo, comparison, prince, gallery, pipeline]
 spec_id: visual-comparison-demo
@@ -45,9 +45,9 @@ strength.
 
 - A deterministic `scripts/build-demo.sh` that renders the corpus through
   both engines with **identical CLI flags**, rasterizes page-by-page, diffs,
-  and writes a gallery into `demo/corpus/README.md` plus a scoreboard at
-  `demo/corpus/out/scoreboard.json`. Every corpus-track artifact SHALL live
-  under `demo/corpus/`, mirroring the showcase track's layout.
+  and writes a gallery into `library/README.md` plus a scoreboard at
+  `library/out/compare/scoreboard.json`. Every comparison artifact SHALL live
+  under `library/` (CORE-488; see document-library.spec.md).
 - A corpus of 6–8 real documents, each exercising a **shipped** wedge feature
   (fragmentation, paged-media CSS, typography), self-contained (fonts/assets
   resolve via `--base-url`).
@@ -71,13 +71,14 @@ strength.
 
 The demo SHALL implement the following, stated as "shall" rules:
 
-1. **Corpus definition.** The corpus SHALL live in `demo/corpus/` as
-   self-contained `.html` files plus `manifest.json`. Each fixture SHALL
+1. **Corpus definition.** The corpus is the set of `library/` documents tagged
+   `gate` with oracle `prince` (document-library.spec.md): self-contained
+   `.html` files plus `library/manifest.json`. Each fixture SHALL
    exercise at least one shipped wedge feature and SHALL render through both
    engines without crashing (a fixture that crashes either engine is a corpus
    bug, not a skip). Known-gap features SHALL be used minimally or not at all,
    with an explicit "known gap" note in the manifest.
-2. **Manifest schema.** `demo/corpus/manifest.json` SHALL be a JSON array of
+2. **Manifest schema.** `library/manifest.json` SHALL be a JSON array of
    doc objects, each with: `name` (display title), `file` (relative path),
    `wedge_features` (array of feature slugs from
    `fragmentation-core | paged-media-css | typography-layer |
@@ -109,7 +110,7 @@ The demo SHALL implement the following, stated as "shall" rules:
    absolute per-pixel channel difference, reported as a **diff percentage**
    (fraction of pixels differing beyond a small tolerance, 0–100). The
    TypeAnvil render is the *test* side, Prince is the *reference* side.
-6. **Scoreboard schema.** `demo/corpus/out/scoreboard.json` SHALL be a JSON object:
+6. **Scoreboard schema.** `library/out/compare/scoreboard.json` SHALL be a JSON object:
    `{ "generated": <ISO timestamp>, "typeanvil_version": <git short sha>,
    "prince_version": <prince --version output or null>, "docs": [ { "name",
    "file", "typeanvil_pages", "prince_pages", "page_count_mismatch": bool,
@@ -129,7 +130,7 @@ The demo SHALL implement the following, stated as "shall" rules:
    undocumented.
 8. **Gallery interface.** The gallery SHALL be a GitHub-viewable markdown
    document, and it SHALL be the `README.md` of the corpus track itself
-   (`demo/corpus/README.md`) — not a separate `index.md`, and not an HTML
+   (`library/README.md`) — not a separate `index.md`, and not an HTML
    page. The generated body SHALL contain, per doc: a header (name + the
    manifest's wedge features, known limitations, and expected deltas), the
    two page sequences side by side in a markdown table (TypeAnvil left,
@@ -144,15 +145,15 @@ The demo SHALL implement the following, stated as "shall" rules:
    committed gallery artifact (the HTML page and its inlined base64 images
    were dropped as redundant, superseded by this requirement).
 9. **Determinism.** Re-running `scripts/build-demo.sh` on an unchanged tree
-   SHALL produce byte-identical `demo/corpus/out/` (sorted iteration, no
+   SHALL produce byte-identical `library/out/compare/` (sorted iteration, no
    timestamps in image files; the only timestamp is `generated` in the
    scoreboard JSON).
 10. **Failure isolation.** A render failure for one doc SHALL NOT abort the
     pipeline: the doc is marked `render_error: <stderr tail>` in the
     scoreboard, its page images show a placeholder, and the pipeline
     continues. A missing Prince binary SHALL abort with a clear message
-    pointing at `demo/corpus/README.md` (install + license steps).
-11. **License honesty.** `demo/corpus/README.md` SHALL document that this
+    pointing at `library/README.md` (install + license steps).
+11. **License honesty.** `library/README.md` SHALL document that this
     track uses Prince's free non-commercial license, comparison-only, with
     install and version-pin steps.
 
@@ -164,17 +165,17 @@ The demo SHALL implement the following, stated as "shall" rules:
   <out.pdf>` — Prince wrapper honoring the CLI contract; records
   `prince --version`.
 - `scripts/build-demo.sh` — full pipeline: for each corpus doc → render both
-  → rasterize → diff → write `demo/corpus/out/scoreboard.json` and splice the
-  gallery into `demo/corpus/README.md`.
+  → rasterize → diff → write `library/out/compare/scoreboard.json` and splice the
+  gallery into `library/README.md`.
 - `scripts/demo_compare.py assemble` — owns the README splice for BOTH tracks
   (`--readme`, `--marker`, `--image-prefix`), so the corpus and showcase
   galleries share one implementation and neither emits an intermediate
   `index.md`.
-- `demo/corpus/README.md` — Prince install/license/version-pin documentation
-  plus the generated gallery. `demo/README.md` is the short index that
-  describes both tracks.
+- `library/README.md` — Prince install/license/version-pin documentation
+  plus the generated gallery. The library layout, tags and filters are
+  defined in document-library.spec.md.
 
-**Manifest shape** (`demo/corpus/manifest.json`):
+**Manifest shape** (`library/manifest.json`):
 
 ```json
 [
@@ -188,7 +189,7 @@ The demo SHALL implement the following, stated as "shall" rules:
 ]
 ```
 
-**Scoreboard shape** (`demo/corpus/out/scoreboard.json`):
+**Scoreboard shape** (`library/out/compare/scoreboard.json`):
 
 ```json
 {
@@ -229,7 +230,7 @@ Each maps to a real check in `scripts/build-demo.sh` or a committed artifact:
 
 1. **Pipeline runs** — Given a clean checkout with Prince installed, when
    `scripts/build-demo.sh` runs, then it exits 0, writes the gallery into
-   `demo/corpus/README.md`, and produces `demo/corpus/out/scoreboard.json`
+   `library/README.md`, and produces `library/out/compare/scoreboard.json`
    with an entry for every corpus doc (`build-demo` completes without
    aborting on any single-doc failure).
 2. **Scoreboard validates** — Given the emitted scoreboard, when checked
@@ -240,13 +241,13 @@ Each maps to a real check in `scripts/build-demo.sh` or a committed artifact:
    are compared, then the page-geometry flags are identical between
    `typeanvil render` and `scripts/render-prince.sh` (asserted by the
    pipeline's command construction, visible in `--dry-run` output).
-4. **Gallery is static and single** — Given `demo/corpus/README.md`, when
+4. **Gallery is static and single** — Given `library/README.md`, when
    viewed on GitHub or in a local markdown preview, then it renders both
    engines' pages side by side with per-page diff % and per-doc notes, and
    every image path resolves relative to the README. No `index.md` and no
-   `index.html` SHALL exist under `demo/corpus/out/`.
+   `index.html` SHALL exist under `library/out/compare/`.
 5. **Determinism** — Given two consecutive pipeline runs on an unchanged
-   tree, when the outputs are compared, then `demo/corpus/out/` is byte-identical
+   tree, when the outputs are compared, then `library/out/compare/` is byte-identical
    except `scoreboard.json`'s `generated` field.
 6. **Failure isolation** — Given a deliberately broken fixture (temporarily),
    when the pipeline runs, then it completes, the broken doc shows
@@ -257,7 +258,7 @@ Each maps to a real check in `scripts/build-demo.sh` or a committed artifact:
 ## Edge Cases
 
 - **Missing Prince binary** — pipeline aborts with a clear message;
-  `demo/corpus/README.md` has the install and free-license steps.
+  `library/README.md` has the install and free-license steps.
 - **Page-count mismatch** — recorded in the scoreboard, not a crash; gallery
   shows both page sequences with the count noted.
 - **Zero-diff tolerance** — sub-1% diffs from font substitution/antialiasing
@@ -293,11 +294,11 @@ Each maps to a real check in `scripts/build-demo.sh` or a committed artifact:
 
 1. `python3 scripts/validate_docs.py` — OK (this spec).
 2. `scripts/render-prince.sh` renders a corpus fixture with the identical flag
-   set as the engine; `demo/corpus/README.md` documents license and version
+   set as the engine; `library/README.md` documents license and version
    pin.
 3. All corpus fixtures render through both engines without crashing;
    `manifest.json` complete and committed.
-4. The `demo/corpus/README.md` gallery and `scoreboard.json` build from a
+4. The `library/README.md` gallery and `scoreboard.json` build from a
    clean checkout; the scoreboard validates; a re-run is byte-identical.
 5. Baseline gallery and scoreboard committed; every doc bucketed
    (identical/cosmetic/missing-feature/engine-bug); genuine engine bugs filed

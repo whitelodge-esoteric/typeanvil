@@ -71,7 +71,7 @@ several classes; 1 = niche, rarely decisive.**
 
 ## 4. Corpus expansion: 7 → ~20-30 documents
 
-The current comparison corpus (`demo/corpus/manifest.json`) has 8 fixtures:
+The current comparison corpus (`library/manifest.json`) has 8 fixtures:
 Invoice, Quarterly Report, Academic Paper, Letterhead, Inventory Ledger
 (table-stress), Float Showcase, Prose Showcase, Invoice — Statement of Account.
 It is feature-driven (one fixture per feature) rather than document-driven.

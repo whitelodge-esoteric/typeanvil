@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # build-showcase.sh — render the showcase fixtures through TypeAnvil at
 # realistic print geometry (US Letter @ 300 DPI) and assemble the markdown
-# gallery written into demo/showcase/README.md (CORE-148).
+# gallery written into library/SHOWCASE.md (CORE-148).
 #
 # CORE-217 adds an ADDITIVE, unstressed Prince reference overlay: every
 # fixture is also rendered through host Prince at the identical geometry and
-# rasterized into page-NNN-pr.png, plus demo/showcase/out/inspect.md — a
+# rasterized into page-NNN-pr.png, plus library/out/showcase/inspect.md — a
 # per-page TypeAnvil | Prince side-by-side that is NOT scored and NOT part of
 # the gallery. A Prince failure never aborts the build.
 #
@@ -48,47 +48,64 @@ if [ -z "${PRINCE_BIN:-}" ]; then
 fi
 # render-prince.sh reads PRINCE_BIN from the environment.
 export PRINCE_BIN
-SHOWCASE_DIR="demo/showcase"
-OUT="demo/showcase/out"
+LIBRARY_DIR="library"
+OUT="library/out/showcase"
 WORK="$OUT/.work"
 IMAGES="$OUT/images"
-MANIFEST="demo/showcase/manifest.json"
-SHOWCASE_README="demo/showcase/README.md"
+MANIFEST="library/manifest.json"
+SHOWCASE_README="library/SHOWCASE.md"
 MARKER="<!-- BEGIN GENERATED SHOWCASE -->"
 # Unstressed Prince reference overlay (CORE-217). Lives inside out/ so the
 # existing check-determinism walk covers it; never spliced into the README.
 INSPECT="$OUT/inspect.md"
-# Realistic print geometry. Fixture-internal @page rules (e.g. the poster's
-# 0in margins) override these CLI defaults per @page cascade.
-GEOM_FLAGS="--page-width 8.5in --page-height 11in --margin-top 0.75in --margin-right 0.75in --margin-bottom 0.75in --margin-left 0.75in"
+# Per-document geometry comes from library/manifest.json (CORE-488); the
+# showcase documents declare US Letter with 0.75in margins. Fixture-internal
+# @page rules (e.g. the poster's 0in margins) override per @page cascade.
 DPI=300
 
 usage() {
   cat <<'EOF'
-usage: build-showcase.sh [--dry-run] [--keep-work] [--determinism]
+usage: build-showcase.sh [--role R] [--size S] [--oracle O] [--category C]
+                         [--dry-run] [--keep-work] [--determinism]
 
+  --role/--size/--oracle/--category
+                   manifest tag filters; default --role showcase
   --dry-run        print the exact render commands without running them
   --keep-work      keep .work dir (default: cleaned at exit)
-  --determinism    build twice and byte-compare demo/showcase/out
+  --determinism    build twice and byte-compare library/out/showcase
 
 Each fixture renders through TypeAnvil (the gallery) and, additively, through
 host Prince (the unstressed reference overlay written as page-NNN-pr.png plus
-demo/showcase/out/inspect.md). A Prince failure is recorded, never fatal.
+library/out/showcase/inspect.md). A Prince failure is recorded, never fatal.
 EOF
 }
 
 DRY_RUN=0
 KEEP_WORK=0
 DO_DETERMINISM=0
-for arg in "$@"; do
-  case "$arg" in
+ROLE="showcase"
+SIZE=""
+ORACLE=""
+CATEGORY=""
+while [ $# -gt 0 ]; do
+  case "$1" in
     --dry-run) DRY_RUN=1 ;;
     --keep-work) KEEP_WORK=1 ;;
     --determinism) DO_DETERMINISM=1 ;;
+    --role) ROLE="$2"; shift ;;
+    --size) SIZE="$2"; shift ;;
+    --oracle) ORACLE="$2"; shift ;;
+    --category) CATEGORY="$2"; shift ;;
     -h|--help) usage; exit 0 ;;
-    *) echo "error: unknown option $arg" >&2; usage; exit 2 ;;
+    *) echo "error: unknown option $1" >&2; usage; exit 2 ;;
   esac
+  shift
 done
+FILTER_ARGS=()
+[ -n "$ROLE" ] && FILTER_ARGS+=(--role "$ROLE")
+[ -n "$SIZE" ] && FILTER_ARGS+=(--size "$SIZE")
+[ -n "$ORACLE" ] && FILTER_ARGS+=(--oracle "$ORACLE")
+[ -n "$CATEGORY" ] && FILTER_ARGS+=(--category "$CATEGORY")
 
 if [ ! -x "$ENGINE_BIN" ]; then
   echo "error: engine binary not found ($ENGINE_BIN). Host cargo builds are banned (CORE-168): build in the container and set ENGINE_BIN=scripts/engine-in-container.sh. See docs/operations/dev-container.md." >&2
@@ -102,9 +119,13 @@ TA_VERSION="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 PRINCE_VERSION="$("$PRINCE_BIN" --version 2>&1 | head -1 || true)"
 
 entries=()
-while IFS=$'\t' read -r file name; do
-  [ -n "$file" ] && entries+=("$file|$name")
-done < <("$PY" scripts/demo_compare.py list-manifest --manifest "$MANIFEST")
+geoms=()
+while IFS=$'\t' read -r file name geom; do
+  if [ -n "$file" ]; then
+    entries+=("$file|$name")
+    geoms+=("$geom")
+  fi
+done < <("$PY" scripts/demo_compare.py list-manifest --manifest "$MANIFEST" ${FILTER_ARGS[@]+"${FILTER_ARGS[@]}"})
 
 if [ ${#entries[@]} -eq 0 ]; then
   echo "error: no showcase entries from manifest $MANIFEST" >&2
@@ -117,21 +138,26 @@ FAILED=0
 # Prince failures are recorded and isolated (an overlay must never break the
 # gallery); they do not set FAILED.
 PRINCE_FAILED=0
+idx=-1
 for entry in "${entries[@]}"; do
-  file="${entry%%|*}"
+  idx=$((idx + 1))
+  rel="${entry%%|*}"          # <category>/<doc>.html, relative to library/
   name="${entry##*|}"
+  GEOM_FLAGS="${geoms[$idx]}"
+  file="$(basename "$rel")"
+  fixture_dir="$LIBRARY_DIR/$(dirname "$rel")"
   base="${file%.html}"
   ta_pdf="$WORK/$base-ta.pdf"
 
   if [ "$DRY_RUN" = "1" ]; then
-    echo "[dry] (cd $SHOWCASE_DIR && $ENGINE_BIN render $file $GEOM_FLAGS -o $REPO_ROOT/$ta_pdf)"
-    echo "[dry] (cd $SHOWCASE_DIR && scripts/render-prince.sh $file $GEOM_FLAGS -o $REPO_ROOT/$WORK/$base-pr.pdf)  # reference overlay, not scored"
+    echo "[dry] (cd $fixture_dir && $ENGINE_BIN render $file $GEOM_FLAGS -o $REPO_ROOT/$ta_pdf)"
+    echo "[dry] (cd $fixture_dir && scripts/render-prince.sh $file $GEOM_FLAGS -o $REPO_ROOT/$WORK/$base-pr.pdf)  # reference overlay, not scored"
     continue
   fi
 
-  # Render from the showcase dir so relative url()/src resolve like the
-  # comparison corpus (base-url threading is CORE-140).
-  if (cd "$SHOWCASE_DIR" && "$ENGINE_BIN" render "$file" $GEOM_FLAGS -o "$REPO_ROOT/$ta_pdf" 2>"$REPO_ROOT/$WORK/$base-ta.err"); then
+  # Render from the fixture's directory so relative url()/src resolve like
+  # the comparison corpus (base-url threading is CORE-140).
+  if (cd "$fixture_dir" && "$ENGINE_BIN" render "$file" $GEOM_FLAGS -o "$REPO_ROOT/$ta_pdf" 2>"$REPO_ROOT/$WORK/$base-ta.err"); then
     echo "TA  ok   $file"
   else
     echo "TA  FAIL $file :: $(head -1 "$WORK/$base-ta.err")"
@@ -176,15 +202,20 @@ if ! command -v "$PRINCE_BIN" >/dev/null 2>&1 && [ ! -x "$PRINCE_BIN" ]; then
   PRINCE_AVAILABLE=0
   PRINCE_FAILED=1
   for entry in "${entries[@]}"; do
-    base="${entry%%|*}"
+    base="$(basename "${entry%%|*}")"
     base="${base%.html}"
     rm -f "$IMAGES/$base"/page-*-pr.png
   done
 fi
 
 if [ "$PRINCE_AVAILABLE" = "1" ]; then
+idx=-1
 for entry in "${entries[@]}"; do
-  file="${entry%%|*}"
+  idx=$((idx + 1))
+  rel="${entry%%|*}"
+  GEOM_FLAGS="${geoms[$idx]}"
+  file="$(basename "$rel")"
+  fixture_dir="$LIBRARY_DIR/$(dirname "$rel")"
   base="${file%.html}"
   pr_pdf="$WORK/$base-pr.pdf"
   pr_dir="$IMAGES/$base"
@@ -193,7 +224,7 @@ for entry in "${entries[@]}"; do
   # rather than a previous build's pages.
   rm -f "$pr_dir"/page-*-pr.png
 
-  if (cd "$SHOWCASE_DIR" && "$REPO_ROOT/scripts/render-prince.sh" "$file" $GEOM_FLAGS -o "$REPO_ROOT/$pr_pdf" 2>"$REPO_ROOT/$WORK/$base-pr.err"); then
+  if (cd "$fixture_dir" && "$REPO_ROOT/scripts/render-prince.sh" "$file" $GEOM_FLAGS -o "$REPO_ROOT/$pr_pdf" 2>"$REPO_ROOT/$WORK/$base-pr.err"); then
     echo "PR  ok   $file"
   else
     echo "PR  FAIL $file :: $(head -1 "$WORK/$base-pr.err")" >&2
@@ -240,8 +271,9 @@ if [ "$FAILED" = "0" ]; then
   --images-dir "$IMAGES" \
   --readme "$SHOWCASE_README" \
   --marker "$MARKER" \
-  --image-prefix out/images \
-  --typeanvil-version "$TA_VERSION"
+  --image-prefix out/showcase/images \
+  --typeanvil-version "$TA_VERSION" \
+  ${FILTER_ARGS[@]+"${FILTER_ARGS[@]}"}
 fi
 
 # Inspection page (CORE-217): TypeAnvil | Prince per-page side-by-side. Lives
@@ -251,19 +283,20 @@ fi
   --manifest "$MANIFEST" \
   --images-dir "$IMAGES" \
   --out "$INSPECT" \
-  --image-prefix images
+  --image-prefix images \
+  ${FILTER_ARGS[@]+"${FILTER_ARGS[@]}"}
 
 # Determinism mode: byte-compare two consecutive builds (spec §Behavior 5).
 if [ "$DO_DETERMINISM" = "1" ]; then
-  BASELINE="demo/showcase/out.baseline"
+  BASELINE="library/out/showcase.baseline"
   rm -rf "$BASELINE"
   cp -R "$OUT" "$BASELINE"
-  # The generated gallery lives in demo/showcase/README.md, not inside out/,
+  # The generated gallery lives in library/SHOWCASE.md, not inside out/,
   # so snapshot it here and byte-compare it after the rebuild as well.
   README_SNAP="$(mktemp -t typeanvil-showcase-readme)"
   cp "$SHOWCASE_README" "$README_SNAP"
   rm -rf "$OUT"
-  "$0" --keep-work
+  "$0" --keep-work ${FILTER_ARGS[@]+"${FILTER_ARGS[@]}"}
   "$PY" scripts/demo_compare.py check-determinism "$BASELINE" "$OUT" 2>&1 || {
     echo "showcase determinism FAILED (see above)" >&2
     exit 1

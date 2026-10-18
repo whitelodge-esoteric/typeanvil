@@ -824,7 +824,7 @@ def compare_output_dirs(baseline: Path, current: Path) -> list[str]:
     # the scoreboard (normalized), and the page images. Internal dirs (.work,
     # .results) hold intermediate PDFs/stderr that legitimately differ
     # (e.g. Prince embeds timestamps) — the spec's byte-identity applies to
-    # demo/corpus/out deliverables only (§Behavior 9).
+    # library/out/compare deliverables only (§Behavior 9).
     def collect(root: Path) -> set[Path]:
         return {
             p.relative_to(root)
@@ -869,14 +869,75 @@ def _read_results(path: Path) -> list[dict]:
     return results
 
 
-def list_manifest_entries(path: Path) -> Iterable[tuple[str, str]]:
+def entry_matches(
+    entry: dict,
+    role: str | None = None,
+    size: str | None = None,
+    oracle: str | None = None,
+    category: str | None = None,
+) -> bool:
+    """Tag filter for library manifest entries (CORE-488). An unset filter
+    matches everything; entries without the field (repros manifest) fail a
+    set filter."""
+    if role and role not in (entry.get("roles") or []):
+        return False
+    if size and entry.get("size") != size:
+        return False
+    if oracle and entry.get("oracle") != oracle:
+        return False
+    if category and entry.get("category") != category:
+        return False
+    return True
+
+
+def list_manifest_dicts(
+    path: Path,
+    role: str | None = None,
+    size: str | None = None,
+    oracle: str | None = None,
+    category: str | None = None,
+) -> list[dict]:
+    """Manifest entries passing the tag filters, sorted by file path."""
     data = json.loads(path.read_text(encoding="utf-8"))
-    entries = []
-    for entry in data:
-        if isinstance(entry, dict) and "file" in entry and "name" in entry:
-            entries.append((str(entry["file"]), str(entry["name"])))
-    for file, name in sorted(entries, key=lambda item: item[0]):
-        yield file, name
+    entries = [
+        e
+        for e in data
+        if isinstance(e, dict)
+        and "file" in e
+        and "name" in e
+        and entry_matches(e, role, size, oracle, category)
+    ]
+    return sorted(entries, key=lambda e: str(e["file"]))
+
+
+def list_manifest_entries(
+    path: Path,
+    role: str | None = None,
+    size: str | None = None,
+    oracle: str | None = None,
+    category: str | None = None,
+) -> Iterable[tuple[str, str]]:
+    for e in list_manifest_dicts(path, role, size, oracle, category):
+        yield str(e["file"]), str(e["name"])
+
+
+def _filters(args: argparse.Namespace) -> dict:
+    """Tag-filter kwargs from parsed CLI args (unset filters dropped)."""
+    return {
+        k: getattr(args, k)
+        for k in ("role", "size", "oracle", "category")
+        if getattr(args, k, None)
+    }
+
+
+def geometry_flags(entry: dict) -> str:
+    """The `typeanvil render` page flags for an entry's `geometry` field."""
+    g = entry["geometry"]
+    m = g["margin"]
+    return (
+        f"--page-width {g['width']} --page-height {g['height']} "
+        f"--margin-top {m} --margin-right {m} --margin-bottom {m} --margin-left {m}"
+    )
 
 
 def render_showcase_md(
@@ -884,13 +945,14 @@ def render_showcase_md(
     images_dir: Path,
     typeanvil_version: str,
     image_prefix: str = "out/images",
+    filters: dict | None = None,
 ) -> str:
     """Markdown showcase gallery body (CORE-148).
 
     Returns a deterministic markdown body: one section per manifest fixture,
     per-page <img> tags referencing the rasterized PNGs at
     `<image_prefix>/<base>/page-NNN-ta.png`, relative to the showcase README.
-    The caller splices it into demo/showcase/README.md below its marker.
+    The caller splices it into library/SHOWCASE.md below its marker.
     No timestamps — showcase output is byte-identical across rebuilds.
     """
     lines: list[str] = []
@@ -899,14 +961,14 @@ def render_showcase_md(
     lines.append(
         "Realistic-size pages rendered by the TypeAnvil engine only "
         f"(commit `{typeanvil_version}`). The side-by-side comparison "
-        "gallery lives in [the comparison README](../corpus/README.md) and "
-        "runs at 5in × 3in @ 96 DPI so diffs stay cheap; these pages show the "
-        "same engine at the geometry documents actually print at. Prince "
-        "renders only the comparison pipeline — the showcase is a TypeAnvil "
-        "output gallery, not a diff target."
+        "gallery lives in [the library README](README.md) and "
+        "runs the `gate` documents at their small geometry so diffs stay "
+        "cheap; these pages show the same engine at the geometry documents "
+        "actually print at. Prince renders only the comparison pipeline — "
+        "the showcase is a TypeAnvil output gallery, not a diff target."
     )
     lines.append("")
-    for file, name in list_manifest_entries(manifest_path):
+    for file, name in list_manifest_entries(manifest_path, **(filters or {})):
         base = Path(file).stem
         page_dir = images_dir / base
         pages = sorted(page_dir.glob("page-*-ta.png")) if page_dir.is_dir() else []
@@ -923,7 +985,7 @@ def render_showcase_md(
             lines.append("")
             continue
         for png in pages:
-            # Relative to demo/showcase/ (where README.md lives).
+            # Relative to library/ (where SHOWCASE.md lives).
             rel = f"{image_prefix}/{base}/{png.name}"
             lines.append(f'<img src="{rel}" alt="{name} — {png.stem}" width="420">')
         lines.append("")
@@ -1016,6 +1078,7 @@ def render_showcase_inspect_md(
     manifest_path: Path,
     images_dir: Path,
     image_prefix: str = "images",
+    filters: dict | None = None,
 ) -> str:
     """Markdown inspection body: per-page TypeAnvil | Prince side-by-side.
 
@@ -1039,7 +1102,7 @@ def render_showcase_inspect_md(
         "is recorded here, not scored."
     )
     lines.append("")
-    for file, name in list_manifest_entries(manifest_path):
+    for file, name in list_manifest_entries(manifest_path, **(filters or {})):
         base = Path(file).stem
         page_dir = images_dir / base
         ta_pages = sorted(page_dir.glob("page-*-ta.png")) if page_dir.is_dir() else []
@@ -1143,8 +1206,13 @@ def main() -> int:
     validate_p = sub.add_parser("validate-scoreboard", help="Validate scoreboard schema")
     validate_p.add_argument("path")
 
-    list_p = sub.add_parser("list-manifest", help="Emit manifest entries (file<TAB>name)")
+    list_p = sub.add_parser(
+        "list-manifest",
+        help="Emit manifest entries (file<TAB>name<TAB>geometry flags), tag-filtered",
+    )
     list_p.add_argument("--manifest", required=True)
+    for _flag in ("role", "size", "oracle", "category"):
+        list_p.add_argument(f"--{_flag}", default=None)
 
     showcase_p = sub.add_parser(
         "assemble-showcase", help="Assemble the showcase markdown gallery (CORE-148)"
@@ -1155,6 +1223,8 @@ def main() -> int:
     showcase_p.add_argument("--marker", required=True)
     showcase_p.add_argument("--typeanvil-version", required=True)
     showcase_p.add_argument("--image-prefix", default="out/images")
+    for _flag in ("role", "size", "oracle", "category"):
+        showcase_p.add_argument(f"--{_flag}", default=None)
 
     inspect_p = sub.add_parser(
         "assemble-showcase-inspect",
@@ -1168,6 +1238,8 @@ def main() -> int:
         default="images",
         help="Path from the inspection page's directory to the images directory.",
     )
+    for _flag in ("role", "size", "oracle", "category"):
+        inspect_p.add_argument(f"--{_flag}", default=None)
 
     det_p = sub.add_parser("check-determinism", help="Compare two output dirs")
     det_p.add_argument("baseline")
@@ -1249,8 +1321,11 @@ def main() -> int:
         return 0
 
     if args.cmd == "list-manifest":
-        for file, name in list_manifest_entries(Path(args.manifest)):
-            print(f"{file}\t{name}")
+        for e in list_manifest_dicts(
+            Path(args.manifest), args.role, args.size, args.oracle, args.category
+        ):
+            geom = geometry_flags(e) if "geometry" in e else ""
+            print(f"{e['file']}\t{e['name']}\t{geom}")
         return 0
 
     if args.cmd == "assemble-showcase":
@@ -1259,6 +1334,7 @@ def main() -> int:
             images_dir=Path(args.images_dir),
             typeanvil_version=args.typeanvil_version,
             image_prefix=args.image_prefix,
+            filters=_filters(args),
         )
         splice_readme(Path(args.readme), args.marker, body)
         print(f"showcase gallery: {args.readme}")
@@ -1269,6 +1345,7 @@ def main() -> int:
             manifest_path=Path(args.manifest),
             images_dir=Path(args.images_dir),
             image_prefix=args.image_prefix,
+            filters=_filters(args),
         )
         out = Path(args.out)
         _ensure_dir(out.parent)

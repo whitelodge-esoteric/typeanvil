@@ -5,9 +5,9 @@
 # Contract: docs/specifications/visual-comparison-demo.spec.md
 #   §Behavior 1-11, §Interfaces, §Acceptance Criteria.
 #
-# Output: the gallery section of demo/corpus/README.md, plus the artifacts in
-# demo/corpus/out/ (per-page images, scoreboard.json). Every corpus-track file
-# lives under demo/corpus/, mirroring demo/showcase/.
+# Output: the gallery section of library/README.md, plus the artifacts in
+# library/out/compare/ (per-page images, scoreboard.json). Documents come from
+# library/manifest.json filtered by tag (CORE-488); repros from repros/.
 # Deterministic: re-run on an unchanged tree is byte-identical except the
 # scoreboard's "generated" field.
 set -euo pipefail
@@ -30,24 +30,33 @@ fi
 ENGINE_BIN="${ENGINE_BIN:-$REPO_ROOT/engine/target/debug/typeanvil}"
 case "$ENGINE_BIN" in /*) ;; *) ENGINE_BIN="$REPO_ROOT/$ENGINE_BIN" ;; esac
 PRINCE_BIN="${PRINCE_BIN:-prince}"
-OUT="${OUT_DIR:-demo/corpus/out}"
+OUT="${OUT_DIR:-library/out/compare}"
 WORK="$OUT/.work"
 IMAGES="$OUT/images"
 RESULTS="$OUT/.results"
-GEOM_FLAGS="--page-width 5in --page-height 3in --margin-top 0.5in --margin-right 0.5in --margin-bottom 0.5in --margin-left 0.5in"
-MANIFEST="demo/corpus/manifest.json"
-BENCH_MANIFEST="demo/corpus/benchmark_manifest.json"
+# Per-document geometry comes from library/manifest.json (CORE-488); the
+# repro layer renders at the fixed small geometry below.
+BENCH_GEOM_FLAGS="--page-width 5in --page-height 3in --margin-top 0.5in --margin-right 0.5in --margin-bottom 0.5in --margin-left 0.5in"
+MANIFEST="library/manifest.json"
+BENCH_MANIFEST="repros/manifest.json"
 # Fixtures resolve relative asset URLs (img src, @font-face url()) against
 # the process CWD on main (CORE-103 note: --base-url threading lands with
-# CORE-140's link-CSS work). Render with the corpus dir as CWD so both
-# engines resolve `assets/...` identically.
-CORPUS_DIR="demo/corpus"
+# CORE-140's link-CSS work). Render with the fixture's own directory as CWD
+# so both engines resolve `assets/...` identically.
+LIBRARY_DIR="library"
+REPROS_DIR="repros"
+README_OUT="library/README.md"
 
 usage() {
   cat <<'EOF'
-usage: build-demo.sh [--dry-run] [--keep-work] [--validate] [--determinism] [--guard]
+usage: build-demo.sh [--role R] [--size S] [--oracle O] [--category C]
+                     [--dry-run] [--keep-work] [--validate] [--determinism] [--guard]
+  --role/--size/--oracle/--category
+                   manifest tag filters; default --role gate --oracle prince
+                   (the Prince comparison set). Filtered builds are partial:
+                   --guard and the gallery splice only make sense unfiltered.
   --keep-work      keep .work/.results dirs (default: cleaned at exit)
-  --validate       validate demo/corpus/out/scoreboard.json after building
+  --validate       validate library/out/compare/scoreboard.json after building
   --guard          check scoreboard movement against committed version
 EOF
 }
@@ -57,20 +66,34 @@ KEEP_WORK=0
 DO_VALIDATE=0
 DO_DETERMINISM=0
 DO_GUARD=0
-for arg in "$@"; do
-  case "$arg" in
+ROLE="gate"
+SIZE=""
+ORACLE="prince"
+CATEGORY=""
+while [ $# -gt 0 ]; do
+  case "$1" in
     --dry-run) DRY_RUN=1 ;;
     --keep-work) KEEP_WORK=1 ;;
     --validate) DO_VALIDATE=1 ;;
     --determinism) DO_DETERMINISM=1 ;;
     --guard) DO_GUARD=1 ;;
+    --role) ROLE="$2"; shift ;;
+    --size) SIZE="$2"; shift ;;
+    --oracle) ORACLE="$2"; shift ;;
+    --category) CATEGORY="$2"; shift ;;
     -h|--help) usage; exit 0 ;;
-    *) echo "error: unknown option $arg" >&2; usage; exit 2 ;;
+    *) echo "error: unknown option $1" >&2; usage; exit 2 ;;
   esac
+  shift
 done
+FILTER_ARGS=()
+[ -n "$ROLE" ] && FILTER_ARGS+=(--role "$ROLE")
+[ -n "$SIZE" ] && FILTER_ARGS+=(--size "$SIZE")
+[ -n "$ORACLE" ] && FILTER_ARGS+=(--oracle "$ORACLE")
+[ -n "$CATEGORY" ] && FILTER_ARGS+=(--category "$CATEGORY")
 
 if ! command -v "$PRINCE_BIN" >/dev/null 2>&1; then
-  echo "error: Prince binary not found ('$PRINCE_BIN'). Install per demo/corpus/README.md (brew install --cask prince; ./install.sh /opt/homebrew)." >&2
+  echo "error: Prince binary not found ('$PRINCE_BIN'). Install per library/README.md (brew install --cask prince; ./install.sh /opt/homebrew)." >&2
   exit 2
 fi
 
@@ -101,9 +124,13 @@ PR_VERSION="$("$PRINCE_BIN" --version 2>&1 | head -1 || true)"
 
 # mapfile is bash 4+; macOS bash 3.2 lacks it. Use a plain loop instead.
 entries=()
-while IFS=$'\t' read -r file name; do
-  [ -n "$file" ] && entries+=("$file|$name")
-done < <("$PY" scripts/demo_compare.py list-manifest --manifest "$MANIFEST")
+geoms=()
+while IFS=$'\t' read -r file name geom; do
+  if [ -n "$file" ]; then
+    entries+=("$file|$name")
+    geoms+=("$geom")
+  fi
+done < <("$PY" scripts/demo_compare.py list-manifest --manifest "$MANIFEST" ${FILTER_ARGS[@]+"${FILTER_ARGS[@]}"})
 
 if [ ${#entries[@]} -eq 0 ]; then
   echo "error: no corpus entries from manifest $MANIFEST" >&2
@@ -115,18 +142,23 @@ echo "corpus: ${#entries[@]} doc(s)"
 
 # Determinism mode: first pass to a side dir, compare against the second.
 if [ "$DO_DETERMINISM" = "1" ]; then
-  BASELINE="demo/corpus/out.baseline"
+  BASELINE="library/out/compare.baseline"
   rm -rf "$BASELINE"
   echo "== determinism pass 1 (baseline) =="
 fi
 
 FAILED=0
 
+idx=-1
 for entry in "${entries[@]}"; do
-  file="${entry%%|*}"
+  idx=$((idx + 1))
+  rel="${entry%%|*}"          # <category>/<doc>.html, relative to library/
   name="${entry##*|}"
+  GEOM_FLAGS="${geoms[$idx]}"
+  file="$(basename "$rel")"
   base="${file%.html}"
-  html="demo/corpus/$file"
+  html="$LIBRARY_DIR/$rel"
+  fixture_dir="$LIBRARY_DIR/$(dirname "$rel")"
 
   ta_pdf="$WORK/$base-ta.pdf"
   pr_pdf="$WORK/$base-pr.pdf"
@@ -139,9 +171,11 @@ for entry in "${entries[@]}"; do
     continue
   fi
 
-  # Render both engines with the identical flag set (from the corpus dir so
-  # relative asset URLs resolve the same for both engines).
-  if (cd "$CORPUS_DIR" && "$ENGINE_BIN" render "$file" $GEOM_FLAGS -o "$REPO_ROOT/$ta_pdf" 2>"$REPO_ROOT/$WORK/$base-ta.err"); then
+  # Render both engines with the identical flag set (from the fixture's
+  # directory so relative asset URLs resolve the same for both engines).
+  # The scoreboard keys on the manifest path so the key stays unique.
+  file="$rel"
+  if (cd "$fixture_dir" && "$ENGINE_BIN" render "$(basename "$rel")" $GEOM_FLAGS -o "$REPO_ROOT/$ta_pdf" 2>"$REPO_ROOT/$WORK/$base-ta.err"); then
     echo "TA  ok   $file"
   else
     echo "TA  FAIL $file :: $(head -1 "$WORK/$base-ta.err")"
@@ -152,7 +186,7 @@ for entry in "${entries[@]}"; do
     continue
   fi
 
-  if (cd "$CORPUS_DIR" && "$REPO_ROOT/scripts/render-prince.sh" "$file" $GEOM_FLAGS -o "$REPO_ROOT/$pr_pdf" 2>"$REPO_ROOT/$WORK/$base-pr.err"); then
+  if (cd "$fixture_dir" && "$REPO_ROOT/scripts/render-prince.sh" "$(basename "$rel")" $GEOM_FLAGS -o "$REPO_ROOT/$pr_pdf" 2>"$REPO_ROOT/$WORK/$base-pr.err"); then
     echo "PR  ok   $file"
   else
     echo "PR  FAIL $file :: $(head -1 "$WORK/$base-pr.err")"
@@ -182,7 +216,7 @@ fi
 # before entering the manifest.
 bench_entries=()
 if [ -f "$BENCH_MANIFEST" ]; then
-  while IFS=$'\t' read -r file name; do
+  while IFS=$'\t' read -r file name _geom; do
     [ -n "$file" ] && bench_entries+=("$file")
   done < <("$PY" scripts/demo_compare.py list-manifest --manifest "$BENCH_MANIFEST")
 fi
@@ -192,7 +226,7 @@ for file in "${bench_entries[@]:-}"; do
   [ -n "$file" ] || continue
   base="$(basename "${file%.html}")"
   ta_pdf="$WORK/bench-$base-ta.pdf"
-  if (cd "$CORPUS_DIR" && "$ENGINE_BIN" render "$file" $GEOM_FLAGS -o "$REPO_ROOT/$ta_pdf" 2>"$REPO_ROOT/$WORK/bench-$base-ta.err"); then
+  if (cd "$REPROS_DIR" && "$ENGINE_BIN" render "$file" $BENCH_GEOM_FLAGS -o "$REPO_ROOT/$ta_pdf" 2>"$REPO_ROOT/$WORK/bench-$base-ta.err"); then
     echo "BENCH ok   $file"
   else
     echo "BENCH FAIL $file :: $(head -1 "$WORK/bench-$base-ta.err")"
@@ -223,37 +257,37 @@ done
   --manifest "$MANIFEST" \
   --benchmark-manifest "$BENCH_MANIFEST" \
   --out-dir "$OUT" \
-  --readme demo/corpus/README.md \
-  --image-prefix out/images \
+  --readme "$README_OUT" \
+  --image-prefix out/compare/images \
   --typeanvil-version "$TA_VERSION" \
   --prince-version "$PR_VERSION"
 
 echo
 
-# Determinism mode: build into demo/corpus/out.baseline, then build into
-# demo/corpus/out, then byte-compare the two trees (except scoreboard's
+# Determinism mode: build into library/out/compare.baseline, then build into
+# library/out/compare, then byte-compare the two trees (except scoreboard's
 # "generated" field).
 if [ "$DO_DETERMINISM" = "1" ]; then
   if [ -n "${BUILD_PASS:-}" ]; then
     echo "error: --determinism cannot be combined with BUILD_PASS" >&2
     exit 2
   fi
-  BASELINE="demo/corpus/out.baseline"
+  BASELINE="library/out/compare.baseline"
   rm -rf "$BASELINE"
   echo "== determinism pass 1 (baseline) =="
-  OUT_DIR="$BASELINE" BUILD_PASS=1 "$0" --keep-work
-  # The generated gallery lives in demo/corpus/README.md, not inside out/, so
+  OUT_DIR="$BASELINE" BUILD_PASS=1 "$0" --keep-work ${FILTER_ARGS[@]+"${FILTER_ARGS[@]}"}
+  # The generated gallery lives in library/README.md, not inside out/, so
   # snapshot it here and byte-compare it after pass 2 as well.
   README_SNAP="$(mktemp -t typeanvil-readme)"
-  cp demo/corpus/README.md "$README_SNAP"
+  cp "$README_OUT" "$README_SNAP"
   echo "== determinism pass 2 (current) =="
-  "$0" --keep-work
+  "$0" --keep-work ${FILTER_ARGS[@]+"${FILTER_ARGS[@]}"}
   "$PY" scripts/demo_compare.py check-determinism "$BASELINE" "$OUT" 2>&1 || {
     echo "determinism FAILED (see above)" >&2
     exit 1
   }
-  if ! cmp -s "$README_SNAP" demo/corpus/README.md; then
-    echo "determinism FAILED (demo/corpus/README.md differs between passes)" >&2
+  if ! cmp -s "$README_SNAP" "$README_OUT"; then
+    echo "determinism FAILED ($README_OUT differs between passes)" >&2
     rm -f "$README_SNAP"
     exit 1
   fi

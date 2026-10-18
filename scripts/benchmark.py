@@ -22,6 +22,7 @@ Usage:
     python3 scripts/benchmark.py --engine ta,chrome  # explicit engine list
     python3 scripts/benchmark.py --engine both       # TypeAnvil + Prince (legacy)
     python3 scripts/benchmark.py --filter invoice    # substring match
+    python3 scripts/benchmark.py --role perf --size small   # manifest tag filters
 
 Outputs (written next to this script's repo root):
     benchmarks/results.json   machine-readable
@@ -195,13 +196,25 @@ def _sample_memory(pgid: int, out: dict, stop: threading.Event) -> None:
         stop.wait(0.002)
 
 
-MANIFEST = REPO_ROOT / "demo/corpus/manifest.json"
+LIBRARY = REPO_ROOT / "library"
+MANIFEST = LIBRARY / "manifest.json"
 OUT_DIR = REPO_ROOT / "benchmarks"
 
 
-def load_corpus():
+def load_corpus(role=None, size=None, oracle=None, category=None):
+    """(name, file) pairs from library/manifest.json passing the tag filters.
+
+    `file` is `<category>/<doc>.html` relative to library/. Every `perf`
+    document declares the 5in x 3in / 0.5in geometry GEOM_TA hard-codes, so
+    the default role keeps the pre-library fixture set and numbers comparable.
+    """
+    def keep(e):
+        return ((not role or role in (e.get("roles") or []))
+                and (not size or e.get("size") == size)
+                and (not oracle or e.get("oracle") == oracle)
+                and (not category or e.get("category") == category))
     entries = json.loads(MANIFEST.read_text())
-    return [(e["name"], e["file"]) for e in entries]
+    return [(e["name"], e["file"]) for e in entries if keep(e)]
 
 
 def engine_version_ta(binary: Path) -> str:
@@ -421,8 +434,8 @@ def bench_engine(engine: str, corpus, workdir: Path, ta_bin: Path,
             results[name] = {"runs": 0, "failures": [], "skipped": reason,
                              "pages": None}
             continue
-        html = REPO_ROOT / "demo/corpus" / fname
-        base = fname[:-len(".html")]
+        html = LIBRARY / fname
+        base = Path(fname).stem
         out_pdf = workdir / f"{base}-{engine}.pdf"
         render_html = html
         if engine == "chrome":
@@ -627,6 +640,11 @@ def main() -> int:
                     help="chrome-headless-shell binary (default: newest in the "
                          "Puppeteer cache; $CHROME_BIN also honored)")
     ap.add_argument("--filter", default="", help="substring match on fixture name")
+    ap.add_argument("--role", default="perf",
+                    help="library/manifest.json role tag (default: perf; '' = all)")
+    ap.add_argument("--size", default=None, help="size tag: small | heavy | visual")
+    ap.add_argument("--oracle", default=None, help="oracle tag: prince | weasyprint | chromium")
+    ap.add_argument("--category", default=None, help="category directory, e.g. financial")
     ap.add_argument("--out-dir", default=str(OUT_DIR))
     args = ap.parse_args()
 
@@ -657,7 +675,7 @@ def main() -> int:
                   "(or pass --chrome-binary PATH / set $CHROME_BIN).", file=sys.stderr)
             return 2
 
-    corpus = load_corpus()
+    corpus = load_corpus(args.role, args.size, args.oracle, args.category)
     if args.filter:
         corpus = [(n, f) for n, f in corpus if args.filter.lower() in n.lower()]
     if not corpus:

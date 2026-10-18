@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tagged PDF gate: render every corpus + showcase fixture tagged, read the
+"""Tagged PDF gate: render every library fixture tagged, read the
 structure back, and fail on tagging regressions.
 
 Spec: docs/specifications/tagged-gate.spec.md. Runbook:
@@ -25,14 +25,7 @@ import verify_tagged_pdf  # noqa: E402  (sibling script, not a package)
 
 CHECKS = ("render", "deterministic", "untagged", "duplicated", "dangling", "ua", "roles", "coverage")
 COVERAGE_TOLERANCE = 0.005
-TRACKS = (
-    ("corpus", "demo/corpus",
-     "--page-width 5in --page-height 3in --margin-top 0.5in --margin-right 0.5in "
-     "--margin-bottom 0.5in --margin-left 0.5in"),
-    ("showcase", "demo/showcase",
-     "--page-width 8.5in --page-height 11in --margin-top 0.75in --margin-right 0.75in "
-     "--margin-bottom 0.75in --margin-left 0.75in"),
-)
+LIBRARY = "library"  # library/manifest.json lists every gated document (CORE-488)
 DATA = Path("harness/tagged-gate")
 
 
@@ -106,25 +99,29 @@ def _render(binary: Path, cwd: Path, f: str, geom: str, extra: list[str], out: P
 
 def measure(repo: Path, binary: Path, work: Path) -> dict[str, dict]:
     results = {}
-    for track, rel, geom in TRACKS:
-        d = repo / rel
-        for m in json.loads((d / "manifest.json").read_text()):
-            f = m["file"]
-            doc, stem = f"{track}/{f}", f"{track}-{Path(f).stem}"
-            a, b, ua = (work / f"{stem}.{s}.pdf" for s in ("a", "b", "ua"))
-            r = {}
-            r["render_exit"], _ = _render(binary, d, f, geom, ["--tagged"], a)
-            if r["render_exit"] == 0:
-                _render(binary, d, f, geom, ["--tagged"], b)
-                r["deterministic"] = b.exists() and hashlib.sha256(a.read_bytes()).digest() == hashlib.sha256(b.read_bytes()).digest()
-                r["ua_exit"], r["ua_err"] = _render(binary, d, f, geom, ["--tagged", "--ua"], ua)
-                rep = verify_tagged_pdf.analyse(str(a), str(d / f))
-                r["totals"] = rep["totals"]
-                r["roles"] = rep["roles"]
-                r["coverage"] = round(rep["order"]["source_coverage"], 4)
-            results[doc] = r
-            print(f"  {doc:40} " + ("ok" if r["render_exit"] == 0 else f"render exit {r['render_exit']}"),
-                  flush=True)
+    lib = repo / LIBRARY
+    for m in json.loads((lib / "manifest.json").read_text()):
+        rel = m["file"]  # <category>/<doc>.html under library/
+        g = m["geometry"]
+        geom = (f"--page-width {g['width']} --page-height {g['height']} "
+                f"--margin-top {g['margin']} --margin-right {g['margin']} "
+                f"--margin-bottom {g['margin']} --margin-left {g['margin']}")
+        d, f = (lib / rel).parent, Path(rel).name
+        doc, stem = f"{LIBRARY}/{rel}", f"{LIBRARY}-{rel.replace('/', '-')[:-5]}"
+        a, b, ua = (work / f"{stem}.{s}.pdf" for s in ("a", "b", "ua"))
+        r = {}
+        r["render_exit"], _ = _render(binary, d, f, geom, ["--tagged"], a)
+        if r["render_exit"] == 0:
+            _render(binary, d, f, geom, ["--tagged"], b)
+            r["deterministic"] = b.exists() and hashlib.sha256(a.read_bytes()).digest() == hashlib.sha256(b.read_bytes()).digest()
+            r["ua_exit"], r["ua_err"] = _render(binary, d, f, geom, ["--tagged", "--ua"], ua)
+            rep = verify_tagged_pdf.analyse(str(a), str(d / f))
+            r["totals"] = rep["totals"]
+            r["roles"] = rep["roles"]
+            r["coverage"] = round(rep["order"]["source_coverage"], 4)
+        results[doc] = r
+        print(f"  {doc:40} " + ("ok" if r["render_exit"] == 0 else f"render exit {r['render_exit']}"),
+              flush=True)
     return results
 
 

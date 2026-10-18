@@ -138,6 +138,6 @@ borders before text).
 
 ## References
 
-- `demo/corpus/TRIAGE.md` — pixel-scan evidence and minimal repros.
+- `library/TRIAGE.md` — pixel-scan evidence and minimal repros.
 - `engine/src/layout.rs` — table cell, row, and group background fragments.
 - css-tables-3 §16.2 (table painting order).

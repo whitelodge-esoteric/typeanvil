@@ -27,10 +27,14 @@ fi
 
 usage() {
   cat <<'EOF'
-usage: visual-qa.sh --track corpus|showcase --report out.json [--keep-pdfs] [--check-pr] [--dry-run]
+usage: visual-qa.sh --track corpus|showcase --report out.json [--role R] [--size S]
+                    [--oracle O] [--category C] [--keep-pdfs] [--check-pr] [--dry-run]
 
-  --track       demo track to check: corpus (TypeAnvil vs Prince) or
-                showcase (TypeAnvil only)
+  --track       check mode: corpus (TypeAnvil vs Prince, page-box overflow,
+                default filter --role gate --oracle prince) or
+                showcase (TypeAnvil only, MediaBox overflow, default --role showcase)
+  --role/--size/--oracle/--category
+                library/manifest.json tag filters (override the track default)
   --report      path for the machine-readable JSON report
   --keep-pdfs   keep the work dir (pdf/ + img/) instead of deleting at exit
   --check-pr    showcase: also render + check the Prince reference side
@@ -45,9 +49,17 @@ REPORT=""
 KEEP_PDFS=0
 DRY_RUN=0
 CHECK_PR=0
+ROLE=""
+SIZE=""
+ORACLE=""
+CATEGORY=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --track) TRACK="$2"; shift 2 ;;
+    --role) ROLE="$2"; shift 2 ;;
+    --size) SIZE="$2"; shift 2 ;;
+    --oracle) ORACLE="$2"; shift 2 ;;
+    --category) CATEGORY="$2"; shift 2 ;;
     --report) REPORT="$2"; shift 2 ;;
     --keep-pdfs) KEEP_PDFS=1; shift ;;
     --check-pr) CHECK_PR=1; shift ;;
@@ -65,15 +77,12 @@ fi
 
 case "$TRACK" in
   corpus)
-    MANIFEST="demo/corpus/manifest.json"
-    FIXTURES_DIR="demo/corpus"
-    GEOM_FLAGS="--page-width 5in --page-height 3in --margin-top 0.5in --margin-right 0.5in --margin-bottom 0.5in --margin-left 0.5in"
+    [ -z "$ROLE" ] && ROLE="gate"
+    [ -z "$ORACLE" ] && ORACLE="prince"
     DPI=96
     ;;
   showcase)
-    MANIFEST="demo/showcase/manifest.json"
-    FIXTURES_DIR="demo/showcase"
-    GEOM_FLAGS="--page-width 8.5in --page-height 11in --margin-top 0.75in --margin-right 0.75in --margin-bottom 0.75in --margin-left 0.75in"
+    [ -z "$ROLE" ] && ROLE="showcase"
     DPI=300
     ;;
   *)
@@ -90,18 +99,27 @@ if [ ! -x "$ENGINE_BIN" ]; then
 fi
 PRINCE_BIN="${PRINCE_BIN:-prince}"
 if [[ "$TRACK" == "corpus" ]] && ! command -v "$PRINCE_BIN" >/dev/null 2>&1; then
-  echo "error: Prince binary not found ('$PRINCE_BIN'). Install per demo/corpus/README.md." >&2
+  echo "error: Prince binary not found ('$PRINCE_BIN'). Install per library/README.md." >&2
   exit 2
 fi
 
+MANIFEST="library/manifest.json"
+FIXTURES_DIR="library"
+FILTER_ARGS=()
+[ -n "$ROLE" ] && FILTER_ARGS+=(--role "$ROLE")
+[ -n "$SIZE" ] && FILTER_ARGS+=(--size "$SIZE")
+[ -n "$ORACLE" ] && FILTER_ARGS+=(--oracle "$ORACLE")
+[ -n "$CATEGORY" ] && FILTER_ARGS+=(--category "$CATEGORY")
+
 # The work dir MUST live inside the worktree: the engine binary is a
 # container shim that only maps worktree paths into /work (a /tmp path
-# fails the shim's path guard). `out/` is gitignored for both tracks, so
-# a leftover .qa dir can never be committed.
+# fails the shim's path guard). `library/out/` is gitignored, so a leftover
+# .qa dir can never be committed.
+mkdir -p "$REPO_ROOT/library/out"
 if [ "$KEEP_PDFS" = "1" ]; then
-  WORK="$(mktemp -d "$REPO_ROOT/$FIXTURES_DIR/out/.qa-keep-XXXXXX")"
+  WORK="$(mktemp -d "$REPO_ROOT/library/out/.qa-keep-XXXXXX")"
 else
-  WORK="$(mktemp -d "$REPO_ROOT/$FIXTURES_DIR/out/.qa-XXXXXX")"
+  WORK="$(mktemp -d "$REPO_ROOT/library/out/.qa-XXXXXX")"
 fi
 cleanup() {
   if [ "$KEEP_PDFS" = "1" ]; then
@@ -115,21 +133,30 @@ mkdir -p "$WORK/pdf" "$WORK/img"
 
 TA_VERSION="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 entries=()
-while IFS=$'\t' read -r file name; do
-  [ -n "$file" ] && entries+=("$file|$name")
-done < <("$PY" scripts/demo_compare.py list-manifest --manifest "$MANIFEST")
+geoms=()
+while IFS=$'\t' read -r file name geom; do
+  if [ -n "$file" ]; then
+    entries+=("$file|$name")
+    geoms+=("$geom")
+  fi
+done < <("$PY" scripts/demo_compare.py list-manifest --manifest "$MANIFEST" ${FILTER_ARGS[@]+"${FILTER_ARGS[@]}"})
 
 if [ ${#entries[@]} -eq 0 ]; then
-  echo "error: no $TRACK entries from manifest $MANIFEST" >&2
+  echo "error: no $TRACK entries from manifest $MANIFEST (filters: ${FILTER_ARGS[*]-none})" >&2
   exit 2
 fi
 
 echo "visual-qa $TRACK · typeanvil $TA_VERSION · ${#entries[@]} fixture(s) @ ${DPI} DPI"
 
 FAILED=0
+idx=-1
 for entry in "${entries[@]}"; do
-  file="${entry%%|*}"
+  idx=$((idx + 1))
+  rel="${entry%%|*}"          # <category>/<doc>.html, relative to library/
   name="${entry##*|}"
+  GEOM_FLAGS="${geoms[$idx]}"
+  file="$(basename "$rel")"
+  fixture_dir="$FIXTURES_DIR/$(dirname "$rel")"
   base="${file%.html}"
 
   engines=("ta")
@@ -144,8 +171,8 @@ for entry in "${entries[@]}"; do
 
     if [[ "$engine" == "ta" ]]; then
       if [ "$DRY_RUN" = "1" ]; then
-        echo "[dry] $ENGINE_BIN render $FIXTURES_DIR/$file $GEOM_FLAGS -o $pdf"
-      elif (cd "$FIXTURES_DIR" && "$ENGINE_BIN" render "$file" $GEOM_FLAGS -o "$pdf" 2>"$WORK/$base-ta.err"); then
+        echo "[dry] $ENGINE_BIN render $fixture_dir/$file $GEOM_FLAGS -o $pdf"
+      elif (cd "$fixture_dir" && "$ENGINE_BIN" render "$file" $GEOM_FLAGS -o "$pdf" 2>"$WORK/$base-ta.err"); then
         echo "TA  ok   $file"
       else
         echo "TA  FAIL $file :: $(head -1 "$WORK/$base-ta.err")" >&2
@@ -154,8 +181,8 @@ for entry in "${entries[@]}"; do
       fi
     else
       if [ "$DRY_RUN" = "1" ]; then
-        echo "[dry] (cd $FIXTURES_DIR && scripts/render-prince.sh $file $GEOM_FLAGS -o $pdf)"
-      elif (cd "$FIXTURES_DIR" && "$REPO_ROOT/scripts/render-prince.sh" "$file" $GEOM_FLAGS -o "$pdf" 2>"$WORK/$base-pr.err"); then
+        echo "[dry] (cd $fixture_dir && scripts/render-prince.sh $file $GEOM_FLAGS -o $pdf)"
+      elif (cd "$fixture_dir" && "$REPO_ROOT/scripts/render-prince.sh" "$file" $GEOM_FLAGS -o "$pdf" 2>"$WORK/$base-pr.err"); then
         echo "PR  ok   $file"
       else
         echo "PR  FAIL $file :: $(head -1 "$WORK/$base-pr.err")" >&2
@@ -196,7 +223,7 @@ fi
 
 echo
 set +e
-"$PY" scripts/visual_qa.py run --track "$TRACK" --report "$REPORT" --work-dir "$WORK" --dpi "$DPI" $( [ "$CHECK_PR" = "1" ] && echo --check-pr )
+"$PY" scripts/visual_qa.py run --track "$TRACK" --report "$REPORT" --work-dir "$WORK" --dpi "$DPI" $( [ "$CHECK_PR" = "1" ] && echo --check-pr ) ${FILTER_ARGS[@]+"${FILTER_ARGS[@]}"}
 RESULT=$?
 set -e
 
