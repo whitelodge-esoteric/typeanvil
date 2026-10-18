@@ -899,8 +899,13 @@ fn attach_footnotes(
         // First line reserves room for the "N. " prefix.
         let first_text_w = inner - Scalar(MARKER_HANG);
         let rest_w = inner;
+        // CORE-524: shape at the size the run is drawn at (`font_size`). Using
+        // the note style's own size gave advances wider than the 9pt draw, so
+        // pdfium saw a gap after the first glyph and extracted "A lpha".
+        let mut shaped_style = style.clone();
+        shaped_style.font_size = font_size;
         let first_lines =
-            break_paragraph(&text, first_text_w, style, false, false);
+            break_paragraph(&text, first_text_w, &shaped_style, false, false);
         if first_lines.is_empty() {
             continue;
         }
