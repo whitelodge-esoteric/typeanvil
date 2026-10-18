@@ -32,6 +32,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -61,9 +62,9 @@ def entries(role, size):
     for e in data:
         if not isinstance(e, dict) or "file" not in e:
             continue
-        if role and role not in e.get("roles", []):
+        if role and role != "any" and role not in e.get("roles", []):
             continue
-        if size and e.get("size") != size:
+        if size and size != "all" and e.get("size") != size:
             continue
         out.append(e)
     return sorted(out, key=lambda e: e["file"])
@@ -183,10 +184,21 @@ def cmd_check(args) -> int:
         for e in entries(args.role, args.size):
             bpath = BASELINES / f"{slug(e['file'])}.json"
             if not bpath.exists():
+                if args.allow_missing:
+                    # Nightly (CORE-490): still render, so a crash or panic
+                    # on an unbaselined heavy/visual document turns the run red.
+                    t0 = time.monotonic()
+                    head = fingerprint_doc(e, Path(td))
+                    print(f"unbaselined {e['file']}: {head['page_count']} page(s) "
+                          f"in {time.monotonic() - t0:.1f}s")
+                    continue
                 rows.append((e["file"], 0, "missing-baseline", str(bpath.name)))
                 continue
             base = json.loads(bpath.read_text(encoding="utf-8"))
+            t0 = time.monotonic()
             head = fingerprint_doc(e, Path(td))
+            print(f"timing {e['file']}: {head['page_count']} page(s) "
+                  f"in {time.monotonic() - t0:.1f}s")
             changes = diff_doc(base, head)
             for c in changes:
                 rows.append((e["file"], c["page"], c["kind"], c["detail"]))
@@ -237,6 +249,8 @@ def main() -> int:
         p.add_argument("--size", default="small")
         if name == "check":
             p.add_argument("--artifacts", help="write changed-page PNGs + fingerprints here")
+            p.add_argument("--allow-missing", action="store_true",
+                           help="render documents without a baseline instead of failing")
         if name == "noise":
             p.add_argument("--runs", type=int, default=5)
     args = ap.parse_args()

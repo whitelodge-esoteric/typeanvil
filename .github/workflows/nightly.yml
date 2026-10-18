@@ -1,0 +1,150 @@
+# Nightly full run (CORE-490): every library document + visual QA on the
+# newest release/* tip. Runbook: docs/operations/nightly.md
+#
+# The third-party engine comparison stays release-time (licensing); nothing
+# here installs or calls it.
+name: nightly
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Run even when the tip already has a green nightly"
+        type: boolean
+        default: false
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+  statuses: write
+  actions: read
+
+env:
+  CARGO_TERM_COLOR: always
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      branch: ${{ steps.pick.outputs.branch }}
+      sha: ${{ steps.pick.outputs.sha }}
+      skip: ${{ steps.pick.outputs.skip }}
+    steps:
+      # The default branch carries the helper script; the tip is checked out later.
+      - uses: actions/checkout@v7
+      - name: Pick the newest release branch and check for a prior green run
+        id: pick
+        run: |
+          git fetch --quiet origin 'refs/heads/release/*:refs/remotes/origin/release/*'
+          branch="$(git branch -r --list 'origin/release/*' | sed 's/^ *//' | python3 scripts/nightly.py latest-release)"
+          sha="$(git rev-parse "origin/${branch}")"
+          skip=false
+          # A green nightly status on this exact SHA means nothing new landed.
+          state="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${sha}/statuses" \
+            --jq '[.[] | select(.context == "nightly")][0].state // ""')"
+          if [ "$state" = "success" ] && [ "${{ inputs.force }}" != "true" ]; then
+            skip=true
+          fi
+          echo "branch=${branch}" >> "$GITHUB_OUTPUT"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+          echo "skip=${skip}" >> "$GITHUB_OUTPUT"
+          echo "Release tip ${branch} @ ${sha}: prior nightly state '${state}', skip=${skip}" >> "$GITHUB_STEP_SUMMARY"
+
+  full-run:
+    needs: resolve
+    if: needs.resolve.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - name: Install bundled fonts
+        run: |
+          sudo mkdir -p /usr/share/fonts/typeanvil
+          sudo cp docker/fonts/typeanvil/* /usr/share/fonts/typeanvil/
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - name: Install harness
+        run: uv sync --python 3.12
+      - name: Build engine
+        run: cargo build --manifest-path engine/Cargo.toml
+      - name: Regression check, all sizes
+        id: regress
+        run: |
+          set -o pipefail
+          uv run python scripts/regress.py check --role any --size all --allow-missing \
+            --artifacts regress-artifacts 2>&1 | tee regress.log
+      - name: Visual QA, TypeAnvil output only
+        id: qa
+        if: always() && steps.regress.conclusion != 'skipped'
+        run: |
+          set -o pipefail
+          PY="$(pwd)/.venv/bin/python" ./scripts/visual-qa.sh --track showcase \
+            --role showcase --report qa-report.json 2>&1 | tee qa.log
+      - name: Job summary
+        if: always()
+        run: |
+          uv run python scripts/nightly.py summary --regress regress.log \
+            --qa qa-report.json --status "${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-evidence
+          path: |
+            regress.log
+            qa.log
+            qa-report.json
+            regress-artifacts
+          if-no-files-found: ignore
+
+  report:
+    needs: [resolve, full-run]
+    if: always() && needs.resolve.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      # Release precondition (CORE-487): a commit status named `nightly` on the tip SHA.
+      - name: Publish commit status
+        run: |
+          result="${{ needs.full-run.result }}"
+          state=failure
+          [ "$result" = "success" ] && state=success
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/${{ needs.resolve.outputs.sha }}" \
+            -f state="$state" -f context=nightly \
+            -f description="nightly full run: ${result}" \
+            -f target_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+      # No silent reds: one open issue is created, then commented on each later failure.
+      - name: Open or update the failure issue
+        if: needs.full-run.result != 'success'
+        run: |
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          body="Nightly full run **${{ needs.full-run.result }}** on \`${{ needs.resolve.outputs.branch }}\` @ \`${{ needs.resolve.outputs.sha }}\`. Run: ${run_url}. Linear: CORE-490."
+          existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --label nightly-failure --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh label create nightly-failure --repo "$GITHUB_REPOSITORY" --color B60205 --force
+            gh issue create --repo "$GITHUB_REPOSITORY" --label nightly-failure \
+              --title "Nightly full run failing on ${{ needs.resolve.outputs.branch }}" --body "$body"
+          fi
+      - name: Close the failure issue after a green run
+        if: needs.full-run.result == 'success'
+        run: |
+          for n in $(gh issue list --repo "$GITHUB_REPOSITORY" --state open --label nightly-failure --json number --jq '.[].number'); do
+            gh issue close "$n" --repo "$GITHUB_REPOSITORY" --comment "Green again: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          done
