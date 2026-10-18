@@ -11,6 +11,35 @@ manifest.
 | Authored in-repo | most `library/<category>/*.html`, chart PNGs under `assets/` | AGPL-3.0-only (repo license) |
 | WeasyPrint samples | `library/{financial,letters,posters,reports,tickets}/weasyprint-*.html` + `assets/weasyprint-samples/` | public-domain samples; fonts per the table below |
 | Liberation Serif | `library/letters/assets/liberation-serif.ttf` | SIL OFL 1.1; Red Hat copyright notice in `library/letters/assets/liberation-serif-LICENSE.txt` |
+| arXiv 2302.13971 (LLaMA) | `library/academic/journal-article.html` | CC BY 4.0 |
+| Generated dissertation | `library/academic/dissertation.html` | AGPL-3.0-only (generated, seed 491) |
+| Project Gutenberg #1342 | `library/book/pride-and-prejudice.html` | public domain (Jane Austen, 1813) |
+| US Army FM 21-76 | `library/manual/field-manual.html` | public domain (US Government work) |
+
+## Heavy documents (CORE-491)
+
+`scripts/build_heavy_library.py` converts the downloaded sources into the four
+heavy fixtures. Downloads are not committed; the converter output is.
+
+- **`academic/journal-article.html`**: Touvron et al., "LLaMA: Open and
+  Efficient Foundation Language Models", arXiv:2302.13971. HTML from
+  https://arxiv.org/html/2302.13971v1. Licence: CC BY 4.0
+  (https://creativecommons.org/licenses/by/4.0/, shown on
+  https://arxiv.org/abs/2302.13971). Attribution is kept in the document
+  header. The conversion drops figures and code listings.
+- **`academic/dissertation.html`**: generated text from a fixed seed. No
+  third-party content.
+- **`book/pride-and-prejudice.html`**: Jane Austen, *Pride and Prejudice*,
+  Project Gutenberg eBook #1342, https://www.gutenberg.org/ebooks/1342
+  (text from https://www.gutenberg.org/cache/epub/1342/pg1342.txt). Public
+  domain in the United States. The Project Gutenberg header and license
+  text are removed; the trademark note is kept in the title block.
+- **`manual/field-manual.html`**: US Department of the Army, FM 21-76
+  *Survival*. OCR text from
+  https://archive.org/details/FM2176USARMYSURVIVALMANUAL (item text file
+  "FM 21-76  US ARMY SURVIVAL MANUAL_djvu.txt"). A work of the US Government
+  is in the public domain (17 U.S.C. 105). OCR errors are preserved. The
+  Appendix A and Index sections are added by the converter.
 
 ## WeasyPrint sample fonts — provenance and license
 
