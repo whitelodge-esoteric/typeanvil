@@ -117,6 +117,14 @@ fn to_krilla_color(c: Color) -> rgb::Color {
     rgb::Color::new(c.r, c.g, c.b)
 }
 
+/// CORE-522: parsed usvg tree for an SVG image whose content the vector
+/// replay can draw completely; `None` means embed the PNG raster.
+fn vector_tree(img: &crate::images::StoredImage) -> Option<resvg::usvg::Tree> {
+    let src = img.svg_source.as_deref()?;
+    let tree = crate::svg_vector::parse(src)?;
+    crate::svg_vector::is_vector_safe(&tree).then_some(tree)
+}
+
 /// Fill for a CSS color: the RGB channels plus the color's own alpha as the
 /// fill opacity (CORE-153). PDF `ca` transparency composites over whatever is
 /// beneath — the `@page` fill for the canvas background, the page/canvas for
@@ -1091,6 +1099,18 @@ fn paint_margin_box(
         let Some(size) = krilla::geom::Size::from_wh(*w, *h) else {
             continue;
         };
+        if let Some(tree) = vector_tree(img) {
+            surface.push_transform(&krilla::geom::Transform::from_row(1.0, 0.0, 0.0, 1.0, *x, *y));
+            if tagged {
+                surface.start_tagged(chrome());
+                crate::svg_vector::draw_svg(surface, &tree, size);
+                surface.end_tagged();
+            } else {
+                crate::svg_vector::draw_svg(surface, &tree, size);
+            }
+            surface.pop();
+            continue;
+        }
         let raw = krilla::Data::from(img.original.clone());
         let kimg = match img.kind {
             crate::images::ImageKind::Png => krilla::image::Image::from_png(raw, false),
@@ -1582,10 +1602,26 @@ fn paint_group_body(
         let Some(size) = krilla::geom::Size::from_wh(*w, *h) else {
             continue;
         };
+        if let Some(tree) = vector_tree(img) {
+            surface.push_transform(&krilla::geom::Transform::from_row(
+                1.0, 0.0, 0.0, 1.0, *x, *y,
+            ));
+            if tagged {
+                let ident = surface.start_tagged(tag_for_owner(*owner));
+                crate::svg_vector::draw_svg(surface, &tree, size);
+                surface.end_tagged();
+                record_draw(draws, page_idx, ident, *owner);
+            } else {
+                crate::svg_vector::draw_svg(surface, &tree, size);
+            }
+            surface.pop();
+            continue;
+        }
         let raw = krilla::Data::from(img.original.clone());
         let kimg = match img.kind {
             // CORE-131: SVG is rasterized to PNG at intern time (see
             // images.rs); `original` already carries the PNG raster.
+            // CORE-522: the vector path above handles supported trees.
             crate::images::ImageKind::Png => krilla::image::Image::from_png(raw, false),
             crate::images::ImageKind::Jpeg => krilla::image::Image::from_jpeg(raw, false),
             crate::images::ImageKind::Svg => krilla::image::Image::from_png(raw, false),

@@ -26,6 +26,10 @@ pub struct StoredImage {
     pub kind: ImageKind,
     /// The canonical encoded bytes (embedded as-is — no re-encode).
     pub original: Vec<u8>,
+    /// SVG source text (CORE-522). `Some` only for `ImageKind::Svg`; the PDF
+    /// emitter replays it as vector paths and falls back to `original`
+    /// (the PNG raster) when the tree uses features it cannot draw.
+    pub svg_source: Option<String>,
 }
 
 /// Supported image formats (spec Non-Goal 2: everything else is broken).
@@ -103,6 +107,11 @@ impl ImageStore {
                     height_px: h,
                     kind,
                     original: stored,
+                    svg_source: if kind == ImageKind::Svg {
+                        std::str::from_utf8(&bytes).ok().map(str::to_owned)
+                    } else {
+                        None
+                    },
                 }),
                 None => ImageEntry::Broken(BrokenImage { alt }),
             });
@@ -551,7 +560,7 @@ static SVG_FONTDB: LazyLock<fontdb::Database> = LazyLock::new(|| {
     db
 });
 
-fn svg_fontdb() -> std::sync::Arc<fontdb::Database> {
+pub(crate) fn svg_fontdb() -> std::sync::Arc<fontdb::Database> {
     std::sync::Arc::new(SVG_FONTDB.clone())
 }
 

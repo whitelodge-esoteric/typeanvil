@@ -5,7 +5,7 @@ type: spec
 status: in-review
 owner: maintainers
 created: 2026-09-03
-updated: 2026-09-27
+updated: 2026-10-18
 sidebar_position: 24
 tags: [engine, pdf, images, svg, determinism]
 spec_id: svg-images
@@ -37,8 +37,9 @@ deduplication keep their `images.spec.md` contracts unchanged.
 
 ## Non-Goals
 
-1. Native vector PDF embedding (raster-only bridge; a vector follow-up can
-   replace `original` bytes without changing the store contract).
+1. Vector embedding of gradients, patterns, clip paths, masks, filters,
+   blend modes and nested `<image>` elements (CORE-522 covers solid-paint
+   shapes and text only; those trees embed the raster instead).
 2. SMIL animation (static SVG only — same as resvg).
 3. External resource loading inside SVG (`resources_dir` stays `None`;
    `<image href="...">` inside an SVG does not resolve external files).
@@ -72,9 +73,18 @@ deduplication keep their `images.spec.md` contracts unchanged.
    block-level box (`images.spec.md` Behavior 2), sized by the same
    `image_used_size` path, item-collected as its own item so it never folds
    into a parent text run.
-7. **Embedding.** The PDF emitter embeds the interned bytes as a PNG image
-   (`Image::from_png`); alpha rides the SMask. Krilla dedupes repeated
-   references of the same raster.
+7. **Embedding (vector, CORE-522).** The store keeps the SVG source
+   (`StoredImage::svg_source`) beside the PNG raster. At emit time the PDF
+   emitter parses the source with usvg and replays the tree as krilla
+   paths (`engine/src/svg_vector.rs`): groups with transform and opacity,
+   paths with solid fill and stroke (fill rule, caps, joins, miter limit,
+   dashes, paint order), and text as flattened outlines. The tree is drawn
+   scaled to the image box and clipped to it. The PDF then carries no image
+   XObject for that SVG. When the tree uses a gradient, pattern, clip path,
+   mask, filter, non-normal blend mode or nested image, the emitter embeds
+   the PNG raster instead (`Image::from_png`; alpha rides the SMask; krilla
+   dedupes repeated references). The choice is all-or-nothing per image.
+   Tiled backgrounds (`background-image: url(x.svg)`) keep the raster.
 8. **CLI `--base-url`.** The CLI threads `--base-url` into
    `layout_with_images`, so linked relative SVG (and any image) resolves
    against it. (Found during this ticket: the flag was parsed but never
@@ -91,7 +101,9 @@ deduplication keep their `images.spec.md` contracts unchanged.
   `measure_float` / item collection use `is_replaced_image`.
 - `engine/src/main.rs`: render threads `--base-url` via
   `layout::layout_with_images`.
-- `engine/src/pdf.rs`: emit arm `ImageKind::Svg => Image::from_png`.
+- `engine/src/pdf.rs`: emit arm `ImageKind::Svg => Image::from_png` (raster
+  fallback); `vector_tree` selects the vector path first.
+- `engine/src/svg_vector.rs`: `parse`, `is_vector_safe`, `draw_svg` (CORE-522).
 
 ## Acceptance Criteria
 
@@ -106,8 +118,13 @@ deduplication keep their `images.spec.md` contracts unchanged.
   (`images.rs::svg_render_is_deterministic`)
 - Given a viewBox-only SVG `viewBox="0 0 200 100"`, the fragment sizes
   150×75 pt. (`images.rs::svg_viewbox_only_uses_viewbox_size`)
+- Given an `<img src="x.svg">` made of plain shapes, when rendered to PDF,
+  then the PDF has no image XObject. (`images.rs::svg_img_embeds_as_vector_not_image_xobject`,
+  `images.rs::duplicate_inline_svgs_embed_once`)
+- Given an SVG with a gradient fill, when rendered to PDF, then the PDF
+  embeds the raster image. (`images.rs::svg_with_gradient_falls_back_to_raster`)
 - Given three references to identical inline SVG, the store holds one entry
-  and the PDF embeds one image + one SMask.
+  and the PDF carries no image XObject (plain shapes embed as vector).
   (`images.rs::duplicate_inline_svgs_embed_once`)
 - Given bytes that are neither valid UTF-8 nor a parseable SVG, the entry is
   Broken and no raster is embedded.

@@ -22,6 +22,7 @@ pub mod metadata;
 pub mod paged;
 pub mod pdf;
 pub mod stylo_dom;
+pub mod svg_vector;
 pub mod table;
 pub mod tags;
 pub mod texmath;
