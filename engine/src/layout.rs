@@ -2915,7 +2915,15 @@ impl<'a> Ctx<'a> {
         // full `avail_width` via `used` (a block keeps its containing-block
         // footprint), so following siblings do not reflow.
         let declared_border_w = {
-            let w = self.resolved_width(style, avail_width);
+            // CORE-521: a table cell's `width` already fed the column
+            // algorithm; `avail_width` here IS the used column width.
+            // Resolving a `33%` again against it shrank every cell to a
+            // third of its column.
+            let w = if style.display == crate::css::Display::TableCell {
+                None
+            } else {
+                self.resolved_width(style, avail_width)
+            };
             w.map(|w| {
                 if style.box_sizing == crate::css::StyloBoxSizing::BorderBox {
                     w
