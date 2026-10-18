@@ -79,7 +79,10 @@ def test_baseline_pages_recorded(entries):
     assert pages["stress/table-stress.html"] == 26
     assert pages["posters/poster.html"] == 1
     assert pages["reports/weasyprint-report.html"] == 10
-    assert len(pages) == 44
+    assert len(pages) == 47  # 44 + CORE-492 ticket, event poster, flyer
+    for f in ("tickets/concert-ticket.html", "posters/event-poster.html",
+              "flyers/product-flyer.html"):
+        assert pages[f] == 1
     # CORE-491 heavy documents, measured at 45adf08 at their own geometry.
     assert pages["academic/journal-article.html"] == 13
     assert pages["academic/dissertation.html"] == 141

@@ -1137,6 +1137,86 @@
     "baseline_pages": 1
   },
   {
+    "name": "Concert Ticket",
+    "file": "tickets/concert-ticket.html",
+    "category": "tickets",
+    "size": "visual",
+    "roles": [
+      "showcase"
+    ],
+    "geometry": {
+      "width": "8in",
+      "height": "3.2in",
+      "margin": "0in"
+    },
+    "oracle": "chromium",
+    "source": "authored in-repo (CORE-492); QR code generated with segno",
+    "license": "AGPL-3.0-only",
+    "wedge_features": [
+      "absolute-positioning",
+      "svg-images",
+      "images"
+    ],
+    "known_limitations": [
+      "letter-spacing, opacity and abspos paint order are not honoured (see CORE-492 findings)"
+    ],
+    "expected_deltas": [],
+    "baseline_pages": 1
+  },
+  {
+    "name": "Event Poster",
+    "file": "posters/event-poster.html",
+    "category": "posters",
+    "size": "visual",
+    "roles": [
+      "showcase"
+    ],
+    "geometry": {
+      "width": "8.5in",
+      "height": "11in",
+      "margin": "0.75in"
+    },
+    "oracle": "chromium",
+    "source": "authored in-repo (CORE-492)",
+    "license": "AGPL-3.0-only",
+    "wedge_features": [
+      "images",
+      "absolute-positioning",
+      "paged-media-css"
+    ],
+    "known_limitations": [
+      "opacity and letter-spacing are not honoured (see CORE-492 findings)"
+    ],
+    "expected_deltas": [],
+    "baseline_pages": 1
+  },
+  {
+    "name": "Product Flyer",
+    "file": "flyers/product-flyer.html",
+    "category": "flyers",
+    "size": "visual",
+    "roles": [
+      "showcase"
+    ],
+    "geometry": {
+      "width": "8.5in",
+      "height": "11in",
+      "margin": "0.75in"
+    },
+    "oracle": "chromium",
+    "source": "authored in-repo (CORE-492)",
+    "license": "AGPL-3.0-only",
+    "wedge_features": [
+      "images",
+      "inline-block"
+    ],
+    "known_limitations": [
+      "images in table cells ignore width/height (see CORE-492 findings)"
+    ],
+    "expected_deltas": [],
+    "baseline_pages": 1
+  },
+  {
     "name": "WeasyPrint Invoice",
     "file": "financial/weasyprint-invoice.html",
     "category": "financial",

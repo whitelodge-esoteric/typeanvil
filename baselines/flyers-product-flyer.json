@@ -1,0 +1,17 @@
+{
+  "engine_version": "0.0.1",
+  "file": "flyers/product-flyer.html",
+  "page_count": 1,
+  "pages": [
+    {
+      "dark_pixels": 140830,
+      "dhash": "a28a8cacac00829a",
+      "page": 1,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "f06e4cf322406b859e2e9668b2821ba4a9bd76529d677215180fbaddf6140b3b"
+    }
+  ]
+}

@@ -10,6 +10,7 @@ manifest.
 |---|---|---|
 | Authored in-repo | most `library/<category>/*.html`, chart PNGs under `assets/` | AGPL-3.0-only (repo license) |
 | WeasyPrint samples | `library/{financial,letters,posters,reports,tickets}/weasyprint-*.html` + `assets/weasyprint-samples/` | public-domain samples; fonts per the table below |
+| Visual documents (CORE-492) | `library/{tickets,posters,flyers}/assets/` (ticket QR as SVG + PNG, ticket art, event-poster art, flyer tiles), made by `generate*.py` next to them; QR encoder: segno (BSD-3-Clause, build-time only, not shipped) | AGPL-3.0-only (generated, deterministic) |
 | Liberation Serif | `library/letters/assets/liberation-serif.ttf` | SIL OFL 1.1; Red Hat copyright notice in `library/letters/assets/liberation-serif-LICENSE.txt` |
 | arXiv 2302.13971 (LLaMA) | `library/academic/journal-article.html` | CC BY 4.0 |
 | Generated dissertation | `library/academic/dissertation.html` | AGPL-3.0-only (generated, seed 491) |

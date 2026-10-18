@@ -37,8 +37,11 @@ Epic: CORE-486. Issue: CORE-488.
 
 ## Non-Goals
 
-- New documents beyond the four heavy documents (CORE-491). Other sources
-  arrive in later issues and add their entries to `LICENSES.md` first.
+- New documents beyond the four heavy documents (CORE-491) and the three
+  visual documents (CORE-492: `tickets/concert-ticket.html`,
+  `posters/event-poster.html`, `flyers/product-flyer.html`, authored in-repo,
+  assets made by `generate*.py` beside them, baselines in `baselines/`). Other
+  sources arrive in later issues and add their entries to `LICENSES.md` first.
 - Changing the scoreboard schema, the triage buckets or the showcase DPI.
 - Renaming scoreboard keys beyond the new `<category>/<doc>.html` path.
 
