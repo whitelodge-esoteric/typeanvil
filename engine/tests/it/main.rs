@@ -42,6 +42,7 @@ mod core363_mathml;
 mod core368_anonymous_table_boxes;
 mod core368_inline_block_line;
 mod core368_table_in_multicol;
+mod core384_author_pass_selectors;
 mod core385_list_markers;
 mod core386_glyph_fallback;
 mod core387_empty_content;

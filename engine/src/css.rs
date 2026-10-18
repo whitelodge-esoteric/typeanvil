@@ -2443,10 +2443,11 @@ impl CascadeSession {
 
         // Border colors: stylo computes EACH side's color (CORE-201 — per-side
         // longhands must paint only their own side, so the single shared slot
-        // is gone). The `border-color` fallback pass below still overrides
-        // when IT matched. Alpha preserved (CORE-153).
+        // is gone). Stylo is the only source for border colors (CORE-384:
+        // the author border pass no longer rewrites them). Alpha preserved,
+        // `transparent` included (CORE-153).
         let stylo_side_color = |c: &ComputedColor| match c {
-            ComputedColor::Absolute(c) if !c.is_transparent() => {
+            ComputedColor::Absolute(c) => {
                 let [r, g, b, a] = c.to_nscolor().to_le_bytes();
                 Some(Color { r, g, b, a })
             }
@@ -3064,7 +3065,7 @@ pub(crate) fn cascade_evaluated(
         &mut styles,
     );
     // Second pass: fill the css-break longhands stylo's servo build omits.
-    breaks::apply_break_properties(dom, evaluated_css, &mut styles);
+    breaks::apply_break_properties(&backend, evaluated_css, &mut styles);
     // Third pass: fill paged-media properties (page / string-set / counters /
     // content / bookmark-*). The UA sheet's element rules (CORE-128 heading
     // bookmark defaults) join at UA origin — any author rule wins.
@@ -3076,9 +3077,9 @@ pub(crate) fn cascade_evaluated(
     );
     // Fourth pass: fill border widths/colors (CORE-61 tables; the engine's
     // ComputedStyle carries borders for border-collapse rendering).
-    borders::apply_border_properties(dom, evaluated_css, &mut styles);
+    borders::apply_border_properties(&backend, evaluated_css, &mut styles);
     // CORE-352: table-cell vertical-align (UA default middle via rows).
-    cell_valign::apply_cell_valign(dom, evaluated_css, &mut styles);
+    cell_valign::apply_cell_valign(&backend, evaluated_css, &mut styles);
     // Fifth pass: collapse adjacent table-cell borders (CORE-119 #5) — the
     // shared edge between two neighboring cells must stroke once.
     crate::table::collapse_cell_borders(dom, &mut styles);
@@ -3087,7 +3088,13 @@ pub(crate) fn cascade_evaluated(
     // against the page content box (stylo's fixed-viewport absolute stays).
     // CORE-468: border widths in vw/vh resolve against the page content box.
     let icb = geometry.content_rect();
-    viewport_units::apply_viewport_properties(dom, evaluated_css, &mut styles, icb.width, icb.height);
+    viewport_units::apply_viewport_properties(
+        &backend,
+        evaluated_css,
+        &mut styles,
+        icb.width,
+        icb.height,
+    );
     styles
 }
 
@@ -3105,182 +3112,58 @@ pub(crate) fn cascade_evaluated(
 mod breaks {
     use super::{BreakBetween, BreakInside, ComputedStyle, Hyphens};
     use crate::dom::{Dom, NodeId, NodeKind};
+    use crate::stylo_dom::{TyBackend, TyElement};
+    use selectors::parser::Selector;
+    use style::selector_parser::{SelectorImpl, SelectorParser};
+    use style::stylesheets::UrlExtraData;
 
-    /// A structural pseudo-class the author-CSS passes can match (css-selectors-4
-    /// subset, added for CORE-66: WPT fixtures use `:first-of-type` /
-    /// `:nth-of-type(N)` for page-break and named-page rules, and `:root` for
-    /// `print-color-adjust`).
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    pub(super) enum StructuralPseudo {
-        FirstOfType,
-        NthOfType(u32),
-        Root,
+    pub(super) type Sel = Selector<SelectorImpl>;
+
+    pub(super) fn url_data() -> UrlExtraData {
+        UrlExtraData(servo_arc::Arc::new(
+            url::Url::parse("http://localhost/").expect("static url"),
+        ))
     }
 
-    /// A parsed simple selector: an optional tag plus required classes/id.
-    pub(super) struct SimpleSelector {
-        pub(super) tag: Option<String>,
-        pub(super) id: Option<String>,
-        pub(super) classes: Vec<String>,
-        pub(super) pseudo: Option<StructuralPseudo>,
-        /// Higher wins ties; approximates specificity (id=100, class=10,
-        /// tag=1, pseudo-class=10) then declaration order.
-        pub(super) specificity: u32,
-    }
-
-    impl SimpleSelector {
-        pub(super) fn matches(&self, dom: &Dom, id: NodeId) -> bool {
-            let NodeKind::Element(el) = &dom.nodes[id].kind else {
-                return false;
-            };
-            if let Some(tag) = &self.tag {
-                if !tag.eq_ignore_ascii_case(&el.tag) {
-                    return false;
-                }
-            }
-            if let Some(want) = &self.id {
-                if el.id.as_deref() != Some(want.as_str()) {
-                    return false;
-                }
-            }
-            if !self.classes.iter().all(|c| el.classes.iter().any(|x| x == c)) {
-                return false;
-            }
-            match self.pseudo {
-                None => true,
-                // `:root` = the root ELEMENT (html), not the Root node — the
-                // element whose parent is the document root (page-size-012's
-                // `:root { writing-mode: vertical-rl }` sets the page
-                // context's writing mode via this pass).
-                Some(StructuralPseudo::Root) => {
-                    matches!(dom.nodes[id].kind, NodeKind::Element(_))
-                        && dom.nodes[id].parent == Some(dom.root)
-                }
-                Some(p) => structural_pseudo_matches(dom, id, p),
-            }
+    /// Parse a rule prelude with stylo's own selector parser (CORE-384, the
+    /// CORE-368 pattern): combinators, attribute selectors and every
+    /// structural pseudo match exactly as in the cascade. An invalid list
+    /// drops the whole rule; selectors with a pseudo-element are skipped.
+    pub(super) fn compile_selectors(prelude: &str, url_data: &UrlExtraData) -> Vec<Sel> {
+        match SelectorParser::parse_author_origin_no_namespace(prelude, url_data) {
+            Ok(list) => list
+                .slice()
+                .iter()
+                .filter(|s| !s.has_pseudo_element())
+                .cloned()
+                .collect(),
+            Err(_) => Vec::new(),
         }
     }
 
-    /// Evaluate a structural pseudo against an element's sibling position.
-    /// `:first-of-type` / `:nth-of-type(N)` are relative to the element's
-    /// parent: the N-th element child (1-based) with the same tag.
-    fn structural_pseudo_matches(dom: &Dom, id: NodeId, p: StructuralPseudo) -> bool {
-        let Some(parent) = dom.nodes[id].parent else {
-            return false;
-        };
-        let NodeKind::Element(el) = &dom.nodes[id].kind else {
-            return false;
-        };
-        let mut nth = 0u32;
-        for &sib in &dom.nodes[parent].children {
-            let NodeKind::Element(se) = &dom.nodes[sib].kind else {
-                continue;
-            };
-            if !se.tag.eq_ignore_ascii_case(&el.tag) {
+    /// Ids of all elements matching `sel`, in document order.
+    pub(super) fn matching_ids(backend: &TyBackend<'_>, sel: &Sel) -> Vec<NodeId> {
+        let dom = backend.dom;
+        let mut caches = selectors::context::SelectorCaches::default();
+        let mut ctx = selectors::context::MatchingContext::new(
+            selectors::matching::MatchingMode::Normal,
+            None,
+            &mut caches,
+            selectors::matching::QuirksMode::NoQuirks,
+            selectors::matching::NeedsSelectorFlags::No,
+            selectors::matching::MatchingForInvalidation::No,
+        );
+        let mut out = Vec::new();
+        for id in 0..dom.nodes.len() {
+            if !matches!(dom.nodes[id].kind, NodeKind::Element(_)) {
                 continue;
             }
-            nth += 1;
-            if sib == id {
-                return match p {
-                    StructuralPseudo::FirstOfType => nth == 1,
-                    StructuralPseudo::NthOfType(n) => nth == n,
-                    StructuralPseudo::Root => false,
-                };
+            let el = TyElement::new(id, backend);
+            if selectors::matching::matches_selector(sel, 0, None, &el, &mut ctx) {
+                out.push(id);
             }
         }
-        false
-    }
-
-    /// Parse one compound simple selector like `section.note#x:first-of-type`.
-    /// Returns `None` for anything with a combinator or a pseudo we do not
-    /// support.
-    pub(super) fn parse_simple(sel: &str) -> Option<SimpleSelector> {
-        let sel = sel.trim();
-        if sel.is_empty() || sel.contains([' ', '>', '+', '~', '[', '*']) {
-            return None;
-        }
-        // Split a trailing `:pseudo` (the first `:` starts the pseudo token).
-        let (core, pseudo) = match sel.find(':') {
-            Some(p) => {
-                let (head, tail) = sel.split_at(p);
-                (head, parse_pseudo(tail)?)
-            }
-            None => (sel, None),
-        };
-        if core.is_empty() && pseudo.is_none() {
-            return None;
-        }
-        let mut tag = None;
-        let mut id = None;
-        let mut classes = Vec::new();
-        let mut spec = 0u32;
-        let mut chars = core.chars().peekable();
-        // Optional leading type selector.
-        let mut lead = String::new();
-        while let Some(&c) = chars.peek() {
-            if c == '.' || c == '#' {
-                break;
-            }
-            lead.push(c);
-            chars.next();
-        }
-        if !lead.is_empty() {
-            tag = Some(lead);
-            spec += 1;
-        }
-        while let Some(c) = chars.next() {
-            let mut ident = String::new();
-            while let Some(&nc) = chars.peek() {
-                if nc == '.' || nc == '#' {
-                    break;
-                }
-                ident.push(nc);
-                chars.next();
-            }
-            if ident.is_empty() {
-                return None;
-            }
-            match c {
-                '.' => {
-                    classes.push(ident);
-                    spec += 10;
-                }
-                '#' => {
-                    id = Some(ident);
-                    spec += 100;
-                }
-                _ => return None,
-            }
-        }
-        if pseudo.is_some() {
-            spec += 10;
-        }
-        Some(SimpleSelector {
-            tag,
-            id,
-            classes,
-            pseudo,
-            specificity: spec,
-        })
-    }
-
-    /// Parse a trailing pseudo-class token (`:first-of-type`, `:nth-of-type(N)`,
-    /// `:root`). `None` for unknown pseudos (the rule is dropped).
-    fn parse_pseudo(tok: &str) -> Option<Option<StructuralPseudo>> {
-        let t = tok.trim().to_ascii_lowercase();
-        match t.as_str() {
-            ":first-of-type" => Some(Some(StructuralPseudo::FirstOfType)),
-            ":root" => Some(Some(StructuralPseudo::Root)),
-            _ => {
-                if let Some(inner) = t.strip_prefix(":nth-of-type(") {
-                    let n: u32 = inner.trim_end_matches(')').trim().parse().ok()?;
-                    if n >= 1 {
-                        return Some(Some(StructuralPseudo::NthOfType(n)));
-                    }
-                }
-                None
-            }
-        }
+        out
     }
 
     /// Split a `style=""` attribute value into (property, value) pairs, in
@@ -3355,7 +3238,7 @@ mod breaks {
 
     /// A matched (selector, declarations) rule with source order preserved.
     struct Rule {
-        selectors: Vec<SimpleSelector>,
+        selectors: Vec<Sel>,
         decls: Vec<BreakDecl>,
         order: u32,
     }
@@ -3392,7 +3275,7 @@ mod breaks {
     /// and a naive first-`}` scan would consume only the inner one, leaving a
     /// stray ` }` that mangles the following rule's selector. This mirrors the
     /// `paged_props` scanner.
-    fn parse_rules(css: &str) -> Vec<Rule> {
+    fn parse_rules(css: &str, url_data: &UrlExtraData) -> Vec<Rule> {
         let css = strip_comments(css);
         let mut rules = Vec::new();
         let mut order = 0u32;
@@ -3424,8 +3307,7 @@ mod breaks {
                 }
             }
             if !decls.is_empty() {
-                let selectors: Vec<SimpleSelector> =
-                    prelude.split(',').filter_map(parse_simple).collect();
+                let selectors = compile_selectors(prelude, url_data);
                 if !selectors.is_empty() {
                     rules.push(Rule {
                         selectors,
@@ -3463,8 +3345,9 @@ mod breaks {
 
     /// Apply parsed break rules onto the cascaded styles, then inherit the
     /// inherited break properties (`orphans`, `widows`) down the tree.
-    pub fn apply_break_properties(dom: &Dom, css: &str, styles: &mut [ComputedStyle]) {
-        let rules = parse_rules(css);
+    pub fn apply_break_properties(backend: &TyBackend<'_>, css: &str, styles: &mut [ComputedStyle]) {
+        let dom = backend.dom;
+        let rules = parse_rules(css, &url_data());
 
         // Track the winning (specificity, order) per (node, field) so a
         // higher-priority declaration is not overwritten by a weaker one.
@@ -3505,11 +3388,8 @@ mod breaks {
 
         for rule in &rules {
             for sel in &rule.selectors {
-                let prio = (sel.specificity, rule.order);
-                for id in 0..dom.nodes.len() {
-                    if !sel.matches(dom, id) {
-                        continue;
-                    }
+                let prio = (sel.specificity(), rule.order);
+                for id in matching_ids(backend, sel) {
                     for decl in &rule.decls {
                         match *decl {
                             BreakDecl::Before(v) => {
@@ -3647,9 +3527,10 @@ mod breaks {
 /// cascade). Style keywords (`solid`, `dashed`, ...) are accepted and ignored
 /// (width+color are what render); `none`/`0` clears.
 mod cell_valign {
-    use super::breaks::{parse_inline_decls, parse_simple, strip_comments, SimpleSelector};
+    use super::breaks::{compile_selectors, matching_ids, parse_inline_decls, strip_comments, url_data};
     use super::{CellVAlign, ComputedStyle, Display};
-    use crate::dom::{Dom, NodeKind};
+    use crate::dom::NodeKind;
+    use crate::stylo_dom::TyBackend;
 
     fn parse_value(v: &str) -> Option<CellVAlign> {
         match v.trim().to_ascii_lowercase().as_str() {
@@ -3665,7 +3546,9 @@ mod cell_valign {
     /// resolution: own value, else the row's, else the row group's, else the
     /// UA default `middle` (HTML rendering: `thead, tbody, tfoot, tr
     /// { vertical-align: middle }`, cells inherit).
-    pub fn apply_cell_valign(dom: &Dom, css: &str, styles: &mut [ComputedStyle]) {
+    pub fn apply_cell_valign(backend: &TyBackend<'_>, css: &str, styles: &mut [ComputedStyle]) {
+        let dom = backend.dom;
+        let ud = url_data();
         let css = strip_comments(css);
         let bytes = css.as_bytes();
         let mut decl: Vec<Option<((u32, u32), CellVAlign)>> = vec![None; dom.nodes.len()];
@@ -3700,12 +3583,11 @@ mod cell_valign {
                     }
                 }
                 if let Some(a) = val {
-                    let sels: Vec<SimpleSelector> =
-                        prelude.split(',').filter_map(|s| parse_simple(s.trim())).collect();
+                    let sels = compile_selectors(&prelude, &ud);
                     for sel in &sels {
-                        let prio = (sel.specificity, order);
-                        for id in 0..dom.nodes.len() {
-                            if sel.matches(dom, id) && decl[id].is_none_or(|(p, _)| prio >= p) {
+                        let prio = (sel.specificity(), order);
+                        for id in matching_ids(backend, sel) {
+                            if decl[id].is_none_or(|(p, _)| prio >= p) {
                                 decl[id] = Some((prio, a));
                             }
                         }
@@ -3746,13 +3628,16 @@ mod cell_valign {
 }
 
 mod borders {
-    use super::breaks::{parse_simple, strip_comments, SimpleSelector};
+    use super::breaks::{compile_selectors, matching_ids, strip_comments, url_data, Sel};
     use super::{Color, ComputedStyle};
-    use crate::dom::Dom;
+    use crate::stylo_dom::TyBackend;
     use crate::geom::Scalar;
     use crate::paged::parse_length;
 
-    /// A parsed border declaration: optional per-side widths and a color.
+    /// A parsed border-width declaration. Colors are NOT here: stylo
+    /// computes them exactly (CORE-384). Widths stay because stylo snaps a
+    /// computed border width to whole device pixels (5pt -> 4.5pt, 0.5pt ->
+    /// 0.75pt), and print output needs the declared width.
     #[derive(Clone, Debug, PartialEq)]
     enum BorderDecl {
         /// `border: <width> <style> <color>` or `border-width: 1-4 widths` —
@@ -3762,22 +3647,11 @@ mod borders {
         /// and no width was given at all).
         Shorthand {
             widths: (Option<Scalar>, Option<Scalar>, Option<Scalar>, Option<Scalar>),
-            color: Option<Color>,
         },
         /// `border-top` (etc.) longhand.
         Side {
             side: Side,
             width: Option<Scalar>,
-            color: Option<Color>,
-        },
-        /// `border-color: <color>` — all four sides.
-        Color(Color),
-        /// `border-top-color` (etc.) — ONE side only (CORE-201). The old
-        /// model folded these onto the all-four `Color` variant, which
-        /// repainted every band with the declared side's colour.
-        SideColor {
-            side: Side,
-            color: Color,
         },
         /// `box-decoration-break` (CORE-457): true = clone, false = slice.
         DecorationBreak(bool),
@@ -3792,9 +3666,21 @@ mod borders {
     }
 
     struct Rule {
-        selectors: Vec<SimpleSelector>,
-        decls: Vec<BorderDecl>,
+        selectors: Vec<Sel>,
+        /// Each declaration with its `!important` flag.
+        decls: Vec<(BorderDecl, bool)>,
         order: u32,
+    }
+
+    /// Split a trailing `!important` off a declaration value.
+    fn split_important(value: &str) -> (&str, bool) {
+        let v = value.trim_end();
+        if let Some(i) = v.rfind('!') {
+            if v[i + 1..].trim().eq_ignore_ascii_case("important") {
+                return (v[..i].trim_end(), true);
+            }
+        }
+        (v, false)
     }
 
     /// Parse a CSS color: `#rgb`/`#rgba`/`#rrggbb`/`#rrggbbaa`, `rgb()` /
@@ -3984,19 +3870,11 @@ mod borders {
     fn parse_decl(prop: &str, value: &str) -> Option<BorderDecl> {
         let prop = prop.trim().to_ascii_lowercase();
         let value = value.trim();
-        let (wt, wr, wb, wl, c) = parse_border_value(value);
+        let (wt, wr, wb, wl, _color) = parse_border_value(value);
         match prop.as_str() {
             "border" | "border-width" => Some(BorderDecl::Shorthand {
                 widths: (wt, wr, wb, wl),
-                color: c,
             }),
-            "border-color" => {
-                if let Some(c) = c {
-                    Some(BorderDecl::Color(c))
-                } else {
-                    None
-                }
-            }
             // CORE-457: box-decoration-break (css-break-3 §5.4). Parsed in
             // this pass because stylo's servo build omits the property.
             "box-decoration-break" => match value.to_ascii_lowercase().as_str() {
@@ -4009,42 +3887,24 @@ mod borders {
             "border-top" | "border-top-width" | "border-block-start" | "border-block-start-width" => Some(BorderDecl::Side {
                 side: Side::Top,
                 width: wt,
-                color: c,
             }),
             "border-right" | "border-right-width" => Some(BorderDecl::Side {
                 side: Side::Right,
                 width: wr,
-                color: c,
             }),
             "border-bottom" | "border-bottom-width" | "border-block-end" | "border-block-end-width" => Some(BorderDecl::Side {
                 side: Side::Bottom,
                 width: wb,
-                color: c,
             }),
             "border-left" | "border-left-width" => Some(BorderDecl::Side {
                 side: Side::Left,
                 width: wl,
-                color: c,
             }),
-            // Per-side color longhands (CORE-66 page-orientation mismatch
-            // tests use `border-bottom-color`; CORE-201: the longhand must
-            // paint ONLY its own side, so it maps to SideColor, never the
-            // all-four slot).
-            "border-top-color" => side_color(Side::Top, c),
-            "border-right-color" => side_color(Side::Right, c),
-            "border-bottom-color" => side_color(Side::Bottom, c),
-            "border-left-color" => side_color(Side::Left, c),
             _ => None,
         }
     }
 
-    /// Wrap a parsed color into a per-side decl (CORE-201). A bare color
-    /// value with no usable color is dropped (invalid declaration).
-    fn side_color(side: Side, c: Option<Color>) -> Option<BorderDecl> {
-        c.map(|color| BorderDecl::SideColor { side, color })
-    }
-
-    fn parse_rules(css: &str) -> Vec<Rule> {
+    fn parse_rules(css: &str, ud: &style::stylesheets::UrlExtraData) -> Vec<Rule> {
         let css = strip_comments(css);
         let mut rules = Vec::new();
         let mut order = 0u32;
@@ -4065,16 +3925,14 @@ mod borders {
             let mut decls = Vec::new();
             for decl in body.split(';') {
                 if let Some((prop, value)) = decl.split_once(':') {
+                    let (value, important) = split_important(value);
                     if let Some(d) = parse_decl(prop, value) {
-                        decls.push(d);
+                        decls.push((d, important));
                     }
                 }
             }
             if !decls.is_empty() {
-                let selectors: Vec<SimpleSelector> = prelude
-                    .split(',')
-                    .filter_map(|s| parse_simple(s.trim()))
-                    .collect();
+                let selectors = compile_selectors(prelude, ud);
                 if !selectors.is_empty() {
                     rules.push(Rule { selectors, decls, order });
                 }
@@ -4103,96 +3961,49 @@ mod borders {
         None
     }
 
-    pub fn apply_border_properties(dom: &Dom, css: &str, styles: &mut [ComputedStyle]) {
-        let rules = parse_rules(css);
+    pub fn apply_border_properties(backend: &TyBackend<'_>, css: &str, styles: &mut [ComputedStyle]) {
+        let dom = backend.dom;
+        let rules = parse_rules(css, &url_data());
+        // Cascade payload: (!important, specificity, order). Inline
+        // declarations use specificity u32::MAX, so an `!important`
+        // stylesheet width still beats a normal inline one (css-cascade-4
+        // §6.4), matching what stylo does for every other property.
+        type Prio = (u32, u32, u32);
         #[derive(Clone, Copy, Default)]
         struct Won {
-            top: Option<(u32, u32)>,
-            right: Option<(u32, u32)>,
-            bottom: Option<(u32, u32)>,
-            left: Option<(u32, u32)>,
-            top_color: Option<(u32, u32)>,
-            right_color: Option<(u32, u32)>,
-            bottom_color: Option<(u32, u32)>,
-            left_color: Option<(u32, u32)>,
+            top: Option<Prio>,
+            right: Option<Prio>,
+            bottom: Option<Prio>,
+            left: Option<Prio>,
         }
         let mut won = vec![Won::default(); styles.len()];
 
-        // One declaration applied to one element's style: widths per side,
-        // colors per side (CORE-201 — a side longhand must not clobber the
-        // other three). `prio` is the cascade payload; each side's color has
-        // its OWN winner slot so `border: black` + a later
-        // `border-bottom-color: cyan` keeps top/right/left black.
-        fn apply_decl(
-            st: &mut ComputedStyle,
-            won: &mut Won,
-            decl: &BorderDecl,
-            prio: (u32, u32),
-        ) {
-            match decl {
-                BorderDecl::Shorthand { widths, color } => {
-                    if let Some(w) = widths.0 {
-                        if won.top.is_none_or(|p| prio >= p) {
-                            st.border_top = w;
-                            won.top = Some(prio);
-                        }
-                    }
-                    if let Some(w) = widths.1 {
-                        if won.right.is_none_or(|p| prio >= p) {
-                            st.border_right = w;
-                            won.right = Some(prio);
-                        }
-                    }
-                    if let Some(w) = widths.2 {
-                        if won.bottom.is_none_or(|p| prio >= p) {
-                            st.border_bottom = w;
-                            won.bottom = Some(prio);
-                        }
-                    }
-                    if let Some(w) = widths.3 {
-                        if won.left.is_none_or(|p| prio >= p) {
-                            st.border_left = w;
-                            won.left = Some(prio);
-                        }
-                    }
-                    if let Some(c) = color {
-                        apply_color(st, won, Side::Top, *c, prio);
-                        apply_color(st, won, Side::Right, *c, prio);
-                        apply_color(st, won, Side::Bottom, *c, prio);
-                        apply_color(st, won, Side::Left, *c, prio);
+        // One declaration applied to one element's style: widths per side.
+        // Colors come from stylo (CORE-384).
+        fn apply_decl(st: &mut ComputedStyle, won: &mut Won, decl: &BorderDecl, prio: Prio) {
+            fn set(slot: &mut Scalar, flag: &mut Option<Prio>, w: Option<Scalar>, prio: Prio) {
+                if let Some(w) = w {
+                    if flag.is_none_or(|p| prio >= p) {
+                        *slot = w;
+                        *flag = Some(prio);
                     }
                 }
-                BorderDecl::Side {
-                    side,
-                    width,
-                    color,
-                } => {
+            }
+            match decl {
+                BorderDecl::Shorthand { widths } => {
+                    set(&mut st.border_top, &mut won.top, widths.0, prio);
+                    set(&mut st.border_right, &mut won.right, widths.1, prio);
+                    set(&mut st.border_bottom, &mut won.bottom, widths.2, prio);
+                    set(&mut st.border_left, &mut won.left, widths.3, prio);
+                }
+                BorderDecl::Side { side, width } => {
                     let (slot, flag) = match side {
                         Side::Top => (&mut st.border_top, &mut won.top),
                         Side::Right => (&mut st.border_right, &mut won.right),
                         Side::Bottom => (&mut st.border_bottom, &mut won.bottom),
                         Side::Left => (&mut st.border_left, &mut won.left),
                     };
-                    if let Some(w) = width {
-                        if flag.is_none_or(|p| prio >= p) {
-                            *slot = *w;
-                            *flag = Some(prio);
-                        }
-                    }
-                    if let Some(c) = color {
-                        apply_color(st, won, *side, *c, prio);
-                    }
-                }
-                BorderDecl::Color(c) => {
-                    // `border-color: <color>` — all four sides, one priority.
-                    apply_color(st, won, Side::Top, *c, prio);
-                    apply_color(st, won, Side::Right, *c, prio);
-                    apply_color(st, won, Side::Bottom, *c, prio);
-                    apply_color(st, won, Side::Left, *c, prio);
-                }
-                BorderDecl::SideColor { side, color } => {
-                    // `border-<side>-color` — ONE side only (CORE-201).
-                    apply_color(st, won, *side, *color, prio);
+                    set(slot, flag, *width, prio);
                 }
                 BorderDecl::DecorationBreak(clone) => {
                     st.box_decoration_clone = *clone;
@@ -4200,42 +4011,19 @@ mod borders {
             }
         }
 
-        // The color slot for ONE side, with its own cascade winner.
-        fn apply_color(
-            st: &mut ComputedStyle,
-            won: &mut Won,
-            side: Side,
-            color: Color,
-            prio: (u32, u32),
-        ) {
-            let (slot, flag) = match side {
-                Side::Top => (&mut st.border_top_color, &mut won.top_color),
-                Side::Right => (&mut st.border_right_color, &mut won.right_color),
-                Side::Bottom => (&mut st.border_bottom_color, &mut won.bottom_color),
-                Side::Left => (&mut st.border_left_color, &mut won.left_color),
-            };
-            if flag.is_none_or(|p| prio >= p) {
-                *slot = Some(color);
-                *flag = Some(prio);
-            }
-        }
-
         for rule in &rules {
             for sel in &rule.selectors {
-                let prio = (sel.specificity, rule.order);
-                for id in 0..dom.nodes.len() {
-                    if !sel.matches(dom, id) {
-                        continue;
-                    }
-                    for decl in &rule.decls {
+                for id in matching_ids(backend, sel) {
+                    for (decl, important) in &rule.decls {
+                        let prio = (*important as u32, sel.specificity(), rule.order);
                         apply_decl(&mut styles[id], &mut won[id], decl, prio);
                     }
                 }
             }
         }
 
-        // Inline `style=""` declarations win over every stylesheet rule
-        // (CORE-66: WPT fixtures set border colors/widths inline).
+        // Inline `style=""` declarations win over every normal stylesheet
+        // rule (CORE-66: WPT fixtures set border widths inline).
         let mut inline_order = 0u32;
         for id in 0..dom.nodes.len() {
             let crate::dom::NodeKind::Element(el) = &dom.nodes[id].kind else {
@@ -4245,10 +4033,11 @@ mod borders {
                 continue;
             };
             for (prop, value) in super::breaks::parse_inline_decls(attr) {
-                let Some(decl) = parse_decl(&prop, &value) else {
+                let (value, important) = split_important(&value);
+                let Some(decl) = parse_decl(&prop, value) else {
                     continue;
                 };
-                let prio = (u32::MAX, inline_order);
+                let prio = (important as u32, u32::MAX, inline_order);
                 inline_order += 1;
                 apply_decl(&mut styles[id], &mut won[id], &decl, prio);
             }
@@ -4971,9 +4760,12 @@ mod paged_props {
 /// [`breaks`]: same simple-selector matcher, same balanced-brace scanner, same
 /// inline-`style` override model.
 mod viewport_units {
-    use super::breaks::{matching_brace, parse_simple, strip_comments, SimpleSelector};
+    use super::breaks::{
+        compile_selectors, matching_brace, matching_ids, strip_comments, url_data, Sel,
+    };
     use super::{ComputedStyle, ViewportLen};
-    use crate::dom::{Dom, NodeKind};
+    use crate::dom::NodeKind;
+    use crate::stylo_dom::TyBackend;
     use crate::geom::Scalar;
     /// One viewport-unit declaration keyed to a field.
     #[derive(Clone, Copy)]
@@ -5092,14 +4884,14 @@ mod viewport_units {
     }
 
     struct Rule {
-        selectors: Vec<SimpleSelector>,
+        selectors: Vec<Sel>,
         decls: Vec<ViewportDecl>,
         order: u32,
     }
 
     /// Parse only the viewport-unit rules; at-rules and unknown declarations
     /// are skipped without failing (same balanced-brace scan as `breaks`).
-    fn parse_rules(css: &str) -> Vec<Rule> {
+    fn parse_rules(css: &str, ud: &style::stylesheets::UrlExtraData) -> Vec<Rule> {
         let css = strip_comments(css);
         let mut rules = Vec::new();
         let mut order = 0u32;
@@ -5127,8 +4919,7 @@ mod viewport_units {
                 }
             }
             if !decls.is_empty() {
-                let selectors: Vec<SimpleSelector> =
-                    prelude.split(',').filter_map(parse_simple).collect();
+                let selectors = compile_selectors(prelude, ud);
                 if !selectors.is_empty() {
                     rules.push(Rule {
                         selectors,
@@ -5147,13 +4938,14 @@ mod viewport_units {
     /// `style=""` declarations (which win). Later / more-specific matches win
     /// (same priority model as [`breaks`]).
     pub fn apply_viewport_properties(
-        dom: &Dom,
+        backend: &TyBackend<'_>,
         css: &str,
         styles: &mut [ComputedStyle],
         icb_w: Scalar,
         icb_h: Scalar,
     ) {
-        let rules = parse_rules(css);
+        let dom = backend.dom;
+        let rules = parse_rules(css, &url_data());
 
         // CORE-468: set one border side from a viewport-unit width.
         fn set_border(st: &mut ComputedStyle, side: usize, w: Scalar) {
@@ -5179,14 +4971,8 @@ mod viewport_units {
 
         for rule in &rules {
             for sel in &rule.selectors {
-                let prio = (sel.specificity, rule.order);
-                for id in 0..dom.nodes.len() {
-                    if !matches!(dom.nodes[id].kind, NodeKind::Element(_)) {
-                        continue;
-                    }
-                    if !sel.matches(dom, id) {
-                        continue;
-                    }
+                let prio = (sel.specificity(), rule.order);
+                for id in matching_ids(backend, sel) {
                     for decl in &rule.decls {
                         match *decl {
                             ViewportDecl::Border(side, v) => {

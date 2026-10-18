@@ -1,0 +1,148 @@
+{
+  "schema": "typeanvil.harness.reviews/1",
+  "candidate": {
+    "label": "candidate-16c34f93b5da8a5ab106248ac0877f6e011bf5ea",
+    "source_commit": "16c34f93b5da8a5ab106248ac0877f6e011bf5ea",
+    "binary_sha256": "3eb215eb5e70d5ddc406a1d445282461aec0dfc3438fcd9cabccb4733e36f238"
+  },
+  "baseline": {
+    "label": "baseline-34727e1ec68af1f421dc3b59e0eea463fc4a6e3d",
+    "source_commit": "34727e1ec68af1f421dc3b59e0eea463fc4a6e3d",
+    "binary_sha256": "d0915a4ec0f210f4ba781c586daa8e33da5d5a739d6b0dbd9cc290d0daa90566"
+  },
+  "dispositions": [
+    {
+      "doc_id": "css/css-break/block-001-wm-vlr-print.html",
+      "change_id": "870153c6675ae9b17881055bc9c5b9762ad473c59bfc1a0f4e3d98adac239199",
+      "kind": "correction",
+      "reason": "Measured cause: the baseline border pass re-applied `border: 5px solid black` after stylo and wrote black to all four side colors, which overwrote stylo's correct writing-mode mapping of `border-block-start-color: blue` / `border-inline-start-color: lime`. CORE-384 takes border colors from stylo only. Raster at 96 DPI, base vs cand page 1: base black 2272 px; cand blue 1120 + lime 576 + black 576 px (same total). Page counts unchanged; WPT status unchanged for all 309 tests.",
+      "provenance": "CORE-384; css-logical-1 \u00a74 flow-relative borders; css-cascade-4 \u00a76"
+    },
+    {
+      "doc_id": "css/css-break/block-001-wm-vlr-ref.html",
+      "change_id": "e9f210924c50cbcc2c704e03378ae9523b209c1964db91b3e7c732fba3852abf",
+      "kind": "correction",
+      "reason": "Measured cause: the baseline border pass re-applied `border: 5px solid black` after stylo and wrote black to all four side colors, which overwrote stylo's correct writing-mode mapping of `border-block-start-color: blue` / `border-inline-start-color: lime`. CORE-384 takes border colors from stylo only. Raster at 96 DPI, base vs cand page 1: base black 2272 px; cand blue 1120 + lime 576 + black 576 px (same total). Test and reference change together; page counts unchanged; WPT status unchanged for all 309 tests.",
+      "provenance": "CORE-384; css-logical-1 \u00a74 flow-relative borders; css-cascade-4 \u00a76"
+    },
+    {
+      "doc_id": "css/css-break/block-001-wm-vrl-print.html",
+      "change_id": "cf3c0d23fe57cf1c364a81b74766fd26fb7562d652ac5ac239c70eb9bb6fc791",
+      "kind": "correction",
+      "reason": "Measured cause: vertical-rl twin of block-001-wm-vlr. The baseline border pass wrote the shorthand's black over stylo's flow-relative side colors (blue block-start, lime inline-start). CORE-384 takes border colors from stylo only, so the logical colors now paint. Page counts unchanged; WPT status unchanged for all 309 tests.",
+      "provenance": "CORE-384; css-logical-1 \u00a74 flow-relative borders; css-cascade-4 \u00a76"
+    },
+    {
+      "doc_id": "css/css-break/block-001-wm-vrl-ref.html",
+      "change_id": "2c993cc17d6a9178e6ad035b14a8be8c90c20f4dd89674a6f69f960b21551f53",
+      "kind": "correction",
+      "reason": "Measured cause: vertical-rl twin of block-001-wm-vlr. The baseline border pass wrote the shorthand's black over stylo's flow-relative side colors (blue block-start, lime inline-start). CORE-384 takes border colors from stylo only, so the logical colors now paint. Test and reference change together; WPT status unchanged for all 309 tests.",
+      "provenance": "CORE-384; css-logical-1 \u00a74 flow-relative borders; css-cascade-4 \u00a76"
+    },
+    {
+      "doc_id": "css/css-break/block-002-wm-vlr-print.html",
+      "change_id": "ce8cc699d3fbfc588a2044fdde9b616ccd76ea36a9584774d7390a527387e670",
+      "kind": "correction",
+      "reason": "Measured cause: `.b { border: 5px solid black; border-block-start-color: blue; border-inline-start-color: lime }`. The baseline border pass wrote black over stylo's flow-relative side colors. CORE-384 takes border colors from stylo only. Raster page 2, base: black 1152 px; cand: lime 576 + black 576 px. The grey `.b > div` borders are identical on both sides (stylo already computed them). Page counts unchanged; WPT status unchanged for all 309 tests.",
+      "provenance": "CORE-384; css-logical-1 \u00a74 flow-relative borders; css-cascade-4 \u00a76"
+    },
+    {
+      "doc_id": "css/css-break/block-002-wm-vlr-ref.html",
+      "change_id": "fe2ec8f6b9ca7bc618c3b5900ff98b0d22a9f9f8d9485266a6df5e0ae7c18b2a",
+      "kind": "correction",
+      "reason": "Measured cause: reference of block-002-wm-vlr, same `.b` rule. The baseline border pass wrote the shorthand's black over stylo's flow-relative side colors (blue/lime). CORE-384 takes border colors from stylo only. Test and reference change together; WPT status unchanged for all 309 tests.",
+      "provenance": "CORE-384; css-logical-1 \u00a74 flow-relative borders; css-cascade-4 \u00a76"
+    },
+    {
+      "doc_id": "css/css-break/block-002-wm-vrl-print.html",
+      "change_id": "c95729a66b230d904872861446de41840f35bb7418153cab1b36d6859da873f7",
+      "kind": "correction",
+      "reason": "Measured cause: vertical-rl twin of block-002-wm-vlr. The baseline border pass wrote the shorthand's black over stylo's flow-relative side colors (blue/lime). CORE-384 takes border colors from stylo only. WPT status unchanged for all 309 tests.",
+      "provenance": "CORE-384; css-logical-1 \u00a74 flow-relative borders; css-cascade-4 \u00a76"
+    },
+    {
+      "doc_id": "css/css-break/block-002-wm-vrl-ref.html",
+      "change_id": "41bfcd433882e1817eb4e16b0a22232d18b8317410d7984dd325f7ec3782200a",
+      "kind": "correction",
+      "reason": "Measured cause: reference of block-002-wm-vrl. The baseline border pass wrote the shorthand's black over stylo's flow-relative side colors (blue/lime). CORE-384 takes border colors from stylo only. Test and reference change together; WPT status unchanged for all 309 tests.",
+      "provenance": "CORE-384; css-logical-1 \u00a74 flow-relative borders; css-cascade-4 \u00a76"
+    },
+    {
+      "doc_id": "css/css-break/flexbox/multi-line-row-flex-fragmentation-082-print-ref.html",
+      "change_id": "8a35767bfc6810101e9acdfda6d761e0aa9f0fbfe64ebd6eda3b953d2eb7872e",
+      "kind": "correction",
+      "reason": "Measured cause: the nested items carry `class=\"flexbox nested\"`. Stylo computed `.flexbox > .nested { border: 4px solid gold }` correctly, but the baseline border pass (simple selectors only) re-applied the weaker `.flexbox { border: 0.25in solid black }` after stylo and overwrote both width and color. CORE-384 matches the combinator rule in the width pass and takes colors from stylo. Raster of the 082a family, page 1: base black 23753 px, gold 0; cand black 8423, gold 2484. Test and reference change together; WPT status unchanged for all 309 tests.",
+      "provenance": "CORE-384; Selectors-4 \u00a717 specificity; css-cascade-4 \u00a76"
+    },
+    {
+      "doc_id": "css/css-break/flexbox/multi-line-row-flex-fragmentation-082a-print.html",
+      "change_id": "65840bf0dd0e2d18287ce5f467d15fefc540a8c062387c92881f5242c0c46359",
+      "kind": "correction",
+      "reason": "Measured cause: the nested items carry `class=\"flexbox nested\"`. Stylo computed `.flexbox > .nested { border: 4px solid gold }` correctly, but the baseline border pass re-applied the weaker `.flexbox { border: 0.25in solid black }` after stylo and overwrote width and color. Raster page 1: base black 23753 px, gold 0; cand black 8423, gold 2484, purple 1942. WPT status unchanged for all 309 tests.",
+      "provenance": "CORE-384; Selectors-4 \u00a717 specificity; css-cascade-4 \u00a76"
+    },
+    {
+      "doc_id": "css/css-break/flexbox/multi-line-row-flex-fragmentation-082b-print.html",
+      "change_id": "33e7d4c9112427e501f127c08e0a8741c6ba4cad77f08e7bbd715877bd9f4128",
+      "kind": "correction",
+      "reason": "Measured cause: same fixture shape as 082a (identical baseline and candidate page fingerprints). The baseline border pass overwrote stylo's `.flexbox > .nested` gold 4px border with the weaker `.flexbox` 0.25in black rule. WPT status unchanged for all 309 tests.",
+      "provenance": "CORE-384; Selectors-4 \u00a717 specificity; css-cascade-4 \u00a76"
+    },
+    {
+      "doc_id": "css/css-break/flexbox/multi-line-row-flex-fragmentation-082c-print.html",
+      "change_id": "785c20d38287ff4cf31fc081715f390a14fb80e0c258dd9be000d472098ddbf4",
+      "kind": "correction",
+      "reason": "Measured cause: same fixture shape as 082a (identical baseline and candidate page fingerprints). The baseline border pass overwrote stylo's `.flexbox > .nested` gold 4px border with the weaker `.flexbox` 0.25in black rule. WPT status unchanged for all 309 tests.",
+      "provenance": "CORE-384; Selectors-4 \u00a717 specificity; css-cascade-4 \u00a76"
+    },
+    {
+      "doc_id": "css/css-break/flexbox/multi-line-row-flex-fragmentation-082d-print.html",
+      "change_id": "f6540913f89877467f4a08ba9d36d411abda0a0faffda61bdded4d0b9bfdcd69",
+      "kind": "correction",
+      "reason": "Measured cause: same fixture shape as 082a (identical baseline and candidate page fingerprints). The baseline border pass overwrote stylo's `.flexbox > .nested` gold 4px border with the weaker `.flexbox` 0.25in black rule. WPT status unchanged for all 309 tests.",
+      "provenance": "CORE-384; Selectors-4 \u00a717 specificity; css-cascade-4 \u00a76"
+    },
+    {
+      "doc_id": "css/css-break/flexbox/single-line-column-flex-fragmentation-069-print-ref.html",
+      "change_id": "7819d3a8c9b470da8a827cd77165847cff7b23c30eb316bd7c56ab82a7423f66",
+      "kind": "correction",
+      "reason": "Measured cause: the nested column flex items carry `class=\"flexbox nested\"`. The baseline border pass re-applied the weaker `.flexbox { border: 0.25in solid black }` after stylo and overwrote stylo's correct `.flexbox > .nested { border: 4px solid gold }` width and color. Raster of the 069a family, page 1: base black 19547 px, gold 0; cand black 7415, gold 1842. Test and reference change together; WPT status unchanged for all 309 tests (069a/b/c/d PASS on both sides).",
+      "provenance": "CORE-384; Selectors-4 \u00a717 specificity; css-cascade-4 \u00a76"
+    },
+    {
+      "doc_id": "css/css-break/flexbox/single-line-column-flex-fragmentation-069a-print.html",
+      "change_id": "2dd6037f2e142ea75eef44b422200aeb22a918b1ef37071a99f6ab5227b074f8",
+      "kind": "correction",
+      "reason": "Measured cause: the baseline border pass re-applied the weaker `.flexbox { border: 0.25in solid black }` after stylo on the `flexbox nested` items, overwriting stylo's `.flexbox > .nested { border: 4px solid gold }`. Raster page 1: base black 19547 px, gold 0, purple 2856; cand black 7415, gold 1842, purple 3216. WPT status unchanged (PASS both sides).",
+      "provenance": "CORE-384; Selectors-4 \u00a717 specificity; css-cascade-4 \u00a76"
+    },
+    {
+      "doc_id": "css/css-break/flexbox/single-line-column-flex-fragmentation-069b-print.html",
+      "change_id": "3fd62e1b4959b18b1fbd63dd25a725b184068eeec8d64522d02fe7e03c5d9755",
+      "kind": "correction",
+      "reason": "Measured cause: same fixture shape as 069a (identical baseline and candidate page fingerprints). The baseline border pass overwrote stylo's `.flexbox > .nested` gold 4px border with the weaker `.flexbox` 0.25in black rule. WPT status unchanged (PASS both sides).",
+      "provenance": "CORE-384; Selectors-4 \u00a717 specificity; css-cascade-4 \u00a76"
+    },
+    {
+      "doc_id": "css/css-break/flexbox/single-line-column-flex-fragmentation-069c-print.html",
+      "change_id": "bcf74fce2c8af6c812b77fa622f08e317e36633702d354398bd9d9dc5d501469",
+      "kind": "correction",
+      "reason": "Measured cause: same fixture shape as 069a (identical baseline and candidate page fingerprints). The baseline border pass overwrote stylo's `.flexbox > .nested` gold 4px border with the weaker `.flexbox` 0.25in black rule. WPT status unchanged (PASS both sides).",
+      "provenance": "CORE-384; Selectors-4 \u00a717 specificity; css-cascade-4 \u00a76"
+    },
+    {
+      "doc_id": "css/css-break/flexbox/single-line-column-flex-fragmentation-069d-print.html",
+      "change_id": "f0bb51d1c5e72b563c88b9f5bf742954c36e46792a97abcff6269c39728cdbba",
+      "kind": "correction",
+      "reason": "Measured cause: 069 family (page 2 fingerprint identical to 069a). The baseline border pass overwrote stylo's `.flexbox > .nested` gold 4px border with the weaker `.flexbox` 0.25in black rule. WPT status unchanged for all 309 tests.",
+      "provenance": "CORE-384; Selectors-4 \u00a717 specificity; css-cascade-4 \u00a76"
+    },
+    {
+      "doc_id": "css/css-break/overflowing-block-print-ref.html",
+      "change_id": "3ec782041b96bfb1547356e6215ac74bcbd83c348ea72eed653a4bd32c6d7134",
+      "kind": "correction",
+      "reason": "Measured cause: stylo computed `div > div { border: solid gray 10px }` for the inner box, but the baseline border pass re-applied the weaker simple `div { border: solid orange 10px }` after stylo and repainted it orange. Raster pages 1-3, base: orange only (8448/2304/4488 px); cand: orange 4464 on page 1 (the outer box) and gray 4240/2304/4480 px (the inner box). Page count unchanged (3); WPT status unchanged for all 309 tests.",
+      "provenance": "CORE-384; Selectors-4 \u00a717 specificity; css-cascade-4 \u00a76"
+    }
+  ]
+}
