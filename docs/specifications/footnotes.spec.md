@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-22
-updated: 2026-09-27
+updated: 2026-10-18
 sidebar_position: 15
 tags: [engine, css-gcpm, css-page, fragmentation, paged-media]
 spec_id: footnotes
@@ -246,6 +246,11 @@ while drawing raised.
   height; notes overflow upward past the content top (last resort, no
   infinite loop — the area is bounded by the sum of measured note heights,
   which is finite).
+
+- Footnote span inside a table cell or a list item (CORE-514, verified
+  2026-10-18): the note paginates with its call line, on the call's page,
+  with continuous numbering. Markdown input relies on this
+  (`markdown-input.spec.md` Gap 6).
 
 ## References
 

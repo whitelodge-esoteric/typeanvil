@@ -85,6 +85,14 @@ pub fn convert(source: &str, css: &[String], default_css: bool) -> Result<Markdo
 
     let rendered = markdown_to_html(body, &opts);
     let rendered = task_boxes(&rendered);
+    let (rendered, unresolved) = footnote_floats(&rendered);
+    for label in unresolved {
+        diagnostics.push(md_diag(
+            "markdown-unresolved-footnote",
+            &format!("footnote reference `{label}` has no definition; left as text"),
+            0,
+        ));
+    }
     let _ = body_line;
     let rendered = rendered
         .replace(" align=\"right\"", " style=\"text-align:right\"")
@@ -153,6 +161,116 @@ fn task_boxes(html: &str) -> String {
     }
     out.push_str(rest);
     out
+}
+
+/// B9: comrak renders `[^id]` as `<sup class="footnote-ref"><a ...>N</a></sup>`
+/// plus a trailing `<section class="footnotes">` list. Replace each reference
+/// with an inline `<span class="footnote">` holding the definition content
+/// (the engine's `float: footnote` form) and drop the trailing list. Returns
+/// the new HTML and the labels of references that stayed literal text.
+fn footnote_floats(html: &str) -> (String, Vec<String>) {
+    const SEC: &str = "<section class=\"footnotes\"";
+    let mut unresolved = Vec::new();
+    let (body, defs) = match html.find(SEC) {
+        Some(i) => {
+            let tail = &html[i..];
+            let end = tail.find("</section>").map(|e| e + "</section>".len()).unwrap_or(tail.len());
+            let mut defs: Vec<(String, String)> = Vec::new();
+            let mut rest = &tail[..end];
+            while let Some(p) = rest.find("<li id=\"") {
+                let after = &rest[p + 8..];
+                let Some(q) = after.find('"') else { break };
+                let id = after[..q].to_string();
+                let Some(gt) = after.find('>') else { break };
+                let content = &after[gt + 1..];
+                let Some(close) = content.find("</li>") else { break };
+                defs.push((id, footnote_inline(&content[..close])));
+                rest = &content[close..];
+            }
+            let mut b = String::with_capacity(html.len());
+            b.push_str(&html[..i]);
+            b.push_str(&tail[end..]);
+            (b, defs)
+        }
+        None => (html.to_string(), Vec::new()),
+    };
+
+    const REF: &str = "<sup class=\"footnote-ref\"><a href=\"#";
+    let mut out = String::with_capacity(body.len());
+    let mut rest = body.as_str();
+    while let Some(i) = rest.find(REF) {
+        out.push_str(&rest[..i]);
+        let tail = &rest[i + REF.len()..];
+        let Some(end) = tail.find("</sup>") else {
+            out.push_str(&rest[i..]);
+            rest = "";
+            break;
+        };
+        let target = tail.split('"').next().unwrap_or("");
+        // Repeated references get ids `fn-1` for every call; the definition
+        // is keyed by the base id.
+        match defs.iter().find(|(id, _)| id == target) {
+            Some((_, content)) => {
+                out.push_str("<span class=\"footnote\" style=\"float: footnote\">");
+                out.push_str(content);
+                out.push_str("</span>");
+            }
+            None => out.push_str(&rest[i..i + REF.len() + end + "</sup>".len()]),
+        }
+        rest = &tail[end + "</sup>".len()..];
+    }
+    out.push_str(rest);
+
+    // Unresolved references remain as literal `[^label]` text outside code.
+    let scan = strip_blocks(&strip_blocks(&out, "pre"), "code");
+    let mut s = scan.as_str();
+    while let Some(a) = s.find("[^") {
+        let t = &s[a + 2..];
+        if let Some(b) = t.find(']') {
+            let label = &t[..b];
+            if !label.is_empty() && !label.contains(|c: char| c.is_whitespace() || c == '<' || c == '[') {
+                unresolved.push(label.to_string());
+            }
+            s = &t[b..];
+        } else {
+            break;
+        }
+    }
+    (out, unresolved)
+}
+
+/// Remove every `<tag ...>...</tag>` block (used to skip code when scanning
+/// for literal `[^label]` text).
+fn strip_blocks(html: &str, tag: &str) -> String {
+    let (open, close) = (format!("<{tag}"), format!("</{tag}>"));
+    let mut out = String::with_capacity(html.len());
+    let mut s = html;
+    while let Some(a) = s.find(&open) {
+        out.push_str(&s[..a]);
+        match s[a..].find(&close) {
+            Some(c) => s = &s[a + c + close.len()..],
+            None => return out,
+        }
+    }
+    out.push_str(s);
+    out
+}
+
+/// Flatten a definition `<li>` body to inline content: drop the back-reference
+/// link and join paragraphs with a space (a `<span>` cannot hold block tags).
+fn footnote_inline(li: &str) -> String {
+    let mut s = li.to_string();
+    while let Some(a) = s.find("<a href=\"#fnref") {
+        match s[a..].find("</a>") {
+            Some(c) => s.replace_range(a..a + c + 4, ""),
+            None => break,
+        }
+    }
+    s.replace("</p>\n<p>", " ")
+        .replace("<p>", "")
+        .replace("</p>", "")
+        .trim()
+        .to_string()
 }
 
 /// B10 fallback until the TeX translator lands (slice 3): comrak's math
