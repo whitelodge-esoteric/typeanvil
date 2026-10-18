@@ -37,8 +37,8 @@ Epic: CORE-486. Issue: CORE-488.
 
 ## Non-Goals
 
-- New documents. Gutenberg, arXiv and Federal Register sources arrive in
-  later issues and add their entries to `LICENSES.md` first.
+- New documents beyond the four heavy documents (CORE-491). Other sources
+  arrive in later issues and add their entries to `LICENSES.md` first.
 - Changing the scoreboard schema, the triage buckets or the showcase DPI.
 - Renaming scoreboard keys beyond the new `<category>/<doc>.html` path.
 
@@ -73,6 +73,14 @@ Epic: CORE-486. Issue: CORE-488.
      --oracle prince`; `--track showcase` defaults to `--role showcase`.
    - `scripts/benchmark.py`: default `--role perf`.
    - `scripts/tagged_gate.py`: renders every manifest entry; no filter.
+   - Heavy documents (CORE-491): `size: heavy` also covers print-geometry
+     documents (Letter, A4, 6 × 9 in) that run for 10 pages or more. They carry
+     the roles `gate`, `perf` and `showcase`, render at their own manifest
+     geometry, and are produced by `scripts/build_heavy_library.py` from the
+     sources named in `source` and `library/LICENSES.md`. A run that must stay
+     short filters with `--size small`. `scripts/benchmark.py` renders every
+     document at 5 in × 3 in; use `--category` to skip the heavy documents
+     until the benchmark reads manifest geometry.
 4. Fixture-internal `@page { size }` and `@page { margin }` rules override the
    CLI geometry, as before.
 5. `repros/manifest.json` SHALL list the engine-gap fixtures (one per open or

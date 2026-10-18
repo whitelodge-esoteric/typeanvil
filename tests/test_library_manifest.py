@@ -61,7 +61,10 @@ def test_file_stems_are_unique(entries):
 
 def test_size_agrees_with_geometry_and_pages(entries):
     for e in entries:
-        if "showcase" in e["roles"]:
+        if e["size"] == "heavy" and e["geometry"]["width"] != "5in":
+            # Real-geometry heavy documents (CORE-491): long, print-size.
+            assert e["baseline_pages"] >= 10, e["file"]
+        elif "showcase" in e["roles"]:
             assert e["size"] == "visual", e["file"]
         else:
             assert e["geometry"]["width"] == "5in", e["file"]
@@ -76,7 +79,21 @@ def test_baseline_pages_recorded(entries):
     assert pages["stress/table-stress.html"] == 26
     assert pages["posters/poster.html"] == 1
     assert pages["reports/weasyprint-report.html"] == 10
-    assert len(pages) == 40
+    assert len(pages) == 44
+    # CORE-491 heavy documents, measured at 45adf08 at their own geometry.
+    assert pages["academic/journal-article.html"] == 13
+    assert pages["academic/dissertation.html"] == 141
+    assert pages["book/pride-and-prejudice.html"] == 318
+    assert pages["manual/field-manual.html"] == 212
+
+
+def test_heavy_documents_record_source_and_license(entries):
+    licenses = (LIBRARY / "LICENSES.md").read_text(encoding="utf-8")
+    heavy = [e for e in entries if e["size"] == "heavy" and e["geometry"]["width"] != "5in"]
+    assert len(heavy) == 4
+    for e in heavy:
+        assert e["source"].startswith(("http", "generated")), e["file"]
+        assert e["file"] in licenses, e["file"]
 
 
 def test_assets_referenced_by_fixtures_exist(entries):
