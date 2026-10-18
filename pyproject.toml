@@ -1,7 +1,7 @@
 [project]
 name = "typeanvil-harness"
 version = "0.1.0"
-description = "WPT print-reftest conformance harness for Typeanvil (HTML/CSS -> PDF)"
+description = "WPT print-reftest conformance harness for TypeAnvil (HTML/CSS -> PDF)"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

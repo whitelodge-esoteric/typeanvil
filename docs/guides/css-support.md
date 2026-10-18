@@ -4,7 +4,7 @@ type: guide
 status: approved
 owner: maintainers
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-17
 sidebar_position: 6
 tags: [guide, css, layout, tables, fonts, typography]
 slug: /guides/css-support
@@ -12,13 +12,13 @@ slug: /guides/css-support
 
 # CSS support
 
-This page lists the layout and CSS features that the Typeanvil engine
+This page lists the layout and CSS features that the TypeAnvil engine
 supports, with the known limitations of each. Every section links to the
 specification that defines the behavior in full. For page size, margin boxes,
 counters and running headers, see [Paged media CSS](./paged-media-css.md). For
 command-line flags, see the [CLI reference](./cli.md).
 
-CSS standards define the expected behavior. Where Typeanvil deliberately
+CSS standards define the expected behavior. Where TypeAnvil deliberately
 departs from a standard, the specification records the reason (see
 [CSS standards alignment](../conventions/css-standards-alignment.md)). This
 page describes what the engine does today, gaps included.

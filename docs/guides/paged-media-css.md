@@ -4,7 +4,7 @@ type: guide
 status: approved
 owner: maintainers
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-17
 sidebar_position: 5
 tags: [guide, paged-media, css, pdf, accessibility]
 slug: /guides/paged-media-css
@@ -12,7 +12,7 @@ slug: /guides/paged-media-css
 
 # Paged media CSS
 
-Typeanvil renders HTML to paginated PDF. Along with ordinary CSS layout, it
+TypeAnvil renders HTML to paginated PDF. Along with ordinary CSS layout, it
 supports the paged-media and generated-content features that reports,
 invoices, and books need: `@page` rules and margin boxes, named pages, page
 counters, running headers, footnotes, cross-references, page floats,
@@ -24,13 +24,13 @@ limits of the current implementation. For command-line flags, see the
 [CLI guide](./cli.md) and the [CLI reference](../operations/cli.md). If you
 have not rendered a document yet, start with
 [Getting started](./getting-started.md). The behavior contracts are in the
-linked specifications. Where Typeanvil differs from the CSS specifications,
+linked specifications. Where TypeAnvil differs from the CSS specifications,
 this page says so.
 
 ## `@page` rules
 
 An `@page` rule describes the page box: its size, its margins, and the
-content of its margin boxes. Typeanvil reads `@page` rules from author
+content of its margin boxes. TypeAnvil reads `@page` rules from author
 stylesheets (`<style>` elements and `<link rel="stylesheet">` files).
 
 ```css
@@ -47,7 +47,7 @@ can take a page pseudo-class:
 @page [<name>][:first | :left | :right] { ... }
 ```
 
-Declarations inside `@page` that Typeanvil does not recognize are skipped.
+Declarations inside `@page` that TypeAnvil does not recognize are skipped.
 They do not fail the render. In a prelude such as `@page a:first`, the name
 and the pseudo-class are written without whitespace between them.
 
@@ -82,7 +82,7 @@ margin boxes. A matching rule without `size` uses the CLI size. See the
 
 ### Page selectors
 
-Typeanvil chooses each page's pseudo-class from the page's position in the
+TypeAnvil chooses each page's pseudo-class from the page's position in the
 whole document:
 
 - The first page of the document matches `:first`. It also matches `:right`,
@@ -125,7 +125,7 @@ pseudo-class rule above.
 `vh` and `vw` resolve against the page's content box, so `100vh` is the
 height of the page content area.
 
-In `@page`, Typeanvil maps the logical properties (`margin-inline-*`,
+In `@page`, TypeAnvil maps the logical properties (`margin-inline-*`,
 `margin-block-*`, and the matching `padding-*` properties) to physical edges.
 It uses the page context's writing mode: the `writing-mode` declared in
 `@page`, or else the root element's. Document content still lays out
@@ -145,7 +145,7 @@ rules inside an `@page` rule:
 }
 ```
 
-Typeanvil supports all 16 page-margin boxes:
+TypeAnvil supports all 16 page-margin boxes:
 
 | Edge | Boxes |
 | --- | --- |
@@ -190,7 +190,7 @@ padding, `border` and the `border-<side>` properties, `background`,
 `background-color`, and `background-image: url(...)`. When several `@page`
 rules match a page, their margin-box declarations merge property by property.
 
-- The three boxes on an edge share that edge. Typeanvil divides the space
+- The three boxes on an edge share that edge. TypeAnvil divides the space
   between `auto`-sized boxes according to their min-content and max-content
   sizes (css-page-3 §5.3.2).
 - Across the margin, a box's margins, borders, padding, and size add up to
@@ -201,7 +201,7 @@ rules match a page, their margin-box declarations merge property by property.
   box, and painted under the border.
 - A box with `content: ""` is still created and painted.
 
-Typeanvil paints each page in this order: page background, document canvas,
+TypeAnvil paints each page in this order: page background, document canvas,
 page borders, document content, then margin boxes. `z-index` works on margin
 boxes as if they were positioned elements. A negative `z-index` paints the box
 behind all document content, and `auto`, `0`, or a positive value paints it
@@ -224,11 +224,11 @@ If no `@page` rule has that name, the page uses the default page rule. The
 first page of the document can be a named page.
 
 A box's page name is its own `page` value, if that is not `auto`. If the box
-has none, Typeanvil uses the name declared by the nearest earlier sibling
+has none, TypeAnvil uses the name declared by the nearest earlier sibling
 that is an in-flow replaced element. If neither applies, the box takes the
 nearest ancestor's `page` value, or else uses the default page.
 
-Typeanvil forces a page break between adjacent boxes whose page names differ.
+TypeAnvil forces a page break between adjacent boxes whose page names differ.
 A box with no page name, after a named page, returns to the default page.
 This lets you build a cover page:
 
@@ -243,7 +243,7 @@ A page that continues content from the previous page keeps that page's name.
 
 `page` applies only to boxes that can start a page. An inline image (`<img>`
 or inline `<svg>`) cannot, so a `page` value on it has no effect. A
-block-level image keeps its `page` value. Typeanvil does not insert
+block-level image keeps its `page` value. TypeAnvil does not insert
 page-change breaks inside flex containers, inside inline-blocks, or inside
 content whose writing mode is orthogonal to the page flow.
 
@@ -266,7 +266,7 @@ up from it:
 .appendix { break-before: page; counter-reset: page 1; }
 ```
 
-Typeanvil only knows the page total after pagination. A document that uses
+TypeAnvil only knows the page total after pagination. A document that uses
 `counter(pages)` or page-number cross-references is therefore laid out again,
 for at most three passes. Margin-box text cannot change the pagination, so
 the result is stable and deterministic.
@@ -286,7 +286,7 @@ h1 { string-set: chapter content(); }
 ```
 
 `string-set: <name> content()` sets the named string to the element's text.
-Typeanvil records an assignment on the page where the element's box starts.
+TypeAnvil records an assignment on the page where the element's box starts.
 An element split across pages counts only on its first page. A page without
 an assignment shows the value carried over from earlier pages. Before the
 first assignment, the value is empty.
@@ -314,7 +314,7 @@ not count for `start`. The CSS GCPM text would count it, so this is a
 documented deviation from the standard. An element can set several strings
 (`string-set: a content(), b content()`).
 
-Typeanvil supports running strings only. It does not support running elements
+TypeAnvil supports running strings only. It does not support running elements
 (`position: running()` with `element()`).
 
 ## Footnotes
@@ -330,7 +330,7 @@ footnote area at the bottom of the page where its call appears:
 <p>Revenue grew sharply.<span class="fn">Audited figures.</span></p>
 ```
 
-- Typeanvil puts a superscript number (the call) in the body text where the
+- TypeAnvil puts a superscript number (the call) in the body text where the
   element was.
 - The page's footnote area lists, in call order, every note whose call is on
   that page. Each note starts with an `N.` marker that hangs about 8.5pt to
@@ -338,11 +338,11 @@ footnote area at the bottom of the page where its call appears:
 - Note text uses the footnote element's own style, so `.fn { font-size: 9pt }`
   applies.
 - The footnote area grows up from the bottom margin, and the body text gets
-  less room. Typeanvil does not split a note across pages. A note always
+  less room. TypeAnvil does not split a note across pages. A note always
   appears on the same page as its call.
 - Footnote numbers continue across the whole document. They do not restart
   on each page.
-- Typeanvil draws no separator line above the footnote area.
+- TypeAnvil draws no separator line above the footnote area.
 
 ## Page floats
 
@@ -365,7 +365,7 @@ float taller than a whole page is placed on its page and clipped.
 
 These properties control where pages break:
 
-| Property | Values Typeanvil supports |
+| Property | Values TypeAnvil supports |
 | --- | --- |
 | `break-before`, `break-after` | `auto`, `page`, `always`, `left`, `right`, `avoid`, `avoid-page`, `avoid-column`, `column` |
 | `break-inside` | `auto`, `avoid`, `avoid-page` |
@@ -377,12 +377,12 @@ These properties control where pages break:
 - `break-after: avoid` on a heading keeps it with the next block. When the
   next block does not fit on the page, the heading moves to the next page
   with it. Chains of `avoid` boundaries move together. This applies between
-  adjacent in-flow blocks. If no earlier break point exists, Typeanvil breaks
+  adjacent in-flow blocks. If no earlier break point exists, TypeAnvil breaks
   at the normal point.
 - `break-inside: avoid` moves a block to the next page when it fits a whole
   page but not the space left on the current one. A block taller than a
   page breaks anyway.
-- Typeanvil does not split monolithic content, such as an image or a line,
+- TypeAnvil does not split monolithic content, such as an image or a line,
   across pages. If it is taller than a page, it overflows the page.
 - At a page break, the margin of a split box is dropped at the top of the
   next page. A box that starts fresh at the top of a page keeps its top
@@ -426,7 +426,7 @@ element, the target. A common use is page numbers in a table of contents:
 - `leader('.')` fills the rest of the line with the given character, up to
   the right content edge.
 
-Typeanvil applies element `content` to block-level boxes only. It does not
+TypeAnvil applies element `content` to block-level boxes only. It does not
 apply it to inline boxes, which is why the example uses `display: block`. The
 `content` value replaces the element's own text.
 
@@ -436,7 +436,7 @@ An `<a href>` element becomes a clickable PDF link annotation:
 
 - A link starting with `#` jumps to the page of the first element with that
   `id`. It goes to the top of that page.
-- Typeanvil writes any other `href` value (`https:`, `http:`, `mailto:`, or a
+- TypeAnvil writes any other `href` value (`https:`, `http:`, `mailto:`, or a
   relative path) into the PDF unchanged, as a URI action.
 - A link that wraps gets one clickable area for each line. A link split
   across pages gets clickable areas on each page, all going to the same
@@ -476,12 +476,12 @@ h1.part { bookmark-state: closed; }
 - Elements other than headings get bookmarks only when you give them a
   `bookmark-level`.
 - If an element has a `bookmark-*` declaration but is not rendered (for
-  example, it has `display: none`), Typeanvil adds no bookmark for it. In that
+  example, it has `display: none`), TypeAnvil adds no bookmark for it. In that
   case `--diagnostics` reports a `bookmark-anchor-unresolved` warning.
 
 ## PDF metadata
 
-Typeanvil reads document metadata from the HTML `<head>`:
+TypeAnvil reads document metadata from the HTML `<head>`:
 
 | Source | PDF field |
 | --- | --- |
@@ -499,7 +499,7 @@ typeanvil render in.html --page-width 8.5in --page-height 11in \
 ```
 
 If the document has no metadata and you pass no override, the PDF has no
-metadata. Typeanvil never writes creation or modification dates, or creator
+metadata. TypeAnvil never writes creation or modification dates, or creator
 or producer strings, so the same input always produces the same bytes.
 
 ## Tagged PDF and PDF/UA
@@ -514,7 +514,7 @@ typeanvil render in.html --page-width 8.5in --page-height 11in --ua -o out.pdf
 ```
 
 `--ua` always tags, even with `--no-tagged`. It also runs a
-PDF/UA-1 validator (built into krilla, the PDF library Typeanvil uses) when
+PDF/UA-1 validator (built into krilla, the PDF library TypeAnvil uses) when
 writing the PDF. If the validator finds a problem, the render fails: the
 command exits with status 1, prints the list of violations to stderr, and
 writes no PDF. Without `--ua`, a tagged render does not check conformance,
@@ -522,7 +522,7 @@ so problems such as missing alt text do not stop the render.
 
 With tagging on:
 
-- The structure tree follows the HTML elements in document order. Typeanvil
+- The structure tree follows the HTML elements in document order. TypeAnvil
   maps `h1`–`h6` to `H1`–`H6`, `p` to `P`, `ul`/`ol` and `li` to `L` and
   `LI`, table elements to `Table`, `THead`, `TBody`, `TFoot`, `TR`, `TH`, and
   `TD`, `figure` to `Figure`, `a` to `Link`, and `blockquote` to `BlockQuote`.
@@ -651,14 +651,14 @@ flags are still required, even when `@page` sets the size.
   rotated. Logical `@page` margins follow the page's writing mode, but
   document content lays out horizontally.
 - `break-before: left` and `break-before: right` are treated as plain page
-  breaks. Typeanvil does not add a blank page to reach a left or right page.
+  breaks. TypeAnvil does not add a blank page to reach a left or right page.
 - Attribute selectors (`a[href]`, `[data-x]`) currently match nothing, in
   the paged-media properties and in the general cascade alike. Use classes or
   ids instead.
 
 **Named pages**
 
-- Typeanvil does not insert page-change breaks between flex items, inside
+- TypeAnvil does not insert page-change breaks between flex items, inside
   inline-blocks, between bare inline runs, or inside a subtree whose writing
   mode is orthogonal to the page flow.
 
@@ -713,7 +713,7 @@ flags are still required, even when `@page` sets the size.
 
 **Hyperlinks**
 
-- Typeanvil does not style links. Link text uses the surrounding text color,
+- TypeAnvil does not style links. Link text uses the surrounding text color,
   with no automatic blue or underline.
 - Internal links go to the top of the target page, not to the target's exact
   position. No named destinations are written.
@@ -735,7 +735,7 @@ flags are still required, even when `@page` sets the size.
 
 **Tagged PDF and PDF/UA**
 
-- Some roles that Typeanvil maps do not reach the structure tree yet. Text
+- Some roles that TypeAnvil maps do not reach the structure tree yet. Text
   inside `strong`/`b`, `em`/`i`, and `pre`/`code` belongs to the surrounding
   block, so no `Strong`, `Em`, or `Code` elements appear. An `<img>` outside a
   `<figure>` falls under a `Div` and loses its alt text. `<caption>` becomes
@@ -744,13 +744,13 @@ flags are still required, even when `@page` sets the size.
 - Repeated table header and footer rows are tagged again on every page.
   Words split by hyphenation can be out of reading order.
 - List labels are not tagged: `Lbl` stays empty and lists carry no
-  numbering. Typeanvil does not draw list markers.
+  numbering. TypeAnvil does not draw list markers.
 - Language changes within a document, `ActualText`, form fields, notes, and
   math are not tagged.
 - A character missing from the resolved font fails `--ua`
   (`ContainsNotDefGlyph`), because there is no per-character font fallback.
 - PDF/A conformance is not supported. The built-in PDF/UA-1 validator is the
-  only conformance check. Typeanvil does not claim Acrobat or PAC
+  only conformance check. TypeAnvil does not claim Acrobat or PAC
   certification.
 
 ## Related specifications

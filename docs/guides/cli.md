@@ -4,7 +4,7 @@ type: guide
 status: approved
 owner: maintainers
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-17
 sidebar_position: 3
 tags: [guide, cli, reference]
 slug: /guides/cli
@@ -12,7 +12,7 @@ slug: /guides/cli
 
 # CLI reference
 
-Typeanvil ships one command-line program, `typeanvil`. It has one subcommand,
+TypeAnvil ships one command-line program, `typeanvil`. It has one subcommand,
 `render`, which reads an HTML file and writes a PDF. Two more flags print the
 version and the help text.
 

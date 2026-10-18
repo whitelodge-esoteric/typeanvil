@@ -1,7 +1,7 @@
 {
   "name": "typeanvil",
   "version": "0.0.0-staging",
-  "description": "Typeanvil — AI-first HTML to PDF typesetting engine",
+  "description": "Open-source HTML to PDF engine with paged-media CSS, written in Rust.",
   "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
@@ -11,10 +11,10 @@
   "bugs": "https://github.com/whitelodge-esoteric/typeanvil/issues",
   "keywords": [
     "pdf",
-    "html",
+    "html-to-pdf",
     "typesetting",
-    "print",
-    "css-paged-media"
+    "paged-media",
+    "print-css"
   ],
   "engines": {
     "node": ">=18"

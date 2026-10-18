@@ -1,18 +1,18 @@
 ---
-title: Use the Typeanvil Container Image
+title: Use the TypeAnvil Container Image
 type: runbook
 status: draft
 owner: maintainers
 created: 2026-09-27
-updated: 2026-09-28
+updated: 2026-10-17
 sidebar_position: 9
 tags: [container, docker, distribution, usage]
 trigger: When rendering HTML to PDF without a native binary
 ---
 
-# Use the Typeanvil container image
+# Use the TypeAnvil container image
 
-Use a published Typeanvil image when Docker is available and a native binary is not installed.
+Use a published TypeAnvil image when Docker is available and a native binary is not installed.
 
 ## Prerequisites
 

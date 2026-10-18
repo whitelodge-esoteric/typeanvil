@@ -4,14 +4,14 @@ type: convention
 status: approved
 owner: maintainers
 created: 2026-08-24
-updated: 2026-10-13
+updated: 2026-10-17
 sidebar_position: 3
 tags: [css, engine, compatibility, prince, weasyprint]
 ---
 
 # CSS Standards Alignment
 
-When CSS specifications and PrinceXML disagree, Typeanvil follows the CSS
+When CSS specifications and PrinceXML disagree, TypeAnvil follows the CSS
 specification. Always.
 
 ## Why
@@ -47,7 +47,7 @@ deviations as our own behavior.
 
 ## Practical effect on parity work
 
-Our demo corpus compares Typeanvil against Prince output: `scripts/build-demo.sh`
+Our demo corpus compares TypeAnvil against Prince output: `scripts/build-demo.sh`
 renders every corpus document through both engines and scores the pixel diff.
 WeasyPrint is a second independent comparison engine (CORE-318): free,
 open-source, and reproducible, so the performance benchmark and the WPT triage
@@ -80,7 +80,7 @@ When a residual diff traces to a place where Prince deviates from the CSS spec:
 ## Examples
 
 - Prince 16 changed `box-decoration-break`'s default from `clone` to `slice`
-  per css-break. Typeanvil implements the CSS initial value (`slice`), not
+  per css-break. TypeAnvil implements the CSS initial value (`slice`), not
   Prince's old default.
 - When a Prince-only extension (`-prince-*` properties) conflicts with a
   standardized equivalent, follow the standard. Extensions are additive and
@@ -95,14 +95,14 @@ the recurring ones are collected here. Every row is measured with the other
 engines as comparison targets, never as oracles. (The `box-decoration-break`
 case under Examples above is the other recorded instance.)
 
-| Behaviour | Governing spec | Typeanvil | PrinceXML 16.2 | WeasyPrint 70.0 |
+| Behaviour | Governing spec | TypeAnvil | PrinceXML 16.2 | WeasyPrint 70.0 |
 |---|---|---|---|---|
 | Top page-margin boxes align on the vertical centre of their band | css-page-3 §6.2, Table 2 | band centre | whole band painted; running head wraps vertically | flush to the content edge |
 
 ### Page-margin box vertical alignment
 
 css-page-3 §6.2 fixes the page-margin-box defaults in a table: `top-left`,
-`top-center` and `top-right` each default to `vertical-align: middle`. Typeanvil
+`top-center` and `top-right` each default to `vertical-align: middle`. TypeAnvil
 implements that table directly, so a margin box shorter than its band is centred
 in the band.
 
@@ -118,7 +118,7 @@ Measured 2026-10-13 on `release/2026.10`. Reproduce with a 200mm × 60mm page an
 (`height: .05cm; width: 100%`) and `@top-right`
 (`height: 1cm; vertical-align: middle; width: 100%`), then read the box
 positions out of each engine's PDF. The top margin band is 56.7pt tall: the
-`@top-left` box starts 14.2pt below the page edge in Typeanvil (centred) and
+`@top-left` box starts 14.2pt below the page edge in TypeAnvil (centred) and
 28.3pt below it in WeasyPrint (flush to the content edge). Prince paints the
 whole 56.7pt band as one background box.
 

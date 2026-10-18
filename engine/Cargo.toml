@@ -2,8 +2,10 @@
 name = "typeanvil"
 version = "0.0.1"
 edition = "2021"
-description = "Typeanvil — HTML/CSS to PDF typesetting engine (walking skeleton)"
+description = "Open-source HTML to PDF engine with paged-media CSS, written in Rust."
 license = "AGPL-3.0-only"
+keywords = ["pdf", "html-to-pdf", "typesetting", "paged-media", "print-css"]
+categories = ["text-processing", "command-line-utilities"]
 
 [[bin]]
 name = "typeanvil"

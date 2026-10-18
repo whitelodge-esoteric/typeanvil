@@ -1,17 +1,17 @@
 ---
-title: Typeanvil Architecture
+title: TypeAnvil Architecture
 type: architecture
 status: approved
 owner: maintainers
 created: 2026-09-27
-updated: 2026-09-27
+updated: 2026-10-17
 sidebar_position: 1
 tags: [architecture, engine, harness, pdf, rust]
 ---
 
-# Typeanvil Architecture
+# TypeAnvil Architecture
 
-Typeanvil is a batch document compiler. It accepts HTML and CSS, applies
+TypeAnvil is a batch document compiler. It accepts HTML and CSS, applies
 paged-media layout rules, and emits a PDF. The same input and engine version
 produce deterministic output. The engine does not run JavaScript and does not
 provide browser interaction features.
@@ -55,7 +55,7 @@ stylesheet URLs are not fetched by the CLI.
 
 `engine/src/css.rs` combines stylesheet sources and computes the style values
 used by layout. Stylo provides selector matching, inheritance, and computed CSS
-values. Typeanvil also has focused parsing passes for paged-media declarations
+values. TypeAnvil also has focused parsing passes for paged-media declarations
 and engine-specific integration seams.
 
 Layout reads `ComputedStyle` values. It does not read raw CSS declarations
@@ -164,7 +164,7 @@ The release gate adds baseline and candidate captures, per-document output
 checks, and direct PDF assertions. It is required because a change can affect
 both sides of a WPT pair uniformly and leave the pair score unchanged.
 
-The demo corpus compares Typeanvil output with PrinceXML. That comparison
+The demo corpus compares TypeAnvil output with PrinceXML. That comparison
 informs compatibility work but does not override CSS specifications.
 
 ## Determinism boundary
