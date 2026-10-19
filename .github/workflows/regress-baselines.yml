@@ -1,0 +1,78 @@
+# Regenerate the fingerprint baselines in CI's own environment (CORE-527).
+# Two triggers, both for a PR branch (never main or release/**: pushes there
+# are rejected):
+#   1. Add the label `update-baselines` to a same-repo PR. Works before this
+#      file reaches the default branch.
+#   2. `gh workflow run regress-baselines.yml --ref <branch>` once this file
+#      is on the default branch.
+# The job runs `regress.py update` on the runner, checks that a second run
+# gives identical files, then commits baselines/ back to the PR branch.
+# A push made with GITHUB_TOKEN starts no new CI run: push an empty commit or
+# re-run the checks by hand after it.
+# Runbook: docs/operations/regression-gate.md
+name: regress-baselines
+
+on:
+  workflow_dispatch: {}
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref_type == 'branch' && github.ref_name != 'main' &&
+       !startsWith(github.ref_name, 'release/')) ||
+      (github.event_name == 'pull_request' &&
+       github.event.label.name == 'update-baselines' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       !startsWith(github.event.pull_request.head.ref, 'release/'))
+    env:
+      TARGET_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - name: Install bundled fonts
+        run: |
+          sudo mkdir -p /usr/share/fonts/typeanvil
+          sudo cp docker/fonts/typeanvil/* /usr/share/fonts/typeanvil/
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - name: Install harness
+        run: uv sync --python 3.12
+      - name: Build engine
+        run: cargo build --manifest-path engine/Cargo.toml
+      - name: Update baselines (run 1)
+        run: uv run python scripts/regress.py update --role gate --size small
+      - name: Keep run 1
+        run: cp -r baselines "$RUNNER_TEMP/baselines-run1"
+      - name: Update baselines (run 2, determinism check)
+        run: uv run python scripts/regress.py update --role gate --size small
+      - name: Compare runs
+        run: diff -r "$RUNNER_TEMP/baselines-run1" baselines
+      - name: Check against fresh baselines
+        run: uv run python scripts/regress.py check --role gate --size small
+      - name: Commit baselines
+        run: |
+          git config user.name "typeanvil-ci"
+          git config user.email "typeanvil-ci@users.noreply.github.com"
+          git add baselines
+          if git diff --cached --quiet; then
+            echo "baselines already match CI"
+          else
+            git commit -m "chore: regenerate regression baselines in CI (CORE-527)"
+            git push origin "HEAD:${TARGET_BRANCH}"
+          fi

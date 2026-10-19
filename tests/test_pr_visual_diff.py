@@ -66,3 +66,38 @@ def test_missing_page_side():
     from PIL import Image
     img, changed = pvd.three_panel(None, Image.new("RGB", (20, 20), "black"))
     assert changed == 400
+
+
+def _render_args(tmp_path, base_bin, head_bin):
+    import argparse
+    return argparse.Namespace(base_bin=str(base_bin), head_bin=str(head_bin),
+                              base_root=str(tmp_path), out=str(tmp_path / "out"), pr=1,
+                              sha="abcdef0123456789", role="gate", size="small",
+                              max_images=20)
+
+
+def test_render_missing_binary_fails_clearly(tmp_path, capsys):
+    """CORE-527: a missing binary is a clear error, not a FileNotFoundError traceback."""
+    rc = pvd.cmd_render(_render_args(tmp_path, tmp_path / "nope", tmp_path / "nope"))
+    assert rc == 2
+    assert "binary not found" in capsys.readouterr().err
+
+
+def test_render_accepts_relative_binary_path(tmp_path, monkeypatch):
+    """CORE-527: the renderer runs with cwd=<doc dir>, so a relative binary path must still work."""
+    from PIL import Image
+    lib = tmp_path / "library" / "d"
+    lib.mkdir(parents=True)
+    (lib / "a.html").write_text("<p>x</p>")
+    fake = tmp_path / "bin" / "typeanvil"
+    fake.parent.mkdir()
+    fake.write_text('#!/bin/sh\nwhile [ "$1" != "-o" ]; do shift; done\n: > "$2"\n')
+    fake.chmod(0o755)
+    entry = {"file": "d/a.html", "geometry": {"width": "5in", "height": "3in", "margin": "0.5in"}}
+    monkeypatch.setattr(pvd.regress, "entries", lambda role, size: [entry])
+    monkeypatch.setattr(pvd, "REPO", tmp_path)
+    monkeypatch.setattr(pvd, "page_images", lambda pdf: [Image.new("RGB", (4, 4), "white")])
+    monkeypatch.setattr(pvd.regress, "fingerprint", lambda pdf: [])
+    monkeypatch.chdir(tmp_path)
+    rel = Path("bin") / "typeanvil"
+    assert pvd.cmd_render(_render_args(tmp_path, rel, rel)) == 0

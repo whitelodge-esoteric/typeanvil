@@ -128,7 +128,13 @@ def cmd_render(args) -> int:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     base_root = Path(args.base_root) if args.base_root else REPO
-    base_bin, head_bin = Path(args.base_bin), Path(args.head_bin)
+    # render_pdf runs the binary with cwd=<library dir>, so the paths must be
+    # absolute. A relative path fails with FileNotFoundError (CORE-527).
+    base_bin, head_bin = Path(args.base_bin).resolve(), Path(args.head_bin).resolve()
+    for label, b in (("base", base_bin), ("head", head_bin)):
+        if not b.is_file():
+            print(f"visual-diff: {label} binary not found: {b}", file=sys.stderr)
+            return 2
     items, total = [], 0
     with tempfile.TemporaryDirectory() as td:
         td = Path(td)
