@@ -1,0 +1,470 @@
+{
+ "schema": "typeanvil.harness.reviews/1",
+ "candidate": {
+  "label": "candidate-599a143",
+  "source_commit": "599a14386606889355080ed06cf73a515c9d383f",
+  "binary_sha256": "e65164621323dcbe0cee1f6d31de69d6ea4cf2a3a7983a13689feda4a1e49690"
+ },
+ "baseline": {
+  "label": "baseline-3ee931b",
+  "source_commit": "3ee931bcf7f5a6714de816dfaa1c8a20d381816f",
+  "binary_sha256": "60203b7b46bd09506184eda2852b6ccc62af440c91309a138e0b5887dacc025e"
+ },
+ "dispositions": [
+  {
+   "doc_id": "css/css-page/margin-boxes/alignment-001-print-ref.html",
+   "change_id": "2faf29d9acb8de665006b5cc3ad42341a1ae147cc93d5b0064e66cb7b5bee75e",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/alignment-001-print.html",
+   "change_id": "aebaa05d483d40b5875335e93da87a97533e32bbfae35b806cbdfdd6aeb97af2",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/auto-margins-001-print-ref.html",
+   "change_id": "dccad10927c9ee2fcffc9b37f513956b3562cac51f8d0e2f8f1b33fd233720f6",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/auto-margins-001-print.html",
+   "change_id": "0ffe14ec5edee10857d82e6c6722f0374550b185fb09cf06a653142f17a4a122",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/auto-margins-002-print-ref.html",
+   "change_id": "9a00af6a10880102ce98744d6ba84584b58f2eebcbc84adc203675c520edf155",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/auto-margins-002-print.html",
+   "change_id": "dfc1dc3554ab7b34a7cad612d4694bf3fd7131de95bb15e5842567243385be49",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/auto-margins-003-print-ref.html",
+   "change_id": "9528523819fd995ac7c1b62d068fed14c27fc4a9b05295a3384872abfb34728c",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/auto-margins-003-print.html",
+   "change_id": "729a781ca1fb4e5ab62927d717dc2639b2cbbc0f60dd80038904debd189a9595",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/background-001-print-ref.html",
+   "change_id": "2e0bd6beba70572b153308ca46d2fdc82d6a7c352e6a17720cae90ae0d17070d",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/background-001-print.html",
+   "change_id": "104ead5a6fd4775d59cae90849314b85783bb2292c2d170ac387c02281d51f20",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-001-print.html",
+   "change_id": "1971dc8aa5e09602c743d27798e0973f49c82185443f31387f803a471eff908e",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-002-print.html",
+   "change_id": "4f6c68459989308d979f2df696d540f9d8ae1aeba185a6c7952ece8fc89b4d65",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-003-print-ref.html",
+   "change_id": "6d11dc0efc940b2ab67a08d07194bd04ba973b464805dff156a510a3f3aeca7d",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-003-print.html",
+   "change_id": "60d92c647459c62a5c57a7805c337e1f12dc37ecc2e1a109b59ba20fcd63b00b",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-004-print-ref.html",
+   "change_id": "1026c8bb6a6b1ef9aa5e8b0accf62b12f6526d2dba307a9433e0df7b071272d7",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-004-print.html",
+   "change_id": "80224d5b8cbef46819e94630d5bfcb2387b95d843d5a54afad8289cff04e2372",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-005-print-ref.html",
+   "change_id": "962c31bb63fd1b0b21b6432cc7853b83a8f2937770adf823c5e97ddfc61be157",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-005-print.html",
+   "change_id": "2b986b5d934b1ffe35558df97d99679334d495bc537ccc56ed0bda981da7dfe8",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-006-print.html",
+   "change_id": "0dafaf5875b352ea446a78170a8c8bcc60f6faaa5c6ef9fd1b2c7bf1ff143fea",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-007-print.html",
+   "change_id": "46972e05046907e8113b50b0250fb8d50c85ec2b89fb956964520ee94615e1d7",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-008-print-ref.html",
+   "change_id": "5a7a9add3a19c62f0744e6f5467207a3d206ee4a64390bedf9dae3bfa69cf463",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-008-print.html",
+   "change_id": "047afb6d916a575603e06bf1d0b68ac8391438f419d282d4bff00638eecb1827",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-009-print-ref.html",
+   "change_id": "3c5ab3e917153fbc286e6a07431467d9c7dbdc40f287acc6e92f94571db052f2",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-009-print.html",
+   "change_id": "948035f46d9aa90b3f13b346a38c032d74b28fa1be46aef656f2b35dcaf02959",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-010-print-ref.html",
+   "change_id": "495005a1916277857cc71fc7ff48adaa1414a5d0d09c9c0d5b06e26a490c8f08",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-010-print.html",
+   "change_id": "d2ef873419eec4b78823866adc3239a2978d80cea4420c438092a144364d9486",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-011-print-ref.html",
+   "change_id": "83764fa2f2e078e3c792d609cfe30c9502dd27d1bc183b64b63275c85fbe6b86",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-011-print.html",
+   "change_id": "c4be45c23a734b4150bee8f813c43b715834c47df781294472e5801ad399001e",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-012-print-ref.html",
+   "change_id": "85cd46519351fb43fab3f76ca7433d8c019f753576c32170d186fb3670b87b72",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-012-print.html",
+   "change_id": "62288a79ca875e0bf808defa1239c9fd09f7dbdb5ff2a2aad749a48c594146dd",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-013-print-ref.html",
+   "change_id": "ef25706519324bddcedd70f943ff22fe787e12087b386ea7a86e6b505ec2b9ed",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/content-013-print.html",
+   "change_id": "409b867547da40c2873455e319d135a6620c393b1df1834acf104f021be18b8d",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-001-print-ref.html",
+   "change_id": "c21c4cd64c5793b27467398739ff26bfad59a2254e6b8b4f4be3afd5027510cf",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-001-print.html",
+   "change_id": "e1085e0ea8bc63cb505aebf28cb7eb35dc37a16ba20ef3948f1ca490c05737a8",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-002-print-ref.html",
+   "change_id": "0abde24372d25d456544dd842212f1a740d0b2d386fc9a2af568e0970740765c",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-002-print.html",
+   "change_id": "4bcfbd1cf2c7f752e2f649ab003170b5c8849aafb8c3343df5ff73aff548a40d",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-003-print-ref.html",
+   "change_id": "29adc0d4c879d38bd48ebd3986c54a47077bdaf7b09b062db526d38c743294bd",
+   "kind": "correction",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Page box now sized from the declared @page width/height (page_size 360x216 -> 384x324/336 pt), landed as CORE-258 on release/2026.10 after main. Test status FAIL -> FAIL. Examined: page_size delta in the gate report plus WPT status movement for the family; no PASS->FAIL in the 37-test selection.",
+   "provenance": "css-page-3 section 3 (page-sizing rule); CORE-258"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-003-print.html",
+   "change_id": "2cb4d17809217cc5b5e0c40369ad959e49221a36da416949c70e244fa980bfc5",
+   "kind": "correction",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Page box now sized from the declared @page width/height (page_size 360x216 -> 384x324/336 pt), landed as CORE-258 on release/2026.10 after main. Test status FAIL -> FAIL. Examined: page_size delta in the gate report plus WPT status movement for the family; no PASS->FAIL in the 37-test selection.",
+   "provenance": "css-page-3 section 3 (page-sizing rule); CORE-258"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-004-print-ref.html",
+   "change_id": "38043ef097539ceed79274a58a455d706dd4bd33c66c5f931c2046cb38e8024a",
+   "kind": "correction",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Page box now sized from the declared @page width/height (page_size 360x216 -> 384x324/336 pt), landed as CORE-258 on release/2026.10 after main. Test status FAIL -> FAIL. Examined: page_size delta in the gate report plus WPT status movement for the family; no PASS->FAIL in the 37-test selection.",
+   "provenance": "css-page-3 section 3 (page-sizing rule); CORE-258"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-004-print.html",
+   "change_id": "2140af0c015d828da116aa5fed186781c300d8762903b3599b25a38cd5f98eee",
+   "kind": "correction",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Page box now sized from the declared @page width/height (page_size 360x216 -> 384x324/336 pt), landed as CORE-258 on release/2026.10 after main. Test status FAIL -> FAIL. Examined: page_size delta in the gate report plus WPT status movement for the family; no PASS->FAIL in the 37-test selection.",
+   "provenance": "css-page-3 section 3 (page-sizing rule); CORE-258"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-005-print-ref.html",
+   "change_id": "72d020dbe6b6a8eb60b4f94923702a772ab2d995700332a28457e8ee665ca4eb",
+   "kind": "correction",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Page box now sized from the declared @page width/height (page_size 360x216 -> 384x324/336 pt), landed as CORE-258 on release/2026.10 after main. Test status FAIL -> FAIL. Examined: page_size delta in the gate report plus WPT status movement for the family; no PASS->FAIL in the 37-test selection.",
+   "provenance": "css-page-3 section 3 (page-sizing rule); CORE-258"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-005-print.html",
+   "change_id": "815ac460cca4aea2b8352fee23009be594b7ea4b1fcd1492d435aeb52e410dbc",
+   "kind": "correction",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Page box now sized from the declared @page width/height (page_size 360x216 -> 384x324/336 pt), landed as CORE-258 on release/2026.10 after main. Test status FAIL -> FAIL. Examined: page_size delta in the gate report plus WPT status movement for the family; no PASS->FAIL in the 37-test selection.",
+   "provenance": "css-page-3 section 3 (page-sizing rule); CORE-258"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-006-print-ref.html",
+   "change_id": "96ab5f15bca8aff75d143dda4eabbe8a7fc09b88174b4349e7108c7f52497ed7",
+   "kind": "correction",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Page box now sized from the declared @page width/height (page_size 360x216 -> 384x324/336 pt), landed as CORE-258 on release/2026.10 after main. Test status FAIL -> FAIL. Examined: page_size delta in the gate report plus WPT status movement for the family; no PASS->FAIL in the 37-test selection.",
+   "provenance": "css-page-3 section 3 (page-sizing rule); CORE-258"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-006-print.html",
+   "change_id": "01b7e1930a7bb0538057f92649d8620c36d2a4ca266a8cc22ad1cda212fc27b3",
+   "kind": "correction",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Page box now sized from the declared @page width/height (page_size 360x216 -> 384x324/336 pt), landed as CORE-258 on release/2026.10 after main. Test status FAIL -> FAIL. Examined: page_size delta in the gate report plus WPT status movement for the family; no PASS->FAIL in the 37-test selection.",
+   "provenance": "css-page-3 section 3 (page-sizing rule); CORE-258"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-007-print-ref.html",
+   "change_id": "4c3fb75586539a33e051738840798bb9f5fa7558dff6cc7a2e45ac3e7c9a9519",
+   "kind": "correction",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Page box now sized from the declared @page width/height (page_size 360x216 -> 384x324/336 pt), landed as CORE-258 on release/2026.10 after main. Test status FAIL -> FAIL. Examined: page_size delta in the gate report plus WPT status movement for the family; no PASS->FAIL in the 37-test selection.",
+   "provenance": "css-page-3 section 3 (page-sizing rule); CORE-258"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-007-print.html",
+   "change_id": "f0f971126426c70bc0db726e2d713efd110d04ce14844727d594af6f5429e245",
+   "kind": "correction",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Page box now sized from the declared @page width/height (page_size 360x216 -> 384x324/336 pt), landed as CORE-258 on release/2026.10 after main. Test status FAIL -> FAIL. Examined: page_size delta in the gate report plus WPT status movement for the family; no PASS->FAIL in the 37-test selection.",
+   "provenance": "css-page-3 section 3 (page-sizing rule); CORE-258"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-008-print-ref.html",
+   "change_id": "cbadb43a693452a0c1050fc5469408b4d88d47dc3952ff2ca8056b9fbfc6998f",
+   "kind": "correction",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Page box now sized from the declared @page width/height (page_size 360x216 -> 384x324/336 pt), landed as CORE-258 on release/2026.10 after main. Test status FAIL -> FAIL. Examined: page_size delta in the gate report plus WPT status movement for the family; no PASS->FAIL in the 37-test selection.",
+   "provenance": "css-page-3 section 3 (page-sizing rule); CORE-258"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-008-print.html",
+   "change_id": "f615f989191f99bcf0bb725aa43902eaad95cd4e11bf770c6f7892d38efbebe7",
+   "kind": "correction",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Page box now sized from the declared @page width/height (page_size 360x216 -> 384x324/336 pt), landed as CORE-258 on release/2026.10 after main. Test status FAIL -> FAIL. Examined: page_size delta in the gate report plus WPT status movement for the family; no PASS->FAIL in the 37-test selection.",
+   "provenance": "css-page-3 section 3 (page-sizing rule); CORE-258"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-009-print-ref.html",
+   "change_id": "076f729e8b9fd09b87526584b57667511040121388f810df7343c94513488a9f",
+   "kind": "correction",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Page box now sized from the declared @page width/height (page_size 360x216 -> 384x324/336 pt), landed as CORE-258 on release/2026.10 after main. Test status FAIL -> PASS. Examined: page_size delta in the gate report plus WPT status movement for the family; no PASS->FAIL in the 37-test selection.",
+   "provenance": "css-page-3 section 3 (page-sizing rule); CORE-258"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-009-print.html",
+   "change_id": "3063125856e2533063c98f11d770d98a6ffda38f2fd3a950ea3153c502ecaa1b",
+   "kind": "correction",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Page box now sized from the declared @page width/height (page_size 360x216 -> 384x324/336 pt), landed as CORE-258 on release/2026.10 after main. Test status FAIL -> PASS. Examined: page_size delta in the gate report plus WPT status movement for the family; no PASS->FAIL in the 37-test selection.",
+   "provenance": "css-page-3 section 3 (page-sizing rule); CORE-258"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-011-print.html",
+   "change_id": "ada97334fbb1166fcf0478b4cc6a599ec9ee27b2aafc5100d16bdf8a56711c70",
+   "kind": "correction",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Page box now sized from the declared @page width/height (page_size 360x216 -> 384x324/336 pt), landed as CORE-258 on release/2026.10 after main. Test status FAIL -> FAIL. Examined: page_size delta in the gate report plus WPT status movement for the family; no PASS->FAIL in the 37-test selection.",
+   "provenance": "css-page-3 section 3 (page-sizing rule); CORE-258"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-012-print-ref.html",
+   "change_id": "e284e862c2f2e4c2a54389ca284faeb108e06d2714cf693891647eedd388ca0e",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-012-print.html",
+   "change_id": "a11a3ef5f38cc59d1479ef8180806944f0992fa7eaf9d7b6c7a8f8e1377e39cc",
+   "kind": "correction",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Page box now sized from the declared @page width/height (page_size 360x216 -> 384x324/336 pt), landed as CORE-258 on release/2026.10 after main. Test status FAIL -> FAIL. Examined: page_size delta in the gate report plus WPT status movement for the family; no PASS->FAIL in the 37-test selection.",
+   "provenance": "css-page-3 section 3 (page-sizing rule); CORE-258"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-013-print-ref.html",
+   "change_id": "4cfc20e276e3a02af7b16c2b4201703cd1534ef08099216500be3996cd685702",
+   "kind": "correction",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Page box now sized from the declared @page width/height (page_size 360x216 -> 384x324/336 pt), landed as CORE-258 on release/2026.10 after main. Test status FAIL -> FAIL. Examined: page_size delta in the gate report plus WPT status movement for the family; no PASS->FAIL in the 37-test selection.",
+   "provenance": "css-page-3 section 3 (page-sizing rule); CORE-258"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-013-print.html",
+   "change_id": "00aa4204c7029454f4078b036e659dd2933972cf9f98a5bde1b6bd720bd3c831",
+   "kind": "correction",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Page box now sized from the declared @page width/height (page_size 360x216 -> 384x324/336 pt), landed as CORE-258 on release/2026.10 after main. Test status FAIL -> FAIL. Examined: page_size delta in the gate report plus WPT status movement for the family; no PASS->FAIL in the 37-test selection.",
+   "provenance": "css-page-3 section 3 (page-sizing rule); CORE-258"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/dimensions-014-print.html",
+   "change_id": "f5f5ddc3f88779c2fb1c101075327fdf0606738b64da7c49d178c1f8fc2d75ef",
+   "kind": "correction",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Page box now sized from the declared @page width/height (page_size 360x216 -> 384x324/336 pt), landed as CORE-258 on release/2026.10 after main. Test status FAIL -> FAIL. Examined: page_size delta in the gate report plus WPT status movement for the family; no PASS->FAIL in the 37-test selection.",
+   "provenance": "css-page-3 section 3 (page-sizing rule); CORE-258"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/inapplicable-properties-print-ref.html",
+   "change_id": "6435e422db345de47160c5a47b019653891588d2c4ae7c5a84cd85e4bb363891",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/inapplicable-properties-print.html",
+   "change_id": "c90e3c5f4ed2ad1a2ed1511b49850ff9768486939cff821792c14172325f0c82",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/overconstrained-001-print-ref.html",
+   "change_id": "0b3a8aa7aa990fe956353a13861fae0a7bf07ef0f8a9a94509a35f04f5528046",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/overconstrained-001-print.html",
+   "change_id": "8bb5d5f59b533c8db48b514554142fde80bf897c6d5d3a9b4397f6887c90d989",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/paint-order-001-print-ref.html",
+   "change_id": "3f2f50632993cad724f51b62e5f87d6e504d02cb194ffdc44cdbba3cea965cf6",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/paint-order-001-print.html",
+   "change_id": "7be63b2cabbd5c24814ce6dfd1f8daf838c1cf5b64197d6d12ddffa6555fa7b9",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/paint-order-002-print.html",
+   "change_id": "9480e3fe45f6de620ea929db047da0bfcdd25ecdfe8dbd9337edc08c5e183c57",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status FAIL -> FAIL; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/paint-order-003-print-ref.html",
+   "change_id": "1c0c48e0913b8bac02440ffe3a410085ab438c4417b3d7193c5166d1a7c37eb8",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  },
+  {
+   "doc_id": "css/css-page/margin-boxes/paint-order-003-print.html",
+   "change_id": "8062a04cd68d064af399dfb0d5ef332842683a234a534ebbe888afd8438a1472",
+   "kind": "variation",
+   "reason": "FAMILY-LEVEL approval, not a per-document diff. Pixels differ from main (3ee931b) because the release line changed fonts (CORE-361 generic families), margin-box layout and running elements (CORE-390). Test status PASS -> PASS; selection result FAIL 25->23, PASS 12->14, zero PASS->FAIL.",
+   "provenance": "release/2026.10 landings since main: CORE-361, CORE-390, CORE-258; promotion record promotion-delta-2026-10-18.md"
+  }
+ ]
+}
