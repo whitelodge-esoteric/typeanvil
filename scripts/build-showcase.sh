@@ -157,10 +157,16 @@ for entry in "${entries[@]}"; do
 
   # Render from the fixture's directory so relative url()/src resolve like
   # the comparison corpus (base-url threading is CORE-140).
-  if (cd "$fixture_dir" && "$ENGINE_BIN" render "$file" $GEOM_FLAGS -o "$REPO_ROOT/$ta_pdf" 2>"$REPO_ROOT/$WORK/$base-ta.err"); then
+  ta_rc=0
+  (cd "$fixture_dir" && "$ENGINE_BIN" render "$file" $GEOM_FLAGS -o "$REPO_ROOT/$ta_pdf" 2>"$REPO_ROOT/$WORK/$base-ta.err") || ta_rc=$?
+  if [ "$ta_rc" = "0" ]; then
     echo "TA  ok   $file"
   else
-    echo "TA  FAIL $file :: $(head -1 "$WORK/$base-ta.err")"
+    # CORE-528: a panic's stderr starts with a blank line, so head -1 printed
+    # nothing. Show the exit code (128+N = killed by signal N) and the last
+    # non-blank stderr lines.
+    echo "TA  FAIL $file :: exit=$ta_rc"
+    grep -v '^[[:space:]]*$' "$WORK/$base-ta.err" 2>/dev/null | tail -20 | sed 's/^/      | /' || true
     FAILED=1
     continue
   fi

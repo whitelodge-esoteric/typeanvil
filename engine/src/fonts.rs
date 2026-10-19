@@ -57,18 +57,22 @@ const BUNDLED_PATH_CANDIDATES: [&[&str]; 4] = [
     &[
         "/System/Library/Fonts/Supplemental/Arial.ttf",
         "/usr/share/fonts/typeanvil/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
     ],
     &[
         "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
         "/usr/share/fonts/typeanvil/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
     ],
     &[
         "/System/Library/Fonts/Supplemental/Arial Italic.ttf",
         "/usr/share/fonts/typeanvil/LiberationSans-Italic.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Italic.ttf",
     ],
     &[
         "/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf",
         "/usr/share/fonts/typeanvil/LiberationSans-BoldItalic.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-BoldItalic.ttf",
     ],
 ];
 
@@ -665,7 +669,12 @@ mod tests {
         // second, so a Linux host without Arial (CI, the shipped image)
         // falls back (CORE-247).
         for (id, candidates) in BUNDLED_PATH_CANDIDATES.iter().enumerate() {
-            assert_eq!(candidates.len(), 2, "face {id} candidate count");
+            // CORE-528: third candidate is the Debian/Ubuntu fonts-liberation path.
+            assert_eq!(candidates.len(), 3, "face {id} candidate count");
+            assert!(
+                candidates[2].starts_with("/usr/share/fonts/truetype/liberation/LiberationSans-"),
+                "face {id}: fonts-liberation must be the third candidate"
+            );
             assert!(
                 candidates[0].starts_with("/System/Library/Fonts/Supplemental/Arial"),
                 "face {id}: macOS Arial must be the first candidate"
