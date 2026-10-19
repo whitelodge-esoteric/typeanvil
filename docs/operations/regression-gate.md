@@ -4,7 +4,7 @@ type: runbook
 status: draft
 owner: maintainers
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-19
 sidebar_position: 8
 tags: [ci, regression, baselines, fingerprint, library]
 trigger: When the `regression` CI job fails, or when an intended rendering change needs new baselines
@@ -35,18 +35,27 @@ Measured noise floor: `scripts/regress.py noise --runs 5` renders the 25 documen
 ./scripts/dev-container.sh python3 /work/scripts/regress.py check
 ```
 
-Baselines shall come from the Linux environment. The Mac host resolves fonts differently, so its fingerprints differ on every document. Never run `update` on the host.
+Baselines shall come from the GitHub runner. The `regress-baselines` workflow is the only approved way to write them. The Mac host resolves fonts differently, so its fingerprints differ on every document. Never run `update` on the host.
+
+### Which environment is authoritative
+
+CI is authoritative. At CORE-527 the dev container and the runner disagreed on the same commit: the container showed 43 changes against the committed baselines and the runner showed 199. The two Linux environments do not give the same fingerprints (font set and rasterizer details differ). A baseline from the container can therefore fail in CI. The container check is a quick local hint only. A green container run does not prove a green CI run.
+
+## Regenerate baselines in CI
+
+Use the `regress-baselines` workflow (`.github/workflows/regress-baselines.yml`). It runs `regress.py update` on the runner, runs it a second time and fails if the files differ, runs `check`, then commits `baselines/` to the branch.
+
+1. Add the label `update-baselines` to a same-repo pull request. Alternatively, once the workflow is on the default branch, run `gh workflow run regress-baselines.yml --ref <branch>`.
+2. Review the `baselines/` diff in the new commit.
+3. A push made with the workflow token starts no new CI run. Push an empty commit to re-run the checks.
+
+The workflow refuses to run on `main` and `release/**`.
 
 ## When the job is red
 
 1. Download the `regress-changed-pages` artifact. It holds, per changed document, the head PNGs of the changed pages (`head-page-NNN.png`), `baseline.json` and `head.json`.
 2. Decide whether the change is intended.
-3. If intended, regenerate in the container, review the `baselines/` diff, and commit it in the same PR:
-
-```bash
-./scripts/dev-container.sh python3 /work/scripts/regress.py update
-git diff --stat baselines/
-```
+3. If intended, regenerate in CI (see "Regenerate baselines in CI"), review the `baselines/` diff, and keep it in the same PR.
 
 4. If not intended, fix the engine change.
 
