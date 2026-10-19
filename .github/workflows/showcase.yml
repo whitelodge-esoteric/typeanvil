@@ -58,6 +58,14 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq fonts-liberation poppler-utils > /dev/null
+          # CORE-528: releases up to v2026.10.0 read the bundled faces only from
+          # /usr/share/fonts/typeanvil/ (the container image layout) and panic
+          # on a Debian/Ubuntu host. Link the apt files there so those tags
+          # publish; newer engines also search the apt path themselves.
+          sudo mkdir -p /usr/share/fonts/typeanvil
+          for f in Regular Bold Italic BoldItalic; do
+            sudo ln -sf "/usr/share/fonts/truetype/liberation/LiberationSans-$f.ttf" "/usr/share/fonts/typeanvil/LiberationSans-$f.ttf"
+          done
           curl -fsSL -o /tmp/prince.deb \
             https://www.princexml.com/download/prince_16.2-1_ubuntu22.04_amd64.deb
           sudo apt-get install -y -qq /tmp/prince.deb > /dev/null || echo "::warning::Prince unavailable, rendering TypeAnvil only"
@@ -89,6 +97,16 @@ jobs:
           start=$(date +%s)
           PY=python3 ./scripts/build-showcase.sh --keep-work
           echo "RENDER_SECONDS=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
+
+      # CORE-528: keep the per-document PDFs and stderr when a render fails.
+      - name: Upload render work dir on failure
+        if: failure() && steps.creds.outputs.publish == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: showcase-work-${{ env.TAG }}
+          path: library/out/showcase/.work
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Clone the showcase repo
         if: steps.creds.outputs.publish == 'true'
