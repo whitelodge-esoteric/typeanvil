@@ -4,8 +4,8 @@
   "page_count": 5,
   "pages": [
     {
-      "dark_pixels": 2590,
-      "dhash": "7030c9c0c8cc1070",
+      "dark_pixels": 2609,
+      "dhash": "7030c9c0c0cc1070",
       "page": 1,
       "size": [
         360.0,
@@ -14,7 +14,7 @@
       "text_sha256": "6daa2f74ae98bf3e15c3fe2790dafa652c2a2734556b424bc1a37292d31c2efc"
     },
     {
-      "dark_pixels": 3371,
+      "dark_pixels": 3364,
       "dhash": "70f0d4d4c4ccf030",
       "page": 2,
       "size": [
@@ -24,8 +24,8 @@
       "text_sha256": "d4553669ae56e11c082e0524402edd6e8d00b5835f9312f608aeac143ab63cdc"
     },
     {
-      "dark_pixels": 3057,
-      "dhash": "70f0c4d4ccc4f030",
+      "dark_pixels": 3117,
+      "dhash": "70f0c4d4ccc0f030",
       "page": 3,
       "size": [
         360.0,
@@ -34,7 +34,7 @@
       "text_sha256": "a76369b7b7dea22225138b14fab4a46972b4fbd509a91d7e01e485a30ab89e58"
     },
     {
-      "dark_pixels": 3248,
+      "dark_pixels": 3256,
       "dhash": "70f0d4d0dcc83030",
       "page": 4,
       "size": [
@@ -44,7 +44,7 @@
       "text_sha256": "8878e37cba901d184738a5431d9a24a79f786432ea1130011573a1d1f2a818d7"
     },
     {
-      "dark_pixels": 2153,
+      "dark_pixels": 2176,
       "dhash": "70e0d4c8c0e43030",
       "page": 5,
       "size": [

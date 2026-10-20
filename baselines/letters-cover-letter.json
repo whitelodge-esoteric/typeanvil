@@ -4,7 +4,7 @@
   "page_count": 6,
   "pages": [
     {
-      "dark_pixels": 1562,
+      "dark_pixels": 1380,
       "dhash": "000c3cb280c2b000",
       "page": 1,
       "size": [
@@ -14,8 +14,8 @@
       "text_sha256": "b39f71a651531d9a00ff3f9103845cd016754920e62f83f83ea7c1c50c26afdd"
     },
     {
-      "dark_pixels": 3216,
-      "dhash": "00d0d4e8ccc0f000",
+      "dark_pixels": 3288,
+      "dhash": "00d0d4e8ccc0d000",
       "page": 2,
       "size": [
         360.0,
@@ -24,8 +24,8 @@
       "text_sha256": "fc7dd642c618a15400316e1dc788e2b251823755c346619f5e0faab52ab3d239"
     },
     {
-      "dark_pixels": 3661,
-      "dhash": "00d4d4c8d8a48050",
+      "dark_pixels": 3719,
+      "dhash": "00dcd4c0d8a48050",
       "page": 3,
       "size": [
         360.0,
@@ -34,8 +34,8 @@
       "text_sha256": "64530a991fff38bc83ea731727e5c8e3e9dcc942db5e7bcc8b9abc0f40efd04c"
     },
     {
-      "dark_pixels": 3908,
-      "dhash": "00d4c4d4ccc4e008",
+      "dark_pixels": 3935,
+      "dhash": "00d4c4c4ccc4e008",
       "page": 4,
       "size": [
         360.0,
@@ -44,8 +44,8 @@
       "text_sha256": "016ca5037bee901f3e37b4e3cc0b49078268cbb4c733fd2ce5173e0bdfe95456"
     },
     {
-      "dark_pixels": 3873,
-      "dhash": "00c8d8c8c8c0c000",
+      "dark_pixels": 3910,
+      "dhash": "00c8c8c8c8c0c000",
       "page": 5,
       "size": [
         360.0,
@@ -54,7 +54,7 @@
       "text_sha256": "cb07a0c0afb511fee2dd8cbc97b576bb4e91e5a95596d87459bd66c0b87ff867"
     },
     {
-      "dark_pixels": 528,
+      "dark_pixels": 532,
       "dhash": "00a0808080000010",
       "page": 6,
       "size": [
