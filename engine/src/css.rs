@@ -1078,6 +1078,16 @@ fn bg_url_to_src(u: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
+/// Painted line style of one border side (CORE-531). `double`, `groove`,
+/// `ridge`, `inset` and `outset` currently paint as `Solid`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum BorderLineStyle {
+    #[default]
+    Solid,
+    Dashed,
+    Dotted,
+}
+
 /// Fully computed style for one element. This is the cascade's output contract;
 /// layout and PDF read only this.
 #[derive(Clone, Debug)]
@@ -1102,6 +1112,8 @@ pub struct ComputedStyle {
     pub border_right_color: Option<Color>,
     pub border_bottom_color: Option<Color>,
     pub border_left_color: Option<Color>,
+    /// Per-side line style (top, right, bottom, left) — CORE-531.
+    pub border_styles: [BorderLineStyle; 4],
     /// The computed `border-collapse` (css-tables-3 §13). `Separate` is the
     /// CSS initial value; the engine UA sheet no longer forces collapse, so
     /// a table that does not declare it behaves like browsers (CORE-235).
@@ -1394,6 +1406,7 @@ impl ComputedStyle {
             border_right_color: None,
             border_bottom_color: None,
             border_left_color: None,
+            border_styles: [BorderLineStyle::Solid; 4],
             // CSS initial: `separate` (browsers' UA sheets leave tables
             // separate; the engine UA no longer forces collapse).
             border_collapse: BorderCollapse::Separate,
@@ -2457,6 +2470,15 @@ impl CascadeSession {
             }
             _ => None,
         };
+        // CORE-531: dashed/dotted keep their pattern; every other painted
+        // style (solid, double, groove, ridge, inset, outset) paints solid.
+        let line_style = |s: style::values::computed::BorderStyle| -> BorderLineStyle {
+            match s {
+                style::values::computed::BorderStyle::Dashed => BorderLineStyle::Dashed,
+                style::values::computed::BorderStyle::Dotted => BorderLineStyle::Dotted,
+                _ => BorderLineStyle::Solid,
+            }
+        };
         let stylo_border_top_color = stylo_side_color(&border.clone_border_top_color());
         let stylo_border_right_color = stylo_side_color(&border.clone_border_right_color());
         let stylo_border_bottom_color = stylo_side_color(&border.clone_border_bottom_color());
@@ -2548,6 +2570,12 @@ impl CascadeSession {
             border_right_color: stylo_border_right_color,
             border_bottom_color: stylo_border_bottom_color,
             border_left_color: stylo_border_left_color,
+            border_styles: [
+                line_style(border.clone_border_top_style()),
+                line_style(border.clone_border_right_style()),
+                line_style(border.clone_border_bottom_style()),
+                line_style(border.clone_border_left_style()),
+            ],
             border_collapse,
             border_spacing_h,
             border_spacing_v,

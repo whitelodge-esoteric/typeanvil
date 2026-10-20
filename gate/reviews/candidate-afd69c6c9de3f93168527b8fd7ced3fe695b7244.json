@@ -1,0 +1,21 @@
+{
+ "schema": "typeanvil.harness.reviews/1",
+ "candidate": {
+  "label": "candidate-afd69c6c9de3f93168527b8fd7ced3fe695b7244",
+  "source_commit": "afd69c6c9de3f93168527b8fd7ced3fe695b7244",
+  "binary_sha256": "1cd7c21bdddfa9e2de2ea1ae5b74c4775156c276b9a12b4a4b4b1cdc28b351de"
+ },
+ "baseline": {
+  "label": "baseline-3ca7405cdc1b0ff464405e4e09fb68f625fee7fa",
+  "source_commit": "3ca7405cdc1b0ff464405e4e09fb68f625fee7fa",
+  "binary_sha256": "c70154ef521277f6693ada03d26efb59c07868f410606b2a842dd443302c86d8"
+ },
+ "dispositions": [
+  {
+   "doc_id": "css/css-page/page-box-005-print-ref.html",
+   "change_id": "f86def239aa1a61f3eea890067d62da810a84ace2e89a169a4fe4c9246cc8578",
+   "kind": "correction",
+   "reason": "The reference declares `border: 10px dotted` on a div. Baseline painted it solid; the candidate paints dots (css-backgrounds-3 4.2). Test status FAIL -> FAIL (unchanged): the test side uses an @page border ring, which still paints solid. Selection result FAIL=85 PASS=224 on both sides, zero PASS->FAIL."
+  }
+ ]
+}

@@ -866,6 +866,7 @@ fn collect_flat(
                 b.bottom_color,
                 b.left_color,
                 my_owner,
+                b.styles,
             ));
         }
         FragmentContent::Text(run) => {
@@ -1042,20 +1043,29 @@ fn paint_margin_box(
         surface.pop();
     }
 
-    for (x, y, w, h, t, r, b, l, ct, cr, cb, cl, owner) in &borders {
+    for (x, y, w, h, t, r, b, l, ct, cr, cb, cl, owner, st) in &borders {
+        let _ = owner;
         // CORE-201: each side strokes with its OWN colour.
         let mut sides: Vec<(f32, f32, f32, f32, Color)> = Vec::new();
         if *t > 0.0 {
-            sides.push((*x, *y, *w, *t, *ct));
+            for (a, b2, c, d) in dash_rects(st[0], *x, *y, *w, *t, true) {
+                sides.push((a, b2, c, d, *ct));
+            }
         }
         if *b > 0.0 {
-            sides.push((*x, *y + h - b, *w, *b, *cb));
+            for (a, b2, c, d) in dash_rects(st[2], *x, *y + h - b, *w, *b, true) {
+                sides.push((a, b2, c, d, *cb));
+            }
         }
         if *l > 0.0 {
-            sides.push((*x, *y, *l, *h, *cl));
+            for (a, b2, c, d) in dash_rects(st[3], *x, *y, *l, *h, false) {
+                sides.push((a, b2, c, d, *cl));
+            }
         }
         if *r > 0.0 {
-            sides.push((*x + w - r, *y, *r, *h, *cr));
+            for (a, b2, c, d) in dash_rects(st[1], *x + w - r, *y, *r, *h, false) {
+                sides.push((a, b2, c, d, *cr));
+            }
         }
         if !tagged {
             for (px, py, pw, ph, side_color) in &sides {
@@ -1168,7 +1178,7 @@ fn paint_margin_box(
 
 /// (x, y, w, h, color, owner) — one solid background fill.
 type BackgroundItem = (f32, f32, f32, f32, Color, Option<NodeId>);
-/// (x, y, w, h, t, r, b, l, color, owner) — one border box.
+/// (x, y, w, h, t, r, b, l, color, owner, styles) — one border box.
 type BorderItem = (
     f32,
     f32,
@@ -1183,7 +1193,48 @@ type BorderItem = (
     Color,
     Color,
     Option<NodeId>,
+    [crate::css::BorderLineStyle; 4],
 );
+
+/// Split one border side into the rectangles that paint it (CORE-531).
+/// `horizontal` sides run along x, vertical sides along y; `t` is the side's
+/// thickness. Solid sides give one rect. Dashed sides give dashes of 3t with
+/// gaps of ~3t; dotted sides give square dots of t with gaps of t. The run
+/// length is adjusted so a dash/dot starts and ends flush with the edge.
+pub fn dash_rects(
+    style: crate::css::BorderLineStyle,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    horizontal: bool,
+) -> Vec<(f32, f32, f32, f32)> {
+    use crate::css::BorderLineStyle as S;
+    let (len, t) = if horizontal { (w, h) } else { (h, w) };
+    let (dash, gap) = match style {
+        S::Solid => return vec![(x, y, w, h)],
+        S::Dashed => (3.0 * t, 3.0 * t),
+        S::Dotted => (t, t),
+    };
+    if len.is_nan() || t.is_nan() || len <= 0.0 || t <= 0.0 || len <= dash {
+        return vec![(x, y, w, h)];
+    }
+    // n dashes and n-1 gaps fill `len` exactly; scale the gap to fit.
+    let n = (((len + gap) / (dash + gap)).round()).max(2.0);
+    let g = (len - n * dash) / (n - 1.0);
+    let mut out = Vec::new();
+    let mut i = 0.0f32;
+    while i < n {
+        let off = i * (dash + g);
+        out.push(if horizontal {
+            (x + off, y, dash, h)
+        } else {
+            (x, y + off, w, dash)
+        });
+        i += 1.0;
+    }
+    out
+}
 /// (x, y, w, h, store key, owner) — one replaced image or background image.
 type ImageItem = (f32, f32, f32, f32, [u8; 32], Option<NodeId>);
 type BgImageItem = (f32, f32, f32, f32, [u8; 32], Option<NodeId>, crate::frag::BackgroundImageRun);
@@ -1270,6 +1321,7 @@ fn push_content(
                 b.bottom_color,
                 b.left_color,
                 owner,
+                b.styles,
             ));
         }
         FragmentContent::Text(run) => {
@@ -1531,20 +1583,28 @@ fn paint_group_body(
 
     // Borders after backgrounds, before text: stroke each side whose
     // width > 0 as a thin filled rect (deterministic, no stroke state).
-    for (x, y, w, h, t, r, b, l, ct, cr, cb, cl, owner) in &group.borders {
+    for (x, y, w, h, t, r, b, l, ct, cr, cb, cl, owner, st) in &group.borders {
         // CORE-201: each side strokes with its OWN colour.
         let mut sides: Vec<(f32, f32, f32, f32, Color)> = Vec::new();
         if *t > 0.0 {
-            sides.push((*x, *y, *w, *t, *ct));
+            for (a, b2, c, d) in dash_rects(st[0], *x, *y, *w, *t, true) {
+                sides.push((a, b2, c, d, *ct));
+            }
         }
         if *b > 0.0 {
-            sides.push((*x, *y + h - b, *w, *b, *cb));
+            for (a, b2, c, d) in dash_rects(st[2], *x, *y + h - b, *w, *b, true) {
+                sides.push((a, b2, c, d, *cb));
+            }
         }
         if *l > 0.0 {
-            sides.push((*x, *y, *l, *h, *cl));
+            for (a, b2, c, d) in dash_rects(st[3], *x, *y, *l, *h, false) {
+                sides.push((a, b2, c, d, *cl));
+            }
         }
         if *r > 0.0 {
-            sides.push((*x + w - r, *y, *r, *h, *cr));
+            for (a, b2, c, d) in dash_rects(st[1], *x + w - r, *y, *r, *h, false) {
+                sides.push((a, b2, c, d, *cr));
+            }
         }
         if !tagged {
             for (px, py, pw, ph, side_color) in &sides {

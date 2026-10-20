@@ -500,6 +500,7 @@ impl<'a> Ctx<'a> {
                         right_color: style.border_right_color.unwrap_or(crate::css::Color::BLACK),
                         bottom_color: style.border_bottom_color.unwrap_or(crate::css::Color::BLACK),
                         left_color: style.border_left_color.unwrap_or(crate::css::Color::BLACK),
+                        styles: style.border_styles,
                     });
                     lead.push(f);
                 }
