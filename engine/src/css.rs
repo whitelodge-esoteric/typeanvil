@@ -1748,6 +1748,10 @@ impl CascadeSession {
            and rows wrap to an extra line (CORE-96). */
         th { font-weight: bold; }
         h1, h2, h3, h4, h5, h6 { font-weight: bold; }
+        /* CORE-530: WHATWG rendering defaults for inline emphasis (HTML
+           15.3.1, 15.3.2); Prince html.css has the same rules. */
+        b, strong { font-weight: bold; }
+        i, em, cite, dfn, var { font-style: italic; }
         /* CORE-95: Prince's print UA sheet (lib/prince/style/html.css, 16.2)
            uses FIXED point heading sizes and margins, and 1.12em block
            margins. The HTML4/WHATWG em-scaled screen defaults scale headings

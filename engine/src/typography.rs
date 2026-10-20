@@ -235,6 +235,40 @@ pub struct ShapedGlyph {
     /// hyphenation break (not a hyphen present in the source). The tagged
     /// PDF writer drops it from `ActualText` (CORE-376).
     pub synthetic: bool,
+    /// Fill colour override from an inline element's own `color` (CORE-530),
+    /// or `None` when the glyph paints in the run's colour.
+    pub color: Option<crate::css::Color>,
+}
+
+/// The face and colour of one inline element inside a text run (CORE-530).
+/// `[start, end)` are byte offsets into the run text; spans nest, and the
+/// LAST span containing a byte (open order, so the innermost) wins.
+#[derive(Clone, Debug)]
+pub struct StyleSpan {
+    pub start: usize,
+    pub end: usize,
+    pub face: FaceId,
+    pub color: crate::css::Color,
+}
+
+/// Innermost span covering byte `pos`, if any.
+fn span_at(spans: &[StyleSpan], pos: usize) -> Option<&StyleSpan> {
+    spans.iter().rev().find(|s| s.start <= pos && pos < s.end)
+}
+
+/// Spans re-based to a text slice starting at `offset` (CORE-530): resume
+/// paths re-break `&text[offset..]`.
+pub fn shift_spans(spans: &[StyleSpan], offset: usize) -> Vec<StyleSpan> {
+    spans
+        .iter()
+        .filter(|s| s.end > offset)
+        .map(|s| StyleSpan {
+            start: s.start.saturating_sub(offset),
+            end: s.end - offset,
+            face: s.face,
+            color: s.color,
+        })
+        .collect()
 }
 
 /// A shaped word or segment.
@@ -504,6 +538,7 @@ fn shape_word_uncached(
                 range: (s + g.range.start)..(s + g.range.end),
                 face: fb,
                 synthetic: false,
+                color: None,
             });
         }
     }
@@ -597,6 +632,7 @@ fn shape_single_face(
             range: start..end,
             face: None,
             synthetic: false,
+            color: None,
         });
     }
 
@@ -720,6 +756,7 @@ fn build_items(
     hyphenate: bool,
     features: &[(u32, u32)],
     ws: crate::css::WhiteSpace,
+    spans: &[StyleSpan],
 ) -> (Vec<Item>, Vec<usize>) {
     let glue = space_glue_with_features(font_size, face, features);
     let hyphen_run = shape_word_with_features("-", font_size, face, features);
@@ -794,7 +831,7 @@ fn build_items(
                 i += c2.len_utf8();
             }
             let word = &text[word_start..i];
-            push_word(
+            push_styled_word(
                 &mut items,
                 &mut box_ends,
                 word,
@@ -804,6 +841,7 @@ fn build_items(
                 &hyphen_run,
                 face,
                 features,
+                spans,
             );
         }
         return (items, box_ends);
@@ -860,7 +898,7 @@ fn build_items(
             i += c.len_utf8();
         }
         let word = &text[word_start..i];
-        push_word(
+        push_styled_word(
             &mut items,
             &mut box_ends,
             word,
@@ -870,6 +908,7 @@ fn build_items(
             &hyphen_run,
             face,
             features,
+            spans,
         );
         first = false;
     }
@@ -923,6 +962,73 @@ pub fn allowed_hyphenation_breaks(word: &str) -> Vec<usize> {
 /// word's byte offset in the ORIGINAL text — every syllable box records its
 /// source end in `box_ends` so line materialization can track real source
 /// consumption (CORE-91).
+/// Push a word, splitting it where the inline style (face/colour) changes
+/// and shaping each piece with its own face (CORE-530). Pieces are adjacent
+/// boxes with no glue, so no break opportunity appears inside the word.
+#[allow(clippy::too_many_arguments)]
+fn push_styled_word(
+    items: &mut Vec<Item>,
+    box_ends: &mut Vec<usize>,
+    word: &str,
+    start: usize,
+    font_size: Scalar,
+    hyphenate: bool,
+    hyphen_run: &ShapeRun,
+    face: FaceId,
+    features: &[(u32, u32)],
+    spans: &[StyleSpan],
+) {
+    if spans.is_empty() {
+        push_word(
+            items, box_ends, word, start, font_size, hyphenate, hyphen_run, face, features,
+        );
+        return;
+    }
+    let key_at = |pos: usize| span_at(spans, pos).map(|s| (s.face, s.color));
+    let mut seg_start = 0usize;
+    let mut cur = key_at(start);
+    let mut flush = |items: &mut Vec<Item>,
+                     box_ends: &mut Vec<usize>,
+                     a: usize,
+                     b: usize,
+                     key: Option<(FaceId, crate::css::Color)>| {
+        let n0 = items.len();
+        let seg_face = key.map(|k| k.0).unwrap_or(face);
+        push_word(
+            items,
+            box_ends,
+            &word[a..b],
+            start + a,
+            font_size,
+            hyphenate,
+            hyphen_run,
+            seg_face,
+            features,
+        );
+        if let Some((f, c)) = key {
+            for it in items[n0..].iter_mut() {
+                if let Item::Box(run) = it {
+                    for g in run.glyphs.iter_mut() {
+                        if g.face.is_none() && f != face {
+                            g.face = Some(f);
+                        }
+                        g.color = Some(c);
+                    }
+                }
+            }
+        }
+    };
+    for (k, _) in word.char_indices().skip(1) {
+        let key = key_at(start + k);
+        if key != cur {
+            flush(items, box_ends, seg_start, k, cur);
+            seg_start = k;
+            cur = key;
+        }
+    }
+    flush(items, box_ends, seg_start, word.len(), cur);
+}
+
 fn push_word(
     items: &mut Vec<Item>,
     box_ends: &mut Vec<usize>,
@@ -1348,6 +1454,7 @@ fn materialize_line(
                             range: sp..sp + 1,
                             face: None,
                             synthetic: false,
+                            color: None,
                         });
                         spaces.push((gi, g.width.get(), g.stretch.get(), g.shrink.get()));
                     }
@@ -1365,6 +1472,7 @@ fn materialize_line(
                     range: (base + g.range.start)..(base + g.range.end),
                     face: g.face,
                     synthetic: false,
+                    color: g.color,
                 }));
             }
             Item::Glue(g) => {
@@ -1406,6 +1514,7 @@ fn materialize_line(
             range: hp..hp + 1,
             face: g.face,
             synthetic: true,
+            color: None,
         }));
     }
     // A forced break (`<br>`) adds no glyphs or width, but the line CONSUMES
@@ -1488,6 +1597,18 @@ pub fn break_paragraph(
     hyphenate: bool,
     justify: bool,
 ) -> Vec<LineResult> {
+    break_paragraph_styled(text, max_width, style, hyphenate, justify, &[])
+}
+
+/// [`break_paragraph`] with per-inline-element face/colour spans (CORE-530).
+pub fn break_paragraph_styled(
+    text: &str,
+    max_width: Scalar,
+    style: &ComputedStyle,
+    hyphenate: bool,
+    justify: bool,
+    spans: &[StyleSpan],
+) -> Vec<LineResult> {
     let ws = style.white_space;
     // Spec edge cases: empty runs and whitespace-only runs produce no lines —
     // EXCEPT a preserved break run: newlines-only text is real empty lines
@@ -1512,7 +1633,7 @@ pub fn break_paragraph(
     // Resolve OpenType features ONCE per paragraph (CORE-113); every shaped
     // box (words, hyphen glyph, spaces) sees the identical list.
     let features = &style.ot_features[..];
-    let (items, box_ends) = build_items(text, font_size, face, hyphenate, features, ws);
+    let (items, box_ends) = build_items(text, font_size, face, hyphenate, features, ws, spans);
     if items.is_empty() {
         return Vec::new();
     }

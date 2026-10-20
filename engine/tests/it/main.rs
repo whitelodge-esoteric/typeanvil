@@ -38,6 +38,7 @@ mod core352_cell_valign;
 mod core352_cell_valign_more;
 mod core356_auto_width_surplus;
 mod core359_text_transform;
+mod core530_inline_style;
 mod core363_mathml;
 mod core368_anonymous_table_boxes;
 mod core368_inline_block_line;
