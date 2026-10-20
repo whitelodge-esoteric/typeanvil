@@ -169,8 +169,15 @@ jobs:
           mkdir -p "$dest"
           cp visual-diff/*.png "$dest"/ 2>/dev/null || true
           git -C assets add -A
-          git -C assets diff --cached --quiet || git -C assets commit -q -m "pr-$PR ${HEAD_SHA:0:8}"
-          git -C assets push origin pr-assets
+          # Nothing staged (no changed pages) means nothing to push. On a fresh
+          # orphan branch a push would fail with "src refspec pr-assets does
+          # not match any" (CORE-527).
+          if git -C assets diff --cached --quiet; then
+            echo "no images to publish"
+          else
+            git -C assets commit -q -m "pr-$PR ${HEAD_SHA:0:8}"
+            git -C assets push origin pr-assets
+          fi
       - name: Update PR description
         run: |
           gh pr view "$PR" --json body --jq .body > body-in.md
