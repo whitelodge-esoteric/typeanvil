@@ -32,6 +32,10 @@ SHOWCASE_URL = "https://github.com/whitelodge-esoteric/typeanvil-showcase"
 PAGES_URL = "https://whitelodge-esoteric.github.io/typeanvil-showcase/"
 THUMB_WIDTH = 240
 PAGE_RE = re.compile(r"^page-(\d{3})-(ta|pr)\.png$")
+# CORE-529: documents longer than this publish PNGs for pages 1..MAX_PAGES only,
+# plus the full PDFs. One named constant; the CLI flag --max-pages overrides it.
+MAX_PAGES = 10
+PDF_NAMES = {"ta": "full-typeanvil.pdf", "pr": "full-prince.pdf"}
 
 
 def parse_tag(tag: str) -> tuple[int, int, int]:
@@ -69,11 +73,27 @@ def list_pages(doc_images: Path) -> dict[int, dict[str, Path]]:
     return pages
 
 
-def render_doc_readme(name: str, tag: str, pages: dict[int, dict[str, str]]) -> str:
-    """pages: page number -> {'ta': filename, 'pr': filename (optional)}."""
+def page_count_label(shown: int, total: int) -> str:
+    return str(total) if shown >= total else f"{shown} of {total}"
+
+
+def render_doc_readme(name: str, tag: str, pages: dict[int, dict[str, str]],
+                      total: int | None = None, pdfs: dict[str, str] | None = None) -> str:
+    """pages: page number -> {'ta': filename, 'pr': filename (optional)}.
+
+    total: real page count when only part of the pages is published.
+    pdfs: kind ('ta'/'pr') -> relative filename of the published full PDF.
+    """
     has_oracle = any("pr" in v for v in pages.values())
     lines = [f"# {name}", "", f"TypeAnvil `{tag}`"
              + (", beside the Prince reference render (unscored)." if has_oracle else "."), ""]
+    if total is not None and total > len(pages):
+        links = []
+        if pdfs and "ta" in pdfs:
+            links.append(f"[full PDF (TypeAnvil)]({pdfs['ta']})")
+        if pdfs and "pr" in pdfs:
+            links.append(f"[full PDF (Prince)]({pdfs['pr']})")
+        lines += [f"Showing {len(pages)} of {total} pages: " + " / ".join(links) + ".", ""]
     if has_oracle:
         lines += ["| Page | TypeAnvil | Prince |", "|---|---|---|"]
         for n in sorted(pages):
@@ -93,7 +113,8 @@ def render_version_readme(tag: str, docs: list[dict]) -> str:
              f"Rendered showcase documents for [{tag}]({ENGINE_URL}/releases/tag/{tag}).", "",
              "| Document | Pages |", "|---|---|"]
     for d in docs:
-        lines.append(f"| [{d['name']}]({d['stem']}/README.md) | {d['pages']} |")
+        lines.append(f"| [{d['name']}]({d['stem']}/README.md) | "
+                     f"{page_count_label(d['pages'], d.get('total', d['pages']))} |")
     lines += ["", f"Back to the [index]({'../../README.md'}).", ""]
     return "\n".join(lines)
 
@@ -200,8 +221,13 @@ def _write(path: Path, text: str) -> None:
 
 
 def add_version(site: Path, images: Path, manifest: list[dict], tag: str, commit: str,
-                source_dpi: int, target_dpi: int, render_seconds: float | None) -> dict:
-    """Write versions/<tag>/ for a new release. Returns the perf record."""
+                source_dpi: int, target_dpi: int, render_seconds: float | None,
+                max_pages: int = MAX_PAGES, pdf_dir: Path | None = None) -> dict:
+    """Write versions/<tag>/ for a new release. Returns the perf record.
+
+    Documents with more than max_pages pages publish pages 1..max_pages only. Their
+    full PDFs are copied from pdf_dir (<stem>-ta.pdf, <stem>-pr.pdf) when present.
+    """
     parse_tag(tag)
     scale = scale_for(source_dpi, target_dpi)
     vdir = site / "versions" / tag
@@ -218,18 +244,31 @@ def add_version(site: Path, images: Path, manifest: list[dict], tag: str, commit
         pages = list_pages(images / stem)
         if not any("ta" in v for v in pages.values()):
             raise SystemExit(f"error: no TypeAnvil pages for {stem} in {images}")
+        total = len(pages)
         names: dict[int, dict[str, str]] = {}
-        for n, kinds in pages.items():
+        for n, kinds in sorted(pages.items()):
+            if total > max_pages and n > max_pages:
+                continue
             names[n] = {}
             for kind, src in kinds.items():
                 _copy_scaled(src, vdir / rel / src.name, scale)
                 names[n][kind] = src.name
-        _write(vdir / rel / "README.md", render_doc_readme(entry["name"], tag, names))
-        docs.append({"stem": rel, "name": entry["name"], "pages": len(pages)})
-        perf_docs[rel] = {"pages": len(pages)}
+        pdfs: dict[str, str] = {}
+        if total > max_pages:
+            for kind, fname in PDF_NAMES.items():
+                src_pdf = pdf_dir / f"{stem}-{kind}.pdf" if pdf_dir else None
+                if src_pdf is not None and src_pdf.is_file():
+                    (vdir / rel).mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(src_pdf, vdir / rel / fname)
+                    pdfs[kind] = fname
+            if "ta" not in pdfs:
+                raise SystemExit(f"error: no TypeAnvil PDF for {stem} in {pdf_dir}")
+        _write(vdir / rel / "README.md", render_doc_readme(entry["name"], tag, names, total, pdfs))
+        docs.append({"stem": rel, "name": entry["name"], "pages": len(names), "total": total})
+        perf_docs[rel] = {"pages": total, "published_pages": len(names)}
     _write(vdir / "README.md", render_version_readme(tag, docs))
     record = {"tag": tag, "commit": commit, "dpi": min(target_dpi, source_dpi),
-              "docs": perf_docs, "total_pages": sum(d["pages"] for d in docs),
+              "docs": perf_docs, "total_pages": sum(d["total"] for d in docs),
               "render_seconds": render_seconds}
     _write(site / "perf" / f"{tag}.json", json.dumps(record, indent=2, sort_keys=True) + "\n")
     return record
@@ -248,6 +287,8 @@ def thumbnail_version(site: Path, tag: str) -> None:
             thumbs.append((int(PAGE_RE.match(png.name).group(1)), png.name))
         for png in sub.glob("page-*-pr.png"):
             png.unlink()
+        for fname in PDF_NAMES.values():  # thumbnails-only versions drop the full PDFs
+            (sub / fname).unlink(missing_ok=True)
         (sub / "README.md").unlink(missing_ok=True)
         docs.append({"stem": f"{sub.parent.name}/{sub.name}", "name": sub.name, "thumbs": thumbs})
     _write(vdir / "README.md", render_thumb_readme(tag, docs))
@@ -286,7 +327,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dpi", type=int, default=150, help="published DPI (150-200)")
     ap.add_argument("--keep", type=int, default=5, help="versions kept at full size")
     ap.add_argument("--render-seconds", type=float, default=None)
+    ap.add_argument("--max-pages", type=int, default=MAX_PAGES,
+                    help="publish PNGs for pages 1..N of longer documents (plus full PDFs)")
+    ap.add_argument("--pdfs", type=Path, default=Path("library/out/showcase/.work"),
+                    help="dir holding <doc>-ta.pdf and <doc>-pr.pdf from build-showcase.sh --keep-work")
     args = ap.parse_args(argv)
+    if args.max_pages < 1:
+        print("error: --max-pages must be at least 1", file=sys.stderr)
+        return 2
 
     if not 150 <= args.dpi <= 200:
         print("error: --dpi must be within 150-200", file=sys.stderr)
@@ -298,7 +346,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     manifest = json.loads(args.manifest.read_text())
     add_version(args.site, args.images, manifest, args.tag, args.commit,
-                args.source_dpi, args.dpi, args.render_seconds)
+                args.source_dpi, args.dpi, args.render_seconds,
+                max_pages=args.max_pages, pdf_dir=args.pdfs)
     full = refresh_site(args.site, args.keep)
     print(f"published {args.tag}; full versions: {', '.join(full)}")
     return 0

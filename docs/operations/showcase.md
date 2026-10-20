@@ -4,7 +4,7 @@ type: runbook
 status: draft
 owner: maintainers
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-20
 sidebar_position: 8
 tags: [showcase, release, github-pages]
 trigger: When you set up showcase publishing, or when a showcase publish fails
@@ -29,7 +29,8 @@ Site: https://whitelodge-esoteric.github.io/typeanvil-showcase/. Contract:
 - Automatic: when the `release` workflow succeeds on a `v*` tag, `showcase.yml` starts through `workflow_run`. It does not use a `release:` trigger, because `release.yml` creates the release with `GITHUB_TOKEN` and such events start no workflows. A failed release run publishes nothing.
 - Manual: Actions, showcase, Run workflow, enter the tag.
 - Local dry run of the tree builder:
-  `python3 scripts/showcase_publish.py --site /tmp/site --tag v2026.10.0` after `scripts/build-showcase.sh`.
+  `python3 scripts/showcase_publish.py --site /tmp/site --tag v2026.10.0` after `scripts/build-showcase.sh --keep-work`.
+- Size cap (CORE-529): documents over 10 pages publish pages 1 to 10 plus both full PDFs. Change the limit with `--max-pages` (constant `MAX_PAGES`). One version is about 64 MB; git history keeps every version forever, so do not raise the limit without checking size.
 
 ## Failures
 

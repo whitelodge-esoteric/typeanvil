@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-20
 sidebar_position: 7
 tags: [showcase, release, github-pages, publish]
 spec_id: showcase-publish
@@ -34,12 +34,16 @@ Rendered showcase output stays out of the engine repo. On each release, a workfl
 10. The workflow shall push with a write deploy key stored in the secret `SHOWCASE_DEPLOY_KEY`. When the secret is absent, the job shall skip with a notice and stay green.
 11. The first publish shall work on an empty target repo that has no default branch; it creates `main`.
 12. The engine `README.md` shall link to the showcase repo and its Pages site.
+13. (CORE-529) A document with more than `MAX_PAGES` pages (default 10, flag `--max-pages`) shall publish PNGs for pages 1 to `MAX_PAGES` only, for both engines. Its page shall say `Showing 10 of N pages` and link `full-typeanvil.pdf` and `full-prince.pdf`, which are published beside the images. The version index shall show `10 of N`. Perf JSON keeps the real page count (`pages`) and adds `published_pages`. No page shall link to an unpublished file. Documents with `MAX_PAGES` pages or fewer are unchanged.
+14. (CORE-529) The full PDFs are read from `--pdfs` (default `library/out/showcase/.work`, kept by `build-showcase.sh --keep-work`). Versions past the retention window drop the PDFs with the full-size pages.
 
 ## Decisions
 
 - DECIDED 2026-10-17 (agent): trigger on `workflow_run` of `release`, separate workflow file. A `release: published` trigger never fires for a release made with `GITHUB_TOKEN`, and it would race the tarball upload. `workflow_run` fires after all release jobs end. It keeps the `release.yml` build matrix unchanged and lets a failed publish re-run alone.
 - DECIDED 2026-10-17 (agent): deploy key, not a GitHub App. One repo, one write scope, no app to maintain.
 - DECIDED 2026-10-17 (agent): default retention 5 versions, 150 DPI.
+
+- DECIDED 2026-10-20 (agent): cap at 10 pages per document, publish full PDFs. A local build of one version was 737 MB (1,487 PNGs); every release adds permanently to git history. With the cap one version is 64 MB.
 
 ## Acceptance Criteria
 
@@ -48,6 +52,7 @@ Rendered showcase output stays out of the engine repo. On each release, a workfl
 3. Given `--dpi 300` or a non-CalVer tag, then the script exits 2 (`test_cli_rejects_dpi_out_of_range_and_bad_tag`).
 4. Given a real tag, when the release is published, then `versions/<tag>/` appears in the showcase repo.
 5. Given `showcase.yml`, then it triggers on `workflow_run` of `release` and has no `release:` trigger (`tests/test_showcase_publish.py::test_workflow_trigger_is_workflow_run`). Criterion 4 needs the secret and is verified by the owner on the first tag.
+6. (CORE-529) Given a 12-page document and `--max-pages 10`, then only pages 1 to 10 exist, both full PDFs exist and are linked, and every relative link resolves (`tests/test_showcase_publish.py::test_long_document_is_capped_and_links_full_pdfs`). Short documents are unchanged (`test_short_document_unchanged`, `test_exactly_max_pages_is_not_capped`).
 
 ## Non-Goals
 
