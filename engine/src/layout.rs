@@ -5763,6 +5763,7 @@ impl<'a> Ctx<'a> {
                 right_color: style.border_right_color.unwrap_or(crate::css::Color::BLACK),
                 bottom_color: style.border_bottom_color.unwrap_or(crate::css::Color::BLACK),
                 left_color: style.border_left_color.unwrap_or(crate::css::Color::BLACK),
+                styles: style.border_styles,
             };
             match fragment.content {
                 FragmentContent::Background(_) => {
@@ -6757,6 +6758,7 @@ impl<'a> Ctx<'a> {
                 right_color: tstyle.border_right_color.unwrap_or(crate::css::Color::BLACK),
                 bottom_color: tstyle.border_bottom_color.unwrap_or(crate::css::Color::BLACK),
                 left_color: tstyle.border_left_color.unwrap_or(crate::css::Color::BLACK),
+                styles: tstyle.border_styles,
             };
             match fragment.content {
                 FragmentContent::Background(_) => {
@@ -7394,6 +7396,7 @@ impl<'a> Ctx<'a> {
                     right_color: st.border_right_color.unwrap_or(crate::css::Color::BLACK),
                     bottom_color: st.border_bottom_color.unwrap_or(crate::css::Color::BLACK),
                     left_color: st.border_left_color.unwrap_or(crate::css::Color::BLACK),
+                    styles: st.border_styles,
                 };
                 // CORE-100: background + border must COEXIST on the cell.
                 // layout_box set FragmentContent::Background(bg) when the cell
@@ -9223,6 +9226,7 @@ fn attach_margin_boxes(
                     .border_left
                     .map(|(_, c)| c)
                     .unwrap_or(crate::css::Color::BLACK),
+                styles: [crate::css::BorderLineStyle::Solid; 4],
             };
             match fragment.content {
                 FragmentContent::Background(_) => {

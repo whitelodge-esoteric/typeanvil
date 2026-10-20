@@ -234,6 +234,8 @@ pub struct BorderBox {
     pub right_color: Color,
     pub bottom_color: Color,
     pub left_color: Color,
+    /// Line style per side: top, right, bottom, left (CORE-531).
+    pub styles: [crate::css::BorderLineStyle; 4],
 }
 
 /// A laid-out run of text for a [`FragmentKind::Line`] fragment.
