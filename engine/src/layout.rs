@@ -150,7 +150,14 @@ enum Item {
     /// offsets are into the run's own text; `href` is the raw attribute.
     /// The third field carries `(marker byte offset, footnote NodeId)` pairs
     /// for footnote call markers spliced into the run text (CORE-107).
-    Text(String, Vec<LinkSpan>, Vec<(usize, NodeId)>),
+    /// The fourth field carries the per-inline-element face/colour spans
+    /// (CORE-530), byte offsets into the run text.
+    Text(
+        String,
+        Vec<LinkSpan>,
+        Vec<(usize, NodeId)>,
+        Vec<crate::typography::StyleSpan>,
+    ),
     /// A block-level child element.
     Block(NodeId),
     /// An inline-block child element: atomic on the line, flow inside
@@ -3350,7 +3357,7 @@ impl<'a> Ctx<'a> {
             let mut line_top = atomic_line_top;
             let mut line_h = atomic_line_h;
             match &items[i] {
-                Item::Text(text, link_spans, fn_markers) => {
+                Item::Text(text, link_spans, fn_markers, style_spans) => {
                     // CORE-118: a text run between blocks is not an adjacent
                     // block sibling — no collapse state carries across it.
                     let child_tok = self.child_incoming(token, i);
@@ -3365,7 +3372,8 @@ impl<'a> Ctx<'a> {
                         // fresh full-width line at the left edge.
                         && !atomic_line_active
                     {
-                        let lines = self.break_paragraph(text, inner_width, style);
+                        let lines =
+                            self.break_paragraph_s(text, inner_width, style, style_spans);
                         // How many lines already consumed by earlier fragments.
                         let consumed_lines =
                             (child_tok.consumed_block_size.get() / lh.get()).round() as usize;
@@ -3539,7 +3547,12 @@ impl<'a> Ctx<'a> {
                         {
                             let rem_w = inner_left + inner_width - atomic_pen_x;
                             if rem_w.get() > 0.0 {
-                                let lines = self.break_paragraph(&text[src_offset..], rem_w, style);
+                                let lines = self.break_paragraph_s(
+                                    &text[src_offset..],
+                                    rem_w,
+                                    style,
+                                    &crate::typography::shift_spans(style_spans, src_offset),
+                                );
                                 if let Some(lr) = lines.first() {
                                     if !lr.text.trim().is_empty()
                                         && lr.drawn_width().get() <= rem_w.get() + 1e-6
@@ -3627,7 +3640,12 @@ impl<'a> Ctx<'a> {
                                 }
                                 break;
                             }
-                            let lines = self.break_paragraph(&text[src_offset..], seg_w, style);
+                            let lines = self.break_paragraph_s(
+                                &text[src_offset..],
+                                seg_w,
+                                style,
+                                &crate::typography::shift_spans(style_spans, src_offset),
+                            );
                             if lines.is_empty() {
                                 break;
                             }
@@ -7466,10 +7484,10 @@ impl<'a> Ctx<'a> {
         let mut content_h = Scalar::ZERO;
         for item in self.collect_items(id) {
             match item {
-                Item::Text(text, _, _) => {
+                Item::Text(text, _, _, ss) => {
                     // The SAME breaker layout uses, so measured heights match
                     // laid-out heights (`break-inside: avoid` correctness).
-                    let lines = self.break_paragraph(&text, inner_width, style);
+                    let lines = self.break_paragraph_s(&text, inner_width, style, &ss);
                     content_h = content_h + style.line_height * (lines.len() as f64);
                 }
                 Item::Atomic(child) | Item::Block(child) => {
@@ -7597,7 +7615,7 @@ impl<'a> Ctx<'a> {
     fn float_is_splittable(&self, id: NodeId) -> bool {
         for item in self.collect_items(id) {
             match item {
-                Item::Text(text, _, _) => {
+                Item::Text(text, _, _, _) => {
                     if !text.trim().is_empty() {
                         return true;
                     }
@@ -7746,8 +7764,8 @@ impl<'a> Ctx<'a> {
         let mut width = Scalar::ZERO;
         for item in self.collect_items(id) {
             match item {
-                Item::Text(text, _, _) => {
-                    let lines = self.break_paragraph(&text, max_width, style);
+                Item::Text(text, _, _, ss) => {
+                    let lines = self.break_paragraph_s(&text, max_width, style, &ss);
                     for line in &lines {
                         let w = line.drawn_width();
                         if w.get() > width.get() {
@@ -7788,8 +7806,8 @@ impl<'a> Ctx<'a> {
         let mut width = Scalar::ZERO;
         for item in self.collect_items(id) {
             match item {
-                Item::Text(text, _, _) => {
-                    let lines = self.break_paragraph(&text, max_width, style);
+                Item::Text(text, _, _, ss) => {
+                    let lines = self.break_paragraph_s(&text, max_width, style, &ss);
                     for line in &lines {
                         let w = line.drawn_width();
                         if w.get() > width.get() {
@@ -8059,12 +8077,21 @@ impl<'a> Ctx<'a> {
         let mut pending = String::new();
         let mut spans: Vec<LinkSpan> = Vec::new();
         let mut markers: Vec<(usize, NodeId)> = Vec::new();
-        self.collect_items_rec(id, &mut items, &mut pending, &mut spans, &mut markers);
+        let mut sspans: Vec<crate::typography::StyleSpan> = Vec::new();
+        self.collect_items_rec(
+            id,
+            &mut items,
+            &mut pending,
+            &mut spans,
+            &mut markers,
+            &mut sspans,
+        );
         if !pending.trim().is_empty() || !markers.is_empty() {
             items.push(Item::Text(
                 std::mem::take(&mut pending),
                 std::mem::take(&mut spans),
                 std::mem::take(&mut markers),
+                std::mem::take(&mut sspans),
             ));
         }
         items
@@ -8135,6 +8162,7 @@ impl<'a> Ctx<'a> {
         pending: &mut String,
         spans: &mut Vec<LinkSpan>,
         markers: &mut Vec<(usize, NodeId)>,
+        sspans: &mut Vec<crate::typography::StyleSpan>,
     ) {
         for &child in &self.dom.nodes[id].children {
             match &self.dom.nodes[child].kind {
@@ -8238,9 +8266,11 @@ impl<'a> Ctx<'a> {
                                 std::mem::take(pending),
                                 std::mem::take(spans),
                                 std::mem::take(markers),
+                                std::mem::take(sspans),
                             ));
                         } else {
                             pending.clear();
+                            sspans.clear();
                         }
                         spans.extend(reopen);
                         if self.styles[child].display == Display::InlineBlock
@@ -8271,7 +8301,9 @@ impl<'a> Ctx<'a> {
                                     href: href.to_string(),
                                     node: child,
                                 });
-                                self.collect_items_rec(child, items, pending, spans, markers);
+                                self.collect_inline_child(
+                                    id, child, items, pending, spans, markers, sspans,
+                                );
                                 // Close the (possibly reopened) open span.
                                 // Whitespace-only anchors yield a zero-width
                                 // overlap later → no rect (spec edge case).
@@ -8286,11 +8318,54 @@ impl<'a> Ctx<'a> {
                             }
                         }
                         // Inline element: fold its text into the current run.
-                        self.collect_items_rec(child, items, pending, spans, markers);
+                        self.collect_inline_child(
+                            id, child, items, pending, spans, markers, sspans,
+                        );
                     }
                 }
                 NodeKind::Root => {}
             }
+        }
+    }
+
+    /// Fold an inline element's content into the run and record its own
+    /// face/colour as a style span when they differ from the block's
+    /// (CORE-530). The span opens before the recursion so nested inline
+    /// elements, pushed later, win by innermost-last order.
+    fn collect_inline_child(
+        &self,
+        parent: NodeId,
+        child: NodeId,
+        items: &mut Vec<Item>,
+        pending: &mut String,
+        spans: &mut Vec<LinkSpan>,
+        markers: &mut Vec<(usize, NodeId)>,
+        sspans: &mut Vec<crate::typography::StyleSpan>,
+    ) {
+        let cs = &self.styles[child];
+        // Identical to the parent's face and colour: inherited, no span (and
+        // no word split) needed.
+        let ps = &self.styles[parent];
+        if cs.font_face == ps.font_face && cs.color == ps.color {
+            self.collect_items_rec(child, items, pending, spans, markers, sspans);
+            return;
+        }
+        let start = pending.len();
+        let idx = sspans.len();
+        sspans.push(crate::typography::StyleSpan {
+            start,
+            end: usize::MAX,
+            face: cs.font_face,
+            color: cs.color,
+        });
+        self.collect_items_rec(child, items, pending, spans, markers, sspans);
+        // A block flush inside the child took the spans with it; only close
+        // a span that is still ours.
+        if sspans.len() > idx && sspans[idx].end == usize::MAX {
+            sspans[idx].end = pending.len();
+        }
+        if sspans.get(idx).is_some_and(|s| s.end <= s.start) {
+            sspans.remove(idx);
         }
     }
 
@@ -8306,9 +8381,22 @@ impl<'a> Ctx<'a> {
         max_width: Scalar,
         style: &ComputedStyle,
     ) -> Vec<LineResult> {
+        self.break_paragraph_s(text, max_width, style, &[])
+    }
+
+    /// [`Self::break_paragraph`] with inline face/colour spans (CORE-530).
+    fn break_paragraph_s(
+        &self,
+        text: &str,
+        max_width: Scalar,
+        style: &ComputedStyle,
+        spans: &[crate::typography::StyleSpan],
+    ) -> Vec<LineResult> {
         let hyphenate = style.hyphens == Hyphens::Auto;
         let justify = style.text_align == TextAlign::Justify;
-        break_paragraph(text, max_width, style, hyphenate, justify)
+        crate::typography::break_paragraph_styled(
+            text, max_width, style, hyphenate, justify, spans,
+        )
     }
 
     /// The x origin for a line under `text-align`, given its drawn ink width.

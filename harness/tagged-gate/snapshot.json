@@ -28,7 +28,7 @@
    "H1": 16,
    "H2": 50,
    "L": 9,
-   "LBody": 183,
+   "LBody": 180,
    "LI": 188,
    "Lbl": 180,
    "Link": 90,
@@ -149,7 +149,7 @@
   }
  },
  "library/book/pride-and-prejudice.html": {
-  "coverage": 0.9951,
+  "coverage": 0.9954,
   "roles": {
    "Div": 637,
    "Document": 318,

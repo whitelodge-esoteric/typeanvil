@@ -1,0 +1,43 @@
+{
+  "schema": "typeanvil.harness.reviews/1",
+  "candidate": {
+    "label": "candidate-e7ca548",
+    "source_commit": "e7ca548c8bc5c870ae3832c93bc0e0c1093372aa",
+    "binary_sha256": "c70154ef521277f6693ada03d26efb59c07868f410606b2a842dd443302c86d8"
+  },
+  "baseline": {
+    "label": "baseline-f119167",
+    "source_commit": "f119167d2b7b",
+    "binary_sha256": "c65ea0fcefae30218efdf63f8c1bce92ade5bbfd5b1ee12b7ea87b78dea6d70d"
+  },
+  "dispositions": [
+    {
+      "doc_id": "css/css-page/fixedpos-010-print-ref.html",
+      "change_id": "34698c66fec9aa5bcf2e74019ba003605f23168d1ab8b6c837d72acec55e2db4",
+      "kind": "correction",
+      "reason": "Pages 1 and 4 changed; pages 2 and 3 are byte-identical. The source holds <em>not</em> in the page text, and the UA sheet had no rule for em, so the word rendered upright. It now renders italic (HTML rendering section 15.3.1). The test file fixedpos-010-print.html changes the same page-1 hash (46a45bb5...), so test and reference stay consistent. Family-level approval on the shared em/strong cause, checked on the source markup, not a per-pixel diff.",
+      "provenance": "CORE-530; WHATWG HTML 15.3.1 and 15.3.2 UA defaults (em, strong); docs/specifications/inline-style.spec.md"
+    },
+    {
+      "doc_id": "css/css-page/fixedpos-010-print.html",
+      "change_id": "d791fc569490cd7da4fd00ee8ac6094b562ee48e4e64595b5ffc63995b171925",
+      "kind": "correction",
+      "reason": "Same cause as the ref: <em>not</em> renders italic. Pages 1 and 4 changed to the same hashes as the reference's page 1 (46a45bb5...); pages 2 and 3 are unchanged. Page count unchanged. Family-level approval on the shared em cause.",
+      "provenance": "CORE-530; WHATWG HTML 15.3.1 UA default for em"
+    },
+    {
+      "doc_id": "css/css-page/media-queries-002-print.html",
+      "change_id": "babd48b1d42ed0d34de3f9621e095c3540348c392a52a6a063e6e2c0330ec596",
+      "kind": "correction",
+      "reason": "The text line holds <strong>no red</strong>. It renders bold now (UA default, HTML 15.3.2). Its reference filled-green-100px-square-print-ref.html changed to the identical hash (75b9cd7e...) because it holds the same <strong>no red</strong>, so the pair still matches. Family-level approval on the shared strong cause.",
+      "provenance": "CORE-530; WHATWG HTML 15.3.2 UA default for strong"
+    },
+    {
+      "doc_id": "css/css-page/reference/filled-green-100px-square-print-ref.html",
+      "change_id": "dd09ce9b4d68a47f8dc1d7672a6599739202cc5292e09b9eb270877a13de865e",
+      "kind": "correction",
+      "reason": "Same cause as media-queries-002-print.html: <strong>no red</strong> renders bold. Identical new hash on both sides of the pair (75b9cd7e...), single page.",
+      "provenance": "CORE-530; WHATWG HTML 15.3.2 UA default for strong"
+    }
+  ]
+}

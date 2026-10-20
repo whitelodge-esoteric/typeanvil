@@ -767,10 +767,16 @@ fn draw_shaped(
     let mut i = 0usize;
     while i < glyphs.len() {
         let seg_face = t.glyphs[i].face;
+        let seg_color = t.glyphs[i].color;
         let mut j = i;
-        while j < glyphs.len() && t.glyphs[j].face == seg_face {
+        while j < glyphs.len()
+            && t.glyphs[j].face == seg_face
+            && t.glyphs[j].color == seg_color
+        {
             j += 1;
         }
+        // CORE-530: an inline element's own colour overrides the run's.
+        surface.set_fill(Some(solid_fill(seg_color.unwrap_or(t.color))));
         let seg_font: &Font = match seg_face {
             Some(f) => font_for(f)?,
             None => font,

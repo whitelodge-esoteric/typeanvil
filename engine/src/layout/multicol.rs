@@ -534,8 +534,8 @@ impl<'a> Ctx<'a> {
         let mut prev_margin_bottom = Scalar::ZERO;
         for item in items {
             match item {
-                Item::Text(text, _, _) => {
-                    let lines = self.break_paragraph(text, col_w, style);
+                Item::Text(text, _, _, ss) => {
+                    let lines = self.break_paragraph_s(text, col_w, style, ss);
                     if !lines.is_empty() {
                         prev_margin_bottom = Scalar::ZERO;
                     }
@@ -579,12 +579,18 @@ impl<'a> Ctx<'a> {
             return Scalar::ZERO;
         }
         match &items[start] {
-            Item::Text(text, _, _) => match tok.consumed_chars {
+            Item::Text(text, _, _, ss) => match tok.consumed_chars {
                 Some(off) => {
                     let lh = style.line_height;
-                    let full = self.break_paragraph(text, col_w, style).len();
+                    let full = self.break_paragraph_s(text, col_w, style, ss).len();
+                    let off = off.min(text.len());
                     let rest = self
-                        .break_paragraph(&text[off.min(text.len())..], col_w, style)
+                        .break_paragraph_s(
+                            &text[off..],
+                            col_w,
+                            style,
+                            &crate::typography::shift_spans(ss, off),
+                        )
                         .len();
                     lh * rest as f64 - lh * full as f64
                 }
@@ -632,7 +638,7 @@ impl<'a> Ctx<'a> {
         let mut max = Scalar::ZERO;
         for item in &items[s0..s1] {
             match item {
-                Item::Text(_, _, _) => {}
+                Item::Text(..) => {}
                 Item::Atomic(child) => {
                     // Monolithic: cannot split across columns.
                     let h = self.measure_block(*child, col_w);
@@ -934,7 +940,7 @@ impl<'a> Ctx<'a> {
                 _ => &fallback,
             };
             match &items[i] {
-                Item::Text(text, _, _) => {
+                Item::Text(text, _, _, ss) => {
                     let lh = style.line_height;
                     let resume_offset = child_tok.consumed_chars;
                     let mut src_offset = resume_offset.unwrap_or(0).min(text.len());
@@ -943,7 +949,12 @@ impl<'a> Ctx<'a> {
                     } else {
                         (child_tok.consumed_block_size.get() / lh.get()).round() as usize
                     };
-                    let lines = self.break_paragraph(&text[src_offset..], col_w, style);
+                    let lines = self.break_paragraph_s(
+                        &text[src_offset..],
+                        col_w,
+                        style,
+                        &crate::typography::shift_spans(ss, src_offset),
+                    );
                     if lines.is_empty() {
                         i += 1;
                         continue;
