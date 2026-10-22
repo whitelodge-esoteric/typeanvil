@@ -4,7 +4,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-10-20
-updated: 2026-10-20
+updated: 2026-10-22
 slug: /specifications/inline-style
 sidebar_position: 61
 tags: [typography, inline, color, font-weight]
@@ -42,7 +42,8 @@ values were computed and then ignored.
 - `font-size` and `line-height` on an inline element. The line box uses the
   block's metrics. Tracked separately.
 - `text-decoration` on an inline element.
-- Inline background and border painting.
+- Inline border painting, and inline padding in the background box (CORE-543
+  paints the background only).
 
 ## Behavior
 
@@ -59,6 +60,12 @@ values were computed and then ignored.
 6. Measurement paths (`measure_block`, intrinsic widths, multicolumn balance)
    shall use the same spans as layout, so measured and laid-out widths agree.
 
+7. (CORE-543) An inline element with its own `background-color` shall record
+   it in its style span. Each glyph shall carry the innermost declared
+   background. The PDF writer shall fill the glyph run's content area (font
+   ascent plus descent) with that colour before it paints the glyphs. A space
+   between two words with the same background shall carry it too.
+
 ## Acceptance Criteria
 
 1. Given `<p>plain <span style="color:#f00;font-weight:bold">x</span></p>`,
@@ -73,6 +80,13 @@ values were computed and then ignored.
 4. Given a style change inside one word and a nested inline element, then each
    piece uses its own style. Test:
    `core530_inline_style::mid_word_inline_and_nested_inline`.
+5. Given `<p>plain <span style="background-color:#000">boxed text</span>
+   after</p>`, then the glyphs of `boxed` and `text` carry the black
+   background and the others carry none. Test:
+   `core543_inline_background::span_background_reaches_its_glyphs_only`.
+6. Given `#t p { background-color:#000; display:inline }` on paragraphs in a
+   section, then every glyph carries the black background. Test:
+   `core543_inline_background::display_inline_paragraphs_paint_background`.
 
 ## References
 

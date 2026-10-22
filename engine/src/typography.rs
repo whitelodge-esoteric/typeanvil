@@ -242,6 +242,9 @@ pub struct ShapedGlyph {
     /// Fill colour override from an inline element's own `color` (CORE-530),
     /// or `None` when the glyph paints in the run's colour.
     pub color: Option<crate::css::Color>,
+    /// Background of the innermost inline element that declares one
+    /// (CORE-543), or `None`. Painted behind the glyph's content area.
+    pub bg: Option<crate::css::Color>,
 }
 
 /// The face and colour of one inline element inside a text run (CORE-530).
@@ -253,6 +256,8 @@ pub struct StyleSpan {
     pub end: usize,
     pub face: FaceId,
     pub color: crate::css::Color,
+    /// The element's own `background-color` (CORE-543); not inherited.
+    pub bg: Option<crate::css::Color>,
 }
 
 /// Innermost span covering byte `pos`, if any.
@@ -271,6 +276,7 @@ pub fn shift_spans(spans: &[StyleSpan], offset: usize) -> Vec<StyleSpan> {
             end: s.end - offset,
             face: s.face,
             color: s.color,
+            bg: s.bg,
         })
         .collect()
 }
@@ -544,6 +550,7 @@ fn shape_word_uncached(
                 synthetic: false,
                 spaced: g.spaced,
                 color: None,
+                bg: None,
             });
         }
     }
@@ -639,6 +646,7 @@ fn shape_single_face(
             synthetic: false,
             spaced: ls != 0.0,
             color: None,
+            bg: None,
         });
     }
 
@@ -990,14 +998,25 @@ fn push_styled_word(
         );
         return;
     }
-    let key_at = |pos: usize| span_at(spans, pos).map(|s| (s.face, s.color));
+    // CORE-543: background is not inherited, so the innermost span that
+    // declares one wins even when a nested span (colour only) is deeper.
+    let key_at = |pos: usize| {
+        span_at(spans, pos).map(|s| {
+            let bg = spans
+                .iter()
+                .rev()
+                .find(|b| b.start <= pos && pos < b.end && b.bg.is_some())
+                .and_then(|b| b.bg);
+            (s.face, s.color, bg)
+        })
+    };
     let mut seg_start = 0usize;
     let mut cur = key_at(start);
     let mut flush = |items: &mut Vec<Item>,
                      box_ends: &mut Vec<usize>,
                      a: usize,
                      b: usize,
-                     key: Option<(FaceId, crate::css::Color)>| {
+                     key: Option<(FaceId, crate::css::Color, Option<crate::css::Color>)>| {
         let n0 = items.len();
         let seg_face = key.map(|k| k.0).unwrap_or(face);
         push_word(
@@ -1011,7 +1030,7 @@ fn push_styled_word(
             seg_face,
             features,
         );
-        if let Some((f, c)) = key {
+        if let Some((f, c, bg)) = key {
             for it in items[n0..].iter_mut() {
                 if let Item::Box(run) = it {
                     for g in run.glyphs.iter_mut() {
@@ -1019,6 +1038,7 @@ fn push_styled_word(
                             g.face = Some(f);
                         }
                         g.color = Some(c);
+                        g.bg = bg;
                     }
                 }
             }
@@ -1462,6 +1482,12 @@ fn materialize_line(
                             synthetic: false,
                             spaced: false,
                             color: None,
+                            // CORE-543: a space between two words of the same
+                            // inline background continues that background.
+                            bg: match (glyphs.last().and_then(|p| p.bg), b.glyphs.first().and_then(|n| n.bg)) {
+                                (Some(a), Some(c)) if a == c => Some(a),
+                                _ => None,
+                            },
                         });
                         spaces.push((gi, g.width.get(), g.stretch.get(), g.shrink.get()));
                     }
@@ -1481,6 +1507,7 @@ fn materialize_line(
                     synthetic: false,
                     spaced: g.spaced,
                     color: g.color,
+                    bg: g.bg,
                 }));
             }
             Item::Glue(g) => {
@@ -1524,6 +1551,7 @@ fn materialize_line(
             synthetic: true,
             spaced: false,
             color: None,
+            bg: None,
         }));
     }
     // A forced break (`<br>`) adds no glyphs or width, but the line CONSUMES

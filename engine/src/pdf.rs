@@ -768,12 +768,30 @@ fn draw_shaped(
     while i < glyphs.len() {
         let seg_face = t.glyphs[i].face;
         let seg_color = t.glyphs[i].color;
+        let seg_bg = t.glyphs[i].bg;
         let mut j = i;
         while j < glyphs.len()
             && t.glyphs[j].face == seg_face
             && t.glyphs[j].color == seg_color
+            && t.glyphs[j].bg == seg_bg
         {
             j += 1;
+        }
+        // CORE-543: an inline element's own background fills the content
+        // area (ascent + descent of the run's face) behind its glyphs.
+        if let Some(bg) = seg_bg {
+            let (asc, desc) = crate::typography::font_metrics(t.font_face);
+            let w: f32 = glyphs[i..j].iter().map(|g| g.x_advance).sum::<f32>() * t.font_size;
+            let top = t.y - (asc as f32) * t.font_size;
+            let h = ((asc - desc) as f32) * t.font_size;
+            if let Some(rect) = Rect::from_xywh(x, top, w, h) {
+                let mut pb = krilla::geom::PathBuilder::new();
+                pb.push_rect(rect);
+                if let Some(path) = pb.finish() {
+                    surface.set_fill(Some(solid_fill(bg)));
+                    surface.draw_path(&path);
+                }
+            }
         }
         // CORE-530: an inline element's own colour overrides the run's.
         surface.set_fill(Some(solid_fill(seg_color.unwrap_or(t.color))));
