@@ -3545,7 +3545,30 @@ impl<'a> Ctx<'a> {
                             && src_offset < text.len()
                             && !text.starts_with(crate::typography::FORCED_BREAK_CHAR)
                         {
+                            // CORE-541: `build_items` drops the collapsed white
+                            // space that opens this run (no glue before the
+                            // first word), so the word after an inline box
+                            // ("<math>m</math> at") glued to it. The space is
+                            // inside the line, not at a break: advance the pen
+                            // by one space width.
+                            let lead_space = if text[src_offset..]
+                                .chars()
+                                .next()
+                                .is_some_and(|c| c.is_whitespace())
+                            {
+                                crate::typography::shape_word(
+                                    " ",
+                                    style.font_size,
+                                    style.font_face,
+                                )
+                                .width
+                            } else {
+                                Scalar::ZERO
+                            };
+                            let atomic_pen_x_saved = atomic_pen_x;
+                            atomic_pen_x = atomic_pen_x + lead_space;
                             let rem_w = inner_left + inner_width - atomic_pen_x;
+                            let mut continued = false;
                             if rem_w.get() > 0.0 {
                                 let lines = self.break_paragraph_s(
                                     &text[src_offset..],
@@ -3617,8 +3640,12 @@ impl<'a> Ctx<'a> {
                                             y = line_bottom;
                                         }
                                         placed = true;
+                                        continued = true;
                                     }
                                 }
+                            }
+                            if !continued {
+                                atomic_pen_x = atomic_pen_x_saved;
                             }
                         }
                         let mut run_broke = false;
