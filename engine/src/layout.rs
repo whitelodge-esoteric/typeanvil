@@ -8376,7 +8376,7 @@ impl<'a> Ctx<'a> {
         // Identical to the parent's face and colour: inherited, no span (and
         // no word split) needed.
         let ps = &self.styles[parent];
-        if cs.font_face == ps.font_face && cs.color == ps.color {
+        if cs.font_face == ps.font_face && cs.color == ps.color && cs.background_color.is_none() {
             self.collect_items_rec(child, items, pending, spans, markers, sspans);
             return;
         }
@@ -8387,6 +8387,7 @@ impl<'a> Ctx<'a> {
             end: usize::MAX,
             face: cs.font_face,
             color: cs.color,
+            bg: cs.background_color,
         });
         self.collect_items_rec(child, items, pending, spans, markers, sspans);
         // A block flush inside the child took the spans with it; only close
