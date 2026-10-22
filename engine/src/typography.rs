@@ -235,6 +235,10 @@ pub struct ShapedGlyph {
     /// hyphenation break (not a hyphen present in the source). The tagged
     /// PDF writer drops it from `ActualText` (CORE-376).
     pub synthetic: bool,
+    /// True when `letter-spacing` widened this glyph's advance (CORE-539).
+    /// Extractors read the widened gaps as word breaks, so the tagged PDF
+    /// writer gives such runs `/ActualText` with the source string.
+    pub spaced: bool,
     /// Fill colour override from an inline element's own `color` (CORE-530),
     /// or `None` when the glyph paints in the run's colour.
     pub color: Option<crate::css::Color>,
@@ -538,6 +542,7 @@ fn shape_word_uncached(
                 range: (s + g.range.start)..(s + g.range.end),
                 face: fb,
                 synthetic: false,
+                spaced: g.spaced,
                 color: None,
             });
         }
@@ -632,6 +637,7 @@ fn shape_single_face(
             range: start..end,
             face: None,
             synthetic: false,
+            spaced: ls != 0.0,
             color: None,
         });
     }
@@ -1454,6 +1460,7 @@ fn materialize_line(
                             range: sp..sp + 1,
                             face: None,
                             synthetic: false,
+                            spaced: false,
                             color: None,
                         });
                         spaces.push((gi, g.width.get(), g.stretch.get(), g.shrink.get()));
@@ -1472,6 +1479,7 @@ fn materialize_line(
                     range: (base + g.range.start)..(base + g.range.end),
                     face: g.face,
                     synthetic: false,
+                    spaced: g.spaced,
                     color: g.color,
                 }));
             }
@@ -1514,6 +1522,7 @@ fn materialize_line(
             range: hp..hp + 1,
             face: g.face,
             synthetic: true,
+            spaced: false,
             color: None,
         }));
     }

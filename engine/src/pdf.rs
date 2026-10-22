@@ -1726,6 +1726,11 @@ fn paint_group_body(
                 && t.glyphs.last().is_some_and(|g| g.synthetic)
             {
                 t.text.strip_suffix('-')
+            } else if t.owner.is_some() && t.glyphs.iter().any(|g| g.spaced) {
+                // CORE-539: letter-spacing widens every glyph gap, so
+                // extractors read each letter as a word. ActualText hands
+                // them the source string.
+                Some(t.text.as_str())
             } else {
                 None
             };
