@@ -57,3 +57,11 @@ def test_full_bleed_ignores_margin_box_and_nonzero():
 def test_full_bleed_nested_margin_box():
     html = "@page { size: A4; margin: 0; @top-center { content: 'x' } }"
     assert vq.fixture_is_full_bleed(html)
+
+
+def test_roundtrip_folds_math_alphanumerics():
+    # CORE-541: MathML <mi> letters extract as Unicode math italic.
+    pdf = "mass \U0001D45A at speed \U0001D463 and the angle \U0001D703 acts"
+    src = "mass m at speed v and the angle \u03b8 acts"
+    res = vq.check_text_roundtrip_coverage(pdf, src)
+    assert res["pass"] and not res["missing_tokens"], res

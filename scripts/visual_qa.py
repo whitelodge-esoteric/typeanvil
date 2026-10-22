@@ -8,6 +8,7 @@ import html
 import json
 import re
 import sys
+import unicodedata
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -293,6 +294,10 @@ def check_text_roundtrip_coverage(pdf_page_text: str, source_text: str) -> Dict[
     # "dictionary"), split digit<->letter boundaries so glued PDF runs
     # ("1Contents") separate, then tokenize.
     def normalize_set(text):
+        # CORE-541: MathML identifiers are emitted as Unicode math italic
+        # (U+1D45A "m"); NFKC folds them back to the ASCII/Greek source
+        # letters.
+        text = unicodedata.normalize("NFKC", text)
         text = text.lower()
         text = text.replace("\ufffe", "").replace("\u00ad", "")
         text = re.sub(r"[^\w\s]", " ", text)

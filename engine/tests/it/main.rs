@@ -42,6 +42,7 @@ mod core530_inline_style;
 mod core539_letter_spacing_text;
 mod core531_border_dashed;
 mod core363_mathml;
+mod core541_math_space;
 mod core368_anonymous_table_boxes;
 mod core368_inline_block_line;
 mod core368_table_in_multicol;
