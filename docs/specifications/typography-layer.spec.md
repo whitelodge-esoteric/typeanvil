@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-16
-updated: 2026-10-18
+updated: 2026-10-22
 sidebar_position: 4
 tags: [typography, line-breaking, knuth-plass, shaping, engine]
 spec_id: typography-layer
@@ -316,6 +316,13 @@ Given/When/Then, each mapping to a real test in `engine/tests/typography.rs`:
     `ComputedStyle::ot_features` (stripped before HarfRust). Percentages are
     unsupported and compute to 0
     (`typography.rs::letter_spacing_widens_each_glyph`).
+    The widened gaps make text extractors read each letter as a word
+    (CORE-539). A tagged render shall therefore wrap every sourced text run
+    that holds a letter-spaced glyph (`ShapedGlyph.spaced`) in a `Span` with
+    `/ActualText` set to the run's source string, so extraction returns whole
+    words and real spaces. Runs without letter-spacing get no `/ActualText`
+    (`it/core539_letter_spacing_text.rs`). Untagged output (`--no-tagged`)
+    has no marked-content channel in krilla 0.8 and keeps the spaced gaps.
 
 ## Edge Cases
 
