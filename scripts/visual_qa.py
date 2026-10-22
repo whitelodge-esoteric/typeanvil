@@ -214,27 +214,26 @@ def check_page_box_overflow(page_img: Image.Image, content_box: Tuple[int, int, 
     within OVERFLOW_EDGE_TOL px of the page edge is a real clip/overflow
     (the rasterizer clips exactly at this edge).
     """
-    # Ink right at the page edge (within 2 px) = escaped content.
-    tolerance = 2
-    left, top, right, bottom = content_box
-    right -= 1
-    bottom -= 1
-    gray_img = page_img.convert('L')
-    width, height = gray_img.size
+    import numpy as np
 
-    violations = []
-    for y in range(height):
-        for x in range(width):
-            if gray_img.getpixel((x, y)) < 250:  # Not white
-                near_edge = (
-                    x - left <= tolerance or right - x <= tolerance
-                    or y - top <= tolerance or bottom - y <= tolerance
-                )
-                if near_edge:
-                    if len(violations) < 10:
-                        violations.append({"x": x, "y": y})
+    # Ink right at the page edge (within 2 px) = escaped content.
+    # The page box is the rendered image itself, so A4, landscape and custom
+    # sizes are measured against their own edges (CORE-540). `content_box`
+    # is kept for call compatibility and is not used.
+    tolerance = 2
+    gray = np.asarray(page_img.convert('L'))
+    height, width = gray.shape
+    band = tolerance + 1  # pixels 0..2 and the last three
+    edge = np.zeros(gray.shape, dtype=bool)
+    edge[:band, :] = True
+    edge[max(height - band, 0):, :] = True
+    edge[:, :band] = True
+    edge[:, max(width - band, 0):] = True
+    # np.argwhere is row-major, matching the old y-then-x scan order.
+    hits = np.argwhere(edge & (gray < 250))
+    violations = [{"x": int(x), "y": int(y)} for y, x in hits[:10]]
     return {
-        "pass": len(violations) == 0,
+        "pass": len(hits) == 0,
         "violations": violations
     }
 
@@ -247,18 +246,34 @@ def fixture_is_full_bleed(source_html: str) -> bool:
     document has no such exemption, so ink touching the page edge there is a
     real clip/overflow.
     """
-    m = re.search(r"@page[^{]*\{[^}]*\}", source_html, flags=re.S | re.I)
-    if not m:
+    # Every unqualified `@page { ... }` block counts (fixtures may declare
+    # `size` in one block and `margin: 0` in another); the last margin
+    # declaration wins, as in the cascade. Pseudo/named blocks (`:first`,
+    # `wide`) are ignored. Braces nest (margin boxes), so match them.
+    text = re.sub(r"/\*.*?\*/", "", source_html, flags=re.S).lower()
+    value = None
+    for m in re.finditer(r"@page\s*\{", text):
+        depth, i = 1, m.end()
+        start = i
+        while i < len(text) and depth:
+            depth += {"{": 1, "}": -1}.get(text[i], 0)
+            i += 1
+        body = text[start:i - 1]
+        # Drop nested margin-box blocks so their declarations do not leak.
+        while True:
+            stripped = re.sub(r"@[a-z-]+\s*\{[^{}]*\}", "", body)
+            if stripped == body:
+                break
+            body = stripped
+        for mm in re.finditer(r"(?:^|[;\s])margin\s*:\s*([^;}]+)", body):
+            value = mm.group(1).strip()
+    if value is None:
         return False
-    block = m.group(0).lower()
-    if "margin" not in block:
-        return False
-    margin_m = re.search(r"margin\s*:\s*([^;};]+)", block)
-    if not margin_m:
-        return False
-    value = margin_m.group(1).strip()
-    # margin: 0 / 0in / 0px / 0pt (single zero) => full-bleed.
-    return bool(re.fullmatch(r"0(?:in|px|pt|mm|cm)?", value))
+    # margin: 0 / 0in / 0px / 0 0 0 0 (all zero) => full-bleed.
+    return all(
+        re.fullmatch(r"0(?:\.0+)?(?:in|px|pt|mm|cm)?", tok)
+        for tok in value.split()
+    )
 
 
 def check_text_roundtrip_coverage(pdf_page_text: str, source_text: str) -> Dict[str, Any]:
