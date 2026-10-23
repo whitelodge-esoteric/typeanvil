@@ -41,6 +41,7 @@ mod core359_text_transform;
 mod core530_inline_style;
 mod core543_inline_background;
 mod core539_letter_spacing_text;
+mod core547_flex_wrap_grow;
 mod core531_border_dashed;
 mod core363_mathml;
 mod core541_math_space;

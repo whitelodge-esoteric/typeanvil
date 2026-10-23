@@ -1,0 +1,12 @@
+{
+ "schema": "typeanvil.harness.reviews/1",
+ "candidate": {
+  "label": "candidate-8adf4d4",
+  "source_commit": "8adf4d4"
+ },
+ "baseline": {
+  "label": "baseline-c9e407b",
+  "source_commit": "c9e407b820bc1c0db49f879e0a2413cd8ccac0e0"
+ },
+ "dispositions": []
+}

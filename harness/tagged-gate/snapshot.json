@@ -43,25 +43,26 @@
   }
  },
  "library/academic/journal-article.html": {
-  "coverage": 0.9382,
+  "coverage": 0.9485,
   "roles": {
-   "Div": 43,
-   "Document": 13,
+   "Div": 54,
+   "Document": 14,
    "Formula": 36,
    "H1": 1,
    "H2": 15,
    "H3": 15,
    "H4": 14,
    "L": 5,
-   "LBody": 87,
+   "LBody": 86,
    "LI": 87,
    "Lbl": 84,
    "Note": 5,
-   "P": 73,
-   "TBody": 18,
+   "P": 69,
+   "TBody": 21,
    "TD": 1634,
+   "THead": 1,
    "TR": 205,
-   "Table": 18
+   "Table": 21
   }
  },
  "library/academic/journal-paper.html": {
@@ -681,16 +682,17 @@
   }
  },
  "library/tickets/weasyprint-ticket.html": {
-  "coverage": 0.4444,
+  "coverage": 1.0,
   "roles": {
    "Div": 2,
    "Document": 1,
+   "H1": 2,
    "H2": 1,
-   "L": 2,
-   "LBody": 10,
-   "LI": 10,
+   "L": 4,
+   "LBody": 22,
+   "LI": 22,
    "P": 1,
-   "Sect": 1
+   "Sect": 2
   }
  }
 }
