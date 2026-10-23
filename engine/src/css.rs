@@ -1021,6 +1021,20 @@ impl PageWritingMode {
     }
 }
 
+/// `text-orientation` (css-writing-modes-3 §5.1, CORE-555). Only matters in
+/// a vertical writing mode; the sideways modes rotate every glyph whatever
+/// its value.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TextOrientation {
+    /// Upright scripts upright, others rotated 90° clockwise.
+    #[default]
+    Mixed,
+    /// Every character upright.
+    Upright,
+    /// Every character rotated 90° clockwise.
+    Sideways,
+}
+
 /// A resolved-or-deferred box dimension (writing-modes-layout.spec.md,
 /// Behavior 16–18): an absolute length, a 0..=1 containing-block fraction or
 /// a page-box viewport fraction. All `None` = `auto`.
@@ -1327,6 +1341,11 @@ pub struct ComputedStyle {
     /// element (CORE-127: orthogonal-flow suppression for page-change
     /// breaks — the engine renders every flow horizontally in v1).
     pub writing_mode_declared: bool,
+    /// `text-orientation` DECLARED on this element (CORE-555), `None` when
+    /// none applied. The property inherits: layout walks ancestors
+    /// (`Ctx::text_orientation_at`). Parsed by the paged pass because the
+    /// servo stylo build gates the property off.
+    pub text_orientation: Option<TextOrientation>,
     /// True when `float: footnote` matched this element (CORE-107). The
     /// element produces no in-flow box; it renders in its call page's
     /// footnote area with a superscript call marker in the body text.
@@ -1533,6 +1552,7 @@ impl ComputedStyle {
             ot_features: Vec::new(),
             page: None,
             writing_mode_declared: false,
+            text_orientation: None,
             running_name: None,
             string_set: Vec::new(),
             counter_reset: Vec::new(),
@@ -2741,6 +2761,7 @@ impl CascadeSession {
             // stylo build; filled by `apply_paged_properties` (see `cascade`).
             page: None,
             writing_mode_declared: false,
+            text_orientation: None,
             running_name: None,
             string_set: Vec::new(),
             counter_reset: Vec::new(),
@@ -4649,6 +4670,8 @@ mod paged_props {
         Transform(Vec<crate::transform::TransformOp>),
         /// `transform-origin` x/y (CORE-481).
         TransformOrigin((crate::transform::LenPct, crate::transform::LenPct)),
+        /// `text-orientation` (CORE-555).
+        TextOrientation(super::TextOrientation),
     }
 
     /// Parse `string-set: name content();` (comma-separated pairs).
@@ -4835,6 +4858,18 @@ mod paged_props {
                     _ => None,
                 }
             }
+            // CORE-555: gated off in the servo stylo build.
+            "text-orientation" => {
+                let v = value.trim().to_ascii_lowercase();
+                match v.as_str() {
+                    "mixed" => Some(PagedDecl::TextOrientation(super::TextOrientation::Mixed)),
+                    "upright" => Some(PagedDecl::TextOrientation(super::TextOrientation::Upright)),
+                    "sideways" | "sideways-right" => {
+                        Some(PagedDecl::TextOrientation(super::TextOrientation::Sideways))
+                    }
+                    _ => None,
+                }
+            }
             _ => None,
         }
     }
@@ -4976,6 +5011,7 @@ mod paged_props {
             list_style_type: Option<(u32, u32)>,
             transform: Option<(u32, u32)>,
             transform_origin: Option<(u32, u32)>,
+            text_orientation: Option<(u32, u32)>,
         }
         let mut won = vec![Won::default(); styles.len()];
 
@@ -5094,6 +5130,12 @@ mod paged_props {
                                     won[id].column_fill = Some(prio);
                                 }
                             }
+                            PagedDecl::TextOrientation(v) => {
+                                if won[id].text_orientation.is_none_or(|w| prio >= w) {
+                                    styles[id].text_orientation = Some(*v);
+                                    won[id].text_orientation = Some(prio);
+                                }
+                            }
                             PagedDecl::Transform(v) => {
                                 if won[id].transform.is_none_or(|w| prio >= w) {
                                     styles[id].transform = v.clone();
@@ -5204,6 +5246,9 @@ mod paged_props {
                     }
                     PagedDecl::ColumnFill(v) => {
                         styles[id].column_fill_auto = v;
+                    }
+                    PagedDecl::TextOrientation(v) => {
+                        styles[id].text_orientation = Some(v);
                     }
                     PagedDecl::Transform(v) => {
                         styles[id].transform = v;

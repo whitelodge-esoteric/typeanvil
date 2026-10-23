@@ -762,6 +762,9 @@ fn draw_shaped(
     t: &TextItem,
     font: &Font,
 ) -> Result<()> {
+    if t.orientation != crate::frag::LineOrientation::Horizontal {
+        return draw_shaped_vertical(surface, t, font);
+    }
     let glyphs = to_krilla_glyphs(&t.glyphs, t.font_size, t.expansion, t.protrude_right);
     let mut x = t.x - t.protrude_left;
     let mut i = 0usize;
@@ -814,6 +817,111 @@ fn draw_shaped(
     Ok(())
 }
 
+/// CORE-555: a character that joins its neighbours with no word space when
+/// a vertical paragraph's columns are rejoined (CJK ideographs, kana,
+/// Hangul, CJK punctuation and fullwidth forms).
+fn is_cjk_char(c: char) -> bool {
+    matches!(c as u32,
+        0x1100..=0x11FF
+        | 0x2E80..=0x9FFF
+        | 0xAC00..=0xD7AF
+        | 0xF900..=0xFAFF
+        | 0xFE30..=0xFE4F
+        | 0xFF00..=0xFFEF
+        | 0x20000..=0x3FFFF)
+}
+
+/// Draw a vertical line (CORE-555). `(t.x, t.y)` is the start of the
+/// central baseline: the column centre at the line's inline-start edge.
+/// The pen advances along the inline axis (down for `VerticalDown`, up for
+/// `VerticalUp`). Horizontally shaped segments paint under a 90° rotation
+/// whose em-box centre sits on the column centre (css-writing-modes-3 §4.3
+/// central baseline). Upright glyphs (shaped top-to-bottom) paint unrotated
+/// at their vertical-origin offsets. Glyph text ranges are unchanged, so
+/// the ToUnicode map and extraction order follow the source.
+fn draw_shaped_vertical(
+    surface: &mut krilla::surface::Surface<'_>,
+    t: &TextItem,
+    font: &Font,
+) -> Result<()> {
+    let down = t.orientation == crate::frag::LineOrientation::VerticalDown;
+    let glyphs = to_krilla_glyphs(&t.glyphs, t.font_size, t.expansion, 0.0);
+    let fs = t.font_size;
+    let mut pen = 0.0f32;
+    let mut i = 0usize;
+    while i < glyphs.len() {
+        let g0 = &t.glyphs[i];
+        let mut j = i;
+        while j < glyphs.len()
+            && t.glyphs[j].face == g0.face
+            && t.glyphs[j].color == g0.color
+            && t.glyphs[j].upright == g0.upright
+        {
+            j += 1;
+        }
+        surface.set_fill(Some(solid_fill(g0.color.unwrap_or(t.color))));
+        let seg_face = g0.face.unwrap_or(t.font_face);
+        let seg_font: &Font = match g0.face {
+            Some(f) => font_for(f)?,
+            None => font,
+        };
+        let seg_adv: f32 = glyphs[i..j].iter().map(|g| g.x_advance).sum::<f32>() * fs;
+        if g0.upright && down {
+            // Upright: one glyph at a time at pen + (x_off, -y_off); the
+            // shaper's offsets already move the vertical origin (top
+            // centre) onto the horizontal origin.
+            for k in i..j {
+                let g = &t.glyphs[k];
+                let kg = KrillaGlyph::new(
+                    GlyphId::new(g.id),
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    g.range.clone(),
+                    None,
+                );
+                let gx = t.x + g.x_offset.to_f32();
+                let gy = t.y + pen - g.y_offset.to_f32();
+                let _ = surface.draw_glyphs(
+                    Point::from_xy(gx, gy),
+                    std::slice::from_ref(&kg),
+                    seg_font.clone(),
+                    &t.text,
+                    fs,
+                    false,
+                );
+                pen += glyphs[k].x_advance * fs;
+            }
+        } else {
+            // Rotated: the em box centre (ascent + descent)/2 above the
+            // alphabetic baseline lands on the column centre.
+            let (asc, desc) = crate::typography::font_metrics(seg_face);
+            let centre = ((asc + desc) as f32) * 0.5 * fs;
+            let xf = if down {
+                // 90° clockwise: +x -> +y, glyph tops face right.
+                krilla::geom::Transform::from_row(0.0, 1.0, -1.0, 0.0, t.x - centre, t.y + pen)
+            } else {
+                // 90° counter-clockwise: +x -> -y, glyph tops face left.
+                krilla::geom::Transform::from_row(0.0, -1.0, 1.0, 0.0, t.x + centre, t.y - pen)
+            };
+            surface.push_transform(&xf);
+            let _ = surface.draw_glyphs(
+                Point::from_xy(0.0, 0.0),
+                &glyphs[i..j],
+                seg_font.clone(),
+                &t.text,
+                fs,
+                false,
+            );
+            surface.pop();
+            pen += seg_adv;
+        }
+        i = j;
+    }
+    Ok(())
+}
+
 /// One text draw call, resolved to absolute page coordinates.
 ///
 /// All runs carry their shaped glyphs (body text, generated content, and
@@ -835,6 +943,9 @@ struct TextItem {
     owner: Option<NodeId>,
     /// Structural part painted (list marker / footnote body), CORE-374.
     part: crate::frag::FragPart,
+    /// CORE-555: inline direction. For vertical lines `(x, y)` is the start
+    /// of the central baseline.
+    orientation: crate::frag::LineOrientation,
 }
 
 /// Flat pre-order collection for page-margin boxes (CORE-179 path, unchanged).
@@ -902,6 +1013,7 @@ fn collect_flat(
                 protrude_right: run.protrude_right.to_f32(),
                 owner: my_owner,
                 part: frag.part,
+                orientation: frag.orientation,
             });
         }
         FragmentContent::Image(run) => {
@@ -1357,6 +1469,7 @@ fn push_content(
                 protrude_right: run.protrude_right.to_f32(),
                 owner,
                 part: frag.part,
+                orientation: frag.orientation,
             });
         }
         FragmentContent::Image(run) => {
@@ -1727,9 +1840,65 @@ fn paint_group_body(
         surface.pop();
     }
 
-    for t in &group.texts {
+    let mut ti = 0usize;
+    while ti < group.texts.len() {
+        let t = &group.texts[ti];
+        ti += 1;
         let font = font_for(t.font_face)?;
         surface.set_fill(Some(solid_fill(t.color)));
+        // CORE-555: the columns of one vertical paragraph form ONE
+        // marked-content span whose ActualText is the paragraph's text in
+        // source order. Extractors order separate columns by position, which
+        // reverses `*-rl` paragraphs (columns stack right to left); one span
+        // hands them the source string whatever the geometry.
+        if tagged && t.owner.is_some() && t.orientation != crate::frag::LineOrientation::Horizontal
+        {
+            let start = ti - 1;
+            let mut end = ti;
+            while end < group.texts.len()
+                && group.texts[end].owner == t.owner
+                && group.texts[end].part == t.part
+                && group.texts[end].orientation == t.orientation
+            {
+                end += 1;
+            }
+            ti = end;
+            let run = &group.texts[start..end];
+            let mut actual = String::new();
+            for (k, line) in run.iter().enumerate() {
+                let hyphenated = line.glyphs.last().is_some_and(|g| g.synthetic);
+                let s = if hyphenated {
+                    line.text.strip_suffix('-').unwrap_or(&line.text)
+                } else {
+                    line.text.as_str()
+                };
+                actual.push_str(s);
+                // Columns break at spaces the breaker drops; restore one
+                // word gap unless the break is hyphenated or joins two CJK
+                // characters (no word space in the source).
+                let cjk_join = s.chars().last().is_some_and(is_cjk_char)
+                    && run
+                        .get(k + 1)
+                        .and_then(|n| n.text.chars().next())
+                        .is_some_and(is_cjk_char);
+                if k + 1 < run.len()
+                    && !hyphenated
+                    && !cjk_join
+                    && !s.ends_with(char::is_whitespace)
+                {
+                    actual.push(' ');
+                }
+            }
+            let tag = ContentTag::Span(SpanTag::empty().with_actual_text(Some(actual.as_str())));
+            let ident = surface.start_tagged(tag);
+            for line in run {
+                surface.set_fill(Some(solid_fill(line.color)));
+                draw_shaped(surface, line, font_for(line.font_face)?)?;
+            }
+            surface.end_tagged();
+            record_draw_part(draws, page_idx, ident, t.owner, t.part);
+            continue;
+        }
         // Unsourced text is a Layout artifact, like an unsourced fill — never
         // drawn outside marked content (CORE-380).
         if tagged {

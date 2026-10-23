@@ -3194,7 +3194,42 @@ impl<'a> Ctx<'a> {
             return res;
         }
 
-        let start_index = if fresh {
+        // CORE-555: a text-only block whose mode in effect is vertical sets
+        // its lines as columns (vertical line stacking). The paragraph is
+        // monolithic in the flow; `y` advances by the column length.
+        let mut vertical_done = false;
+        if fresh
+            && style.content.is_empty()
+            && box_wm.is_vertical()
+            && self.vertical_text_eligible(id, style, &items, flow)
+        {
+            let extent = self.vertical_line_extent(id, style, &items, content_top, bottom_limit);
+            // Monolithic in the flow: a paragraph that does not fit the
+            // remaining room moves whole to the next fragmentainer, unless
+            // the page is empty (last resort, never sliced).
+            if placed && content_top.get() + extent.get() > bottom_limit.get() + 1e-6 {
+                flow.abspos_cb = saved_abspos_cb;
+                return BlockResult {
+                    fragment: Fragment::block(
+                        Point::new(Self::frag_border_x(style, origin_x), top),
+                        (avail_width, Scalar::ZERO),
+                    ),
+                    used: Scalar::ZERO,
+                    outgoing: Some(BreakToken::break_before()),
+                    empty: true,
+                };
+            }
+            y = self.layout_vertical_lines(
+                id, style, box_wm, &items, extent, inner_left, inner_width, content_top,
+                &mut children, flow,
+            );
+            placed = true;
+            vertical_done = true;
+        }
+
+        let start_index = if vertical_done {
+            items.len()
+        } else if fresh {
             0
         } else if token.seen_all_children && token.child_tokens.is_empty() {
             // CORE-116: a resumed row whose cells ALL finished on an earlier
@@ -8037,6 +8072,202 @@ impl<'a> Ctx<'a> {
             cur = self.dom.nodes[n].parent;
         }
         self.page_flow_writing_mode()
+    }
+
+    /// The `text-orientation` in effect at `id` (CORE-555): the nearest
+    /// ancestor-or-self declaration, else `mixed`.
+    fn text_orientation_at(&self, id: NodeId) -> crate::css::TextOrientation {
+        let mut cur = Some(id);
+        while let Some(n) = cur {
+            if let Some(o) = self.styles[n].text_orientation {
+                return o;
+            }
+            cur = self.dom.nodes[n].parent;
+        }
+        crate::css::TextOrientation::Mixed
+    }
+
+    /// CORE-555: whether the block `id` sets its text as vertical columns.
+    /// Only text-only blocks qualify (no block or atomic children, no
+    /// active floats). Flex/grid items and table cells keep their
+    /// horizontal-tb internal layout (writing-modes-layout Behavior 24).
+    fn vertical_text_eligible(
+        &self,
+        id: NodeId,
+        style: &ComputedStyle,
+        items: &[Item],
+        flow: &Flow,
+    ) -> bool {
+        if items.is_empty()
+            || !items.iter().all(|i| matches!(i, Item::Text(..)))
+            || !flow.active_floats.is_empty()
+            || style.display == Display::TableCell
+        {
+            return false;
+        }
+        if let Some(p) = self.dom.nodes[id].parent {
+            if matches!(
+                self.styles[p].display,
+                Display::Flex | Display::InlineFlex | Display::Grid
+            ) {
+                return false;
+            }
+        }
+        items.iter().any(|i| match i {
+            Item::Text(t, ..) => !t.trim().is_empty(),
+            _ => false,
+        })
+    }
+
+    /// CORE-555: the style a vertical paragraph shapes with: the run style
+    /// plus the orientation pseudo-feature for `mixed` / `upright`.
+    fn vertical_shaping_style(&self, id: NodeId, style: &ComputedStyle) -> ComputedStyle {
+        use crate::css::{PageWritingMode as W, TextOrientation as O};
+        let sideways = matches!(self.writing_mode_at(id), W::SidewaysRl | W::SidewaysLr);
+        let orient = if sideways {
+            O::Sideways
+        } else {
+            self.text_orientation_at(id)
+        };
+        let mut vstyle = style.clone();
+        match orient {
+            O::Mixed => vstyle
+                .ot_features
+                .push((crate::typography::ORIENTATION_TAG, crate::typography::ORIENT_MIXED)),
+            O::Upright => vstyle
+                .ot_features
+                .push((crate::typography::ORIENTATION_TAG, crate::typography::ORIENT_UPRIGHT)),
+            O::Sideways => {}
+        }
+        vstyle
+    }
+
+    /// CORE-555: the inline extent (column length) of a vertical paragraph:
+    /// the declared content height, else the fragmentainer room under a
+    /// vertical page flow (the box fills its inline axis, CORE-153), else
+    /// the max-content length capped at the room (an interior vertical box
+    /// has an indefinite inline extent, writing-modes-layout Behavior 8).
+    fn vertical_line_extent(
+        &self,
+        id: NodeId,
+        style: &ComputedStyle,
+        items: &[Item],
+        content_top: Scalar,
+        bottom_limit: Scalar,
+    ) -> Scalar {
+        let vstyle = self.vertical_shaping_style(id, style);
+        let room = {
+            let r = bottom_limit - content_top - style.padding_bottom - style.border_bottom;
+            if r.get() > 0.0 {
+                r
+            } else {
+                self.page_height
+            }
+        };
+        let declared = self.resolved_height_or_percent(id, style).map(|h| {
+            if style.box_sizing == crate::css::StyloBoxSizing::BorderBox {
+                Scalar(
+                    (h - style.padding_top - style.padding_bottom - style.border_top - style.border_bottom)
+                        .get()
+                        .max(0.0),
+                )
+            } else {
+                h
+            }
+        });
+        match declared {
+            Some(h) => h,
+            None if self.page_flow_writing_mode().is_vertical() => room,
+            None => {
+                // Max-content: the longest unbroken line of each run.
+                let mut longest = 0.0f64;
+                for it in items {
+                    if let Item::Text(text, _, _, spans) = it {
+                        for l in self.break_paragraph_s(text, Scalar(f64::INFINITY), &vstyle, spans) {
+                            longest = longest.max(l.drawn_width().get());
+                        }
+                    }
+                }
+                Scalar(longest.min(room.get()))
+            }
+        }
+    }
+
+    /// CORE-555: lay a vertical paragraph out as columns of length `extent`
+    /// and return the cursor `y` below it (content top + extent).
+    ///
+    /// - Lines stack along the block axis: from the content box's right
+    ///   edge leftward in `*-rl`, from the left edge rightward in `*-lr`.
+    ///   Each column is one `line-height` wide.
+    /// - `sideways-lr` runs bottom to top; every other mode top to bottom.
+    /// - Glyph orientation rides in the shaping features (see
+    ///   `typography::ORIENTATION_TAG`): `mixed` sets upright scripts
+    ///   upright, `upright` sets everything upright, `sideways` and the
+    ///   sideways modes rotate everything.
+    #[allow(clippy::too_many_arguments)]
+    fn layout_vertical_lines(
+        &self,
+        id: NodeId,
+        style: &ComputedStyle,
+        wm: crate::css::PageWritingMode,
+        items: &[Item],
+        extent: Scalar,
+        inner_left: Scalar,
+        inner_width: Scalar,
+        content_top: Scalar,
+        children: &mut Vec<Fragment>,
+        flow: &mut Flow,
+    ) -> Scalar {
+        use crate::css::PageWritingMode as W;
+        let vstyle = self.vertical_shaping_style(id, style);
+        let lh = style.line_height;
+        let rl = wm.block_runs_negative();
+        let up = wm == W::SidewaysLr;
+        let orientation = if up {
+            crate::frag::LineOrientation::VerticalUp
+        } else {
+            crate::frag::LineOrientation::VerticalDown
+        };
+        let right = inner_left + inner_width;
+        let mut col = 0usize;
+        for it in items {
+            let Item::Text(text, _links, fn_markers, spans) = it else {
+                continue;
+            };
+            let lines = self.break_paragraph_s(text, extent, &vstyle, spans);
+            for lr in &lines {
+                let col_left = if rl {
+                    right - lh * ((col + 1) as f64)
+                } else {
+                    inner_left + lh * (col as f64)
+                };
+                // `text-align` along the inline axis, from the inline start.
+                let start = self.aligned_x(Scalar::ZERO, extent, lr.drawn_width(), style);
+                let base_y = if up {
+                    content_top + extent - start
+                } else {
+                    content_top + start
+                };
+                let run = TextRun {
+                    text: lr.text.clone(),
+                    baseline: Point::new(col_left + lh * 0.5, base_y),
+                    font_size: style.font_size,
+                    color: style.color,
+                    font_face: style.font_face,
+                    glyphs: lr.glyphs.clone(),
+                    expansion: lr.expansion,
+                    protrude_left: Scalar::ZERO,
+                    protrude_right: Scalar::ZERO,
+                };
+                let mut line = Fragment::line(Point::new(col_left, content_top), (lh, extent), run);
+                line.orientation = orientation;
+                children.push(line);
+                col += 1;
+            }
+            // Footnote calls inside the paragraph all land on this page.
+            self.register_placed_markers(flow, fn_markers, 0, 0, text.len());
+        }
+        content_top + extent
     }
 
     /// True when the writing mode IN EFFECT at `id` is ORTHOGONAL to the
