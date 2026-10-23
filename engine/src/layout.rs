@@ -3744,18 +3744,35 @@ impl<'a> Ctx<'a> {
         // CORE-555: a text-only block whose mode in effect is vertical sets
         // its lines as columns (vertical line stacking). The paragraph is
         // monolithic in the flow; `y` advances by the column length.
-        let vertical_done = fresh
+        let mut vertical_done = false;
+        if fresh
             && style.content.is_empty()
             && box_wm.is_vertical()
             && self.vertical_text_eligible(id, style, &items, flow)
-            && {
-                y = self.layout_vertical_lines(
-                    id, style, box_wm, &items, inner_left, inner_width, content_top,
-                    bottom_limit, &mut children, flow,
-                );
-                placed = true;
-                true
-            };
+        {
+            let extent = self.vertical_line_extent(id, style, &items, content_top, bottom_limit);
+            // Monolithic in the flow: a paragraph that does not fit the
+            // remaining room moves whole to the next fragmentainer, unless
+            // the page is empty (last resort, never sliced).
+            if placed && content_top.get() + extent.get() > bottom_limit.get() + 1e-6 {
+                flow.abspos_cb = saved_abspos_cb;
+                return BlockResult {
+                    fragment: Fragment::block(
+                        Point::new(Self::frag_border_x(style, origin_x), top),
+                        (avail_width, Scalar::ZERO),
+                    ),
+                    used: Scalar::ZERO,
+                    outgoing: Some(BreakToken::break_before()),
+                    empty: true,
+                };
+            }
+            y = self.layout_vertical_lines(
+                id, style, box_wm, &items, extent, inner_left, inner_width, content_top,
+                &mut children, flow,
+            );
+            placed = true;
+            vertical_done = true;
+        }
 
         let start_index = if vertical_done {
             items.len()
@@ -8761,38 +8778,11 @@ impl<'a> Ctx<'a> {
         })
     }
 
-    /// CORE-555: lay a vertical paragraph out as columns and return the
-    /// cursor `y` below it (content top + column length).
-    ///
-    /// - Inline extent (column length): the declared content height, else
-    ///   the fragmentainer room under a vertical page flow (the box fills
-    ///   its inline axis, CORE-153), else the max-content length capped at
-    ///   the room (an interior vertical box has an indefinite inline extent,
-    ///   writing-modes-layout Behavior 8).
-    /// - Lines stack along the block axis: from the content box's right
-    ///   edge leftward in `*-rl`, from the left edge rightward in `*-lr`.
-    ///   Each column is one `line-height` wide.
-    /// - `sideways-lr` runs bottom to top; every other mode top to bottom.
-    /// - Glyph orientation rides in the shaping features (see
-    ///   `typography::ORIENTATION_TAG`): `mixed` sets upright scripts
-    ///   upright, `upright` sets everything upright, `sideways` and the
-    ///   sideways modes rotate everything.
-    #[allow(clippy::too_many_arguments)]
-    fn layout_vertical_lines(
-        &self,
-        id: NodeId,
-        style: &ComputedStyle,
-        wm: crate::css::PageWritingMode,
-        items: &[Item],
-        inner_left: Scalar,
-        inner_width: Scalar,
-        content_top: Scalar,
-        bottom_limit: Scalar,
-        children: &mut Vec<Fragment>,
-        flow: &mut Flow,
-    ) -> Scalar {
+    /// CORE-555: the style a vertical paragraph shapes with: the run style
+    /// plus the orientation pseudo-feature for `mixed` / `upright`.
+    fn vertical_shaping_style(&self, id: NodeId, style: &ComputedStyle) -> ComputedStyle {
         use crate::css::{PageWritingMode as W, TextOrientation as O};
-        let sideways = matches!(wm, W::SidewaysRl | W::SidewaysLr);
+        let sideways = matches!(self.writing_mode_at(id), W::SidewaysRl | W::SidewaysLr);
         let orient = if sideways {
             O::Sideways
         } else {
@@ -8808,7 +8798,23 @@ impl<'a> Ctx<'a> {
                 .push((crate::typography::ORIENTATION_TAG, crate::typography::ORIENT_UPRIGHT)),
             O::Sideways => {}
         }
-        let lh = style.line_height;
+        vstyle
+    }
+
+    /// CORE-555: the inline extent (column length) of a vertical paragraph:
+    /// the declared content height, else the fragmentainer room under a
+    /// vertical page flow (the box fills its inline axis, CORE-153), else
+    /// the max-content length capped at the room (an interior vertical box
+    /// has an indefinite inline extent, writing-modes-layout Behavior 8).
+    fn vertical_line_extent(
+        &self,
+        id: NodeId,
+        style: &ComputedStyle,
+        items: &[Item],
+        content_top: Scalar,
+        bottom_limit: Scalar,
+    ) -> Scalar {
+        let vstyle = self.vertical_shaping_style(id, style);
         let room = {
             let r = bottom_limit - content_top - style.padding_bottom - style.border_bottom;
             if r.get() > 0.0 {
@@ -8828,7 +8834,7 @@ impl<'a> Ctx<'a> {
                 h
             }
         });
-        let extent = match declared {
+        match declared {
             Some(h) => h,
             None if self.page_flow_writing_mode().is_vertical() => room,
             None => {
@@ -8843,7 +8849,37 @@ impl<'a> Ctx<'a> {
                 }
                 Scalar(longest.min(room.get()))
             }
-        };
+        }
+    }
+
+    /// CORE-555: lay a vertical paragraph out as columns of length `extent`
+    /// and return the cursor `y` below it (content top + extent).
+    ///
+    /// - Lines stack along the block axis: from the content box's right
+    ///   edge leftward in `*-rl`, from the left edge rightward in `*-lr`.
+    ///   Each column is one `line-height` wide.
+    /// - `sideways-lr` runs bottom to top; every other mode top to bottom.
+    /// - Glyph orientation rides in the shaping features (see
+    ///   `typography::ORIENTATION_TAG`): `mixed` sets upright scripts
+    ///   upright, `upright` sets everything upright, `sideways` and the
+    ///   sideways modes rotate everything.
+    #[allow(clippy::too_many_arguments)]
+    fn layout_vertical_lines(
+        &self,
+        id: NodeId,
+        style: &ComputedStyle,
+        wm: crate::css::PageWritingMode,
+        items: &[Item],
+        extent: Scalar,
+        inner_left: Scalar,
+        inner_width: Scalar,
+        content_top: Scalar,
+        children: &mut Vec<Fragment>,
+        flow: &mut Flow,
+    ) -> Scalar {
+        use crate::css::PageWritingMode as W;
+        let vstyle = self.vertical_shaping_style(id, style);
+        let lh = style.line_height;
         let rl = wm.block_runs_negative();
         let up = wm == W::SidewaysLr;
         let orientation = if up {

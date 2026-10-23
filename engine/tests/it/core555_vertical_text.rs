@@ -318,6 +318,34 @@ fn vertical_text_layer_round_trips() {
     }
 }
 
+/// A vertical paragraph is monolithic in the flow: one that does not fit
+/// the room left on the page moves whole to the next page instead of
+/// painting past the page edge (page-name-orthogonal-writing-002 ref shape:
+/// a huge `margin-block-end` pushes the second paragraph off page 1).
+#[test]
+fn vertical_paragraph_that_does_not_fit_moves_to_next_page() {
+    let src = "<!DOCTYPE html><html style=\"writing-mode: vertical-rl\"><head><style>\
+               body { margin: 0; font-size: 20px; line-height: 30px }</style></head><body>\
+               <div style=\"margin-block-end: 999in\">a</div><div>b</div></body></html>";
+    let laid = lay(src);
+    assert_eq!(laid.pages.len(), 2, "the second paragraph moves to page 2");
+    let page_text = |i: usize| -> Vec<String> {
+        fn walk(f: &Fragment, out: &mut Vec<String>) {
+            if let FragmentContent::Text(run) = &f.content {
+                out.push(run.text.clone());
+            }
+            for c in &f.children {
+                walk(c, out);
+            }
+        }
+        let mut out = Vec::new();
+        walk(&laid.pages[i].root, &mut out);
+        out
+    };
+    assert_eq!(page_text(0), vec!["a".to_string()]);
+    assert_eq!(page_text(1), vec!["b".to_string()]);
+}
+
 /// Same input, byte-identical PDF, for every vertical mode.
 #[test]
 fn vertical_output_is_deterministic() {
