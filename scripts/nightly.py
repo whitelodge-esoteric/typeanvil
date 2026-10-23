@@ -82,8 +82,25 @@ def summary(regress_text: str, qa: dict | None, status: str) -> str:
     if qa is None:
         lines.append("No report (the step did not finish).")
     else:
-        bad = qa_failures(qa)
-        lines.append("All fixtures pass." if not bad else "Failed: " + ", ".join(bad))
+        new = qa.get("new_failures", [])
+        stale = qa.get("stale_known_failures", [])
+        known = qa.get("known_failures", [])
+        if "new_failures" in qa:
+            if not new and not stale:
+                lines.append("No new failures.")
+            if new:
+                lines.append("New failures: " + ", ".join(
+                    f"{f['file']} p{f['page']} {f['check']}" for f in new))
+            if stale:
+                lines.append("Stale known failures (now pass; remove them): " + ", ".join(
+                    f"{e['file']} p{e['page']} {e['check']} ({e['issue']})" for e in stale))
+            if known:
+                lines += ["", "Known failures (tracked, not blocking):"]
+                lines += [f"- {e['file']} page {e['page']} {e['check']}: {e['issue']}"
+                          for e in known]
+        else:
+            bad = qa_failures(qa)
+            lines.append("All fixtures pass." if not bad else "Failed: " + ", ".join(bad))
     lines.append("")
     lines.append("### Slowest documents")
     lines.append("| document | pages | seconds |")

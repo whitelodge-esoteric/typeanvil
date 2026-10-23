@@ -558,6 +558,44 @@ def _pdf_page_texts(pdf_path: Path) -> list[str]:
         pdf.close()
 
 
+KNOWN_FAILURES_PATH = ROOT / 'library' / 'visual-qa-known-failures.json'
+DOC_LEVEL_CHECKS = ("text_roundtrip", "declared_fills")
+
+
+def load_known_failures(path: Path | None = None) -> list[dict]:
+    """Load the committed known-failures list (CORE-549).
+
+    Each entry is {file, page, check, issue}; page is an int, or "*" for a
+    document-level check. Every entry must cite a Linear issue.
+    """
+    path = path or KNOWN_FAILURES_PATH
+    if not path.exists():
+        return []
+    entries = json.loads(path.read_text(encoding="utf-8"))
+    for e in entries:
+        missing = [k for k in ("file", "page", "check", "issue") if k not in e or e[k] in ("", None)]
+        if missing:
+            raise ValueError(f"known-failure entry {e!r} lacks {missing}")
+    return entries
+
+
+def reconcile_failures(failures: set, known: list[dict]) -> dict:
+    """Split failures into new / known, and find stale known entries.
+
+    failures: set of (file, page, check); page is an int or "*".
+    A known entry with page "*" matches a failure on any page of that check.
+    """
+    def matches(entry, fail):
+        return (entry["file"], entry["check"]) == (fail[0], fail[2]) and (
+            str(entry["page"]) == "*" or str(entry["page"]) == str(fail[1]))
+
+    new = sorted((f for f in failures if not any(matches(e, f) for e in known)),
+                 key=lambda f: (f[0], str(f[1]), f[2]))
+    hit = [e for e in known if any(matches(e, f) for f in failures)]
+    stale = [e for e in known if not any(matches(e, f) for f in failures)]
+    return {"new": new, "known": hit, "stale": stale}
+
+
 def run_visual_qa(
     track: str,
     report_path: str,
@@ -565,6 +603,7 @@ def run_visual_qa(
     dpi: int = 96,
     check_pr: bool = False,
     filters: Dict[str, str] | None = None,
+    known_failures: list[dict] | None = None,
 ) -> int:
     """Run visual QA checks for a track over already-rendered PDFs/rasters.
 
@@ -598,6 +637,7 @@ def run_visual_qa(
         "overall": "pass",
     }
     overall_pass = True
+    failures: set = set()
 
     for entry in manifest:
         file_name = str(entry.get("file", ""))
@@ -671,18 +711,38 @@ def run_visual_qa(
 
                 for check_name, check_result in checks_result.items():
                     if not check_result.get("pass", True):
-                        overall_pass = False
+                        fail_page = "*" if check_name in DOC_LEVEL_CHECKS else page_index
+                        failures.add((file_name, fail_page, check_name))
                         print(f"  FAILED: {name} page {page_index} {engine} {check_name}")
 
             # After the loop: any declared color never found on the fixture
             # is a real finding (report once per fixture, not per page).
             missing_fills = [c for c in declared_colors if c not in fill_pages]
             if missing_fills:
-                overall_pass = False
+                failures.add((file_name, "*", "declared_fills"))
                 print(f"  FAILED: {name} {engine} declared_fills missing={missing_fills}")
 
         report["fixtures"].append(fixture_result)
 
+    # Known failures (CORE-549): only NEW failures fail the run; a listed
+    # entry that now passes is stale and also fails. Scoped to the fixtures
+    # this run covered.
+    covered = {str(e.get("file", "")) for e in manifest}
+    known = [e for e in (known_failures if known_failures is not None
+                         else load_known_failures()) if e["file"] in covered]
+    rec = reconcile_failures(failures, known)
+    for f in rec["new"]:
+        print(f"  NEW FAILURE: {f[0]} page {f[1]} {f[2]}")
+    for e in rec["known"]:
+        print(f"  known failure: {e['file']} page {e['page']} {e['check']} ({e['issue']})")
+    for e in rec["stale"]:
+        print(f"  STALE known failure (now passes; remove it): "
+              f"{e['file']} page {e['page']} {e['check']} ({e['issue']})")
+    report["known_failures"] = rec["known"]
+    report["stale_known_failures"] = rec["stale"]
+    report["new_failures"] = [
+        {"file": f[0], "page": f[1], "check": f[2]} for f in rec["new"]]
+    overall_pass = overall_pass and not rec["new"] and not rec["stale"]
     report["overall"] = "pass" if overall_pass else "fail"
     report_path_obj = Path(report_path)
     report_path_obj.parent.mkdir(parents=True, exist_ok=True)

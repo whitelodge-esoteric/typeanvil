@@ -4,7 +4,7 @@ type: runbook
 status: draft
 owner: maintainers
 created: 2026-10-17
-updated: 2026-10-19
+updated: 2026-10-23
 sidebar_position: 8
 tags: [ci, regression, baselines, fingerprint, library]
 trigger: When the `regression` CI job fails, or when an intended rendering change needs new baselines
@@ -55,16 +55,22 @@ The workflow refuses to run on `main` and `release/**`.
 
 1. Download the `regress-changed-pages` artifact. It holds, per changed document, the head PNGs of the changed pages (`head-page-NNN.png`), `baseline.json` and `head.json`.
 2. Decide whether the change is intended.
-3. If intended, regenerate in CI (see "Regenerate baselines in CI"), review the `baselines/` diff, and keep it in the same PR.
+3. If intended, regenerate in CI (see "Regenerate baselines in CI"), review the `baselines/` diff, and land it in a dedicated PR (see "Baselines change only in a dedicated PR").
 
 4. If not intended, fix the engine change.
+
+## Baselines change only in a dedicated PR
+
+Baselines and `library/visual-qa-known-failures.json` shall change only in a dedicated, reviewed PR. A feature commit shall not carry them. CORE-519 re-baselined the tagged gate inside the feature commit and hid a letter-spacing regression (CORE-539). The baseline diff is the review record, so it needs its own review.
+
+The `regress-baselines` workflow regenerates every document the nightly checks (`--role any --size all`), the same selection as `nightly.yml`.
 
 Run `update` only after you know why the page changed. The baseline diff is the review record.
 
 ## Known limits
 
 - The artifact has head PNGs only. A baseline stores fingerprints, not images, so base PNGs need a render of the base commit. CORE-487 owns the diff-image step and may add that render.
-- The job covers the `small` tier. Heavy documents are not gated here.
+- The PR job covers the `small` tier. The nightly covers all sizes.
 - Unit tests for the comparison logic: `tests/test_regress.py`.
 
 ## Determinism check

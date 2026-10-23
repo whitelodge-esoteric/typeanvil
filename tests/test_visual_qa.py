@@ -65,3 +65,32 @@ def test_roundtrip_folds_math_alphanumerics():
     src = "mass m at speed v and the angle \u03b8 acts"
     res = vq.check_text_roundtrip_coverage(pdf, src)
     assert res["pass"] and not res["missing_tokens"], res
+
+
+# CORE-549: known-failures list.
+KNOWN = [
+    {"file": "a.html", "page": 2, "check": "overflow", "issue": "CORE-1"},
+    {"file": "b.html", "page": "*", "check": "text_roundtrip", "issue": "CORE-2"},
+]
+
+
+def test_known_failures_are_not_new():
+    rec = vq.reconcile_failures(
+        {("a.html", 2, "overflow"), ("b.html", "*", "text_roundtrip")}, KNOWN)
+    assert rec["new"] == [] and rec["stale"] == []
+
+
+def test_unlisted_failure_is_new():
+    rec = vq.reconcile_failures({("a.html", 3, "overflow")}, KNOWN)
+    assert rec["new"] == [("a.html", 3, "overflow")]
+
+
+def test_listed_entry_that_passes_is_stale():
+    rec = vq.reconcile_failures({("b.html", "*", "text_roundtrip")}, KNOWN)
+    assert [e["file"] for e in rec["stale"]] == ["a.html"]
+
+
+def test_committed_list_cites_issues_and_seeds_seven_failures():
+    entries = vq.load_known_failures()
+    assert len(entries) == 7
+    assert all(e["issue"].startswith("CORE-") for e in entries)
