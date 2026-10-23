@@ -50,7 +50,8 @@ out-of-flow frame therefore share one contract and land in dependency order.
 ## Non-Goals
 
 - Implementing any of it. Code changes belong to the child issues.
-- Glyph orientation and vertical line stacking (child 4/5, CORE-555).
+- Glyph orientation and vertical line stacking (child 4/5, CORE-555; see
+  its implementation notes).
 - `text-combine-upright`, `text-orientation` values beyond `mixed`/`upright`/
   `sideways` defaults, ruby, and vertical-aware `text-align`.
 - Vertical multicol, vertical flex and vertical grid. They stay horizontal
@@ -604,6 +605,57 @@ rect in `paginate`, in the logical frame of the page flow.
   PASS. See fragmentation-core Behavior 11. `root-margin-001` now
   leaves page 1 blank as it asserts. It stays FAIL on a pixel residual.
 - Tests: `engine/tests/it/core563_root_margins.rs`.
+
+## Implementation notes — child 4/5 (CORE-555)
+
+**DECIDED 2026-10-23 (agent):** glyph orientation and vertical line
+stacking are set inside the box. Box sizing and page progression stay with
+CORE-553/554.
+
+- **Which boxes.** A block whose mode in effect is vertical and whose
+  children are text only (no block or atomic children, no active floats)
+  sets its lines as columns. Table cells and flex/grid items keep their
+  horizontal-tb internal layout (Behavior 24). Mixed block/text content in
+  a vertical box keeps the horizontal path for now.
+- **Column length (inline extent).** The declared content height, else the
+  fragmentainer room under a vertical page flow (the box fills its inline
+  axis, Behavior 19), else the max-content length capped at the room
+  (Behavior 8: an interior vertical box has an indefinite inline extent).
+- **Stacking.** Each line is one `line-height` wide. Lines stack from the
+  content box's right edge leftward in `vertical-rl`/`sideways-rl` and from
+  the left edge rightward in `vertical-lr`/`sideways-lr`. `sideways-lr`
+  runs bottom to top; the other three run top to bottom. `text-align`
+  applies along the inline axis.
+- **Orientation.** `text-orientation` is parsed by the paged pass (the
+  servo stylo build gates it off) and inherits. `mixed` (the default) sets
+  CJK, kana, hangul, Yi, fullwidth and CJK symbol characters upright
+  (an approximation of UAX #50 U/Tu/Tr) and rotates every other character
+  90° clockwise. `upright` sets every character upright. `sideways` and the
+  two sideways modes rotate every character (clockwise, or
+  counter-clockwise in `sideways-lr`). Upright runs shape with HarfRust
+  `TopToBottom`, so they use vertical advances, vertical origins and the
+  `vert` feature. The orientation rides in `ot_features` as a pseudo tag
+  (`typography::ORIENTATION_TAG`), so the shape cache keys on it.
+- **Primitive for CORE-184.** The reusable pieces are
+  `typography::ORIENTATION_TAG` (shaping), `ShapedGlyph::upright` /
+  `y_offset`, and `Fragment::orientation` (`frag::LineOrientation`) plus
+  `pdf::draw_shaped_vertical` (paint). A margin box sets the same fields.
+- **Paint.** A vertical run's baseline point is the start of its central
+  baseline (column centre). Rotated segments paint under a 90° matrix with
+  the em-box centre on the column centre; upright glyphs paint unrotated at
+  their vertical-origin offsets. Glyph text ranges are unchanged, so the
+  ToUnicode map and the marked-content order follow the source text.
+- **Fragmentation.** A vertical paragraph is monolithic in the flow. One
+  that does not fit the room left on the page moves whole to the next page
+  (the `page-name-orthogonal-writing-002` reference shape).
+- **Not in this child** (residual CORE-561): link
+  rectangles and inline backgrounds in vertical lines,
+  `text-combine-upright`, `direction: rtl` in vertical lines, splitting a
+  vertical paragraph across pages, and mixed block/text vertical boxes.
+
+Tests: `engine/tests/it/core555_vertical_text.rs` (real fonts; content
+stream matrices for orientation, fragment geometry for stacking, MCID order
+and ToUnicode for the text layer, byte equality for determinism).
 
 ## Child issue map
 
