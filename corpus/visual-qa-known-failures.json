@@ -1,5 +1,3 @@
 [
-  {"file": "reports/weasyprint-report.html", "page": 1, "check": "overflow", "issue": "CORE-546"},
-  {"file": "reports/weasyprint-report.html", "page": 4, "check": "overflow", "issue": "CORE-546"},
   {"file": "academic/math.html", "page": "*", "check": "text_roundtrip", "issue": "CORE-548"}
 ]

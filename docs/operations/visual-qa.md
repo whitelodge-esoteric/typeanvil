@@ -47,6 +47,14 @@ Options are `--track corpus|showcase`, required `--report PATH`, `--keep-pdfs`, 
 
 The script applies track-specific page geometry and DPI from its source. Read `scripts/visual-qa.sh` when a fixture requires exact thresholds or geometry.
 
+## Design bleed exemption
+
+Some fixtures paint bands to the page edge on purpose. A manifest entry declares this with `edge_bleed`: `{"colors": ["#rrggbb", ...], "reason": "..."}`. The overflow check then accepts edge pixels in a listed colour, and pixels anti-aliased between that colour and white. Other edge ink still fails, for example text or a different fill. An entry without a `reason` or with a non-hex colour stops the run.
+
+Use the exemption only after you compare with the oracle's own output. `reports/weasyprint-report.html` declares `#fbc847`. Its cover addresses (`margin: 0 -2cm`) and its `#skills h3` band (`margin: 0 -3cm; width: 21cm`) bleed to both page edges, and WeasyPrint renders them edge to edge too (CORE-546).
+
+A zero-margin `@page` (full-bleed fixture) skips the overflow check for every colour.
+
 ## Known failures
 
 `corpus/visual-qa-known-failures.json` lists accepted failures as `{file, page, check, issue}` entries. `page` is `"*"` for document-level checks (`text_roundtrip`, `declared_fills`). Visual QA fails only on failures that are not in the list. It also fails when a listed entry now passes ("stale known failure, remove it"). The nightly summary shows known failures separately, with their Linear ids.

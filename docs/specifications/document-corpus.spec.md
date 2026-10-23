@@ -65,7 +65,12 @@ Epic: CORE-486. Issue: CORE-488.
    - `source` and `license`;
    - `baseline_pages`: the page count at that geometry on commit `570d3a5`;
    - `wedge_features`, `known_limitations`, `expected_deltas`, and the optional
-     `expected_change` note defined by visual-comparison-demo.
+     `expected_change` note defined by visual-comparison-demo;
+   - optional `edge_bleed`: `{colors, reason}`. `colors` lists `#rrggbb`
+     fills that the design bleeds to the page edge. Visual QA's overflow check
+     SHALL accept those colours (and their anti-aliased blends with white) at
+     the edge and SHALL still fail any other edge ink. `reason` is required
+     and records the oracle comparison that justifies the exemption (CORE-546).
 3. Every script that renders corpus documents SHALL accept the tag filters
    `--role`, `--size`, `--oracle` and `--category`. A filter that is not set
    matches every entry. A filter that is set matches only entries that carry
