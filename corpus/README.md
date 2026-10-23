@@ -1,6 +1,6 @@
-# Document library
+# Document corpus
 
-The document library (CORE-488): one tagged set of fixtures that feeds the
+The document corpus (CORE-488): one tagged set of fixtures that feeds the
 Prince comparison, the print-resolution showcase, the performance
 benchmark, and the tagged-PDF gate. Tags in `manifest.json` decide which
 document serves which use.
@@ -23,7 +23,7 @@ See `docs/operations/showcase.md` for how renders are published and
 | `TRIAGE.md` | Frozen triage archive (see the triage policy below) |
 | `README.md` | This file |
 
-Engine-gap repros live outside the library in `repros/` (`repros/manifest.json`,
+Engine-gap repros live outside the corpus in `repros/` (`repros/manifest.json`,
 files named `CORE-<n>-<slug>.html`).
 
 Manifest fields per document: `name`, `file` (`<category>/<doc>.html`),
@@ -54,7 +54,7 @@ copy is kept and now carries the `gate` and `perf` roles.
 Also dropped: `demo/corpus/_smoke.html` (removed) (unreferenced scratch) and the four
 generated showcase chart assets those fixtures used. All stay in git history.
 
-The contracts are `docs/specifications/document-library.spec.md` (layout,
+The contracts are `docs/specifications/document-corpus.spec.md` (layout,
 manifest, tag filters) and `docs/specifications/visual-comparison-demo.spec.md`
 (scoreboard schema, triage buckets, determinism rules).
 
@@ -104,11 +104,11 @@ geometry to `typeanvil render`.
 ## Pipeline
 
 ```sh
-scripts/build-demo.sh      # corpus → both engines → library/out/compare/ (gallery.md, images, scoreboard.json)
-scripts/build-showcase.sh  # the Letter @ 300 DPI showcase → library/out/showcase/
+scripts/build-demo.sh      # corpus → both engines → corpus/out/compare/ (gallery.md, images, scoreboard.json)
+scripts/build-showcase.sh  # the Letter @ 300 DPI showcase → corpus/out/showcase/
 ```
 
-Everything lands under the ignored `library/out/` tree. Nothing there is
+Everything lands under the ignored `corpus/out/` tree. Nothing there is
 committed. Deterministic: re-running produces byte-identical output except
 the scoreboard's `generated` timestamp.
 

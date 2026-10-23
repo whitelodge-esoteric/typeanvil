@@ -1,4 +1,4 @@
-# Nightly full run (CORE-490): every library document + visual QA on the
+# Nightly full run (CORE-490): every corpus document + visual QA on the
 # newest release/* tip. Runbook: docs/operations/nightly.md
 #
 # The third-party engine comparison stays release-time (licensing); nothing

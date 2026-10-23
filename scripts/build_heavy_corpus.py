@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Generate the four heavy library documents (CORE-491).
+"""Generate the four heavy corpus documents (CORE-491).
 
-Inputs are downloaded source files (see library/LICENSES.md for URLs):
+Inputs are downloaded source files (see corpus/LICENSES.md for URLs):
 
   --arxiv   arXiv HTML of 2302.13971 (LLaMA, CC BY 4.0)
   --pg      Project Gutenberg #1342 plain text (Pride and Prejudice)
   --fm      archive.org djvu text of FM 21-76 (US Army, public domain)
 
 The dissertation is generated from a fixed seed, no download needed.
-Output goes to library/<category>/. Output is deterministic.
+Output goes to corpus/<category>/. Output is deterministic.
 
-    python3 -I scripts/build_heavy_library.py --arxiv A --pg B --fm C
+    python3 -I scripts/build_heavy_corpus.py --arxiv A --pg B --fm C
 """
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-LIB = ROOT / "library"
+LIB = ROOT / "corpus"
 esc = html.escape
 
 

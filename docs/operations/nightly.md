@@ -4,7 +4,7 @@ type: runbook
 status: draft
 owner: maintainers
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-23
 sidebar_position: 9
 tags: [ci, nightly, regression, visual-qa, release]
 trigger: When the `nightly` workflow fails, or when you read the release precondition
@@ -12,7 +12,7 @@ trigger: When the `nightly` workflow fails, or when you read the release precond
 
 # Nightly full run
 
-`.github/workflows/nightly.yml` runs every library document and the visual QA checks on the newest `release/*` tip. It starts on a daily cron (06:17 UTC) and on `workflow_dispatch`.
+`.github/workflows/nightly.yml` runs every corpus document and the visual QA checks on the newest `release/*` tip. It starts on a daily cron (06:17 UTC) and on `workflow_dispatch`.
 
 ## What it runs
 

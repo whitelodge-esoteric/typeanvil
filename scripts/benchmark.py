@@ -210,15 +210,15 @@ def _sample_memory(pgid: int, out: dict, stop: threading.Event) -> None:
         stop.wait(0.002)
 
 
-LIBRARY = REPO_ROOT / "library"
-MANIFEST = LIBRARY / "manifest.json"
+CORPUS = REPO_ROOT / "corpus"
+MANIFEST = CORPUS / "manifest.json"
 OUT_DIR = REPO_ROOT / "benchmarks"
 
 
 def load_corpus(role=None, size=None, oracle=None, category=None):
-    """(name, file) pairs from library/manifest.json passing the tag filters.
+    """(name, file) pairs from corpus/manifest.json passing the tag filters.
 
-    `file` is `<category>/<doc>.html` relative to library/. Each document is
+    `file` is `<category>/<doc>.html` relative to corpus/. Each document is
     rendered at the geometry its manifest entry declares (see
     `load_geometry`), so heavy and visual documents run at real page size.
     """
@@ -246,7 +246,7 @@ def perf_corpus(role=None, size=None, oracle=None, category=None):
 
 
 def load_geometry() -> dict:
-    """name -> {width, height, margin} from library/manifest.json (CORE-493).
+    """name -> {width, height, margin} from corpus/manifest.json (CORE-493).
 
     An entry without a geometry falls back to the 5in x 3in demo geometry.
     """
@@ -484,7 +484,7 @@ def bench_engine(engine: str, corpus, workdir: Path, ta_bin: Path,
             results[name] = {"runs": 0, "failures": [], "skipped": reason,
                              "pages": None}
             continue
-        html = LIBRARY / fname
+        html = CORPUS / fname
         base = Path(fname).stem
         out_pdf = workdir / f"{base}-{engine}.pdf"
         render_html = html
@@ -596,7 +596,7 @@ EMPTY_HTML = ("<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\">"
 
 def scaling_corpus(workdir: Path) -> tuple[list, dict]:
     """Write the startup + scaling inputs; return (corpus, geometries)."""
-    sdir = workdir.resolve() / "scaling"  # absolute: bench_engine joins onto library/
+    sdir = workdir.resolve() / "scaling"  # absolute: bench_engine joins onto corpus/
     sdir.mkdir(parents=True, exist_ok=True)
     corpus = []
     empty = sdir / "empty.html"
@@ -703,7 +703,7 @@ def write_results_md(data: dict, path: Path) -> None:
                  f"macOS ({env['platform'].split()[0]} {env['platform'].split()[1] if len(env['platform'].split()) > 1 else ''})")
     lines.append("")
     lines.append("Method: each fixture rendered at the geometry its "
-                 "`library/manifest.json` entry declares (the small corpus "
+                 "`corpus/manifest.json` entry declares (the small corpus "
                  "uses 5in x 3in pages, 0.5in margins; heavy and visual "
                  "documents use their real page size). Release-time "
                  "measurement: same host, TypeAnvil release profile. "
@@ -905,7 +905,7 @@ def main() -> int:
                          "Puppeteer cache; $CHROME_BIN also honored)")
     ap.add_argument("--filter", default="", help="substring match on fixture name")
     ap.add_argument("--role", default="perf",
-                    help="library/manifest.json role tag (default: perf; '' = all)")
+                    help="corpus/manifest.json role tag (default: perf; '' = all)")
     ap.add_argument("--size", default=None, help="size tag: small | heavy | visual")
     ap.add_argument("--oracle", default=None, help="oracle tag: prince | weasyprint | chromium")
     ap.add_argument("--category", default=None, help="category directory, e.g. financial")

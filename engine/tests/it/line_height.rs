@@ -350,7 +350,7 @@ fn first_baseline_uses_half_leading() {
 #[test]
 fn normal_line_height_uses_registered_face_hhea() {
     let font = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../library/posters/assets/weasyprint-samples/poster/archivoblack-regular.ttf");
+        .join("../corpus/posters/assets/weasyprint-samples/poster/archivoblack-regular.ttf");
     let font = font.canonicalize().expect("ArchivoBlack fixture font");
     let html = format!(
         r#"<html><head><style>

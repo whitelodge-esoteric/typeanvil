@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-10-17
-updated: 2026-10-20
+updated: 2026-10-23
 sidebar_position: 7
 tags: [showcase, release, github-pages, publish]
 spec_id: showcase-publish
@@ -35,7 +35,7 @@ Rendered showcase output stays out of the engine repo. On each release, a workfl
 11. The first publish shall work on an empty target repo that has no default branch; it creates `main`.
 12. The engine `README.md` shall link to the showcase repo and its Pages site.
 13. (CORE-529) A document with more than `MAX_PAGES` pages (default 10, flag `--max-pages`) shall publish PNGs for pages 1 to `MAX_PAGES` only, for both engines. Its page shall say `Showing 10 of N pages` and link `full-typeanvil.pdf` and `full-prince.pdf`, which are published beside the images. The version index shall show `10 of N`. Perf JSON keeps the real page count (`pages`) and adds `published_pages`. No page shall link to an unpublished file. Documents with `MAX_PAGES` pages or fewer are unchanged.
-14. (CORE-529) The full PDFs are read from `--pdfs` (default `library/out/showcase/.work`, kept by `build-showcase.sh --keep-work`). Versions past the retention window drop the PDFs with the full-size pages.
+14. (CORE-529) The full PDFs are read from `--pdfs` (default `corpus/out/showcase/.work`, kept by `build-showcase.sh --keep-work`). Versions past the retention window drop the PDFs with the full-size pages.
 
 ## Decisions
 

@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-08-24
-updated: 2026-10-17
+updated: 2026-10-23
 sidebar_position: 16
 tags: [engine, pdf, accessibility, tagging, determinism]
 spec_id: tagged-pdf
@@ -458,7 +458,7 @@ debug builds:
 
 ## Cost of tagging (CORE-378, measured 2026-10-16)
 
-Method: the 33 documents in `library/` at the corpus geometry (5in x 3in,
+Method: the 33 documents in `corpus/` at the corpus geometry (5in x 3in,
 0.5in margins), debug build in the dev container, one render each. Base is
 the binary at 60f8eff with its default (untagged) output; tagged is the
 CORE-378 default. Per-document table: `~/workspace/typeanvil-evidence/CORE-378/ac2-size-time.tsv`.

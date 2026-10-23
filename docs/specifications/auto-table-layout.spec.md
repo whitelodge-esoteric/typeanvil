@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-20
-updated: 2026-10-16
+updated: 2026-10-23
 sidebar_position: 13
 tags: [layout, tables, css-tables, engine, demo-parity]
 spec_id: auto-table-layout
@@ -283,7 +283,7 @@ pipeline:
    and the Description column ≈ its min-content ≈ 112pt (Prince-verified
    token width) and the long descriptions wrap to 2+ lines
    (`test_table_stress_description_column_wraps`).
-7. **Table-stress page-count movement** — Given `library/stress/table-stress.html`
+7. **Table-stress page-count movement** — Given `corpus/stress/table-stress.html`
    rendered through the engine at the demo geometry (build-demo.sh flags:
    `--page-width 5in --page-height 3in`, 0.5in margins), when the page count
    is measured, then it is > 20 (measured 21; the old heuristic pinned 20 —
@@ -328,7 +328,7 @@ pipeline:
    engines; compare column boundaries and wrapped/unwrapped cell geometry via
    char-box extraction (`scripts/demo/col_words.py <pdf>`) — the
    technique that produced the ground truth above.
-4. `library/out/compare/scoreboard.json` regenerated; table-stress `typeanvil_pages`
+4. `corpus/out/compare/scoreboard.json` regenerated; table-stress `typeanvil_pages`
    moves 20 → 21 (see Overview; first-page measurement addresses the residual gap) and the
    overall diff drops below 33.5%.
 5. Record the implementation, verification, and any remaining parity work in

@@ -34,7 +34,7 @@ usage: visual-qa.sh --track corpus|showcase --report out.json [--role R] [--size
                 default filter --role gate --oracle prince) or
                 showcase (TypeAnvil only, MediaBox overflow, default --role showcase)
   --role/--size/--oracle/--category
-                library/manifest.json tag filters (override the track default)
+                corpus/manifest.json tag filters (override the track default)
   --report      path for the machine-readable JSON report
   --keep-pdfs   keep the work dir (pdf/ + img/) instead of deleting at exit
   --check-pr    showcase: also render + check the Prince reference side
@@ -99,12 +99,12 @@ if [ ! -x "$ENGINE_BIN" ]; then
 fi
 PRINCE_BIN="${PRINCE_BIN:-prince}"
 if [[ "$TRACK" == "corpus" ]] && ! command -v "$PRINCE_BIN" >/dev/null 2>&1; then
-  echo "error: Prince binary not found ('$PRINCE_BIN'). Install per library/README.md." >&2
+  echo "error: Prince binary not found ('$PRINCE_BIN'). Install per corpus/README.md." >&2
   exit 2
 fi
 
-MANIFEST="library/manifest.json"
-FIXTURES_DIR="library"
+MANIFEST="corpus/manifest.json"
+FIXTURES_DIR="corpus"
 FILTER_ARGS=()
 [ -n "$ROLE" ] && FILTER_ARGS+=(--role "$ROLE")
 [ -n "$SIZE" ] && FILTER_ARGS+=(--size "$SIZE")
@@ -113,13 +113,13 @@ FILTER_ARGS=()
 
 # The work dir MUST live inside the worktree: the engine binary is a
 # container shim that only maps worktree paths into /work (a /tmp path
-# fails the shim's path guard). `library/out/` is gitignored, so a leftover
+# fails the shim's path guard). `corpus/out/` is gitignored, so a leftover
 # .qa dir can never be committed.
-mkdir -p "$REPO_ROOT/library/out"
+mkdir -p "$REPO_ROOT/corpus/out"
 if [ "$KEEP_PDFS" = "1" ]; then
-  WORK="$(mktemp -d "$REPO_ROOT/library/out/.qa-keep-XXXXXX")"
+  WORK="$(mktemp -d "$REPO_ROOT/corpus/out/.qa-keep-XXXXXX")"
 else
-  WORK="$(mktemp -d "$REPO_ROOT/library/out/.qa-XXXXXX")"
+  WORK="$(mktemp -d "$REPO_ROOT/corpus/out/.qa-XXXXXX")"
 fi
 cleanup() {
   if [ "$KEEP_PDFS" = "1" ]; then
@@ -152,7 +152,7 @@ FAILED=0
 idx=-1
 for entry in "${entries[@]}"; do
   idx=$((idx + 1))
-  rel="${entry%%|*}"          # <category>/<doc>.html, relative to library/
+  rel="${entry%%|*}"          # <category>/<doc>.html, relative to corpus/
   name="${entry##*|}"
   GEOM_FLAGS="${geoms[$idx]}"
   file="$(basename "$rel")"

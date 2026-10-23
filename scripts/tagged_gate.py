@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tagged PDF gate: render every library fixture tagged, read the
+"""Tagged PDF gate: render every corpus fixture tagged, read the
 structure back, and fail on tagging regressions.
 
 Spec: docs/specifications/tagged-gate.spec.md. Runbook:
@@ -25,7 +25,7 @@ import verify_tagged_pdf  # noqa: E402  (sibling script, not a package)
 
 CHECKS = ("render", "deterministic", "untagged", "duplicated", "dangling", "ua", "roles", "coverage")
 COVERAGE_TOLERANCE = 0.005
-LIBRARY = "library"  # library/manifest.json lists every gated document (CORE-488)
+CORPUS = "corpus"  # corpus/manifest.json lists every gated document (CORE-488)
 DATA = Path("harness/tagged-gate")
 
 
@@ -99,15 +99,15 @@ def _render(binary: Path, cwd: Path, f: str, geom: str, extra: list[str], out: P
 
 def measure(repo: Path, binary: Path, work: Path) -> dict[str, dict]:
     results = {}
-    lib = repo / LIBRARY
+    lib = repo / CORPUS
     for m in json.loads((lib / "manifest.json").read_text()):
-        rel = m["file"]  # <category>/<doc>.html under library/
+        rel = m["file"]  # <category>/<doc>.html under corpus/
         g = m["geometry"]
         geom = (f"--page-width {g['width']} --page-height {g['height']} "
                 f"--margin-top {g['margin']} --margin-right {g['margin']} "
                 f"--margin-bottom {g['margin']} --margin-left {g['margin']}")
         d, f = (lib / rel).parent, Path(rel).name
-        doc, stem = f"{LIBRARY}/{rel}", f"{LIBRARY}-{rel.replace('/', '-')[:-5]}"
+        doc, stem = f"{CORPUS}/{rel}", f"{CORPUS}-{rel.replace('/', '-')[:-5]}"
         a, b, ua = (work / f"{stem}.{s}.pdf" for s in ("a", "b", "ua"))
         r = {}
         r["render_exit"], _ = _render(binary, d, f, geom, ["--tagged"], a)

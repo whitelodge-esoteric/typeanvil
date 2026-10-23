@@ -3,8 +3,8 @@
 
 Spec: docs/specifications/showcase-publish.spec.md
 
-Input : library/out/showcase/images/<doc>/page-NNN-ta.png (+ page-NNN-pr.png oracle)
-        produced by scripts/build-showcase.sh, and library/manifest.json
+Input : corpus/out/showcase/images/<doc>/page-NNN-ta.png (+ page-NNN-pr.png oracle)
+        produced by scripts/build-showcase.sh, and corpus/manifest.json
         (entries whose `roles` include "showcase").
 Output: a site tree in --site (a checkout of whitelodge-esoteric/typeanvil-showcase):
 
@@ -319,8 +319,8 @@ def refresh_site(site: Path, keep: int) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--site", required=True, type=Path, help="checkout of the showcase repo")
-    ap.add_argument("--images", type=Path, default=Path("library/out/showcase/images"))
-    ap.add_argument("--manifest", type=Path, default=Path("library/manifest.json"))
+    ap.add_argument("--images", type=Path, default=Path("corpus/out/showcase/images"))
+    ap.add_argument("--manifest", type=Path, default=Path("corpus/manifest.json"))
     ap.add_argument("--tag", required=True, help="release tag, vYYYY.M.PATCH")
     ap.add_argument("--commit", default="unknown")
     ap.add_argument("--source-dpi", type=int, default=300)
@@ -329,7 +329,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--render-seconds", type=float, default=None)
     ap.add_argument("--max-pages", type=int, default=MAX_PAGES,
                     help="publish PNGs for pages 1..N of longer documents (plus full PDFs)")
-    ap.add_argument("--pdfs", type=Path, default=Path("library/out/showcase/.work"),
+    ap.add_argument("--pdfs", type=Path, default=Path("corpus/out/showcase/.work"),
                     help="dir holding <doc>-ta.pdf and <doc>-pr.pdf from build-showcase.sh --keep-work")
     args = ap.parse_args(argv)
     if args.max_pages < 1:

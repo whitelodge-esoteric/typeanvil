@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-10-20
-updated: 2026-10-20
+updated: 2026-10-23
 sidebar_position: 17
 tags: [layout, borders, css-backgrounds, engine]
 spec_id: border-styles
@@ -66,7 +66,7 @@ records which styles paint as drawn and which still fall back to solid.
    carries the dashed style. Test: `zero_width_box_keeps_dashed_left_border`.
 3. Given a dotted side, then each dot is as long as the side is thick. Test:
    `dotted_side_has_square_dots`.
-4. The concert ticket tear line (`library/tickets/concert-ticket.html`)
+4. The concert ticket tear line (`corpus/tickets/concert-ticket.html`)
    paints dashed.
 
 ## References

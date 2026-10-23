@@ -1,25 +1,25 @@
 # Third-party sources and licenses
 
-Everything under `library/` that is not authored in this repository is listed
+Everything under `corpus/` that is not authored in this repository is listed
 here. Each manifest entry names its `source` and `license`
-(`library/manifest.json`). A new third-party source (Project Gutenberg, arXiv,
+(`corpus/manifest.json`). A new third-party source (Project Gutenberg, arXiv,
 Federal Register, ...) adds a section below before its documents enter the
 manifest.
 
 | Source | Where | License |
 |---|---|---|
-| Authored in-repo | most `library/<category>/*.html`, chart PNGs under `assets/` | AGPL-3.0-only (repo license) |
-| WeasyPrint samples | `library/{financial,letters,posters,reports,tickets}/weasyprint-*.html` + `assets/weasyprint-samples/` | public-domain samples; fonts per the table below |
-| Visual documents (CORE-492) | `library/{tickets,posters,flyers}/assets/` (ticket QR as SVG + PNG, ticket art, event-poster art, flyer tiles), made by `generate*.py` next to them; QR encoder: segno (BSD-3-Clause, build-time only, not shipped) | AGPL-3.0-only (generated, deterministic) |
-| Liberation Serif | `library/letters/assets/liberation-serif.ttf` | SIL OFL 1.1; Red Hat copyright notice in `library/letters/assets/liberation-serif-LICENSE.txt` |
-| arXiv 2302.13971 (LLaMA) | `library/academic/journal-article.html` | CC BY 4.0 |
-| Generated dissertation | `library/academic/dissertation.html` | AGPL-3.0-only (generated, seed 491) |
-| Project Gutenberg #1342 | `library/book/pride-and-prejudice.html` | public domain (Jane Austen, 1813) |
-| US Army FM 21-76 | `library/manual/field-manual.html` | public domain (US Government work) |
+| Authored in-repo | most `corpus/<category>/*.html`, chart PNGs under `assets/` | AGPL-3.0-only (repo license) |
+| WeasyPrint samples | `corpus/{financial,letters,posters,reports,tickets}/weasyprint-*.html` + `assets/weasyprint-samples/` | public-domain samples; fonts per the table below |
+| Visual documents (CORE-492) | `corpus/{tickets,posters,flyers}/assets/` (ticket QR as SVG + PNG, ticket art, event-poster art, flyer tiles), made by `generate*.py` next to them; QR encoder: segno (BSD-3-Clause, build-time only, not shipped) | AGPL-3.0-only (generated, deterministic) |
+| Liberation Serif | `corpus/letters/assets/liberation-serif.ttf` | SIL OFL 1.1; Red Hat copyright notice in `corpus/letters/assets/liberation-serif-LICENSE.txt` |
+| arXiv 2302.13971 (LLaMA) | `corpus/academic/journal-article.html` | CC BY 4.0 |
+| Generated dissertation | `corpus/academic/dissertation.html` | AGPL-3.0-only (generated, seed 491) |
+| Project Gutenberg #1342 | `corpus/book/pride-and-prejudice.html` | public domain (Jane Austen, 1813) |
+| US Army FM 21-76 | `corpus/manual/field-manual.html` | public domain (US Government work) |
 
 ## Heavy documents (CORE-491)
 
-`scripts/build_heavy_library.py` converts the downloaded sources into the four
+`scripts/build_heavy_corpus.py` converts the downloaded sources into the four
 heavy fixtures. Downloads are not committed; the converter output is.
 
 - **`academic/journal-article.html`**: Touvron et al., "LLaMA: Open and
@@ -48,7 +48,7 @@ These fonts are vendored from the
 [WeasyPrint samples repository](https://github.com/CourtBouillon/weasyprint-samples)
 (CourtBouillon, public-domain samples; fonts carry their own licenses). They are
 used by the adopted WeasyPrint sample documents in the showcase
-(`library/*/weasyprint-*.html`).
+(`corpus/*/weasyprint-*.html`).
 
 Every font below is **open source** and redistributable. Each is available on
 Google Fonts under the stated license. The Madcats "All Cats Are Beautiful"
@@ -112,7 +112,7 @@ them. The HTML body and document structure are unchanged; the CSS is adapted:
    `assets/weasyprint-samples/<sample>/...` so each fixture resolves from its
    own category directory as CWD (CORE-488: assets moved next to the fixtures).
 
-Known rendering limitations (recorded in `library/manifest.json`):
+Known rendering limitations (recorded in `corpus/manifest.json`):
 - **Element-level `background-image` is not rendered** (CORE-319) — the
   letter's header skyline and the report's cover image do not paint. The
   report's `@page :first` background is a page-level image; the page canvas

@@ -6,13 +6,13 @@ owner: maintainers
 created: 2026-10-17
 updated: 2026-10-23
 sidebar_position: 8
-tags: [ci, regression, baselines, fingerprint, library]
+tags: [ci, regression, baselines, fingerprint, corpus]
 trigger: When the `regression` CI job fails, or when an intended rendering change needs new baselines
 ---
 
 # Regression gate
 
-The `regression` job in `.github/workflows/ci.yml` renders the small-tier gate documents of the library (`--role gate --size small`, 25 documents) on every pull request. It compares each page to the committed fingerprint in `baselines/<doc>.json`. The job fails on an unexplained change.
+The `regression` job in `.github/workflows/ci.yml` renders the small-tier gate documents of the corpus (`--role gate --size small`, 25 documents) on every pull request. It compares each page to the committed fingerprint in `baselines/<doc>.json`. The job fails on an unexplained change.
 
 ## What a baseline holds
 
@@ -61,7 +61,7 @@ The workflow refuses to run on `main` and `release/**`.
 
 ## Baselines change only in a dedicated PR
 
-Baselines and `library/visual-qa-known-failures.json` shall change only in a dedicated, reviewed PR. A feature commit shall not carry them. CORE-519 re-baselined the tagged gate inside the feature commit and hid a letter-spacing regression (CORE-539). The baseline diff is the review record, so it needs its own review.
+Baselines and `corpus/visual-qa-known-failures.json` shall change only in a dedicated, reviewed PR. A feature commit shall not carry them. CORE-519 re-baselined the tagged gate inside the feature commit and hid a letter-spacing regression (CORE-539). The baseline diff is the review record, so it needs its own review.
 
 The `regress-baselines` workflow regenerates every document the nightly checks (`--role any --size all`), the same selection as `nightly.yml`.
 

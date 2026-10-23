@@ -1,5 +1,5 @@
 {
- "library/academic/conference-paper.html": {
+ "corpus/academic/conference-paper.html": {
   "coverage": 0.9885,
   "roles": {
    "Caption": 1,
@@ -18,7 +18,7 @@
    "Table": 1
   }
  },
- "library/academic/dissertation.html": {
+ "corpus/academic/dissertation.html": {
   "coverage": 0.9848,
   "roles": {
    "Caption": 20,
@@ -42,7 +42,7 @@
    "Table": 43
   }
  },
- "library/academic/journal-article.html": {
+ "corpus/academic/journal-article.html": {
   "coverage": 0.9485,
   "roles": {
    "Div": 54,
@@ -65,7 +65,7 @@
    "Table": 21
   }
  },
- "library/academic/journal-paper.html": {
+ "corpus/academic/journal-paper.html": {
   "coverage": 0.9371,
   "roles": {
    "Div": 14,
@@ -79,7 +79,7 @@
    "Table": 4
   }
  },
- "library/academic/math.html": {
+ "corpus/academic/math.html": {
   "coverage": 0.7109,
   "roles": {
    "Div": 2,
@@ -90,7 +90,7 @@
    "P": 5
   }
  },
- "library/academic/paper.html": {
+ "corpus/academic/paper.html": {
   "coverage": 0.9523,
   "roles": {
    "BlockQuote": 1,
@@ -102,7 +102,7 @@
    "P": 16
   }
  },
- "library/academic/preprint.html": {
+ "corpus/academic/preprint.html": {
   "coverage": 0.9737,
   "roles": {
    "Div": 18,
@@ -119,7 +119,7 @@
    "Table": 1
   }
  },
- "library/academic/thesis-excerpt.html": {
+ "corpus/academic/thesis-excerpt.html": {
   "coverage": 0.9021,
   "roles": {
    "Caption": 2,
@@ -137,7 +137,7 @@
    "Table": 4
   }
  },
- "library/book/book-chapter.html": {
+ "corpus/book/book-chapter.html": {
   "coverage": 0.9512,
   "roles": {
    "BlockQuote": 1,
@@ -149,7 +149,7 @@
    "P": 14
   }
  },
- "library/book/pride-and-prejudice.html": {
+ "corpus/book/pride-and-prejudice.html": {
   "coverage": 0.9954,
   "roles": {
    "Div": 637,
@@ -161,7 +161,7 @@
    "Sect": 317
   }
  },
- "library/book/prose.html": {
+ "corpus/book/prose.html": {
   "coverage": 0.9918,
   "roles": {
    "BlockQuote": 1,
@@ -172,7 +172,7 @@
    "P": 13
   }
  },
- "library/financial/credit-note.html": {
+ "corpus/financial/credit-note.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 27,
@@ -189,7 +189,7 @@
    "Table": 4
   }
  },
- "library/financial/financial-statement.html": {
+ "corpus/financial/financial-statement.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 28,
@@ -206,7 +206,7 @@
    "Table": 10
   }
  },
- "library/financial/invoice-statement.html": {
+ "corpus/financial/invoice-statement.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 10,
@@ -222,7 +222,7 @@
    "Table": 8
   }
  },
- "library/financial/invoice.html": {
+ "corpus/financial/invoice.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 13,
@@ -237,7 +237,7 @@
    "Table": 4
   }
  },
- "library/financial/multicurrency-invoice.html": {
+ "corpus/financial/multicurrency-invoice.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 16,
@@ -253,7 +253,7 @@
    "Table": 8
   }
  },
- "library/financial/proforma-invoice.html": {
+ "corpus/financial/proforma-invoice.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 29,
@@ -270,7 +270,7 @@
    "Table": 6
   }
  },
- "library/financial/recurring-billing.html": {
+ "corpus/financial/recurring-billing.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 14,
@@ -286,7 +286,7 @@
    "Table": 7
   }
  },
- "library/financial/weasyprint-invoice.html": {
+ "corpus/financial/weasyprint-invoice.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 5,
@@ -302,7 +302,7 @@
    "Table": 2
   }
  },
- "library/flyers/product-flyer.html": {
+ "corpus/flyers/product-flyer.html": {
   "coverage": 0.9368,
   "roles": {
    "Div": 15,
@@ -317,7 +317,7 @@
    "Span": 3
   }
  },
- "library/letters/business-letter.html": {
+ "corpus/letters/business-letter.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 27,
@@ -330,7 +330,7 @@
    "P": 9
   }
  },
- "library/letters/cover-letter.html": {
+ "corpus/letters/cover-letter.html": {
   "coverage": 0.9766,
   "roles": {
    "Div": 23,
@@ -338,7 +338,7 @@
    "P": 9
   }
  },
- "library/letters/formal-notice.html": {
+ "corpus/letters/formal-notice.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 34,
@@ -351,7 +351,7 @@
    "P": 5
   }
  },
- "library/letters/letterhead.html": {
+ "corpus/letters/letterhead.html": {
   "coverage": 0.9692,
   "roles": {
    "Div": 30,
@@ -360,7 +360,7 @@
    "P": 12
   }
  },
- "library/letters/memo.html": {
+ "corpus/letters/memo.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 15,
@@ -379,7 +379,7 @@
    "Table": 1
   }
  },
- "library/letters/running-letterhead.html": {
+ "corpus/letters/running-letterhead.html": {
   "coverage": 0.9754,
   "roles": {
    "Div": 10,
@@ -388,7 +388,7 @@
    "P": 13
   }
  },
- "library/letters/weasyprint-letter.html": {
+ "corpus/letters/weasyprint-letter.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 13,
@@ -396,7 +396,7 @@
    "P": 4
   }
  },
- "library/manual/data-sheet.html": {
+ "corpus/manual/data-sheet.html": {
   "coverage": 0.9871,
   "roles": {
    "Div": 18,
@@ -413,7 +413,7 @@
    "Table": 5
   }
  },
- "library/manual/field-manual.html": {
+ "corpus/manual/field-manual.html": {
   "coverage": 0.9956,
   "roles": {
    "Div": 581,
@@ -427,7 +427,7 @@
    "Sect": 211
   }
  },
- "library/manual/price-catalog.html": {
+ "corpus/manual/price-catalog.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 10,
@@ -443,7 +443,7 @@
    "Table": 9
   }
  },
- "library/manual/product-manual.html": {
+ "corpus/manual/product-manual.html": {
   "coverage": 0.9931,
   "roles": {
    "Div": 22,
@@ -464,7 +464,7 @@
    "Table": 4
   }
  },
- "library/manual/spec-sheet.html": {
+ "corpus/manual/spec-sheet.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 12,
@@ -480,7 +480,7 @@
    "Table": 4
   }
  },
- "library/posters/event-poster.html": {
+ "corpus/posters/event-poster.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 5,
@@ -489,7 +489,7 @@
    "P": 6
   }
  },
- "library/posters/poster.html": {
+ "corpus/posters/poster.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 4,
@@ -498,7 +498,7 @@
    "P": 3
   }
  },
- "library/posters/weasyprint-poster.html": {
+ "corpus/posters/weasyprint-poster.html": {
   "coverage": 0.9767,
   "roles": {
    "Art": 2,
@@ -511,7 +511,7 @@
    "Sect": 3
   }
  },
- "library/reports/analytics-digest.html": {
+ "corpus/reports/analytics-digest.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 27,
@@ -528,7 +528,7 @@
    "Table": 5
   }
  },
- "library/reports/board-report.html": {
+ "corpus/reports/board-report.html": {
   "coverage": 0.9953,
   "roles": {
    "Div": 39,
@@ -545,7 +545,7 @@
    "Table": 7
   }
  },
- "library/reports/long-report.html": {
+ "corpus/reports/long-report.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 19,
@@ -561,7 +561,7 @@
    "Table": 4
   }
  },
- "library/reports/report.html": {
+ "corpus/reports/report.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 33,
@@ -579,7 +579,7 @@
    "Table": 1
   }
  },
- "library/reports/sales-summary.html": {
+ "corpus/reports/sales-summary.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 15,
@@ -595,7 +595,7 @@
    "Table": 8
   }
  },
- "library/reports/technical-report.html": {
+ "corpus/reports/technical-report.html": {
   "coverage": 1.0,
   "roles": {
    "Caption": 3,
@@ -613,7 +613,7 @@
    "Table": 3
   }
  },
- "library/reports/weasyprint-report.html": {
+ "corpus/reports/weasyprint-report.html": {
   "coverage": 1.0,
   "roles": {
    "Art": 11,
@@ -630,7 +630,7 @@
    "Sect": 16
   }
  },
- "library/reports/whitepaper.html": {
+ "corpus/reports/whitepaper.html": {
   "coverage": 0.9725,
   "roles": {
    "Div": 32,
@@ -647,7 +647,7 @@
    "Table": 2
   }
  },
- "library/stress/float-showcase.html": {
+ "corpus/stress/float-showcase.html": {
   "coverage": 0.9478,
   "roles": {
    "Div": 22,
@@ -657,7 +657,7 @@
    "P": 14
   }
  },
- "library/stress/table-stress.html": {
+ "corpus/stress/table-stress.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 54,
@@ -672,7 +672,7 @@
    "Table": 26
   }
  },
- "library/tickets/concert-ticket.html": {
+ "corpus/tickets/concert-ticket.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 5,
@@ -681,7 +681,7 @@
    "P": 7
   }
  },
- "library/tickets/weasyprint-ticket.html": {
+ "corpus/tickets/weasyprint-ticket.html": {
   "coverage": 1.0,
   "roles": {
    "Div": 2,

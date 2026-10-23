@@ -5,9 +5,9 @@
 # Contract: docs/specifications/visual-comparison-demo.spec.md
 #   §Behavior 1-11, §Interfaces, §Acceptance Criteria.
 #
-# Output: the gallery section of library/README.md, plus the artifacts in
-# library/out/compare/ (per-page images, scoreboard.json). Documents come from
-# library/manifest.json filtered by tag (CORE-488); repros from repros/.
+# Output: the gallery section of corpus/README.md, plus the artifacts in
+# corpus/out/compare/ (per-page images, scoreboard.json). Documents come from
+# corpus/manifest.json filtered by tag (CORE-488); repros from repros/.
 # Deterministic: re-run on an unchanged tree is byte-identical except the
 # scoreboard's "generated" field.
 set -euo pipefail
@@ -30,22 +30,22 @@ fi
 ENGINE_BIN="${ENGINE_BIN:-$REPO_ROOT/engine/target/debug/typeanvil}"
 case "$ENGINE_BIN" in /*) ;; *) ENGINE_BIN="$REPO_ROOT/$ENGINE_BIN" ;; esac
 PRINCE_BIN="${PRINCE_BIN:-prince}"
-OUT="${OUT_DIR:-library/out/compare}"
+OUT="${OUT_DIR:-corpus/out/compare}"
 WORK="$OUT/.work"
 IMAGES="$OUT/images"
 RESULTS="$OUT/.results"
-# Per-document geometry comes from library/manifest.json (CORE-488); the
+# Per-document geometry comes from corpus/manifest.json (CORE-488); the
 # repro layer renders at the fixed small geometry below.
 BENCH_GEOM_FLAGS="--page-width 5in --page-height 3in --margin-top 0.5in --margin-right 0.5in --margin-bottom 0.5in --margin-left 0.5in"
-MANIFEST="library/manifest.json"
+MANIFEST="corpus/manifest.json"
 BENCH_MANIFEST="repros/manifest.json"
 # Fixtures resolve relative asset URLs (img src, @font-face url()) against
 # the process CWD on main (CORE-103 note: --base-url threading lands with
 # CORE-140's link-CSS work). Render with the fixture's own directory as CWD
 # so both engines resolve `assets/...` identically.
-LIBRARY_DIR="library"
+CORPUS_DIR="corpus"
 REPROS_DIR="repros"
-README_OUT="library/out/compare/gallery.md"
+README_OUT="corpus/out/compare/gallery.md"
 
 usage() {
   cat <<'EOF'
@@ -56,7 +56,7 @@ usage: build-demo.sh [--role R] [--size S] [--oracle O] [--category C]
                    (the Prince comparison set). Filtered builds are partial:
                    --guard and the gallery splice only make sense unfiltered.
   --keep-work      keep .work/.results dirs (default: cleaned at exit)
-  --validate       validate library/out/compare/scoreboard.json after building
+  --validate       validate corpus/out/compare/scoreboard.json after building
   --guard          check scoreboard movement against committed version
 EOF
 }
@@ -93,7 +93,7 @@ FILTER_ARGS=()
 [ -n "$CATEGORY" ] && FILTER_ARGS+=(--category "$CATEGORY")
 
 if ! command -v "$PRINCE_BIN" >/dev/null 2>&1; then
-  echo "error: Prince binary not found ('$PRINCE_BIN'). Install per library/README.md (brew install --cask prince; ./install.sh /opt/homebrew)." >&2
+  echo "error: Prince binary not found ('$PRINCE_BIN'). Install per corpus/README.md (brew install --cask prince; ./install.sh /opt/homebrew)." >&2
   exit 2
 fi
 
@@ -142,7 +142,7 @@ echo "corpus: ${#entries[@]} doc(s)"
 
 # Determinism mode: first pass to a side dir, compare against the second.
 if [ "$DO_DETERMINISM" = "1" ]; then
-  BASELINE="library/out/compare.baseline"
+  BASELINE="corpus/out/compare.baseline"
   rm -rf "$BASELINE"
   echo "== determinism pass 1 (baseline) =="
 fi
@@ -152,13 +152,13 @@ FAILED=0
 idx=-1
 for entry in "${entries[@]}"; do
   idx=$((idx + 1))
-  rel="${entry%%|*}"          # <category>/<doc>.html, relative to library/
+  rel="${entry%%|*}"          # <category>/<doc>.html, relative to corpus/
   name="${entry##*|}"
   GEOM_FLAGS="${geoms[$idx]}"
   file="$(basename "$rel")"
   base="${file%.html}"
-  html="$LIBRARY_DIR/$rel"
-  fixture_dir="$LIBRARY_DIR/$(dirname "$rel")"
+  html="$CORPUS_DIR/$rel"
+  fixture_dir="$CORPUS_DIR/$(dirname "$rel")"
 
   ta_pdf="$WORK/$base-ta.pdf"
   pr_pdf="$WORK/$base-pr.pdf"
@@ -264,19 +264,19 @@ done
 
 echo
 
-# Determinism mode: build into library/out/compare.baseline, then build into
-# library/out/compare, then byte-compare the two trees (except scoreboard's
+# Determinism mode: build into corpus/out/compare.baseline, then build into
+# corpus/out/compare, then byte-compare the two trees (except scoreboard's
 # "generated" field).
 if [ "$DO_DETERMINISM" = "1" ]; then
   if [ -n "${BUILD_PASS:-}" ]; then
     echo "error: --determinism cannot be combined with BUILD_PASS" >&2
     exit 2
   fi
-  BASELINE="library/out/compare.baseline"
+  BASELINE="corpus/out/compare.baseline"
   rm -rf "$BASELINE"
   echo "== determinism pass 1 (baseline) =="
   OUT_DIR="$BASELINE" BUILD_PASS=1 "$0" --keep-work ${FILTER_ARGS[@]+"${FILTER_ARGS[@]}"}
-  # The generated gallery lives in library/README.md, not inside out/, so
+  # The generated gallery lives in corpus/README.md, not inside out/, so
   # snapshot it here and byte-compare it after pass 2 as well.
   README_SNAP="$(mktemp -t typeanvil-readme)"
   cp "$README_OUT" "$README_SNAP"

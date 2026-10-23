@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the deterministic concert-ticket assets (CORE-492).
 
-Writes into library/tickets/assets/:
+Writes into corpus/tickets/assets/:
   ticket-qr.svg    - QR code (vector) for the ticket, made with segno
   ticket-qr.png    - the same code as PNG, for the raster fallback probe
   ticket-art.png   - stylized stage artwork (gradient + beams + sun disc)

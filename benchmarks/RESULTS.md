@@ -4,7 +4,7 @@ Generated 2026-10-19T05:20:27Z · TypeAnvil `599a143` (release profile) · Princ
 
 Environment: Apple M4, 16 GB RAM, macOS (macOS-26.5-arm64-arm-64bit-Mach-O )
 
-Method: each fixture rendered at the geometry its `library/manifest.json` entry declares (the small corpus uses 5in x 3in pages, 0.5in margins; heavy and visual documents use their real page size). Release-time measurement: same host, TypeAnvil release profile. WeasyPrint uses a matching @page stylesheet; Headless Chrome receives a prepared copy of the fixture with a `<base href>` for relative assets and the same @page rule appended. 1 warmup run discarded, then 5 timed runs; wall-clock is the median, single-process memory is `/usr/bin/time -l`, process-tree memory is sampled over the whole process group. Process spawn cost included for all engines.
+Method: each fixture rendered at the geometry its `corpus/manifest.json` entry declares (the small corpus uses 5in x 3in pages, 0.5in margins; heavy and visual documents use their real page size). Release-time measurement: same host, TypeAnvil release profile. WeasyPrint uses a matching @page stylesheet; Headless Chrome receives a prepared copy of the fixture with a `<base href>` for relative assets and the same @page rule appended. 1 warmup run discarded, then 5 timed runs; wall-clock is the median, single-process memory is `/usr/bin/time -l`, process-tree memory is sampled over the whole process group. Process spawn cost included for all engines.
 
 Skipped: WeasyPrint / Book Chapter — The Cartography of Rivers — WeasyPrint 70.0 AssertionError in float_layout (upstream)
 

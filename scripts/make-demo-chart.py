@@ -38,5 +38,5 @@ for i, (m, v) in enumerate(zip(months, values)):
     d.text((x + bar_w // 2 - 8 * SCALE, bottom + 8 * SCALE), m, fill="#333333")
 
 img = img.resize((W, H), Image.Resampling.LANCZOS)
-img.save("library/reports/assets/report-q3-revenue.png", optimize=True)
+img.save("corpus/reports/assets/report-q3-revenue.png", optimize=True)
 print("chart written")

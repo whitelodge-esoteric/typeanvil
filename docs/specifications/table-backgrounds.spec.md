@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-08-20
-updated: 2026-10-14
+updated: 2026-10-23
 sidebar_position: 16
 tags: [layout, tables, css-tables, backgrounds, engine]
 spec_id: table-backgrounds
@@ -138,6 +138,6 @@ borders before text).
 
 ## References
 
-- `library/TRIAGE.md` — pixel-scan evidence and minimal repros.
+- `corpus/TRIAGE.md` — pixel-scan evidence and minimal repros.
 - `engine/src/layout.rs` — table cell, row, and group background fragments.
 - css-tables-3 §16.2 (table painting order).

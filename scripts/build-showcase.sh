@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # build-showcase.sh — render the showcase fixtures through TypeAnvil at
 # realistic print geometry (US Letter @ 300 DPI) and assemble the markdown
-# gallery written into library/SHOWCASE.md (CORE-148).
+# gallery written into corpus/SHOWCASE.md (CORE-148).
 #
 # CORE-217 adds an ADDITIVE, unstressed Prince reference overlay: every
 # fixture is also rendered through host Prince at the identical geometry and
-# rasterized into page-NNN-pr.png, plus library/out/showcase/inspect.md — a
+# rasterized into page-NNN-pr.png, plus corpus/out/showcase/inspect.md — a
 # per-page TypeAnvil | Prince side-by-side that is NOT scored and NOT part of
 # the gallery. A Prince failure never aborts the build.
 #
@@ -48,17 +48,17 @@ if [ -z "${PRINCE_BIN:-}" ]; then
 fi
 # render-prince.sh reads PRINCE_BIN from the environment.
 export PRINCE_BIN
-LIBRARY_DIR="library"
-OUT="library/out/showcase"
+CORPUS_DIR="corpus"
+OUT="corpus/out/showcase"
 WORK="$OUT/.work"
 IMAGES="$OUT/images"
-MANIFEST="library/manifest.json"
-SHOWCASE_README="library/out/showcase/gallery.md"
+MANIFEST="corpus/manifest.json"
+SHOWCASE_README="corpus/out/showcase/gallery.md"
 MARKER="<!-- BEGIN GENERATED SHOWCASE -->"
 # Unstressed Prince reference overlay (CORE-217). Lives inside out/ so the
 # existing check-determinism walk covers it; never spliced into the README.
 INSPECT="$OUT/inspect.md"
-# Per-document geometry comes from library/manifest.json (CORE-488); the
+# Per-document geometry comes from corpus/manifest.json (CORE-488); the
 # showcase documents declare US Letter with 0.75in margins. Fixture-internal
 # @page rules (e.g. the poster's 0in margins) override per @page cascade.
 DPI=300
@@ -72,11 +72,11 @@ usage: build-showcase.sh [--role R] [--size S] [--oracle O] [--category C]
                    manifest tag filters; default --role showcase
   --dry-run        print the exact render commands without running them
   --keep-work      keep .work dir (default: cleaned at exit)
-  --determinism    build twice and byte-compare library/out/showcase
+  --determinism    build twice and byte-compare corpus/out/showcase
 
 Each fixture renders through TypeAnvil (the gallery) and, additively, through
 host Prince (the unstressed reference overlay written as page-NNN-pr.png plus
-library/out/showcase/inspect.md). A Prince failure is recorded, never fatal.
+corpus/out/showcase/inspect.md). A Prince failure is recorded, never fatal.
 EOF
 }
 
@@ -141,11 +141,11 @@ PRINCE_FAILED=0
 idx=-1
 for entry in "${entries[@]}"; do
   idx=$((idx + 1))
-  rel="${entry%%|*}"          # <category>/<doc>.html, relative to library/
+  rel="${entry%%|*}"          # <category>/<doc>.html, relative to corpus/
   name="${entry##*|}"
   GEOM_FLAGS="${geoms[$idx]}"
   file="$(basename "$rel")"
-  fixture_dir="$LIBRARY_DIR/$(dirname "$rel")"
+  fixture_dir="$CORPUS_DIR/$(dirname "$rel")"
   base="${file%.html}"
   ta_pdf="$WORK/$base-ta.pdf"
 
@@ -221,7 +221,7 @@ for entry in "${entries[@]}"; do
   rel="${entry%%|*}"
   GEOM_FLAGS="${geoms[$idx]}"
   file="$(basename "$rel")"
-  fixture_dir="$LIBRARY_DIR/$(dirname "$rel")"
+  fixture_dir="$CORPUS_DIR/$(dirname "$rel")"
   base="${file%.html}"
   pr_pdf="$WORK/$base-pr.pdf"
   pr_dir="$IMAGES/$base"
@@ -294,10 +294,10 @@ fi
 
 # Determinism mode: byte-compare two consecutive builds (spec §Behavior 5).
 if [ "$DO_DETERMINISM" = "1" ]; then
-  BASELINE="library/out/showcase.baseline"
+  BASELINE="corpus/out/showcase.baseline"
   rm -rf "$BASELINE"
   cp -R "$OUT" "$BASELINE"
-  # The generated gallery lives in library/SHOWCASE.md, not inside out/,
+  # The generated gallery lives in corpus/SHOWCASE.md, not inside out/,
   # so snapshot it here and byte-compare it after the rebuild as well.
   README_SNAP="$(mktemp -t typeanvil-showcase-readme)"
   cp "$SHOWCASE_README" "$README_SNAP"

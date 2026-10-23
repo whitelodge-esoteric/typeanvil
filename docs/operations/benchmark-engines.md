@@ -4,7 +4,7 @@ type: runbook
 status: approved
 owner: maintainers
 created: 2026-08-25
-updated: 2026-10-17
+updated: 2026-10-23
 sidebar_position: 2
 tags: [benchmark, performance, prince, weasyprint, chrome]
 ---
@@ -26,7 +26,7 @@ cargo build --release --manifest-path engine/Cargo.toml
 python3 scripts/benchmark.py --runs 5
 ```
 
-Prerequisites: `prince` on PATH (see library/README.md), the `weasyprint`
+Prerequisites: `prince` on PATH (see corpus/README.md), the `weasyprint`
 CLI (`uv tool install weasyprint`, plus `brew install pango`; see
 [Installing WeasyPrint](#installing-weasyprint)), and `chrome-headless-shell`
 (see [Headless Chrome](#headless-chrome)).
@@ -68,7 +68,7 @@ for TypeAnvil, so a 20 ms render of a small fixture mostly times the spawn.
 The `perf` run therefore adds three things:
 
 1. **Real geometry.** Each document renders at the page size its
-   `library/manifest.json` `geometry` entry declares (Letter, A4, 6×9, the
+   `corpus/manifest.json` `geometry` entry declares (Letter, A4, 6×9, the
    8×3.2in ticket). The forced 5×3in page applies only to documents that
    declare it. The `perf` role includes the `visual` documents (poster,
    ticket, flyer).
@@ -224,7 +224,7 @@ variable rather than relying on inheritance.
 - A failed render is reported loudly (`FAILURES: ...`) and sets a non-zero
   exit code. Do not commit results containing failures.
 - **Known upstream crash (verified CORE-318):** WeasyPrint 70.0 crashes with an
-  `AssertionError` in its `float_layout` on `library/book/book-chapter.html`
+  `AssertionError` in its `float_layout` on `corpus/book/book-chapter.html`
   (drop-cap `::first-letter` float interacting with `float: footnote`). Prince
   and TypeAnvil render it. The WeasyPrint leg therefore SKIPS that fixture
   automatically — `WEASY_KNOWN_CRASHES` in `scripts/benchmark.py` — and reports

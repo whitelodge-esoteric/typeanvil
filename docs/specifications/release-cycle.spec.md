@@ -4,7 +4,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-23
 slug: /specifications/release-cycle
 sidebar_position: 46
 tags: [release, ci, automation, calver]
@@ -27,7 +27,7 @@ dependencies:
 
 - DECIDED 2026-10-17 (user): cadence is weekly. A week with no new commits since the last tag produces no release.
 - DECIDED 2026-10-17 (user): the tag goes on `release/YYYY.M`. Promotion to `main` happens at the monthly rotation.
-- DECIDED 2026-10-17 (agent): the preconditions are a green `ci` workflow run and a green `nightly` commit status on the exact tip. A missing nightly status counts as not green. Why: the nightly is the only run that renders every library document.
+- DECIDED 2026-10-17 (agent): the preconditions are a green `ci` workflow run and a green `nightly` commit status on the exact tip. A missing nightly status counts as not green. Why: the nightly is the only run that renders every corpus document.
 - DECIDED 2026-10-17 (agent): the tag is pushed with a `RELEASE_BOT_TOKEN` secret. Why: a tag pushed with `GITHUB_TOKEN` does not start other workflows.
 - DECIDED 2026-10-17 (agent): promotion is a fast-forward only. If `main` has commits the release branch lacks, the job opens an issue and stops. Why: the branch rules forbid force pushes.
 
