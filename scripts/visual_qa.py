@@ -207,13 +207,43 @@ def check_ink_row_overlap(page_img: Image.Image,
     }
 
 
-def check_page_box_overflow(page_img: Image.Image, content_box: Tuple[int, int, int, int]) -> Dict[str, Any]:
+BLEED_TOL = 8  # max per-channel residual for a white/bleed-colour blend
+
+
+def _bleed_mask(rgb, bleed_colors: List[str]):
+    """Pixels that are a declared bleed colour or its anti-aliased blend
+    with the white page (CORE-546)."""
+    import numpy as np
+
+    px = rgb.astype(np.float64)
+    mask = np.zeros(rgb.shape[:2], dtype=bool)
+    for color in bleed_colors:
+        h = color.lstrip('#')
+        c = np.array([int(h[i:i + 2], 16) for i in (0, 2, 4)], dtype=np.float64)
+        span = 255.0 - c
+        k = int(np.argmax(span))
+        if span[k] == 0:
+            continue
+        # Blend weight from the channel with the widest white-to-colour span.
+        t = np.clip((255.0 - px[..., k]) / span[k], 0.0, 1.0)
+        expected = 255.0 - t[..., None] * span
+        mask |= np.abs(px - expected).max(axis=-1) <= BLEED_TOL
+    return mask
+
+
+def check_page_box_overflow(page_img: Image.Image, content_box: Tuple[int, int, int, int],
+                            bleed_colors: List[str] | None = None) -> Dict[str, Any]:
     """Check for ink escaping the physical page (MediaBox overflow).
 
     The boundary is the media box (the full page), so in-band margin-box
     content (running heads, footers, full-bleed) is legal by design. Ink
     within OVERFLOW_EDGE_TOL px of the page edge is a real clip/overflow
     (the rasterizer clips exactly at this edge).
+
+    `bleed_colors` (manifest `edge_bleed.colors`, CORE-546) lists fills the
+    fixture's design bleeds to the page edge on purpose. Edge pixels in one
+    of those colours, or anti-aliased between it and white, are legal; any
+    other edge ink (text, rules, other fills) still fails.
     """
     import numpy as np
 
@@ -230,13 +260,35 @@ def check_page_box_overflow(page_img: Image.Image, content_box: Tuple[int, int, 
     edge[max(height - band, 0):, :] = True
     edge[:, :band] = True
     edge[:, max(width - band, 0):] = True
+    ink = edge & (gray < 250)
+    if bleed_colors:
+        ink &= ~_bleed_mask(np.asarray(page_img.convert('RGB')), bleed_colors)
     # np.argwhere is row-major, matching the old y-then-x scan order.
-    hits = np.argwhere(edge & (gray < 250))
+    hits = np.argwhere(ink)
     violations = [{"x": int(x), "y": int(y)} for y, x in hits[:10]]
     return {
         "pass": len(hits) == 0,
         "violations": violations
     }
+
+
+def edge_bleed_colors(entry: Dict[str, Any]) -> List[str]:
+    """Bleed colours a manifest entry declares (`edge_bleed`, CORE-546).
+
+    `edge_bleed` is `{"colors": ["#rrggbb", ...], "reason": "..."}`. The
+    reason is required: an exemption without a recorded design intent is
+    rejected so a real overflow cannot hide behind an unexplained allowance.
+    """
+    bleed = entry.get("edge_bleed")
+    if not bleed:
+        return []
+    colors = bleed.get("colors") or []
+    if not str(bleed.get("reason", "")).strip():
+        raise ValueError(f"{entry.get('file')}: edge_bleed needs a reason")
+    for c in colors:
+        if not re.fullmatch(r"#[0-9a-fA-F]{6}", c):
+            raise ValueError(f"{entry.get('file')}: bad edge_bleed colour {c!r}")
+    return [c.lower() for c in colors]
 
 
 def fixture_is_full_bleed(source_html: str) -> bool:
@@ -659,6 +711,7 @@ def run_visual_qa(
         full_bleed = fixture_is_full_bleed(
             (fixtures_dir / file_name).read_text(encoding="utf-8")
         )
+        bleed_colors = edge_bleed_colors(entry)
 
         engines = ['ta', 'pr'] if check_pr else (['ta'] if track == 'showcase' else ['ta', 'pr'])
         for engine in engines:
@@ -685,6 +738,11 @@ def run_visual_qa(
                     page_img, "", source_text, content_box,
                     pdf_path=str(pdf_path), page_index=page_index - 1,
                 )
+                if bleed_colors and not checks_result["overflow"]["pass"]:
+                    # Declared design bleed (manifest edge_bleed, CORE-546).
+                    checks_result["overflow"] = check_page_box_overflow(
+                        page_img, content_box, bleed_colors)
+                    checks_result["overflow"]["bleed_colors"] = bleed_colors
                 if full_bleed:
                     # Full-bleed fixtures paint to the page edge by design;
                     # the overflow check does not apply (all other checks do).

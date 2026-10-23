@@ -59,6 +59,52 @@ def test_full_bleed_nested_margin_box():
     assert vq.fixture_is_full_bleed(html)
 
 
+def _band_page(color, ink_color=None):
+    # A4 at 300 dpi with a full-width band touching both edges, plus an
+    # anti-aliased edge row (half-blend with white).
+    img = Image.new("RGB", (2481, 3508), "white")
+    for x in range(2481):
+        for y in range(800, 806):
+            img.putpixel((x, y), color)
+        img.putpixel((x, 799), tuple((255 + c) // 2 for c in color))
+    if ink_color:
+        img.putpixel((0, 2000), ink_color)
+    return img
+
+
+YELLOW = (0xfb, 0xc8, 0x47)
+
+
+def test_declared_bleed_color_at_edge_passes():
+    # CORE-546: weasyprint-report's yellow bands bleed by design.
+    img = _band_page(YELLOW)
+    assert not vq.check_page_box_overflow(img, LETTER_BOX)["pass"]
+    assert vq.check_page_box_overflow(img, LETTER_BOX, ["#fbc847"])["pass"]
+
+
+def test_bleed_allowance_still_flags_other_ink():
+    img = _band_page(YELLOW, ink_color=(0x39, 0x39, 0x39))  # body text grey
+    res = vq.check_page_box_overflow(img, LETTER_BOX, ["#fbc847"])
+    assert not res["pass"]
+    assert res["violations"] == [{"x": 0, "y": 2000}]
+
+
+def test_bleed_allowance_rejects_other_fill():
+    img = _band_page((0x20, 0x60, 0xc0))
+    assert not vq.check_page_box_overflow(img, LETTER_BOX, ["#fbc847"])["pass"]
+
+
+def test_edge_bleed_colors_requires_reason():
+    import pytest
+    assert vq.edge_bleed_colors({"file": "a"}) == []
+    assert vq.edge_bleed_colors(
+        {"file": "a", "edge_bleed": {"colors": ["#FBC847"], "reason": "band"}}) == ["#fbc847"]
+    with pytest.raises(ValueError):
+        vq.edge_bleed_colors({"file": "a", "edge_bleed": {"colors": ["#fbc847"]}})
+    with pytest.raises(ValueError):
+        vq.edge_bleed_colors({"file": "a", "edge_bleed": {"colors": ["red"], "reason": "x"}})
+
+
 def test_roundtrip_folds_math_alphanumerics():
     # CORE-541: MathML <mi> letters extract as Unicode math italic.
     pdf = "mass \U0001D45A at speed \U0001D463 and the angle \U0001D703 acts"
@@ -95,7 +141,8 @@ def test_committed_list_cites_issues_and_seeds_five_failures():
     # were removed when CORE-532 fixed the fixture; the weasyprint-invoice
     # entry was removed by CORE-545. The weasyprint-ticket entry was
     # re-pointed at CORE-558, which removed it when the flex item base size
-    # started to include padding.
+    # started to include padding. The two weasyprint-report overflow entries
+    # were removed by CORE-546 (declared edge_bleed in the manifest).
     entries = vq.load_known_failures()
-    assert len(entries) == 3
+    assert len(entries) == 1
     assert all(e["issue"].startswith("CORE-") for e in entries)

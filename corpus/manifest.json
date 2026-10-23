@@ -1312,6 +1312,12 @@
     "oracle": "weasyprint",
     "source": "https://github.com/CourtBouillon/weasyprint-samples (adapted)",
     "license": "public-domain samples; vendored fonts per LICENSES.md",
+    "edge_bleed": {
+      "colors": [
+        "#fbc847"
+      ],
+      "reason": "CORE-546: the cover addresses (margin: 0 -2cm) and the #skills h3 band (margin: 0 -3cm; width: 21cm) are yellow bands the sample's author bleeds to the page edges; WeasyPrint's own render paints the same bands edge to edge"
+    },
     "wedge_features": [
       "paged-media-css",
       "fragmentation-core",
