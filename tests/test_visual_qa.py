@@ -90,7 +90,9 @@ def test_listed_entry_that_passes_is_stale():
     assert [e["file"] for e in rec["stale"]] == ["a.html"]
 
 
-def test_committed_list_cites_issues_and_seeds_seven_failures():
+def test_committed_list_cites_issues_and_seeds_five_failures():
+    # Seven seeded by CORE-549; the two journal-article entries (CORE-544)
+    # were removed when CORE-532 fixed the fixture.
     entries = vq.load_known_failures()
-    assert len(entries) == 7
+    assert len(entries) == 5
     assert all(e["issue"].startswith("CORE-") for e in entries)
