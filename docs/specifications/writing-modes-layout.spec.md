@@ -411,6 +411,49 @@ impl Frame {
 Signatures are a starting contract. A child may change a signature only by
 editing this section in the same PR.
 
+## Implementation notes — child 1/5 (CORE-552, landed 2026-10-23)
+
+**DECIDED 2026-10-23 (agent):** Behavior 16 is implemented through stylo, not
+a second hand-written mapper. The engine sets the stylo pref
+`layout.writing-mode.enabled` in `Stylesheet::parse`. With it on, the servo
+build resolves `inline-size`, `block-size`, `min-/max-*`, `margin-*`,
+`padding-*` and logical insets onto the physical `ComputedStyle` fields, per
+element, against that element's own mode and direction. Why: the earlier
+claim that stylo "returns the initial writing-mode" described the pref being
+off. The pref route follows the "prefer stylo" ruling and keeps one mapping.
+
+Three gaps stay in the engine's own passes:
+
+- **`sideways-rl` / `sideways-lr`.** The servo build rejects both keywords.
+  For the stylo walk only, `css.rs::logical_sizing::rewrite_sideways` reads
+  `sideways-rl` as `vertical-rl` and `sideways-lr` as `vertical-lr` with
+  `direction: rtl`. Later passes keep the original text and record the true
+  mode. The rewrite touches only declarations: a `writing-mode` value and a
+  `margin-block-*` property name. Comments, strings and selectors pass
+  through unchanged. `margin-block-*` is rewritten only when the document
+  names a vertical mode. A non-sideways-lr child of a sideways-lr box
+  inherits the stand-in `rtl`. The cascade pins that child's true direction
+  and walks again, so a `horizontal-tb` subtree keeps its own inline edges
+  (test `horizontal_subtree_in_sideways_lr_keeps_its_direction`).
+  `restore_sideways_lr_direction` then flips `rtl` back on the sideways-lr
+  boxes.
+- **Logical borders and viewport units.** The border pass and the
+  viewport-unit pass map `border-{block,inline}-*` and `inline-size` /
+  `block-size` in `vw`/`vh` by the mode in effect (`mode_at`).
+- **Block-axis margins are deferred to CORE-553.** In a vertical mode,
+  `margin-block-start/end` keep the `top`/`bottom` slots until progression
+  moves to x. Mapping them early turns `margin-block-end: 999in`
+  (`page-name-orthogonal-writing-002` ref) into a zero-width box that drops its
+  text. Test: `writing_modes.rs::block_margins_in_vertical_modes_are_deferred_to_core553`.
+  CORE-553 flips it in the same change as the frame swap. The item is
+  recorded in CORE-553's Done when, and CORE-552's Done when is narrowed to
+  match (2026-10-23).
+
+Unchanged by this child: the layout code still reads physical fields and has
+no `inline_extent()` accessor yet. The `Dimension` type and the
+`PageWritingMode` helpers (`block_is_horizontal`, `block_runs_negative`,
+`inline_runs_negative`) are in `css.rs`. Tests: `engine/tests/it/writing_modes.rs`.
+
 ## Child issue map
 
 | Child | Issue | Owns behaviors | Depends on |

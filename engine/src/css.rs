@@ -994,6 +994,46 @@ impl PageWritingMode {
     pub fn is_vertical(self) -> bool {
         !matches!(self, PageWritingMode::HorizontalTb)
     }
+
+    /// Alias of [`Self::is_vertical`] named for the axis it answers
+    /// (writing-modes-layout.spec.md Interfaces): the BLOCK axis is the
+    /// horizontal physical axis in every mode except `horizontal-tb`.
+    pub fn block_is_horizontal(self) -> bool {
+        self.is_vertical()
+    }
+
+    /// True when blocks stack toward the physical left (`vertical-rl`,
+    /// `sideways-rl`).
+    pub fn block_runs_negative(self) -> bool {
+        matches!(self, PageWritingMode::VerticalRl | PageWritingMode::SidewaysRl)
+    }
+
+    /// True when the INLINE axis runs toward the physical left (horizontal
+    /// modes) or top (vertical modes). In `horizontal-tb` that is `rtl`; in
+    /// the vertical modes it is `sideways-lr` XOR `rtl` (css-writing-modes-3
+    /// §3.1, §2.1).
+    pub fn inline_runs_negative(self, rtl: bool) -> bool {
+        match self {
+            PageWritingMode::HorizontalTb => rtl,
+            PageWritingMode::SidewaysLr => !rtl,
+            _ => rtl,
+        }
+    }
+}
+
+/// A resolved-or-deferred box dimension (writing-modes-layout.spec.md,
+/// Behavior 16–18): an absolute length, a 0..=1 containing-block fraction or
+/// a page-box viewport fraction. All `None` = `auto`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Dimension {
+    pub length: Option<Scalar>,
+    pub percent: Option<f64>,
+    pub viewport: Option<ViewportLen>,
+}
+
+impl Dimension {
+    /// `auto`.
+    pub const AUTO: Dimension = Dimension { length: None, percent: None, viewport: None };
 }
 
 /// A `min-*` / `max-*` size limit (CORE-388): an absolute length in points or
@@ -1696,6 +1736,10 @@ impl Stylesheet {
         static_prefs::set_pref!("layout.columns.enabled", true);
         // display:grid / grid-template-* are likewise pref-gated (CORE-139).
         static_prefs::set_pref!("layout.grid.enabled", true);
+        // `writing-mode` is pref-gated too (CORE-552): with it on, stylo
+        // resolves logical properties (inline-size, margin-inline-*, ...)
+        // against each element's OWN computed mode and direction.
+        static_prefs::set_pref!("layout.writing-mode.enabled", true);
         Stylesheet {
             css: css.to_string(),
         }
@@ -3083,30 +3127,108 @@ pub(crate) fn cascade_evaluated(
     apply_font_face_rules(evaluated_css);
     let lock = SharedRwLock::new();
     let mut backend = TyBackend::new(dom, &lock);
-    let mut session = CascadeSession::new(&lock, evaluated_css, geometry);
     let mut styles = vec![ComputedStyle::initial(); dom.nodes.len()];
-    // Pre-order walk: parents are resolved before children, and the parent's
-    // `ComputedValues` is threaded down explicitly (the element-data map on
-    // the backend is not needed for inheritance in this path).
-    walk(
-        &backend,
-        &mut session,
-        dom.root,
-        None,
-        None,
-        &mut styles,
-    );
-    // Second pass: fill the css-break longhands stylo's servo build omits.
-    breaks::apply_break_properties(&backend, evaluated_css, &mut styles);
-    // Third pass: fill paged-media properties (page / string-set / counters /
-    // content / bookmark-*). The UA sheet's element rules (CORE-128 heading
-    // bookmark defaults) join at UA origin — any author rule wins.
-    paged_props::apply_paged_properties(
-        &backend,
-        evaluated_css,
-        CascadeSession::UA_CSS,
-        &mut styles,
-    );
+    let rewrote_sideways;
+    {
+        // CORE-552: stylo's servo build rejects `sideways-rl|lr`, so the
+        // logical-property mapping would stay horizontal for them. Give the
+        // stylo walk a view where `sideways-rl` reads `vertical-rl` and
+        // `sideways-lr` reads `vertical-lr` + `direction: rtl` (same block
+        // and inline axes, css-writing-modes-3 §3.1). Every later pass keeps
+        // the ORIGINAL text, so the engine's own pass still records the true
+        // mode. Skipped (no copy) when the document has no sideways mode.
+        // A vertical mode anywhere (sheet or attribute) lets an attribute's
+        // `margin-block-*` need the stand-in, so the check sees both.
+        let any_vertical = {
+            let l = evaluated_css.to_ascii_lowercase();
+            l.contains("vertical-") || l.contains("sideways-")
+        } || dom.nodes.iter().any(|n| {
+            n.kind.element().and_then(|e| e.attr("style")).is_some_and(|s| {
+                let l = s.to_ascii_lowercase();
+                l.contains("vertical-") || l.contains("sideways-")
+            })
+        });
+        let needs = |s: &str| {
+            let l = s.to_ascii_lowercase();
+            l.contains("sideways-") || (any_vertical && l.contains("margin-block-"))
+        };
+        let any_attr = dom.nodes.iter().any(|n| {
+            n.kind.element().and_then(|e| e.attr("style")).is_some_and(needs)
+        });
+        rewrote_sideways = any_attr || needs(evaluated_css);
+        // `pins`: (element, rtl) direction overrides for the stylo walk.
+        let run = |pins: &[(NodeId, bool)], styles: &mut Vec<ComputedStyle>| {
+            let walk_dom;
+            let walk_backend;
+            let (wb, css_for_walk): (&TyBackend<'_>, std::borrow::Cow<'_, str>) =
+                if rewrote_sideways {
+                    let mut nodes = dom.nodes.clone();
+                    for n in nodes.iter_mut() {
+                        if let NodeKind::Element(e) = &mut n.kind {
+                            for (k, v) in e.attrs.iter_mut() {
+                                if k == "style" {
+                                    if let Some(r) =
+                                        logical_sizing::rewrite_sideways(v, any_vertical)
+                                    {
+                                        *v = r;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    for &(id, rtl) in pins {
+                        logical_sizing::pin_direction(&mut nodes[id], rtl);
+                    }
+                    walk_dom = Dom { nodes, root: dom.root };
+                    walk_backend = TyBackend::new(&walk_dom, &lock);
+                    (
+                        &walk_backend,
+                        std::borrow::Cow::Owned(
+                            logical_sizing::rewrite_sideways(evaluated_css, any_vertical)
+                                .unwrap_or_else(|| evaluated_css.to_string()),
+                        ),
+                    )
+                } else {
+                    (&backend, std::borrow::Cow::Borrowed(evaluated_css))
+                };
+            *styles = vec![ComputedStyle::initial(); dom.nodes.len()];
+            let mut session = CascadeSession::new(&lock, &css_for_walk, geometry);
+            // Pre-order walk: parents are resolved before children, and the
+            // parent's `ComputedValues` is threaded down explicitly (the
+            // element-data map on the backend is not needed for inheritance
+            // in this path).
+            walk(wb, &mut session, dom.root, None, None, styles);
+            // Second pass: fill the css-break longhands stylo's servo build
+            // omits.
+            breaks::apply_break_properties(&backend, evaluated_css, styles);
+            // Third pass: fill paged-media properties (page / string-set /
+            // counters / content / bookmark-*). The UA sheet's element rules
+            // (CORE-128 heading bookmark defaults) join at UA origin — any
+            // author rule wins.
+            paged_props::apply_paged_properties(
+                &backend,
+                evaluated_css,
+                CascadeSession::UA_CSS,
+                styles,
+            );
+        };
+        run(&[], &mut styles);
+        // CORE-552: a non-sideways-lr child of a sideways-lr box inherited
+        // the stand-in `rtl`, and stylo already mirrored its logical edges.
+        // Pin its true direction and walk again, so that subtree resolves
+        // with its own direction.
+        if rewrote_sideways {
+            let pins = logical_sizing::sideways_lr_boundary_pins(dom, &styles);
+            if !pins.is_empty() {
+                run(&pins, &mut styles);
+            }
+        }
+    }
+    // CORE-552: undo the `direction: rtl` the sideways-lr stand-in injected
+    // for the stylo walk, now that each element's true mode is recorded.
+    if rewrote_sideways {
+        logical_sizing::restore_sideways_lr_direction(dom, &mut styles);
+    }
     // Fourth pass: fill border widths/colors (CORE-61 tables; the engine's
     // ComputedStyle carries borders for border-collapse rendering).
     borders::apply_border_properties(&backend, evaluated_css, &mut styles);
@@ -3128,6 +3250,289 @@ pub(crate) fn cascade_evaluated(
         icb.height,
     );
     styles
+}
+
+/// Logical-sizing helpers (CORE-552, writing-modes-layout.spec.md Behaviors
+/// 16-23).
+///
+/// With `layout.writing-mode.enabled` on, stylo resolves `inline-size`,
+/// `block-size`, `min-/max-*`, `margin/padding-inline|block-*` and the logical
+/// borders/insets onto PHYSICAL fields against each element's own computed
+/// mode and direction. That covers `vertical-rl|lr`. The servo build rejects
+/// `sideways-rl|lr`, so they are rewritten for the stylo walk only.
+mod logical_sizing {
+    use super::{ComputedStyle, PageWritingMode};
+    use crate::dom::{Dom, NodeId};
+
+    /// `sideways-rl` has the axes of `vertical-rl`; `sideways-lr` has those of
+    /// `vertical-lr` with the inline axis reversed (bottom-to-top), which
+    /// `direction: rtl` reproduces for the edge mapping.
+    /// `None` when `text` mentions no sideways mode.
+    ///
+    /// The rewrite is declaration-aware: it touches only a `margin-block-*`
+    /// PROPERTY NAME and a `sideways-*` keyword inside a `writing-mode`
+    /// VALUE. Comments, strings (`content: "sideways-lr"`), selectors and
+    /// other values pass through unchanged.
+    /// `doc_vertical`: the document declares a vertical mode somewhere, so
+    /// `margin-block-*` needs the stand-in even where `text` itself names
+    /// no mode (a style attribute inside a vertical subtree).
+    pub(super) fn rewrite_sideways(text: &str, doc_vertical: bool) -> Option<String> {
+        let lower = text.to_ascii_lowercase();
+        let has_sideways = lower.contains("sideways-");
+        let has_vertical = doc_vertical || has_sideways || lower.contains("vertical-");
+        // `margin-block-*` needs the stand-in only where a vertical mode can
+        // apply; in horizontal-tb block-start/end already are top/bottom.
+        if !has_sideways && !(has_vertical && lower.contains("margin-block-")) {
+            return None;
+        }
+        // ASCII-only scanning keeps byte offsets identical, so the
+        // lowercase copy indexes the original.
+        let b = lower.as_bytes();
+        let mut out = String::with_capacity(text.len() + 16);
+        let mut i = 0;
+        // `true` where a declaration's property name may start: text start
+        // (style attributes), after `{` or `;`.
+        let mut at_prop = true;
+        // Inside the value of a `writing-mode` declaration.
+        let mut in_wm_value = false;
+        let mut changed = false;
+        while i < text.len() {
+            let c = b[i];
+            if lower[i..].starts_with("/*") {
+                let end = lower[i + 2..].find("*/").map_or(text.len(), |e| i + 2 + e + 2);
+                out.push_str(&text[i..end]);
+                i = end;
+                continue;
+            }
+            if c == b'"' || c == b'\'' {
+                let mut j = i + 1;
+                while j < text.len() && b[j] != c {
+                    j += if b[j] == b'\\' { 2 } else { 1 };
+                }
+                let end = (j + 1).min(text.len());
+                out.push_str(&text[i..end]);
+                i = end;
+                at_prop = false;
+                continue;
+            }
+            match c {
+                b'{' | b';' => {
+                    at_prop = true;
+                    in_wm_value = false;
+                }
+                b'}' => {
+                    at_prop = false;
+                    in_wm_value = false;
+                }
+                _ if c.is_ascii_whitespace() => {}
+                _ if at_prop => {
+                    at_prop = false;
+                    // DEFERRED to CORE-553 (root-vertical progression): the
+                    // block-axis margins keep the horizontal-tb slots
+                    // (top/bottom). Mapping them to left/right before the
+                    // engine paginates along the block axis turns
+                    // `margin-block-end: 999in` (page-name-orthogonal-
+                    // writing-002 ref) into a zero-width box that drops its
+                    // text instead of breaking the page.
+                    let name_end = lower[i..]
+                        .find(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '-'))
+                        .map_or(text.len(), |e| i + e);
+                    let name = &lower[i..name_end];
+                    let rest = lower[name_end..].trim_start();
+                    if rest.starts_with(':') {
+                        let swap = match name {
+                            "margin-block-start" if has_vertical => Some("margin-top"),
+                            "margin-block-end" if has_vertical => Some("margin-bottom"),
+                            _ => None,
+                        };
+                        in_wm_value = name == "writing-mode";
+                        if let Some(s) = swap {
+                            out.push_str(s);
+                            changed = true;
+                        } else {
+                            out.push_str(&text[i..name_end]);
+                        }
+                        i = name_end;
+                        continue;
+                    }
+                }
+                _ if in_wm_value && lower[i..].starts_with("sideways-rl") => {
+                    out.push_str("vertical-rl");
+                    i += "sideways-rl".len();
+                    changed = true;
+                    continue;
+                }
+                _ if in_wm_value && lower[i..].starts_with("sideways-lr") => {
+                    out.push_str("vertical-lr;direction:rtl");
+                    i += "sideways-lr".len();
+                    changed = true;
+                    in_wm_value = false;
+                    continue;
+                }
+                _ => {}
+            }
+            let ch = text[i..].chars().next().expect("in bounds");
+            out.push(ch);
+            i += ch.len_utf8();
+        }
+        changed.then_some(out)
+    }
+
+    /// Elements whose mode in effect is NOT sideways-lr but whose parent's
+    /// is, paired with their true `rtl` (the walk-time value flipped back
+    /// when inherited from the stand-in). The walk is re-run with these
+    /// pinned so the stand-in stops at the subtree boundary.
+    pub(super) fn sideways_lr_boundary_pins(
+        dom: &Dom,
+        styles: &[ComputedStyle],
+    ) -> Vec<(NodeId, bool)> {
+        let mut pins = Vec::new();
+        for id in 0..styles.len() {
+            let Some(p) = dom.nodes[id].parent else { continue };
+            if dom.nodes[id].kind.element().is_none() || dom.nodes[p].kind.element().is_none() {
+                continue;
+            }
+            if mode_at(dom, styles, id) != PageWritingMode::SidewaysLr
+                && mode_at(dom, styles, p) == PageWritingMode::SidewaysLr
+                && styles[id].rtl == styles[p].rtl
+            {
+                // Inherited the stand-in: the true value is the parent's
+                // original direction.
+                pins.push((id, !styles[p].rtl));
+            }
+        }
+        pins
+    }
+
+    /// Append `direction: <rtl>` to an element's walk-time style attribute.
+    pub(super) fn pin_direction(node: &mut crate::dom::Node, rtl: bool) {
+        if let crate::dom::NodeKind::Element(e) = &mut node.kind {
+            let d = if rtl { "direction:rtl" } else { "direction:ltr" };
+            if let Some((_, v)) = e.attrs.iter_mut().find(|(k, _)| k == "style") {
+                v.push(';');
+                v.push_str(d);
+            } else {
+                e.attrs.push(("style".to_string(), d.to_string()));
+            }
+        }
+    }
+
+    /// Undo the stand-in `direction: rtl` the sideways-lr rewrite injected.
+    ///
+    /// An element is TAINTED when it declares `sideways-lr` (it received the
+    /// injected `rtl`), or when its parent is tainted and it carries the
+    /// parent's walk-time direction (it inherited the stand-in). Taint
+    /// therefore follows inheritance into every descendant, including a
+    /// `horizontal-tb` subtree, and stops at a descendant that set its own
+    /// different direction. Every tainted element's `rtl` is flipped back.
+    /// Known limit: a descendant that explicitly declares the SAME
+    /// direction as its tainted parent's stand-in value is also flipped.
+    pub(super) fn restore_sideways_lr_direction(dom: &Dom, styles: &mut [ComputedStyle]) {
+        let n = styles.len();
+        // 0 unknown, 1 tainted, 2 clean.
+        let mut taint = vec![0u8; n];
+        fn resolve(dom: &Dom, styles: &[ComputedStyle], taint: &mut [u8], id: NodeId) -> bool {
+            if taint[id] != 0 {
+                return taint[id] == 1;
+            }
+            let t = if dom.nodes[id].kind.element().is_none() {
+                false
+            } else if styles[id].writing_mode_declared
+                && styles[id].writing_mode == PageWritingMode::SidewaysLr
+            {
+                true
+            } else {
+                match dom.nodes[id].parent {
+                    Some(p) => {
+                        resolve(dom, styles, taint, p) && styles[id].rtl == styles[p].rtl
+                    }
+                    None => false,
+                }
+            };
+            taint[id] = if t { 1 } else { 2 };
+            t
+        }
+        for id in 0..n {
+            resolve(dom, styles, &mut taint, id);
+        }
+        for id in 0..n {
+            if taint[id] == 1 {
+                styles[id].rtl = !styles[id].rtl;
+            }
+        }
+    }
+
+    /// The writing mode in effect at `id`: nearest ancestor-or-self
+    /// declaration, else the root element's mode. Reads the engine's own
+    /// per-element record (`writing_mode_declared`).
+    pub(super) fn mode_at(dom: &Dom, styles: &[ComputedStyle], id: NodeId) -> PageWritingMode {
+        let mut cur = Some(id);
+        while let Some(n) = cur {
+            if styles[n].writing_mode_declared {
+                return styles[n].writing_mode;
+            }
+            cur = dom.nodes[n].parent;
+        }
+        styles[dom.find_tag("html").unwrap_or(dom.root)].writing_mode
+    }
+
+    /// Physical border side (0 top, 1 right, 2 bottom, 3 left) of a logical
+    /// border edge. `block`: block-start/end vs inline-start/end.
+    pub(super) fn border_side(mode: PageWritingMode, rtl: bool, block: bool, end: bool) -> usize {
+        // Edge order for a (start, end) pair in each axis.
+        let pair: [usize; 2] = if block {
+            match mode {
+                PageWritingMode::HorizontalTb => [0, 2],
+                PageWritingMode::VerticalRl | PageWritingMode::SidewaysRl => [1, 3],
+                PageWritingMode::VerticalLr | PageWritingMode::SidewaysLr => [3, 1],
+            }
+        } else {
+            let horizontal = [3usize, 1];
+            let vertical = [0usize, 2];
+            let base = if mode.is_vertical() { vertical } else { horizontal };
+            if mode.inline_runs_negative(rtl) {
+                [base[1], base[0]]
+            } else {
+                base
+            }
+        };
+        pair[end as usize]
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::rewrite_sideways;
+
+        #[test]
+        fn rewrites_only_declarations() {
+            let css = "/* sideways-lr margin-block-end: x */\n\
+                [data-x=\"sideways-lr\"] { content: \"sideways-rl margin-block-start:1px\"; }\n\
+                div { writing-mode: sideways-lr; margin-block-end: 4px; font-family: sideways-rl }";
+            let out = rewrite_sideways(css, false).expect("changed");
+            assert_eq!(
+                out,
+                "/* sideways-lr margin-block-end: x */\n\
+                [data-x=\"sideways-lr\"] { content: \"sideways-rl margin-block-start:1px\"; }\n\
+                div { writing-mode: vertical-lr;direction:rtl; margin-bottom: 4px; font-family: sideways-rl }"
+            );
+        }
+
+        #[test]
+        fn style_attribute_and_horizontal_documents() {
+            assert_eq!(
+                rewrite_sideways("writing-mode:sideways-rl", false).as_deref(),
+                Some("writing-mode:vertical-rl")
+            );
+            // horizontal-tb only: block-start/end already are top/bottom.
+            assert_eq!(rewrite_sideways("margin-block-end: 4px", false), None);
+            assert_eq!(
+                rewrite_sideways("margin-block-end: 4px", true).as_deref(),
+                Some("margin-bottom: 4px")
+            );
+            // A mention outside a declaration changes nothing.
+            assert_eq!(rewrite_sideways("content:'sideways-lr'", true), None);
+        }
+    }
 }
 
 /// Author-CSS parse for the css-break longhands stylo's servo build omits.
@@ -3687,6 +4092,8 @@ mod borders {
         },
         /// `box-decoration-break` (CORE-457): true = clone, false = slice.
         DecorationBreak(bool),
+        /// Logical `border-{block,inline}-{start,end}[-width]` (CORE-552).
+        Logical { block: bool, end: bool, width: Option<Scalar> },
     }
 
     #[derive(Clone, Copy, Debug, PartialEq)]
@@ -3916,7 +4323,21 @@ mod borders {
             },
             // CORE-457: logical block-axis border widths (horizontal-tb:
             // block-start = top, block-end = bottom).
-            "border-top" | "border-top-width" | "border-block-start" | "border-block-start-width" => Some(BorderDecl::Side {
+            // CORE-552: logical edges resolve at apply time against the mode
+            // in effect at the element (writing-modes-layout.spec.md B16).
+            "border-block-start" | "border-block-start-width" => {
+                Some(BorderDecl::Logical { block: true, end: false, width: wt })
+            }
+            "border-block-end" | "border-block-end-width" => {
+                Some(BorderDecl::Logical { block: true, end: true, width: wt })
+            }
+            "border-inline-start" | "border-inline-start-width" => {
+                Some(BorderDecl::Logical { block: false, end: false, width: wt })
+            }
+            "border-inline-end" | "border-inline-end-width" => {
+                Some(BorderDecl::Logical { block: false, end: true, width: wt })
+            }
+            "border-top" | "border-top-width" => Some(BorderDecl::Side {
                 side: Side::Top,
                 width: wt,
             }),
@@ -3924,7 +4345,7 @@ mod borders {
                 side: Side::Right,
                 width: wr,
             }),
-            "border-bottom" | "border-bottom-width" | "border-block-end" | "border-block-end-width" => Some(BorderDecl::Side {
+            "border-bottom" | "border-bottom-width" => Some(BorderDecl::Side {
                 side: Side::Bottom,
                 width: wb,
             }),
@@ -4012,7 +4433,13 @@ mod borders {
 
         // One declaration applied to one element's style: widths per side.
         // Colors come from stylo (CORE-384).
-        fn apply_decl(st: &mut ComputedStyle, won: &mut Won, decl: &BorderDecl, prio: Prio) {
+        fn apply_decl(
+            st: &mut ComputedStyle,
+            won: &mut Won,
+            decl: &BorderDecl,
+            prio: Prio,
+            mode: super::PageWritingMode,
+        ) {
             fn set(slot: &mut Scalar, flag: &mut Option<Prio>, w: Option<Scalar>, prio: Prio) {
                 if let Some(w) = w {
                     if flag.is_none_or(|p| prio >= p) {
@@ -4040,15 +4467,26 @@ mod borders {
                 BorderDecl::DecorationBreak(clone) => {
                     st.box_decoration_clone = *clone;
                 }
+                BorderDecl::Logical { block, end, width } => {
+                    let side = super::logical_sizing::border_side(mode, st.rtl, *block, *end);
+                    let (slot, flag) = match side {
+                        0 => (&mut st.border_top, &mut won.top),
+                        1 => (&mut st.border_right, &mut won.right),
+                        2 => (&mut st.border_bottom, &mut won.bottom),
+                        _ => (&mut st.border_left, &mut won.left),
+                    };
+                    set(slot, flag, *width, prio);
+                }
             }
         }
 
         for rule in &rules {
             for sel in &rule.selectors {
                 for id in matching_ids(backend, sel) {
+                    let mode = super::logical_sizing::mode_at(dom, styles, id);
                     for (decl, important) in &rule.decls {
                         let prio = (*important as u32, sel.specificity(), rule.order);
-                        apply_decl(&mut styles[id], &mut won[id], decl, prio);
+                        apply_decl(&mut styles[id], &mut won[id], decl, prio, mode);
                     }
                 }
             }
@@ -4071,7 +4509,8 @@ mod borders {
                 };
                 let prio = (important as u32, u32::MAX, inline_order);
                 inline_order += 1;
-                apply_decl(&mut styles[id], &mut won[id], &decl, prio);
+                let mode = super::logical_sizing::mode_at(dom, styles, id);
+                apply_decl(&mut styles[id], &mut won[id], &decl, prio, mode);
             }
         }
     }
@@ -4804,6 +5243,11 @@ mod viewport_units {
     enum ViewportDecl {
         Width(ViewportLen),
         Height(ViewportLen),
+        /// CORE-552: `inline-size` / `block-size` in viewport units. Mapped
+        /// to `Width`/`Height` against the mode in effect at the element
+        /// (viewport units themselves stay physical, Behavior 22).
+        InlineSize(ViewportLen),
+        BlockSize(ViewportLen),
         InsetTop(ViewportLen),
         InsetRight(ViewportLen),
         InsetBottom(ViewportLen),
@@ -4907,11 +5351,25 @@ mod viewport_units {
         match prop.as_str() {
             "width" => Some(ViewportDecl::Width(v)),
             "height" => Some(ViewportDecl::Height(v)),
+            "inline-size" => Some(ViewportDecl::InlineSize(v)),
+            "block-size" => Some(ViewportDecl::BlockSize(v)),
             "top" => Some(ViewportDecl::InsetTop(v)),
             "right" => Some(ViewportDecl::InsetRight(v)),
             "bottom" => Some(ViewportDecl::InsetBottom(v)),
             "left" => Some(ViewportDecl::InsetLeft(v)),
             _ => None,
+        }
+    }
+
+    /// Map a logical size declaration onto the physical axis the mode in
+    /// effect names (Behavior 16/18). Other declarations pass through.
+    fn physical(d: ViewportDecl, mode: super::PageWritingMode) -> ViewportDecl {
+        match d {
+            ViewportDecl::InlineSize(v) if mode.is_vertical() => ViewportDecl::Height(v),
+            ViewportDecl::InlineSize(v) => ViewportDecl::Width(v),
+            ViewportDecl::BlockSize(v) if mode.is_vertical() => ViewportDecl::Width(v),
+            ViewportDecl::BlockSize(v) => ViewportDecl::Height(v),
+            other => other,
         }
     }
 
@@ -5005,8 +5463,10 @@ mod viewport_units {
             for sel in &rule.selectors {
                 let prio = (sel.specificity(), rule.order);
                 for id in matching_ids(backend, sel) {
+                    let mode = super::logical_sizing::mode_at(dom, styles, id);
                     for decl in &rule.decls {
-                        match *decl {
+                        match physical(*decl, mode) {
+                            ViewportDecl::InlineSize(_) | ViewportDecl::BlockSize(_) => {}
                             ViewportDecl::Border(side, v) => {
                                 if won[id].border[side].is_none_or(|w| prio >= w) {
                                     set_border(&mut styles[id], side, v.resolve(icb_w, icb_h));
@@ -5080,7 +5540,9 @@ mod viewport_units {
                 };
                 let prio = (u32::MAX, inline_order);
                 inline_order += 1;
-                match decl {
+                let mode = super::logical_sizing::mode_at(dom, styles, id);
+                match physical(decl, mode) {
+                    ViewportDecl::InlineSize(_) | ViewportDecl::BlockSize(_) => {}
                     ViewportDecl::Border(..) => {}
                     ViewportDecl::Width(v) => {
                         if won[id].width.is_none_or(|w| prio >= w) {
