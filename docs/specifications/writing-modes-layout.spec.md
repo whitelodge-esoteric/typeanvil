@@ -645,6 +645,14 @@ CORE-553/554.
   the em-box centre on the column centre; upright glyphs paint unrotated at
   their vertical-origin offsets. Glyph text ranges are unchanged, so the
   ToUnicode map and the marked-content order follow the source text.
+- **Text extraction.** In tagged output, the columns of one vertical
+  paragraph shall paint inside ONE marked-content span whose `/ActualText`
+  is the paragraph text in source order. Columns rejoin with one space,
+  except after a synthetic hyphen or between two CJK characters.
+  Extractors order separate runs by position, so without the span a
+  `*-rl` paragraph (columns stack right to left) extracts last line first.
+  Untagged output (`--no-tagged`) has no marked content and keeps
+  position-ordered extraction.
 - **Fragmentation.** A vertical paragraph is monolithic in the flow. One
   that does not fit the room left on the page moves whole to the next page
   (the `page-name-orthogonal-writing-002` reference shape).
@@ -654,8 +662,9 @@ CORE-553/554.
   vertical paragraph across pages, and mixed block/text vertical boxes.
 
 Tests: `engine/tests/it/core555_vertical_text.rs` (real fonts; content
-stream matrices for orientation, fragment geometry for stacking, MCID order
-and ToUnicode for the text layer, byte equality for determinism).
+stream matrices for orientation, fragment geometry for stacking, decoded
+`/ActualText` and ToUnicode for the text layer, byte equality for
+determinism).
 
 ## Child issue map
 

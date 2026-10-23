@@ -967,6 +967,20 @@ fn draw_shaped(
     Ok(())
 }
 
+/// CORE-555: a character that joins its neighbours with no word space when
+/// a vertical paragraph's columns are rejoined (CJK ideographs, kana,
+/// Hangul, CJK punctuation and fullwidth forms).
+fn is_cjk_char(c: char) -> bool {
+    matches!(c as u32,
+        0x1100..=0x11FF
+        | 0x2E80..=0x9FFF
+        | 0xAC00..=0xD7AF
+        | 0xF900..=0xFAFF
+        | 0xFE30..=0xFE4F
+        | 0xFF00..=0xFFEF
+        | 0x20000..=0x3FFFF)
+}
+
 /// Draw a vertical line (CORE-555). `(t.x, t.y)` is the start of the
 /// central baseline: the column centre at the line's inline-start edge.
 /// The pen advances along the inline axis (down for `VerticalDown`, up for
@@ -1976,9 +1990,65 @@ fn paint_group_body(
         surface.pop();
     }
 
-    for t in &group.texts {
+    let mut ti = 0usize;
+    while ti < group.texts.len() {
+        let t = &group.texts[ti];
+        ti += 1;
         let font = font_for(t.font_face)?;
         surface.set_fill(Some(solid_fill(t.color)));
+        // CORE-555: the columns of one vertical paragraph form ONE
+        // marked-content span whose ActualText is the paragraph's text in
+        // source order. Extractors order separate columns by position, which
+        // reverses `*-rl` paragraphs (columns stack right to left); one span
+        // hands them the source string whatever the geometry.
+        if tagged && t.owner.is_some() && t.orientation != crate::frag::LineOrientation::Horizontal
+        {
+            let start = ti - 1;
+            let mut end = ti;
+            while end < group.texts.len()
+                && group.texts[end].owner == t.owner
+                && group.texts[end].part == t.part
+                && group.texts[end].orientation == t.orientation
+            {
+                end += 1;
+            }
+            ti = end;
+            let run = &group.texts[start..end];
+            let mut actual = String::new();
+            for (k, line) in run.iter().enumerate() {
+                let hyphenated = line.glyphs.last().is_some_and(|g| g.synthetic);
+                let s = if hyphenated {
+                    line.text.strip_suffix('-').unwrap_or(&line.text)
+                } else {
+                    line.text.as_str()
+                };
+                actual.push_str(s);
+                // Columns break at spaces the breaker drops; restore one
+                // word gap unless the break is hyphenated or joins two CJK
+                // characters (no word space in the source).
+                let cjk_join = s.chars().last().is_some_and(is_cjk_char)
+                    && run
+                        .get(k + 1)
+                        .and_then(|n| n.text.chars().next())
+                        .is_some_and(is_cjk_char);
+                if k + 1 < run.len()
+                    && !hyphenated
+                    && !cjk_join
+                    && !s.ends_with(char::is_whitespace)
+                {
+                    actual.push(' ');
+                }
+            }
+            let tag = ContentTag::Span(SpanTag::empty().with_actual_text(Some(actual.as_str())));
+            let ident = surface.start_tagged(tag);
+            for line in run {
+                surface.set_fill(Some(solid_fill(line.color)));
+                draw_shaped(surface, line, font_for(line.font_face)?)?;
+            }
+            surface.end_tagged();
+            record_draw_part(draws, page_idx, ident, t.owner, t.part);
+            continue;
+        }
         // Unsourced text is a Layout artifact, like an unsourced fill — never
         // drawn outside marked content (CORE-380).
         if tagged {

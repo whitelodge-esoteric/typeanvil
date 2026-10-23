@@ -288,33 +288,57 @@ fn sideways_lr_runs_bottom_to_top() {
     assert!((slr[0][5] - bottom_pdf).abs() < 0.5, "sideways-lr starts at the bottom: {:?}", slr[0]);
 }
 
-/// The text layer stays readable: the ToUnicode map carries the words, and
-/// the runs appear in the content stream in source order (the tagged
-/// reading order follows the content stream).
+/// Every `/ActualText` value in the page streams, decoded (literal strings
+/// or `<hex>` UTF-16BE with a BOM).
+fn actual_texts(pdf: &[u8]) -> Vec<String> {
+    let mut out = Vec::new();
+    for s in streams(pdf) {
+        let b = s.as_bytes();
+        let mut at = 0;
+        while let Some(i) = s[at..].find("/ActualText") {
+            let mut p = at + i + "/ActualText".len();
+            while b[p].is_ascii_whitespace() {
+                p += 1;
+            }
+            let end = p + s[p..].find(|c| c == ')' || c == '>').unwrap();
+            if b[p] == b'<' {
+                let hex = &s[p + 1..end];
+                let units: Vec<u16> = (0..hex.len() / 4)
+                    .map(|k| u16::from_str_radix(&hex[4 * k..4 * k + 4], 16).unwrap())
+                    .collect();
+                out.push(String::from_utf16_lossy(&units).trim_start_matches('\u{feff}').to_string());
+            } else {
+                out.push(s[p + 1..end].to_string());
+            }
+            at = end;
+        }
+    }
+    out
+}
+
+/// Text extraction reads a vertical paragraph in source order in every
+/// mode. Extractors (pdfium, Acrobat) order separate text runs by position,
+/// so `*-rl` columns, which stack right to left, would come out last line
+/// first. The paragraph's columns therefore form ONE marked-content span
+/// whose `/ActualText` is the paragraph text in source order, which those
+/// extractors return verbatim (measured with pypdfium2 `get_text_range`).
+/// The ToUnicode map stays complete for per-glyph selection.
 #[test]
 fn vertical_text_layer_round_trips() {
+    let mixed = format!("{LATIN} 日本語の文章を縦に書きます");
     for wm in ["vertical-rl", "vertical-lr", "sideways-rl", "sideways-lr"] {
-        let bytes = pdf(&html(wm, LATIN));
-        let all = streams(&bytes).join("\n");
-        // ToUnicode CMap entries are hex UTF-16; "one" = 006F 006E 0065.
-        assert!(all.contains("beginbfchar") || all.contains("beginbfrange"), "{wm}: ToUnicode present");
-        for ch in ['o', 'n', 'e', 'l', 'v'] {
-            let hex = format!("<{:04X}>", ch as u32);
-            assert!(all.contains(&hex), "{wm}: ToUnicode maps {ch:?}");
-        }
-        // MCIDs are numbered in paint order; one per line, ascending.
-        let mut ids = Vec::new();
-        for s in streams(&bytes) {
-            let mut at = 0;
-            while let Some(i) = s[at..].find("/MCID ") {
-                let rest = &s[at + i + 6..];
-                let n: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
-                ids.push(n.parse::<u32>().unwrap());
-                at += i + 6;
+        for text in [LATIN, mixed.as_str()] {
+            let laid = lay(&html(wm, text));
+            assert!(lines(&laid).len() >= 3, "{wm}: the paragraph wraps into columns");
+            let bytes = pdf(&html(wm, text));
+            let all = streams(&bytes).join("\n");
+            assert!(all.contains("beginbfchar") || all.contains("beginbfrange"), "{wm}: ToUnicode present");
+            for ch in ['o', 'n', 'e', 'l', 'v'] {
+                let hex = format!("<{:04X}>", ch as u32);
+                assert!(all.contains(&hex), "{wm}: ToUnicode maps {ch:?}");
             }
+            assert_eq!(actual_texts(&bytes), vec![text.to_string()], "{wm}: extraction in source order");
         }
-        assert!(ids.len() >= 3, "{wm}: one marked-content run per line: {ids:?}");
-        assert!(ids.windows(2).all(|w| w[1] > w[0]), "{wm}: runs in source order");
     }
 }
 
