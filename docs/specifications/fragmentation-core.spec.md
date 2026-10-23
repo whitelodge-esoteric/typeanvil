@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-08-16
-updated: 2026-10-16
+updated: 2026-10-23
 sidebar_position: 2
 tags: [layout, fragmentation, css-break, engine]
 spec_id: fragmentation-core
@@ -144,6 +144,14 @@ The engine shall:
     empty declared-height boxes are treated as monolithic (the
     page-change fixtures pin this; true extent fragmentation is future
     work gated on a full-suite A/B).
+    **SUPERSEDED for ordinary in-flow blocks (DECIDED 2026-10-23, CORE-551):**
+    the "paints through without a continuation" clause no longer applies to
+    them. The Addendum "Explicit-Height Block Continuation" governs: such a
+    block continues on every page until its declared extent is consumed.
+    The monolithic wording stays in force for lines, replaced elements and
+    pinned abspos boxes that fit one fragmentainer. Progress is kept separate
+    from paint size; see `writing-modes-layout.spec.md`, "Declared height
+    versus continuation progress".
 12. **Truncate margins at fragmentainer boundaries**: margins adjoining a page
     break do not transfer across it (css-break-3).
 13. **Be O(n)**: each box is laid out a bounded number of times per flow; a
@@ -363,6 +371,15 @@ makes no progress, so the page loop still terminates.
 
 A forced break itself never marks the box finished while
 `declared − consumed > 0`; the next page continues the remaining extent.
+
+**Progress is not paint size (DECIDED 2026-10-23, CORE-551).** Three
+quantities stay separate: the fragment's paint size (`max(content,
+declared)`), the content extent placed in this fragment, and the consumed
+extent. Consumed extent depends only on the declared extent and the
+fragmentainer bounds and never reads a fragment's paint size. Termination:
+every fragment places content or consumes extent greater than zero, or it is
+the box's final fragment. In a vertical flow the same rules apply on the
+flow's block axis (`writing-modes-layout.spec.md`, Behaviors 31-34).
 
 ## Addendum: Between-Sibling Break Avoidance
 
