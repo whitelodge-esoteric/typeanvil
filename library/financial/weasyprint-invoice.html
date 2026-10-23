@@ -126,9 +126,13 @@ table#total {
     border-width: 2cm 3cm;
     bottom: 0;
     font-size: 20pt;
-    margin: 0 -3cm;
+    /* TypeAnvil adaptation (CORE-545): the original band is 21cm wide at
+       margin 0 -3cm and bleeds off both page edges, which Visual QA flags as
+       overflow. Keep it 1mm inside each edge: 20.8cm border box, -2.9cm
+       side margins. */
+    margin: 0 -2.9cm;
     position: absolute;
-    width: 18cm;
+    width: 20.8cm;
   }
 
 table th {
