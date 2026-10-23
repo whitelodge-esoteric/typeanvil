@@ -1,0 +1,9 @@
+[
+  {"file": "academic/journal-article.html", "page": 12, "check": "overflow", "issue": "CORE-544"},
+  {"file": "academic/journal-article.html", "page": 13, "check": "overflow", "issue": "CORE-544"},
+  {"file": "financial/weasyprint-invoice.html", "page": 1, "check": "overflow", "issue": "CORE-545"},
+  {"file": "reports/weasyprint-report.html", "page": 1, "check": "overflow", "issue": "CORE-546"},
+  {"file": "reports/weasyprint-report.html", "page": 4, "check": "overflow", "issue": "CORE-546"},
+  {"file": "tickets/weasyprint-ticket.html", "page": "*", "check": "text_roundtrip", "issue": "CORE-547"},
+  {"file": "academic/math.html", "page": "*", "check": "text_roundtrip", "issue": "CORE-548"}
+]

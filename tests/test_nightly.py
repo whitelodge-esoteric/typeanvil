@@ -60,3 +60,10 @@ def test_workflow_reports_failure_where_a_human_sees_it():
     assert "statuses: write" in WORKFLOW
     assert "gh issue" in WORKFLOW
     assert "GITHUB_STEP_SUMMARY" in WORKFLOW
+
+
+def test_summary_separates_known_failures():
+    qa = {"new_failures": [], "stale_known_failures": [],
+          "known_failures": [{"file": "a.html", "page": 1, "check": "overflow", "issue": "CORE-544"}]}
+    out = nightly.summary("", qa, "success")
+    assert "Known failures" in out and "CORE-544" in out and "No new failures." in out

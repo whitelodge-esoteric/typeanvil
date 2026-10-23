@@ -55,16 +55,18 @@ jobs:
         run: uv sync --python 3.12
       - name: Build engine
         run: cargo build --manifest-path engine/Cargo.toml
+      # Same selection as the nightly (.github/workflows/nightly.yml): every
+      # baselined document, including the showcase ones (CORE-549).
       - name: Update baselines (run 1)
-        run: uv run python scripts/regress.py update --role gate --size small
+        run: uv run python scripts/regress.py update --role any --size all
       - name: Keep run 1
         run: cp -r baselines "$RUNNER_TEMP/baselines-run1"
       - name: Update baselines (run 2, determinism check)
-        run: uv run python scripts/regress.py update --role gate --size small
+        run: uv run python scripts/regress.py update --role any --size all
       - name: Compare runs
         run: diff -r "$RUNNER_TEMP/baselines-run1" baselines
       - name: Check against fresh baselines
-        run: uv run python scripts/regress.py check --role gate --size small
+        run: uv run python scripts/regress.py check --role any --size all --allow-missing
       - name: Commit baselines
         run: |
           git config user.name "typeanvil-ci"
