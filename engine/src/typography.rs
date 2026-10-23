@@ -245,6 +245,57 @@ pub struct ShapedGlyph {
     /// Background of the innermost inline element that declares one
     /// (CORE-543), or `None`. Painted behind the glyph's content area.
     pub bg: Option<crate::css::Color>,
+    /// CORE-555: the glyph was shaped top-to-bottom (an upright glyph in a
+    /// vertical line). `x_advance` then holds the VERTICAL advance (the
+    /// inline-axis advance), `x_offset` the horizontal shift from the
+    /// vertical origin and `y_offset` the vertical shift (font units up,
+    /// in points). `false` for every horizontally shaped glyph, which a
+    /// vertical line paints rotated.
+    pub upright: bool,
+    /// Vertical positioning offset in points (upright glyphs only; 0 else).
+    pub y_offset: Scalar,
+}
+
+/// Pseudo OpenType tag carrying the vertical text orientation through
+/// `ot_features` (CORE-555), so the shape cache keys on it. Value
+/// [`ORIENT_MIXED`] or [`ORIENT_UPRIGHT`]; absent = horizontal shaping.
+/// Never reaches HarfRust.
+pub const ORIENTATION_TAG: u32 = u32::from_be_bytes(*b"VORI");
+/// `text-orientation: mixed` in a vertical mode: upright scripts upright.
+pub const ORIENT_MIXED: u32 = 1;
+/// `text-orientation: upright`: every character upright.
+pub const ORIENT_UPRIGHT: u32 = 2;
+
+/// Whether `ch` is set upright under `text-orientation: mixed`
+/// (CORE-555). Approximates UAX #50 `Vertical_Orientation` U/Tu/Tr: the
+/// CJK, kana, hangul, Yi, CJK symbol/punctuation, compatibility and
+/// fullwidth blocks are upright; everything else is rotated (R).
+pub fn is_upright_char(ch: char) -> bool {
+    matches!(ch as u32,
+        0x1100..=0x11FF       // Hangul Jamo
+        | 0x2E80..=0x2FDF     // CJK radicals, Kangxi
+        | 0x2FF0..=0x303F     // IDC, CJK symbols and punctuation
+        | 0x3040..=0x31FF     // Hiragana .. Katakana ext
+        | 0x3200..=0x9FFF     // enclosed CJK .. CJK unified
+        | 0xA000..=0xA4CF     // Yi
+        | 0xA960..=0xA97F     // Hangul Jamo ext A
+        | 0xAC00..=0xD7FF     // Hangul syllables, Jamo ext B
+        | 0xF900..=0xFAFF     // CJK compatibility ideographs
+        | 0xFE10..=0xFE1F     // vertical forms
+        | 0xFE30..=0xFE4F     // CJK compatibility forms
+        | 0xFF00..=0xFF60     // fullwidth forms
+        | 0xFFE0..=0xFFE7
+        | 0x1F000..=0x1FAFF   // mahjong .. symbols (emoji are upright)
+        | 0x20000..=0x3FFFD)  // CJK ext B..
+}
+
+/// The orientation value carried by `features` (0 = horizontal).
+fn orientation_of(features: &[(u32, u32)]) -> u32 {
+    features
+        .iter()
+        .find(|&&(tag, _)| tag == ORIENTATION_TAG)
+        .map(|&(_, v)| v)
+        .unwrap_or(0)
 }
 
 /// The face and colour of one inline element inside a text run (CORE-530).
@@ -518,39 +569,43 @@ fn shape_word_uncached(
             Err(_) => false,
         }
     };
-    if !word.chars().any(needs_fallback) {
-        return shape_single_face(word, font_size, face, features);
+    // CORE-555: in a vertical line, upright characters shape top-to-bottom.
+    let orient = orientation_of(features);
+    let upright_at = |ch: char| -> bool {
+        match orient {
+            ORIENT_UPRIGHT => !ch.is_whitespace(),
+            ORIENT_MIXED => is_upright_char(ch),
+            _ => false,
+        }
+    };
+    if !word.chars().any(needs_fallback) && !word.chars().any(upright_at) {
+        return shape_single_face(word, font_size, face, features, false);
     }
-    // Segment into (byte start, byte end, face override).
-    let mut segs: Vec<(usize, usize, Option<FaceId>)> = Vec::new();
+    // Segment into (byte start, byte end, face override, upright).
+    let mut segs: Vec<(usize, usize, Option<FaceId>, bool)> = Vec::new();
     for (i, ch) in word.char_indices() {
         let fb = if needs_fallback(ch) {
             crate::fonts::fallback_face_for(ch).filter(|f| *f != face)
         } else {
             None
         };
+        let up = upright_at(ch);
         let end = i + ch.len_utf8();
         match segs.last_mut() {
-            Some(last) if last.2 == fb => last.1 = end,
-            _ => segs.push((i, end, fb)),
+            Some(last) if last.2 == fb && last.3 == up => last.1 = end,
+            _ => segs.push((i, end, fb, up)),
         }
     }
     let mut glyphs: Vec<ShapedGlyph> = Vec::new();
     let mut width = 0.0f64;
-    for (s, e, fb) in segs {
-        let part = shape_single_face(&word[s..e], font_size, fb.unwrap_or(face), features);
+    for (s, e, fb, up) in segs {
+        let part = shape_single_face(&word[s..e], font_size, fb.unwrap_or(face), features, up);
         width += part.width.get();
         for g in part.glyphs {
             glyphs.push(ShapedGlyph {
-                id: g.id,
-                x_advance: g.x_advance,
-                x_offset: g.x_offset,
                 range: (s + g.range.start)..(s + g.range.end),
                 face: fb,
-                synthetic: false,
-                spaced: g.spaced,
-                color: None,
-                bg: None,
+                ..g
             });
         }
     }
@@ -568,6 +623,7 @@ fn shape_single_face(
     font_size: Scalar,
     face: FaceId,
     features: &[(u32, u32)],
+    upright: bool,
 ) -> ShapeRun {
     let (font, data) = face_shaper(face);
     let shaper = data.shaper(font).build();
@@ -583,7 +639,7 @@ fn shape_single_face(
         .unwrap_or(0.0);
     let hb_features: Vec<harfrust::Feature> = features
         .iter()
-        .filter(|&&(tag, _)| tag != LETTER_SPACING_TAG)
+        .filter(|&&(tag, _)| tag != LETTER_SPACING_TAG && tag != ORIENTATION_TAG)
         .map(|&(tag, value)| {
             harfrust::Feature::new(
                 harfrust::Tag::new(&tag.to_be_bytes()),
@@ -599,7 +655,13 @@ fn shape_single_face(
     // Latin, left-to-right. harfrust guesses script from the codepoints but
     // NOT direction (it passes the buffer's direction into the shape plan
     // verbatim), so set it explicitly — a buffer without a direction panics.
-    buffer.set_direction(Direction::LeftToRight);
+    // CORE-555: upright glyphs in a vertical line shape top-to-bottom, so
+    // HarfRust applies `vert`/`vrt2` and reports vertical advances.
+    buffer.set_direction(if upright {
+        Direction::TopToBottom
+    } else {
+        Direction::LeftToRight
+    });
     let glyph_buffer = shaper.shape(buffer, options);
 
     let infos = glyph_buffer.glyph_infos();
@@ -622,8 +684,15 @@ fn shape_single_face(
         } else {
             0.0
         };
-        let adv = pos.x_advance as f64 * scale + ls;
+        // Vertical advances are negative (y up); the inline advance is
+        // their magnitude.
+        let adv = if upright {
+            -(pos.y_advance as f64) * scale + ls
+        } else {
+            pos.x_advance as f64 * scale + ls
+        };
         let off = pos.x_offset as f64 * scale;
+        let yoff = if upright { pos.y_offset as f64 * scale } else { 0.0 };
         width += adv;
         let start = clusters[i] as usize;
         // End at the next DISTINCT cluster, or the word's end. Glyphs that
@@ -647,6 +716,8 @@ fn shape_single_face(
             spaced: ls != 0.0,
             color: None,
             bg: None,
+            upright,
+            y_offset: Scalar(yoff),
         });
     }
 
@@ -1488,6 +1559,8 @@ fn materialize_line(
                                 (Some(a), Some(c)) if a == c => Some(a),
                                 _ => None,
                             },
+                            upright: sg.upright,
+                            y_offset: Scalar::ZERO,
                         });
                         spaces.push((gi, g.width.get(), g.stretch.get(), g.shrink.get()));
                     }
@@ -1499,15 +1572,9 @@ fn materialize_line(
                 // Rebase the word's glyph ranges (word-relative cluster byte
                 // offsets) onto the line text (CORE-85).
                 glyphs.extend(b.glyphs.iter().map(|g| ShapedGlyph {
-                    id: g.id,
-                    x_advance: g.x_advance,
-                    x_offset: g.x_offset,
                     range: (base + g.range.start)..(base + g.range.end),
-                    face: g.face,
                     synthetic: false,
-                    spaced: g.spaced,
-                    color: g.color,
-                    bg: g.bg,
+                    ..g.clone()
                 }));
             }
             Item::Glue(g) => {
@@ -1543,15 +1610,12 @@ fn materialize_line(
         // The hyphen glyph(s) cover the trailing '-' in the line text
         // (CORE-85).
         glyphs.extend(h.glyphs.iter().map(|g| ShapedGlyph {
-            id: g.id,
-            x_advance: g.x_advance,
-            x_offset: g.x_offset,
             range: hp..hp + 1,
-            face: g.face,
             synthetic: true,
             spaced: false,
             color: None,
             bg: None,
+            ..g.clone()
         }));
     }
     // A forced break (`<br>`) adds no glyphs or width, but the line CONSUMES

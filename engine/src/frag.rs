@@ -314,6 +314,26 @@ pub struct Fragment {
     /// CSS `opacity` (CORE-518): group opacity for the fragment's whole
     /// subtree, which is its own stacking context. `1.0` = opaque.
     pub opacity: f32,
+    /// CORE-555: inline direction of a [`FragmentKind::Line`] run.
+    /// `Horizontal` for every horizontal line. A vertical line's run
+    /// `baseline` is the START of its central baseline (the column centre
+    /// at the line's inline-start edge).
+    pub orientation: LineOrientation,
+}
+
+/// The physical inline direction of a line (CORE-555).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LineOrientation {
+    /// Left to right; glyphs upright (every horizontal mode).
+    #[default]
+    Horizontal,
+    /// Top to bottom (`vertical-rl`, `vertical-lr`, `sideways-rl`).
+    /// Horizontally shaped glyphs paint rotated 90° clockwise; glyphs
+    /// shaped upright (`ShapedGlyph::upright`) paint unrotated.
+    VerticalDown,
+    /// Bottom to top (`sideways-lr`). Glyphs paint rotated 90°
+    /// counter-clockwise.
+    VerticalUp,
 }
 
 /// Which structural part of its source element a fragment paints.
@@ -344,6 +364,7 @@ impl Fragment {
             part: FragPart::Content,
             transform: None,
             opacity: 1.0,
+            orientation: LineOrientation::Horizontal,
         }
     }
 
@@ -362,6 +383,7 @@ impl Fragment {
             part: FragPart::Content,
             transform: None,
             opacity: 1.0,
+            orientation: LineOrientation::Horizontal,
         }
     }
 }
@@ -594,6 +616,7 @@ impl Fragmentainer {
                 part: FragPart::Content,
                 transform: None,
                 opacity: 1.0,
+                orientation: LineOrientation::Horizontal,
             },
             background: None,
             page_orientation: None,
