@@ -912,6 +912,9 @@ fn draw_shaped(
     t: &TextItem,
     font: &Font,
 ) -> Result<()> {
+    if t.orientation != crate::frag::LineOrientation::Horizontal {
+        return draw_shaped_vertical(surface, t, font);
+    }
     let glyphs = to_krilla_glyphs(&t.glyphs, t.font_size, t.expansion, t.protrude_right);
     let mut x = t.x - t.protrude_left;
     let mut i = 0usize;
@@ -964,6 +967,97 @@ fn draw_shaped(
     Ok(())
 }
 
+/// Draw a vertical line (CORE-555). `(t.x, t.y)` is the start of the
+/// central baseline: the column centre at the line's inline-start edge.
+/// The pen advances along the inline axis (down for `VerticalDown`, up for
+/// `VerticalUp`). Horizontally shaped segments paint under a 90° rotation
+/// whose em-box centre sits on the column centre (css-writing-modes-3 §4.3
+/// central baseline). Upright glyphs (shaped top-to-bottom) paint unrotated
+/// at their vertical-origin offsets. Glyph text ranges are unchanged, so
+/// the ToUnicode map and extraction order follow the source.
+fn draw_shaped_vertical(
+    surface: &mut krilla::surface::Surface<'_>,
+    t: &TextItem,
+    font: &Font,
+) -> Result<()> {
+    let down = t.orientation == crate::frag::LineOrientation::VerticalDown;
+    let glyphs = to_krilla_glyphs(&t.glyphs, t.font_size, t.expansion, 0.0);
+    let fs = t.font_size;
+    let mut pen = 0.0f32;
+    let mut i = 0usize;
+    while i < glyphs.len() {
+        let g0 = &t.glyphs[i];
+        let mut j = i;
+        while j < glyphs.len()
+            && t.glyphs[j].face == g0.face
+            && t.glyphs[j].color == g0.color
+            && t.glyphs[j].upright == g0.upright
+        {
+            j += 1;
+        }
+        surface.set_fill(Some(solid_fill(g0.color.unwrap_or(t.color))));
+        let seg_face = g0.face.unwrap_or(t.font_face);
+        let seg_font: &Font = match g0.face {
+            Some(f) => font_for(f)?,
+            None => font,
+        };
+        let seg_adv: f32 = glyphs[i..j].iter().map(|g| g.x_advance).sum::<f32>() * fs;
+        if g0.upright && down {
+            // Upright: one glyph at a time at pen + (x_off, -y_off); the
+            // shaper's offsets already move the vertical origin (top
+            // centre) onto the horizontal origin.
+            for k in i..j {
+                let g = &t.glyphs[k];
+                let kg = KrillaGlyph::new(
+                    GlyphId::new(g.id),
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    g.range.clone(),
+                    None,
+                );
+                let gx = t.x + g.x_offset.to_f32();
+                let gy = t.y + pen - g.y_offset.to_f32();
+                let _ = surface.draw_glyphs(
+                    Point::from_xy(gx, gy),
+                    std::slice::from_ref(&kg),
+                    seg_font.clone(),
+                    &t.text,
+                    fs,
+                    false,
+                );
+                pen += glyphs[k].x_advance * fs;
+            }
+        } else {
+            // Rotated: the em box centre (ascent + descent)/2 above the
+            // alphabetic baseline lands on the column centre.
+            let (asc, desc) = crate::typography::font_metrics(seg_face);
+            let centre = ((asc + desc) as f32) * 0.5 * fs;
+            let xf = if down {
+                // 90° clockwise: +x -> +y, glyph tops face right.
+                krilla::geom::Transform::from_row(0.0, 1.0, -1.0, 0.0, t.x - centre, t.y + pen)
+            } else {
+                // 90° counter-clockwise: +x -> -y, glyph tops face left.
+                krilla::geom::Transform::from_row(0.0, -1.0, 1.0, 0.0, t.x + centre, t.y - pen)
+            };
+            surface.push_transform(&xf);
+            let _ = surface.draw_glyphs(
+                Point::from_xy(0.0, 0.0),
+                &glyphs[i..j],
+                seg_font.clone(),
+                &t.text,
+                fs,
+                false,
+            );
+            surface.pop();
+            pen += seg_adv;
+        }
+        i = j;
+    }
+    Ok(())
+}
+
 /// One text draw call, resolved to absolute page coordinates.
 ///
 /// All runs carry their shaped glyphs (body text, generated content, and
@@ -985,6 +1079,9 @@ struct TextItem {
     owner: Option<NodeId>,
     /// Structural part painted (list marker / footnote body), CORE-374.
     part: crate::frag::FragPart,
+    /// CORE-555: inline direction. For vertical lines `(x, y)` is the start
+    /// of the central baseline.
+    orientation: crate::frag::LineOrientation,
 }
 
 /// Flat pre-order collection for page-margin boxes (CORE-179 path, unchanged).
@@ -1052,6 +1149,7 @@ fn collect_flat(
                 protrude_right: run.protrude_right.to_f32(),
                 owner: my_owner,
                 part: frag.part,
+                orientation: frag.orientation,
             });
         }
         FragmentContent::Image(run) => {
@@ -1507,6 +1605,7 @@ fn push_content(
                 protrude_right: run.protrude_right.to_f32(),
                 owner,
                 part: frag.part,
+                orientation: frag.orientation,
             });
         }
         FragmentContent::Image(run) => {
