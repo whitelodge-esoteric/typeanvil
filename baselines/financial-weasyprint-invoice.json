@@ -1,0 +1,17 @@
+{
+  "engine_version": "0.0.1",
+  "file": "financial/weasyprint-invoice.html",
+  "page_count": 1,
+  "pages": [
+    {
+      "dark_pixels": 2214,
+      "dhash": "c8cc869292ecec88",
+      "page": 1,
+      "size": [
+        595.28,
+        841.89
+      ],
+      "text_sha256": "08aaf767f8625fe4cec9cfa7a458992afa067e557925a47165138176385fea50"
+    }
+  ]
+}

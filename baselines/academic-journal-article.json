@@ -1,0 +1,147 @@
+{
+  "engine_version": "0.0.1",
+  "file": "academic/journal-article.html",
+  "page_count": 14,
+  "pages": [
+    {
+      "dark_pixels": 38171,
+      "dhash": "e2d09888c888c888",
+      "page": 1,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "7d9a50c92e73e398e7c9609bbd0775a8e49949f48afe618a31f09b6ed0a265e8"
+    },
+    {
+      "dark_pixels": 34296,
+      "dhash": "88a88088a88888a8",
+      "page": 2,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "527d52639a5fcbf07d851a2e2cb9d0637cca02309ca52893b3190b8674dffa4a"
+    },
+    {
+      "dark_pixels": 28961,
+      "dhash": "8888c2e4e88888c0",
+      "page": 3,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "0d621a814b4830088000753b4307a3c36583411be36d4b5f21571a9743d41483"
+    },
+    {
+      "dark_pixels": 29651,
+      "dhash": "9ac8a88ac0e89880",
+      "page": 4,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "35809a2bb7a9d8af0fe31652c25793de8f44fb81c7eb4cd462f7ac15945a665e"
+    },
+    {
+      "dark_pixels": 35571,
+      "dhash": "8aa8c8888cb8c884",
+      "page": 5,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "ca4fca40faeb49f7d7b70733fb7701b081456de9eaa3fbd7d373890eb80efc99"
+    },
+    {
+      "dark_pixels": 35184,
+      "dhash": "a8a8c8c8e8888292",
+      "page": 6,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "2b0acf6a43d92d862d13b87113071bde6261a08f057789f4a2ea6b4a4f73043b"
+    },
+    {
+      "dark_pixels": 29652,
+      "dhash": "8888c8c0c880a0a0",
+      "page": 7,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "3ea00caa586a37d44dbe9700feea107bd167e9845d4dae4c8fc937acc9277131"
+    },
+    {
+      "dark_pixels": 35805,
+      "dhash": "c09888c8888898a0",
+      "page": 8,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "de3f94f34e6d8204dae0d8c7fdc2b0684453b7042e3c005bee90b20b4f48bbbb"
+    },
+    {
+      "dark_pixels": 34932,
+      "dhash": "e8a888ec888cccc8",
+      "page": 9,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "87e47caf4e19525b09d42d9e43031c4dad308045b15d5f2c09e538b2ab758454"
+    },
+    {
+      "dark_pixels": 29874,
+      "dhash": "ccccc8c888c8c8c8",
+      "page": 10,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "f7ea5aa6111842219b816424d4ca89820842915911d183f2e4f3d1c248bdeb53"
+    },
+    {
+      "dark_pixels": 30148,
+      "dhash": "ccccc8c8c8c8cccc",
+      "page": 11,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "132ab27000d773e0ecc85cd6ab205e7c5f944244b57fefed1bb89782216327ac"
+    },
+    {
+      "dark_pixels": 26505,
+      "dhash": "88c8c8c8caca80b4",
+      "page": 12,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "394469e0fd594bd1ebfc367098737c7ee9bf44b0501d6a49049c5e9dda2a7485"
+    },
+    {
+      "dark_pixels": 14220,
+      "dhash": "b6b4a4a4a4a4a4a4",
+      "page": 13,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "da6429da6d77622425ad030dcf7fe9295f5c4d0ebda0b5ed12bfd5dfe4476f0b"
+    },
+    {
+      "dark_pixels": 5577,
+      "dhash": "b6b4880088000010",
+      "page": 14,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "11a09d864dd68d381558fded86e6c4f4b35e923634bc39a5a7c59954626b4a33"
+    }
+  ]
+}

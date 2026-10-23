@@ -1,0 +1,107 @@
+{
+  "engine_version": "0.0.1",
+  "file": "reports/weasyprint-report.html",
+  "page_count": 10,
+  "pages": [
+    {
+      "dark_pixels": 742,
+      "dhash": "00a0848000000000",
+      "page": 1,
+      "size": [
+        595.28,
+        841.89
+      ],
+      "text_sha256": "e18835d554cd35fab73666776ed63647401d077d50abb90e1258593e1f546dcf"
+    },
+    {
+      "dark_pixels": 1037,
+      "dhash": "c080a08000000000",
+      "page": 2,
+      "size": [
+        595.28,
+        841.89
+      ],
+      "text_sha256": "33ea452e7554bcf883f5943959e311dab79feb457a4d516e36fb00fcc4f679ae"
+    },
+    {
+      "dark_pixels": 13004,
+      "dhash": "a490c8888888e4a4",
+      "page": 3,
+      "size": [
+        595.28,
+        841.89
+      ],
+      "text_sha256": "939199b7df4f78c546a3e36466f9336f759c0cf5425babdef1713da14038e6d1"
+    },
+    {
+      "dark_pixels": 3286,
+      "dhash": "a880808080800000",
+      "page": 4,
+      "size": [
+        595.28,
+        841.89
+      ],
+      "text_sha256": "924e1c6ce35782bd9f2fd7e70785bbe15380df545b80601e887355bdc2b5ab2f"
+    },
+    {
+      "dark_pixels": 3769,
+      "dhash": "88a8a0a0a0a0a020",
+      "page": 5,
+      "size": [
+        595.28,
+        841.89
+      ],
+      "text_sha256": "27b1e3f50b70d67055a78b0af8cd3cc7dad4525d353d93350d8adc0070ec092f"
+    },
+    {
+      "dark_pixels": 677,
+      "dhash": "ac2c0c0c0c0c0c0c",
+      "page": 6,
+      "size": [
+        595.28,
+        841.89
+      ],
+      "text_sha256": "266d9530f84dcf009799e0cad4a5260d49fb5f99fb2065b39df78efea1b1cadc"
+    },
+    {
+      "dark_pixels": 265,
+      "dhash": "8c0c0c0c00000000",
+      "page": 7,
+      "size": [
+        595.28,
+        841.89
+      ],
+      "text_sha256": "d00139df1eea016f28fcfe8566f6dc0a874540a7832d10884a60ffd93cc6c004"
+    },
+    {
+      "dark_pixels": 2485,
+      "dhash": "86000000e4000000",
+      "page": 8,
+      "size": [
+        595.28,
+        841.89
+      ],
+      "text_sha256": "57917417f039b61b505e226dd71187859d9c8c0de7994d1c5fa6f8ed69273e3e"
+    },
+    {
+      "dark_pixels": 6839,
+      "dhash": "b490a0a0e8280000",
+      "page": 9,
+      "size": [
+        595.28,
+        841.89
+      ],
+      "text_sha256": "ba1ab9c7805dd2200199aab1613f7d96c17a8aada9ae1873bde760f7bd0b4c6c"
+    },
+    {
+      "dark_pixels": 953,
+      "dhash": "86a0000000000000",
+      "page": 10,
+      "size": [
+        595.28,
+        841.89
+      ],
+      "text_sha256": "2c640d8687fb8b0a92d2cf34e80fb281ee57dd713fcf7ddba78c02f47a142363"
+    }
+  ]
+}

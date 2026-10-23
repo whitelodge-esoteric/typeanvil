@@ -1,0 +1,17 @@
+{
+  "engine_version": "0.0.1",
+  "file": "posters/weasyprint-poster.html",
+  "page_count": 1,
+  "pages": [
+    {
+      "dark_pixels": 63644,
+      "dhash": "2050f064e4e000a0",
+      "page": 1,
+      "size": [
+        788.03,
+        1099.84
+      ],
+      "text_sha256": "01995f3c2e8e9fbe657a07a6732bc36ab2536a6994f247505a7e843ba33fdce6"
+    }
+  ]
+}

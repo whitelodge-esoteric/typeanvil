@@ -1,0 +1,2127 @@
+{
+  "engine_version": "0.0.1",
+  "file": "manual/field-manual.html",
+  "page_count": 212,
+  "pages": [
+    {
+      "dark_pixels": 2255,
+      "dhash": "9000f0f000000000",
+      "page": 1,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "13775a6380e74ebb0535cbd89f37a52e7966e3c555a69e976003585e6f230cbb"
+    },
+    {
+      "dark_pixels": 10352,
+      "dhash": "8082c2c2c2000000",
+      "page": 2,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "19d1d41d1f27b5ff3f0dbce19aa4a82c29bbb982b183212bf92bb1880f1fe77a"
+    },
+    {
+      "dark_pixels": 29044,
+      "dhash": "8680c090c0c4c4c0",
+      "page": 3,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "46beec8df36dc782ccd8e0341f6d0568bc8e3812f6c33106428cdc89bebaf0e1"
+    },
+    {
+      "dark_pixels": 27377,
+      "dhash": "a2c0988490d0c0c0",
+      "page": 4,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "20ba7ba21cbd2463a202f3169b5298cee9ae67469c9a2874dc234c171108107d"
+    },
+    {
+      "dark_pixels": 12673,
+      "dhash": "96c48080c4100010",
+      "page": 5,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "d69a3dfb29c6e2d3f5b2508b9c6a6612014eb514e9a7a9d86b836a8c0625c665"
+    },
+    {
+      "dark_pixels": 27647,
+      "dhash": "86c4d0d084c08080",
+      "page": 6,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "729c0ba1a98e826986362c02fe99b6212b46ca6976e8b718a8eedd003eb0da3f"
+    },
+    {
+      "dark_pixels": 29759,
+      "dhash": "84809c84d4c0c4c0",
+      "page": 7,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "3e41ddfc4a54162ac18698a1c417b6190396570f24c21f395f3d04643aee5275"
+    },
+    {
+      "dark_pixels": 29066,
+      "dhash": "8480c084c4c4d0d0",
+      "page": 8,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "e15eabcc9d22227bd08b52a6e83760c9194ffdf0a53e354b66a3606e30fcb41f"
+    },
+    {
+      "dark_pixels": 35382,
+      "dhash": "94c084c4cc80c4d4",
+      "page": 9,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "6cb3b1298adf3a20ee7fb8a89b4f4c3f20452fa97ae6b7a444da15db00e5a7db"
+    },
+    {
+      "dark_pixels": 31762,
+      "dhash": "8cc08cc0c4e09092",
+      "page": 10,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "43ee966a6dd79187c5d005822e351ee390d2b5218cf7015b44a26c5106d9eedc"
+    },
+    {
+      "dark_pixels": 21941,
+      "dhash": "80a0c4c0cc888014",
+      "page": 11,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "fed976d5a1a7fb64aab84dcbbca3f4e5745a54dc3c93bff7f03e503d21427c83"
+    },
+    {
+      "dark_pixels": 31163,
+      "dhash": "88c0c4c4d880c4c0",
+      "page": 12,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "8a2b362421974b8d1df1628a73cc148da5229221087d74ad9c8e25729a7e060d"
+    },
+    {
+      "dark_pixels": 9122,
+      "dhash": "8cc08080808090b4",
+      "page": 13,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "f68dc50505fe55cd74b8cae49c62d6f6fb4709357cbff3857931fcd4fd8622e1"
+    },
+    {
+      "dark_pixels": 22178,
+      "dhash": "a4c0c0c0c88080c0",
+      "page": 14,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "8b3378d09d093b6f94c63db2d0c9e105a81f4db16c4ef2c9daab1fae21bdabb9"
+    },
+    {
+      "dark_pixels": 26800,
+      "dhash": "8cc8c090c08480d0",
+      "page": 15,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "4ca96d6081d7b1dbee8d5d8724644e7b9d90dab955252d7e8ade87cdccce0d77"
+    },
+    {
+      "dark_pixels": 26083,
+      "dhash": "8480c88484c0c094",
+      "page": 16,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "3605e6e0631090ff9066a9a470ed036b448d41a6ca774c832fcd1a45a89dfbdf"
+    },
+    {
+      "dark_pixels": 27121,
+      "dhash": "a480c4c4c0c4d0d0",
+      "page": 17,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "37a2c4a991bead5b936b91d8a84328c698b9308b391d84c43461705260f757d0"
+    },
+    {
+      "dark_pixels": 21193,
+      "dhash": "84908880808080d0",
+      "page": 18,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "98e95d65ed5ed9843e58c77a242c852dec54148f35d02fc1a78599363caeed9a"
+    },
+    {
+      "dark_pixels": 18907,
+      "dhash": "94c0c0c0c8c08094",
+      "page": 19,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "85e0dd777c25c13b4bbdc916e8d1e98a286657d4d3f4428a2866947abf37e922"
+    },
+    {
+      "dark_pixels": 21662,
+      "dhash": "84c08080c0c08090",
+      "page": 20,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "9e337be5ce4eb717b76c303a892b03c8278b4dc3e8f423894a0e34976bb7f33d"
+    },
+    {
+      "dark_pixels": 16398,
+      "dhash": "8484c48080d080d0",
+      "page": 21,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "9ce89cb53364aebe9893a93b8d504b6710cac8c7d941ecad4e1719a416fed396"
+    },
+    {
+      "dark_pixels": 19707,
+      "dhash": "8c80c4c0c0c480c0",
+      "page": 22,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "eab0f0320d60ce0da1dc86e5fbb674e1a956b911a6929ce19f0dea1893a0987f"
+    },
+    {
+      "dark_pixels": 12062,
+      "dhash": "84c0c08080c090c0",
+      "page": 23,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "decbb0e38e5af95d2faba0c6a9444cdb0b632262494848fbdec51134f10305bb"
+    },
+    {
+      "dark_pixels": 28431,
+      "dhash": "84c0c0cce4c08894",
+      "page": 24,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "16f10d162e0cad337ad806dda5ddc6af2221b20c747f0c8b11337bcfb57edf82"
+    },
+    {
+      "dark_pixels": 24691,
+      "dhash": "94c08088c4c48cd4",
+      "page": 25,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "1a94cdf0b3114285f13ce10136a2eceaecd7f35f63026814b35c6d4c3ed85ee7"
+    },
+    {
+      "dark_pixels": 22972,
+      "dhash": "8090c88480c4c4d0",
+      "page": 26,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "1f7c8ed8c8ebf2f0d09d8998ff14b030bcda9e173b6904d2af5ae812f11b76e4"
+    },
+    {
+      "dark_pixels": 30537,
+      "dhash": "8c80c48494c4c490",
+      "page": 27,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "eda45fdf7b98aeb3e9e7ca3ee87bc8b7a7e5326b028478c3079f0de210fcf711"
+    },
+    {
+      "dark_pixels": 19938,
+      "dhash": "8cc084c0c4808080",
+      "page": 28,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "970af070b05653c10dbc0b63ea96316a5b14ae97054ce377133e7985134bbc6c"
+    },
+    {
+      "dark_pixels": 16445,
+      "dhash": "94c0c08090c084d0",
+      "page": 29,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "4b059acde6b78028177a4127b43963ac762d9a42ec9c17445918ebb99c1c8cd4"
+    },
+    {
+      "dark_pixels": 21560,
+      "dhash": "8cc0c0c880808090",
+      "page": 30,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "4c7763025372679284873d81b683cb4acba2d5e5ea36add060be3bd3532e8ff9"
+    },
+    {
+      "dark_pixels": 22606,
+      "dhash": "84c09088c48088b0",
+      "page": 31,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "a262587e659e371da1ee2a23864f8601f0763c7afc7e34958c8eefa6ea34256c"
+    },
+    {
+      "dark_pixels": 19644,
+      "dhash": "84808880c084c890",
+      "page": 32,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "497215a1dd5dc61166ff01c0bf17ed1ca7385e40b04119ef094aee49c206e07a"
+    },
+    {
+      "dark_pixels": 20044,
+      "dhash": "84c8c0c080500010",
+      "page": 33,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "dea6ea38a71062e30e672a525647d5504762187c107330bee10f634b75f2c27a"
+    },
+    {
+      "dark_pixels": 22293,
+      "dhash": "8284c0c0c0c08480",
+      "page": 34,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "18dd76bf257aa4864a490be99eceaae4b0fff13b4e1af235f095aff36078bb68"
+    },
+    {
+      "dark_pixels": 17654,
+      "dhash": "9290808080c484c0",
+      "page": 35,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "fac88e03afec1e19d8cd41f8ad5376e46049f72d51aa75e12a1abe6a3f9fd373"
+    },
+    {
+      "dark_pixels": 21584,
+      "dhash": "8298848080c4c480",
+      "page": 36,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "edb241293d0751bf657de88b6b89e82805d545693e1f078df08f6923ca37f70e"
+    },
+    {
+      "dark_pixels": 22675,
+      "dhash": "82d0c0c080c0c090",
+      "page": 37,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "7d51cc0cf758dd50dd38a5dffec2114aef12fc7a7c23e0db650e9d3f6c50be13"
+    },
+    {
+      "dark_pixels": 20440,
+      "dhash": "a2c084c080808094",
+      "page": 38,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "5b4af19e88fc5a1cefbc243683a75cb07a63c21549cd3e8c7574eb80688aa8fe"
+    },
+    {
+      "dark_pixels": 21056,
+      "dhash": "a2c0c0c0c0c08490",
+      "page": 39,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "c5da05184d0ab7c45c4d6e75d90ac6fac2cc41fbcca0811c66d34eb93a8a775a"
+    },
+    {
+      "dark_pixels": 24236,
+      "dhash": "86c4cc90808cd090",
+      "page": 40,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "9b2027d09481caa9b0a73cec3590b0db4fe01af8baf8b95f31b496d8051bee88"
+    },
+    {
+      "dark_pixels": 20265,
+      "dhash": "a684c080c0808890",
+      "page": 41,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "f5d4401ff9024b82d5e8e823b6b2a75d1da203c4e86a3eb7386947ccdc5f1023"
+    },
+    {
+      "dark_pixels": 15544,
+      "dhash": "8ad0f480c0c08800",
+      "page": 42,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "6319945f758f59cef2d0f52fb932aed50c299973b2bddd5a38ac6ce9e4821898"
+    },
+    {
+      "dark_pixels": 14601,
+      "dhash": "84c480c084808040",
+      "page": 43,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "e7f0e87fed1821e5036bf56d119661bf2bd0027a393a5e51fc57b13ecd9c66f3"
+    },
+    {
+      "dark_pixels": 4818,
+      "dhash": "86e0808080808090",
+      "page": 44,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "0a07bd51cc25eda5159557321869cf9abde0dcb359ad791ca98b8aa0e63db7d7"
+    },
+    {
+      "dark_pixels": 5393,
+      "dhash": "8680808080808090",
+      "page": 45,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "b87a7431df21aa9109d370214b948d330414ad8551d86efd663444178de9f355"
+    },
+    {
+      "dark_pixels": 13410,
+      "dhash": "86e08080c0c4c0c0",
+      "page": 46,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "cd61865a9ab3dfaa2af76db1aa8ca5624d5fba50cddcbb7fb6e351d293e76b3c"
+    },
+    {
+      "dark_pixels": 18125,
+      "dhash": "86808080ccc08490",
+      "page": 47,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "0655410cc19144199d3eb2b854885bab9e82f11897d7f9bb32827ba06e00e734"
+    },
+    {
+      "dark_pixels": 13484,
+      "dhash": "94c0e49880c0c4e0",
+      "page": 48,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "9afb815dcfb205a2b65d06fdcce596664f939517902263016f66258560cab379"
+    },
+    {
+      "dark_pixels": 13682,
+      "dhash": "84848c8480c88090",
+      "page": 49,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "87396a17d6a3140c6df9d4a6aaaa2e955a3ad1637d8b766f508632faf75eae0c"
+    },
+    {
+      "dark_pixels": 16955,
+      "dhash": "86c0808480d0c0c4",
+      "page": 50,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "ace4b66df0cb5a3e3b0e83b726be355663ec598bd79b89db3e66b17f80cea6a3"
+    },
+    {
+      "dark_pixels": 25568,
+      "dhash": "88c0c48090c0c8f0",
+      "page": 51,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "0816dd5a471f75dce6d0fffbd120d8d1ec0def0a85c2c02fa579576a1aaf3cc3"
+    },
+    {
+      "dark_pixels": 7583,
+      "dhash": "84c0c88080000010",
+      "page": 52,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "92d44be5eb05bddd42c31dd2d9950cf919ca70e152dc3b7b69cc867e70e9a26b"
+    },
+    {
+      "dark_pixels": 19693,
+      "dhash": "828cd4c4c0c08090",
+      "page": 53,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "6612eb58f8fb08cbbd61b9b9747b083437b4170d5cc88c87e34f6957b48f1e5d"
+    },
+    {
+      "dark_pixels": 8197,
+      "dhash": "8280c08080808090",
+      "page": 54,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "e75379c062107a9bac3491f75b9f976568312c253dcef7e8d1354a362c81194d"
+    },
+    {
+      "dark_pixels": 9987,
+      "dhash": "82c0c0908090c000",
+      "page": 55,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "042ff652de329731b720e3cd3a767e12a9c5466287e1ec91d529dc3b9b3cee19"
+    },
+    {
+      "dark_pixels": 15881,
+      "dhash": "8690c8c884888010",
+      "page": 56,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "cf7f67eadf638dc0c13dd805fe7efcbbec4a306417eac8f2c5b31dcfd324ebd9"
+    },
+    {
+      "dark_pixels": 16166,
+      "dhash": "8280c09088c48090",
+      "page": 57,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "2db4f873b3b6c8a0ab3e1d7c8b65953eaf4c2b2ac1f1b82bddb0455e443c7e19"
+    },
+    {
+      "dark_pixels": 17749,
+      "dhash": "868494808080a000",
+      "page": 58,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "7429eb6037bf6dbb466c5f8923b78ed6862ca716729bd7adf19c15a10e52fe78"
+    },
+    {
+      "dark_pixels": 17948,
+      "dhash": "828490d0c8c08080",
+      "page": 59,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "555ed94fda96ada060e47a018299491439894ca52e291ba09d657620d5eac962"
+    },
+    {
+      "dark_pixels": 1748,
+      "dhash": "82c0000000000010",
+      "page": 60,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "51b95e01eadfff163dc1678204cdfe80d1cf49ed878a251e53ebdccf3af5d2e0"
+    },
+    {
+      "dark_pixels": 32360,
+      "dhash": "86c0d4c48490e8a0",
+      "page": 61,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "3cfd745ae6758b67d807f652f0660966265cb0ec62bc8035c311beeaac4988da"
+    },
+    {
+      "dark_pixels": 20011,
+      "dhash": "96c09090c2c09092",
+      "page": 62,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "2188c7184b162f487e944fcc7140f3304a68830a2daafd6bc1de81db4318022a"
+    },
+    {
+      "dark_pixels": 28388,
+      "dhash": "8680c48480a49480",
+      "page": 63,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "0deb78bb1bdd9fb4adb39e45b3d21a6ce3908c76a07f537b5a127fc475c43da0"
+    },
+    {
+      "dark_pixels": 11191,
+      "dhash": "848480888080c090",
+      "page": 64,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "1760422001f2a07cf117dc658102b8a532bf5d37c1f5b4e42a8b39dbc829fb6a"
+    },
+    {
+      "dark_pixels": 24653,
+      "dhash": "8684c0c08088c490",
+      "page": 65,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "b36e1e98175e09828068c4ea563ef5e45fdd0e8628ce36f265b071fa304c6b6c"
+    },
+    {
+      "dark_pixels": 36114,
+      "dhash": "86e4d0d090c0c0f0",
+      "page": 66,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "e044468671ce414134b918b0195b71357244d927f8a3b36f9be753225feb8162"
+    },
+    {
+      "dark_pixels": 14400,
+      "dhash": "9680c080948880b4",
+      "page": 67,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "37bca0e07fb4b6720f820cdca7ac294507c0795803cb9170a111cec3c3ec0d36"
+    },
+    {
+      "dark_pixels": 29463,
+      "dhash": "86c484c880f89094",
+      "page": 68,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "e1362689a2c1cd5ffc8594bc45e294010caa3047571eec1bf139806335e62769"
+    },
+    {
+      "dark_pixels": 20584,
+      "dhash": "8484d4c4c080a080",
+      "page": 69,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "f79cd51150eb575aeec11a691c6db055591b851d7466c6180740788c0e8f52b1"
+    },
+    {
+      "dark_pixels": 9014,
+      "dhash": "8680808084d0c090",
+      "page": 70,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "d64eac643200a135274b36fc58a58918205704712cfc1cd5178fecd56d3c4949"
+    },
+    {
+      "dark_pixels": 24448,
+      "dhash": "86d08084908084f4",
+      "page": 71,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "c104065c3ec8cb2b21acd49a07f80e0d8771ec4e713f20d481a96d8c9d85f951"
+    },
+    {
+      "dark_pixels": 24538,
+      "dhash": "848080c480848490",
+      "page": 72,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "b31b993d8b1871ec0c90038c60006277e5b63b8e95332b4a55a95bbeacd8f3f6"
+    },
+    {
+      "dark_pixels": 18669,
+      "dhash": "868080c8948494d4",
+      "page": 73,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "f0c0f700b8eb26b2496ff8685f7801681822794e5a0d4ad7b4ae2abf4e9a6c64"
+    },
+    {
+      "dark_pixels": 9277,
+      "dhash": "9290c4c08080c0c0",
+      "page": 74,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "ccd26fbd3af834f3b7ca5729be3d999e2cd590e877c8c2a980c19ba687cea1e9"
+    },
+    {
+      "dark_pixels": 22688,
+      "dhash": "8c88c480d48080d0",
+      "page": 75,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "a1b5c63d8542b2d406cf91b2306bd5bc09a23190ef5b98970272997db3070c78"
+    },
+    {
+      "dark_pixels": 23208,
+      "dhash": "84c0c0c0c0808490",
+      "page": 76,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "51caf67e11c8635544dd89afb2145d80b6535bcce23a93ff73b8f709a75f3a4c"
+    },
+    {
+      "dark_pixels": 20123,
+      "dhash": "84c080c490c4c0c0",
+      "page": 77,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "36376927a903a7f4a51f22073154da1710688fd1963b7cd025ccdd7ed578f9c3"
+    },
+    {
+      "dark_pixels": 24674,
+      "dhash": "8680c0c0d0c080d0",
+      "page": 78,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "84debfbce2e6de0a21db5fcd39d2f5554cbda1c8522c15fbdffd2206d21725cb"
+    },
+    {
+      "dark_pixels": 10269,
+      "dhash": "a48080d08080c0d0",
+      "page": 79,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "f2b12f321134a26a78c3c8e6d38a8c74e7ea71ff5f2ba31d72acfbc3557318d4"
+    },
+    {
+      "dark_pixels": 1789,
+      "dhash": "8680000000000010",
+      "page": 80,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "e35f43d85649fd129960f718831e4d83e85ea894f7109dbc4ca4ea3d98350eab"
+    },
+    {
+      "dark_pixels": 27709,
+      "dhash": "a4c4c08084c0c0c0",
+      "page": 81,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "7d554e5274d2151ea5a5c4248bc6d106fb9c8b6a69bdc60e3d5c098d4eba9e69"
+    },
+    {
+      "dark_pixels": 23344,
+      "dhash": "80c0849480808090",
+      "page": 82,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "d57ff3cd5346fbb6aca9b71191b64cdd3997bf8f6f6e5e5fdee737f55953e746"
+    },
+    {
+      "dark_pixels": 14874,
+      "dhash": "8680808080d48490",
+      "page": 83,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "4beecdcd22448da0056bd0a91bfb568140965e553a6c6e5970e1fc66e837988a"
+    },
+    {
+      "dark_pixels": 14309,
+      "dhash": "94c0a0c8d080c490",
+      "page": 84,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "608fa750bf3d8d5fcb494bb3dbd3a3ce4642ad42528055e8b212f38496e655f4"
+    },
+    {
+      "dark_pixels": 16271,
+      "dhash": "84c4c8c08080c494",
+      "page": 85,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "f795ce82d1252d4560a7e59e1bc989f63163cc9ff2a77c1947ff465a0f7a01e9"
+    },
+    {
+      "dark_pixels": 11570,
+      "dhash": "a4c0c080c0c0c090",
+      "page": 86,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "1593efb122140de7d77d4681c44f717e718338c1928ec56926b38d139f1138ce"
+    },
+    {
+      "dark_pixels": 14510,
+      "dhash": "86c0808084848080",
+      "page": 87,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "8798ed9edda5f25a25b57fda45ff04c9b1ec86c109c18d1bc30e9e3c4f408b3f"
+    },
+    {
+      "dark_pixels": 23290,
+      "dhash": "8484948480c08090",
+      "page": 88,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "98c67f0bed0a3068b2dced093b965829a40b9ece97ed40fb981b1660cd738bde"
+    },
+    {
+      "dark_pixels": 26255,
+      "dhash": "84c0c488c4808090",
+      "page": 89,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "18e5408befa6acce488baad7fc4c35695738656c73fb452243aecfa126a09ed8"
+    },
+    {
+      "dark_pixels": 7991,
+      "dhash": "84c0900010000010",
+      "page": 90,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "0c809dff258cb659bacab6b6a934e0a53530cc64742fe86d31111081597b5721"
+    },
+    {
+      "dark_pixels": 21466,
+      "dhash": "86c08080c0c09090",
+      "page": 91,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "552ac7db857d1e7147e69f0013017ba030d213e694f4fdef9c600bbebae11919"
+    },
+    {
+      "dark_pixels": 25569,
+      "dhash": "84c480c0cc808090",
+      "page": 92,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "22632f40b86da7ef3e3e0f2248e638557d863f58264671e6172834ffe9691c39"
+    },
+    {
+      "dark_pixels": 9041,
+      "dhash": "86c0a08080800010",
+      "page": 93,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "8ccd34fe91a92a086f0960d511cd4628d89511bc29e03510ef4226e19adb1aab"
+    },
+    {
+      "dark_pixels": 31603,
+      "dhash": "86c0d0c0c4c080c0",
+      "page": 94,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "890e0849b4ed7ecc06ec1a02289a61248d948a613096d3c795f06838635012d8"
+    },
+    {
+      "dark_pixels": 33596,
+      "dhash": "8cc4c0c0ccc4c4d0",
+      "page": 95,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "221c764df1d3b0e3b4d1b74962095cc3b549eb964f2795283006209385c494bf"
+    },
+    {
+      "dark_pixels": 27661,
+      "dhash": "84c084c0c0c4c0c0",
+      "page": 96,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "982bd80c7a423ed6636474eb9271d9ef1e488a2f4e60b6a2b096a1c6cc57eccd"
+    },
+    {
+      "dark_pixels": 13021,
+      "dhash": "bcc0c0c0c0c0c0c0",
+      "page": 97,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "db20e80e1aac31de022ffe0ca6e7e783820a40f5571a0f77847b40ec760e6724"
+    },
+    {
+      "dark_pixels": 25245,
+      "dhash": "86c080809480a0d4",
+      "page": 98,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "ac73b9122e1284a20116bef9248bb063f56cf5cc2193a459d271243e3ee2972d"
+    },
+    {
+      "dark_pixels": 29740,
+      "dhash": "84e0c8c4c8c0c0a0",
+      "page": 99,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "50b1a954268a0051d8e729d72991ebc32f4062c21dba5954e8ecabdce3bef75e"
+    },
+    {
+      "dark_pixels": 33011,
+      "dhash": "94c0c4d0c084c4d0",
+      "page": 100,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "d167aa77884d6e459e18f262568541d4646e65636b646b766dcf52d5fe8a5c33"
+    },
+    {
+      "dark_pixels": 6980,
+      "dhash": "84c4900000000010",
+      "page": 101,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "bb0e134d799f9ff1f1447efe7ea93156b91e984ef333b490a830838f23f7d5b0"
+    },
+    {
+      "dark_pixels": 26755,
+      "dhash": "acc090888cc08080",
+      "page": 102,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "e150571a8fe56a12b965836e946f3eb72e06ff96fae16da7a66b3da3c0aac05b"
+    },
+    {
+      "dark_pixels": 9706,
+      "dhash": "8ac0808880e088c0",
+      "page": 103,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "9dff1878d0a916460b857e00648e59e7e31bb46bf49bfd329bbe33fd67e5b017"
+    },
+    {
+      "dark_pixels": 32385,
+      "dhash": "98c0c0e0c8c4d4d4",
+      "page": 104,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "1a5766ef275ce627dc6ea16597ef5910fc9c2072e527ee968b6c01aaf808fb0f"
+    },
+    {
+      "dark_pixels": 24476,
+      "dhash": "8084c480c8ccc010",
+      "page": 105,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "b629a6f64d1217b4ef9b8bd31cecf55bf54e98b91898e2ab48ad9b8ae4b80790"
+    },
+    {
+      "dark_pixels": 9346,
+      "dhash": "b8c080c0c4c0c810",
+      "page": 106,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "040105404702e551ef3f5068876e0e52205a7fe20c7a40f03fc319c035634c13"
+    },
+    {
+      "dark_pixels": 10249,
+      "dhash": "988080848090c084",
+      "page": 107,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "df704343f46b9685fd99c35cc21c281fa5ccc1ac8a39b41dc86873a285b07c1d"
+    },
+    {
+      "dark_pixels": 21966,
+      "dhash": "9cc4c080c0808010",
+      "page": 108,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "83ae38db2cf69200e1b2d919b86f7236f83b8ed0e4e99b7a247199d64dff5a90"
+    },
+    {
+      "dark_pixels": 21542,
+      "dhash": "b8c0c4948c88c494",
+      "page": 109,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "9cf204986d817399c33b544a1e2710f0c31d4624739ccf00a700c4019895618d"
+    },
+    {
+      "dark_pixels": 13394,
+      "dhash": "9880c084c0888010",
+      "page": 110,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "7a9b73032713cb0b9b38bf09be90e1539df65c9bcb72fecaa53fd00d32240cb8"
+    },
+    {
+      "dark_pixels": 25845,
+      "dhash": "8ec08084c494d0d0",
+      "page": 111,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "e9591aee3a43cd891626ac4390ddafddc1073f6f448ce32725a942c772ea92c8"
+    },
+    {
+      "dark_pixels": 21920,
+      "dhash": "8680c0c48080c0a0",
+      "page": 112,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "839ec77c6135e9ac04ef2c3bcf637eb80c7462b5923cc22f5dc951e11d87ebfe"
+    },
+    {
+      "dark_pixels": 18786,
+      "dhash": "86c0c4849080c090",
+      "page": 113,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "000ed366cdb45a495645e332e8c289c533ed5fafa549c6382ad1300822f875f0"
+    },
+    {
+      "dark_pixels": 30263,
+      "dhash": "868490c0d490d090",
+      "page": 114,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "2c90abd396e82aa7a2d0c000e371b5f846307c3920357cb38cc0dc83a218575e"
+    },
+    {
+      "dark_pixels": 24556,
+      "dhash": "94c0c49c80c4c090",
+      "page": 115,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "6d7e4e4c47decef8e3d634377ccf5cfcc48957f1bd4e66357b0bfcf49d5d93d3"
+    },
+    {
+      "dark_pixels": 24479,
+      "dhash": "9280848484908080",
+      "page": 116,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "33dfb633ccb495b0843822751e76ac8b116f6b2112da8b0ad6c9a5b033780de9"
+    },
+    {
+      "dark_pixels": 10858,
+      "dhash": "86c4c08000000010",
+      "page": 117,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "67f36208c83e93c155dd989b711ff481c40e2fe93ece994c848d0310835892dd"
+    },
+    {
+      "dark_pixels": 21900,
+      "dhash": "86c0c0c0cc808090",
+      "page": 118,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "55b1c6f3d9be22ba911d08ac03082445f3f459d4feac0f2fea711fc7549c517e"
+    },
+    {
+      "dark_pixels": 20898,
+      "dhash": "96c4c0c480c080d0",
+      "page": 119,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "7b4d66f2a6e993caa8ede4fff1b84cf292a69edd2a2156b3d437a5db204b1258"
+    },
+    {
+      "dark_pixels": 23198,
+      "dhash": "86c0808084c08094",
+      "page": 120,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "68d9e5f08871e202a1ab4c8c5b6fbb6aca962bda3417939cdbc3529b20970a1a"
+    },
+    {
+      "dark_pixels": 25944,
+      "dhash": "86c4c480c0c08090",
+      "page": 121,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "9abd74a7588b6364c26a5df270fd53c807a5d87e7bcdaad60e9b1902cd30486f"
+    },
+    {
+      "dark_pixels": 29145,
+      "dhash": "86c0c4c8808084d0",
+      "page": 122,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "b4bd72bf83dc033991418bca410dde7c5ce7a9cab66fc4059bc6fb4824cdeca7"
+    },
+    {
+      "dark_pixels": 17806,
+      "dhash": "8484b0c0c0c0c0c0",
+      "page": 123,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "1a06aee73bbdb91826a14ce4a7e9417e461321c9f16515fa8798faf1480aab23"
+    },
+    {
+      "dark_pixels": 5197,
+      "dhash": "86c0c0c000000010",
+      "page": 124,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "15dad32ec2b26de9c2ca06f25f2b7e9896df43d116bc9cce565c8ac3cdb4d810"
+    },
+    {
+      "dark_pixels": 27059,
+      "dhash": "84c4848080c480b0",
+      "page": 125,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "b8bcdbbe912a9f63b330a7f3619f5d58ec41c6ca5297b02df8b08ab546a73a62"
+    },
+    {
+      "dark_pixels": 2398,
+      "dhash": "8480808080808010",
+      "page": 126,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "5699bd53a25c9ee6c1c24ae491817272e3d300255eaa7ebd20a86fa18f967866"
+    },
+    {
+      "dark_pixels": 1919,
+      "dhash": "8480808080808010",
+      "page": 127,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "428774088932264bda2e4071f30bc59c11d000632e12009f7a0b5f15331ccb84"
+    },
+    {
+      "dark_pixels": 22022,
+      "dhash": "a4c8d0f4c08088b0",
+      "page": 128,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "83c0e48997482246b4233d7bda582064cb801f7fc548d1dff5cf0522fd339dc9"
+    },
+    {
+      "dark_pixels": 33581,
+      "dhash": "a494c4c0d08480d0",
+      "page": 129,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "2ac0b598b91cb94834339792eb14a3ac17e0d6dd5135bac1cc45230e96a69fb5"
+    },
+    {
+      "dark_pixels": 28348,
+      "dhash": "8cd0d4c080d88090",
+      "page": 130,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "3ee2912fc8f9cb36303e3693110d083b65a5580b3febfce371647067b3cbd754"
+    },
+    {
+      "dark_pixels": 23685,
+      "dhash": "84908080c8849494",
+      "page": 131,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "d7d8193f0fb7aa6a6f8a476de9ef52ca24468408c11601a41292953b4313060b"
+    },
+    {
+      "dark_pixels": 23213,
+      "dhash": "8480c4c4909084d0",
+      "page": 132,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "17e02b024242a01632ec9ab56e717e5c6c96e23d55ce6c23a223daa6e07a1901"
+    },
+    {
+      "dark_pixels": 27835,
+      "dhash": "84808480c0c4c400",
+      "page": 133,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "85618e5e04ab246f76cd88e4c5473635ec1b1b40281ec6164ca1621112601630"
+    },
+    {
+      "dark_pixels": 17018,
+      "dhash": "84c8908080c0c090",
+      "page": 134,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "567a09e6d64b1c6b03a1ea072fb811b5a0532fd12d8182a1f081418bd027cf64"
+    },
+    {
+      "dark_pixels": 13670,
+      "dhash": "a48080c098808090",
+      "page": 135,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "cf86724ede9edce650a81b4606efa67c30a4bd5e94d7fe87a14e24e4911dc8d9"
+    },
+    {
+      "dark_pixels": 26834,
+      "dhash": "84809084c490c8d0",
+      "page": 136,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "13e9c53635eb5b54932ea421126fc80988f14dbc4e0cb21ea5416d72652237fc"
+    },
+    {
+      "dark_pixels": 22972,
+      "dhash": "84c08080b088c4b4",
+      "page": 137,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "a86a6752f063432046d5250db81dd96e70380fe42fe59022316d28b99744a531"
+    },
+    {
+      "dark_pixels": 26617,
+      "dhash": "8480c4c8c090c0c4",
+      "page": 138,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "d402eba2732a735038905e36bdd0d2e9d88b52fa0077ff7595cd9f525c5ab749"
+    },
+    {
+      "dark_pixels": 28183,
+      "dhash": "8c80808480ccd090",
+      "page": 139,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "03c1916f617290be3980e8c699dc196bb8d9d0d08fb12ee6e2855b3d5be6951f"
+    },
+    {
+      "dark_pixels": 18823,
+      "dhash": "84d4808080809090",
+      "page": 140,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "4d93a6058a690b66b64ad2a632d050adb66f4d8b729e1f100b629027d9c73038"
+    },
+    {
+      "dark_pixels": 23179,
+      "dhash": "8cc09094c080a892",
+      "page": 141,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "ec8a0e1d9ff823d3a036eef9b9d037e97c6f74e0bfcb25fcd3004979d5c86910"
+    },
+    {
+      "dark_pixels": 5861,
+      "dhash": "8484e00000000010",
+      "page": 142,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "ae79330ea0c5daba6c7351a3f990282a24d87e1a91632be8c7fbefd54e3aba5d"
+    },
+    {
+      "dark_pixels": 22071,
+      "dhash": "86c894808084c050",
+      "page": 143,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "931a185bee71ae949ad5644261530472fb7df0ed1037aeed3352264071f1a8bd"
+    },
+    {
+      "dark_pixels": 17488,
+      "dhash": "a6c4c890cc849010",
+      "page": 144,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "1ace72f5e715533055c44b7a52875f0e4c78abb2fde0fadd7bf20edb2489385f"
+    },
+    {
+      "dark_pixels": 20764,
+      "dhash": "a6c090e4c0c0ccd4",
+      "page": 145,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "dffa0aabf88f40d58dc3eeb1fb07a97d591060f4a61000800ed6fa3632b13290"
+    },
+    {
+      "dark_pixels": 19565,
+      "dhash": "a28080c8c8808090",
+      "page": 146,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "56d59ff278891dcdff1f4efb93a4a650aef4ae2dcc9af47c6c0e29a383ad3e50"
+    },
+    {
+      "dark_pixels": 18732,
+      "dhash": "86d080c48480c0c0",
+      "page": 147,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "18dcad989a361d2dee886c3bd81819482d403128cc91b786eb34b718ef43a67c"
+    },
+    {
+      "dark_pixels": 13295,
+      "dhash": "8688c08c8088e0c0",
+      "page": 148,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "d3113547658e47a10bb56798d719f9935cbb8c06aca4983e7f3415f64a0f7186"
+    },
+    {
+      "dark_pixels": 17723,
+      "dhash": "849080848080c090",
+      "page": 149,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "8f8c3ef20ed210e15433eef7a67e2609faad478896eecfbc15cb443ae0abe434"
+    },
+    {
+      "dark_pixels": 20004,
+      "dhash": "8688e0c080c08094",
+      "page": 150,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "2db2634cfe071ece74620be1652cef72a72ee0044c069bac1b70fcc3513e4ea1"
+    },
+    {
+      "dark_pixels": 11419,
+      "dhash": "8480c0c0c0c0c4b0",
+      "page": 151,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "a0e6732c140ad35eb8e2019cbb19db6364d652daa768d6182ea286c761ad9be9"
+    },
+    {
+      "dark_pixels": 9046,
+      "dhash": "8ac08090c0c08090",
+      "page": 152,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "745ec7de5c270677aeeec2d03d3628c6ba189fc3b307493b945d7bad69158ed9"
+    },
+    {
+      "dark_pixels": 12996,
+      "dhash": "8290a484c0848cd0",
+      "page": 153,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "624611cecfa8571194682c7b3600785c7c387cc9ed375a39f4f70440105dc329"
+    },
+    {
+      "dark_pixels": 28991,
+      "dhash": "9cd0c0c0c4848490",
+      "page": 154,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "4b24abfddda127f761fd4ec5322c9e5e0b35a1fa2acbf88af3e676dbb56e6aad"
+    },
+    {
+      "dark_pixels": 28068,
+      "dhash": "84c082848cc4c490",
+      "page": 155,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "e17c15464ed2fc8ec05d6b465d478a5bd3db0f21d316e7aea4a9a78d7b1d6fd7"
+    },
+    {
+      "dark_pixels": 24571,
+      "dhash": "86c8c080c0c084d0",
+      "page": 156,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "16a2f1eea1c0e7950c63731d41a4369888ba9aa1886395046c279f07e6f1b952"
+    },
+    {
+      "dark_pixels": 20586,
+      "dhash": "a4c480c080808094",
+      "page": 157,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "5279ebdef7b14906b5365bbf349189641d6d8ffb019125fe3f5618c848a1c37f"
+    },
+    {
+      "dark_pixels": 28603,
+      "dhash": "868498c4c4888cb0",
+      "page": 158,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "71fa0d64550dfab71a57c95c5a8dcc94c44a0b926e9efb50cae2818907295d05"
+    },
+    {
+      "dark_pixels": 20982,
+      "dhash": "82c0848090c48000",
+      "page": 159,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "fe5a975f2506cd84ada550d8eab6066fe88dc2abf556e84c691f77ce8e1bf914"
+    },
+    {
+      "dark_pixels": 26509,
+      "dhash": "96c0c4d0c0cc8084",
+      "page": 160,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "43b165c5034b547467fd1976908b2eac853230c8b7c390fd87975b5ba2ee135a"
+    },
+    {
+      "dark_pixels": 29739,
+      "dhash": "86c4d480c0c084d4",
+      "page": 161,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "ea5483e0137ca9f1a3d7457293c14a28fab86361b0557f38e6ff0228aba09333"
+    },
+    {
+      "dark_pixels": 29024,
+      "dhash": "948084d0c88884d0",
+      "page": 162,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "f18d5b1e304cdeae6c7e5d7b0f328dcfc39f4f143d53b085aafa73ec679c0d6b"
+    },
+    {
+      "dark_pixels": 18521,
+      "dhash": "888084c0d0000010",
+      "page": 163,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "2834a7b45d907717036d79f65152817c9254207c7c087b2f619a208a0fc148a9"
+    },
+    {
+      "dark_pixels": 24913,
+      "dhash": "84c0ccc0c0c48094",
+      "page": 164,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "098500566ec16f605097ec3fbeea158b7edebea187e565795957f98f3e699233"
+    },
+    {
+      "dark_pixels": 23202,
+      "dhash": "8c84c0c0c0c0c0d0",
+      "page": 165,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "d61d87d181812eea78c831f29ab231d1335f330184cdad89c3e8166e2ae662f0"
+    },
+    {
+      "dark_pixels": 11862,
+      "dhash": "8c80c0c080c48090",
+      "page": 166,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "907f1f0019ed96d6c95b0754f7ea9c39e0ca0756a7ed51dcc5335c9a2bab3071"
+    },
+    {
+      "dark_pixels": 25027,
+      "dhash": "84d080d0c0c0c094",
+      "page": 167,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "f14fa78b9994beb3d1aab037d15a8643662ea25108fb5879f1bfd24f41b22c6f"
+    },
+    {
+      "dark_pixels": 11509,
+      "dhash": "a4c084c88080c800",
+      "page": 168,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "0d63b83f8ee6f1b8bfc7e385005aabe6b85c12a700a5a0a61b01e78db4ede20a"
+    },
+    {
+      "dark_pixels": 21642,
+      "dhash": "acc084c0d0ccc494",
+      "page": 169,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "15075ffecae67aa4c712eb1a3b689ec8249af43a18bad82b34e6bbc9775b3ac6"
+    },
+    {
+      "dark_pixels": 29134,
+      "dhash": "84c0c8c4c8c0e4d4",
+      "page": 170,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "47fa1e1a38c4d422b084f5ff3411426144cc4c9b7cfb322b8eb20ae5d08468a5"
+    },
+    {
+      "dark_pixels": 1738,
+      "dhash": "8480000000000010",
+      "page": 171,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "b5f8c0cd6c32cb19842f1ed7c0f09e2d694de41f47f535a4ef535ab3bc078b3f"
+    },
+    {
+      "dark_pixels": 28452,
+      "dhash": "88c0c4c090c48090",
+      "page": 172,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "9d766986a2bd6c70148004d6882e5611460d0f04621f7266bc24a308db0cb7b8"
+    },
+    {
+      "dark_pixels": 18927,
+      "dhash": "8cc0c8c0c8d09090",
+      "page": 173,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "1b623683433ded98d3f292f5a888464d1fc05f869edb44027c621b49b590b2f6"
+    },
+    {
+      "dark_pixels": 24270,
+      "dhash": "8cc090c08cc0c4d0",
+      "page": 174,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "fc21e4954523acd91de0b6da464cdfc0dbd2d7e284c3c8fb3a1c406d6dcb9870"
+    },
+    {
+      "dark_pixels": 19242,
+      "dhash": "9cc0c09c80000010",
+      "page": 175,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "a772920536083866cf02644c396cc9777c8b3f768e33a291da9821edb3545133"
+    },
+    {
+      "dark_pixels": 30057,
+      "dhash": "84c090d4c08880d0",
+      "page": 176,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "70b3122f6d92bcf1060acff4d3abdec50d70bf295500aa12610529f5868d1bd4"
+    },
+    {
+      "dark_pixels": 16950,
+      "dhash": "84c08088c4c080e0",
+      "page": 177,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "185e40aa456a64085d7372fbdd702c0a6b66e5baa50370524b35cb247f04e947"
+    },
+    {
+      "dark_pixels": 20318,
+      "dhash": "84cce4a080c480d0",
+      "page": 178,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "996395b3eccfb8edf4ef79b9257fefe1ec9cd5b3e6822713a72d7842dc691bf7"
+    },
+    {
+      "dark_pixels": 22619,
+      "dhash": "84c0c4c0c0d48490",
+      "page": 179,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "fe28767d9e2a6195b2292b0a2903dcce5bf1aca4a8772a4df5bc1244c78da04d"
+    },
+    {
+      "dark_pixels": 24916,
+      "dhash": "8cc0808084808090",
+      "page": 180,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "306971f5536c86ed1a668044e7cb4dd4527080b7654e6064e143c8159de7fdfb"
+    },
+    {
+      "dark_pixels": 4383,
+      "dhash": "8480808088808090",
+      "page": 181,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "6772c211b2aa92317a370ae0fd6b14d09cb4023c1f53cba0bb3e3561c5c20a8b"
+    },
+    {
+      "dark_pixels": 6933,
+      "dhash": "848080c880c08010",
+      "page": 182,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "15471bce3cea9518fe04f9011c3ebcf6ebd6ae4df45558fe4e90dde5c3be2045"
+    },
+    {
+      "dark_pixels": 12656,
+      "dhash": "84c8c080c0c0c080",
+      "page": 183,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "6d4b355a8870755907ec54aaa0a0eb8d58942cbcc75dc8609a266a6be9b11f1c"
+    },
+    {
+      "dark_pixels": 5850,
+      "dhash": "c48498c800000010",
+      "page": 184,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "5200398a669894a9bb54a7dc16c566c4391902ecfcc490c688d765fd5b4da62b"
+    },
+    {
+      "dark_pixels": 32417,
+      "dhash": "88c0c0c8c4c4c0b0",
+      "page": 185,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "b14c66a278671b71405ee753e46ba2eddfb82e192ea0a45e17e64ac38b51c65a"
+    },
+    {
+      "dark_pixels": 25238,
+      "dhash": "8cc08084ccd4c410",
+      "page": 186,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "eb3bfdf4ec185ff18453c4833dc41659fb65259a2636b69193fd6206a2670d45"
+    },
+    {
+      "dark_pixels": 20177,
+      "dhash": "9c8080c08490c080",
+      "page": 187,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "e83c4100af2f0e0d66bbeaae4d7bf83984449af479e50f5bb0b478153892e01d"
+    },
+    {
+      "dark_pixels": 30590,
+      "dhash": "8c8090c0c0c4c0d0",
+      "page": 188,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "9a5ada5c630671c5ee6c79833c1f03fca3e2126376015ccad06da42f1506fea4"
+    },
+    {
+      "dark_pixels": 27384,
+      "dhash": "8cc4848480c08080",
+      "page": 189,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "bc31b0682bcebdcd313645b649c0be8a43c32f7c4e32381ff6145aa2c09256ae"
+    },
+    {
+      "dark_pixels": 29639,
+      "dhash": "88c0c4c080c0c4b4",
+      "page": 190,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "6dd3815ded6e89d737154fd13c22ec6fe75b8a61204760b638a163e154c32234"
+    },
+    {
+      "dark_pixels": 13114,
+      "dhash": "8c9484c400000010",
+      "page": 191,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "da727159dde2d953c769b5bbe7ef367f025282deae9b8c1e4d1a0e5d1b57234c"
+    },
+    {
+      "dark_pixels": 28521,
+      "dhash": "96c4c09084c48090",
+      "page": 192,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "f3babadd58bce9fcdc145ed9507d2613682229bc079504533e9c92c78e0af9d8"
+    },
+    {
+      "dark_pixels": 13440,
+      "dhash": "86808090848484d0",
+      "page": 193,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "fca2bc3aba8300ef50722e26527485df41b7d1f5f353b32cbab6f3cb43c744c0"
+    },
+    {
+      "dark_pixels": 28902,
+      "dhash": "8680c880c0c4c8c0",
+      "page": 194,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "ca851841d017910aa1a87bf8064c68f45a0791dc93d3f3caeee7e2a8ba746da5"
+    },
+    {
+      "dark_pixels": 21398,
+      "dhash": "86d89090c8c80090",
+      "page": 195,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "d5d63de708803f0c68985bd58c893dcdb259313509dabb0540a64311b4b4907a"
+    },
+    {
+      "dark_pixels": 33115,
+      "dhash": "84c8c4c0c0c4c4b4",
+      "page": 196,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "48fc79ef66494b72602ac6b48fa78de01c16fdefdda2951b3f36618961b006b9"
+    },
+    {
+      "dark_pixels": 22550,
+      "dhash": "84c4c4c0c0c00090",
+      "page": 197,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "41c7f15d718e1e90a3ca4b8d36fa2da39f16e1ba9087c5378cf1feb81c613be9"
+    },
+    {
+      "dark_pixels": 31727,
+      "dhash": "90c0c4c0c4d0c0d0",
+      "page": 198,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "cc3be0606c46ba229696b1255bebd39e5de7573d111400fe8c6464b0a42dae8c"
+    },
+    {
+      "dark_pixels": 33784,
+      "dhash": "8c80c4c4c480c0d4",
+      "page": 199,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "7693b0c1a41bd0294bd4aa3b44473c00bc30a5b732c75e6d73aa304425e7268d"
+    },
+    {
+      "dark_pixels": 34999,
+      "dhash": "8cc0d094d0d080d0",
+      "page": 200,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "48acca440a1d01c4054aeb5fe90a4a5aaaaf05e171bb99b6f01d637d702ca9f6"
+    },
+    {
+      "dark_pixels": 33587,
+      "dhash": "acc4c8d0d0d0c8c0",
+      "page": 201,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "89cf1fabe35f0f3801cfe2f4eacb1a3df683da779a223875a2f5164a35628f7b"
+    },
+    {
+      "dark_pixels": 26614,
+      "dhash": "84c0c0808084c484",
+      "page": 202,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "2af3f45b8df86884ac5bb7110fb05091eb2e5d3a01467c088e48c7e254e0c72f"
+    },
+    {
+      "dark_pixels": 28150,
+      "dhash": "8cc0c4c4948880f0",
+      "page": 203,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "1bb634c9ed33e6caa1687598a9b8d56f181308740ba6678be6929e599d304eb7"
+    },
+    {
+      "dark_pixels": 31538,
+      "dhash": "88c08490c08480d0",
+      "page": 204,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "21f3434f0d188f06ac8e20d4f62ac54b8f032e2e70578216c6a57f99ea1fe2a3"
+    },
+    {
+      "dark_pixels": 33177,
+      "dhash": "84c0d0c080c0c490",
+      "page": 205,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "1cff27ca6bee5811c4c9cc38c249489d5b1efe1f1849b7f617313dc1858c5841"
+    },
+    {
+      "dark_pixels": 26968,
+      "dhash": "8cc4d0c4d08880b0",
+      "page": 206,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "1c11eada0abe5af3c46973271b9ca9e50ae28240cb29bc88f5b922e548817137"
+    },
+    {
+      "dark_pixels": 22278,
+      "dhash": "8c80c4c0c0d480c0",
+      "page": 207,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "d734c7c0cf254cd2be5dfc5b27aea0ee89192a634baa0ed47763688327f5fe37"
+    },
+    {
+      "dark_pixels": 33944,
+      "dhash": "8cccd09088c484d0",
+      "page": 208,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "b68ff0c373f0084f4062ec588403ace70e43910809eff2f34c59c67762e05248"
+    },
+    {
+      "dark_pixels": 29977,
+      "dhash": "bcc4c4c8c0c48410",
+      "page": 209,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "25214aa3de9f592ad87ec8590b85bc9da0d935043c33db25fe2d662edd7dc01e"
+    },
+    {
+      "dark_pixels": 28055,
+      "dhash": "8cc0c080c4c480f0",
+      "page": 210,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "2dba03ed36218deb8625d39231af97ddbd4ba6ca5ee5a1da1d755647a4685558"
+    },
+    {
+      "dark_pixels": 6726,
+      "dhash": "a480880000000010",
+      "page": 211,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "ac59bcd95c43362aa2fac1b0f94b0664f3eedce1bcea96bd81ac5d8bc4c22f49"
+    },
+    {
+      "dark_pixels": 1394,
+      "dhash": "8280000000000010",
+      "page": 212,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "1726fcca3ff7087f73add99075159b63d034ae9ba1676b0c1e33e40f4cab3e11"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "engine_version": "0.0.1",
+  "file": "tickets/weasyprint-ticket.html",
+  "page_count": 1,
+  "pages": [
+    {
+      "dark_pixels": 1876,
+      "dhash": "0303020000000000",
+      "page": 1,
+      "size": [
+        841.89,
+        595.28
+      ],
+      "text_sha256": "c54428fb8d1a13b646054dae6a064cab157d96b37ab9e90522fa3e31c24d9297"
+    }
+  ]
+}

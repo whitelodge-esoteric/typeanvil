@@ -1,0 +1,117 @@
+{
+  "engine_version": "0.0.1",
+  "file": "reports/report.html",
+  "page_count": 11,
+  "pages": [
+    {
+      "dark_pixels": 1606,
+      "dhash": "9aa0869a82001010",
+      "page": 1,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "45657c71725f2d96f5cf80ab5becc2887a089287920618936acc4dd374e5bc11"
+    },
+    {
+      "dark_pixels": 4051,
+      "dhash": "9ac882dcd0d0cc00",
+      "page": 2,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "53a58380e9d726fdf2733ef1b3cc6515b041650ce4713f539bc18e685e1d145d"
+    },
+    {
+      "dark_pixels": 3434,
+      "dhash": "9ad8c480ecc00010",
+      "page": 3,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "c42b632a466809ca400314a6e78fc728f551ea7acae9ab170f4da1ab78654f90"
+    },
+    {
+      "dark_pixels": 3513,
+      "dhash": "9a9a84ccc4d0d200",
+      "page": 4,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "dd80b7124557aa7075f780bdef883936f511776c87b32f11b2bb616f17054d30"
+    },
+    {
+      "dark_pixels": 2043,
+      "dhash": "ba8a8ce080081010",
+      "page": 5,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "f9bbdb205a75c7a3195211a683a95635e7a1ca105b61579885b007138e5c0736"
+    },
+    {
+      "dark_pixels": 1968,
+      "dhash": "9a9880989adac810",
+      "page": 6,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "f0c0af340925379212cee893be423464c2e23e574026fc5ecd1b98aba13c0b99"
+    },
+    {
+      "dark_pixels": 9740,
+      "dhash": "9882d45454540054",
+      "page": 7,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "0696ec26963f556622e6b20bd86ce82413287dced094005918a302668da47fc0"
+    },
+    {
+      "dark_pixels": 3848,
+      "dhash": "9af88490e8e0d410",
+      "page": 8,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "ea772efc218d43371e7cfd6aebc75077e18354e8db2771ca8c14bca6b5a73276"
+    },
+    {
+      "dark_pixels": 3337,
+      "dhash": "9a88ec8084e40090",
+      "page": 9,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "5ebb1955753b30103f24da7aca87fc9bbad31ed2c0ba510015f12e249884ad66"
+    },
+    {
+      "dark_pixels": 3852,
+      "dhash": "9a8ac4cce4d4f410",
+      "page": 10,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "7bd99daa8055769b1b784bf6f34f5799abd75d16be96d5a5512c32fa9d9b2049"
+    },
+    {
+      "dark_pixels": 1010,
+      "dhash": "9ac0c00020001010",
+      "page": 11,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "a443a48757bcc7aae6575e16378b1e496fe926a2a8d5a5650c8f9d9888eeb8a1"
+    }
+  ]
+}

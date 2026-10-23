@@ -1,0 +1,127 @@
+{
+  "engine_version": "0.0.1",
+  "file": "financial/financial-statement.html",
+  "page_count": 12,
+  "pages": [
+    {
+      "dark_pixels": 3014,
+      "dhash": "ace0c0ccd8d8c800",
+      "page": 1,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "02c44c9faa10cfa348410c47a37f8bd6459a7e815cdd7ccfb753944052e102a4"
+    },
+    {
+      "dark_pixels": 2336,
+      "dhash": "8cc884a098d89a10",
+      "page": 2,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "74be5e5f797c28365ce94bc36124e692e9bcaa9f9122016878e0112699f08d7b"
+    },
+    {
+      "dark_pixels": 2285,
+      "dhash": "cc98c8c8cace9610",
+      "page": 3,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "3b1d4cf9deaef8f6da466089ecbf2c9b710fb670b599910208daefaeb47a85d1"
+    },
+    {
+      "dark_pixels": 1341,
+      "dhash": "cc98ca9cc0001010",
+      "page": 4,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "927db75f085cc311ed4c08bc96a482ef0b4715079caf002e999004b3bbda0a8b"
+    },
+    {
+      "dark_pixels": 1668,
+      "dhash": "8cc0988ece869410",
+      "page": 5,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "515231391c6c19c212890ca4d47ca501867743d42c90c92fe3be7724dd84d422"
+    },
+    {
+      "dark_pixels": 1943,
+      "dhash": "ccaccec68e8ed010",
+      "page": 6,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "805d87fed655c6ff87b7255f7f05647a70247da4a5a4ca77993f2f61dfdc77b2"
+    },
+    {
+      "dark_pixels": 1980,
+      "dhash": "8ce08aceccccc810",
+      "page": 7,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "d607fd19af3850b9c899a37950d4af8a07e35d500135a299965f44821e351cc5"
+    },
+    {
+      "dark_pixels": 1674,
+      "dhash": "cc8c8e8c8ecc9010",
+      "page": 8,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "3b235751458391c97ed082880b6e5888b34e794915a75f2e98dab8d9f9f9a3d9"
+    },
+    {
+      "dark_pixels": 1857,
+      "dhash": "cc8c868ecea60090",
+      "page": 9,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "416c081474377e8be811acd946c1fb13ebc941388b75414e1309709ef377c8f5"
+    },
+    {
+      "dark_pixels": 2268,
+      "dhash": "8ca0c484e4e4e410",
+      "page": 10,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "99b83730e0fc9214ea031e63467d894e1de3da9d1a4499b4f0adec68da044147"
+    },
+    {
+      "dark_pixels": 2861,
+      "dhash": "8cccc4e4e2c4cc10",
+      "page": 11,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "c07220f32aabd5598c4d568f91955ed534e7ffe80713e6021235d1d26df64dab"
+    },
+    {
+      "dark_pixels": 47,
+      "dhash": "8cc0c00000001010",
+      "page": 12,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "f3a94eadf24e8dd03398dd2daa376120472cf2d41da30550f3ac1f4386087d03"
+    }
+  ]
+}
