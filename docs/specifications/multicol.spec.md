@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-18
-updated: 2026-10-17
+updated: 2026-10-23
 sidebar_position: 8
 tags: [engine, layout, css-multicol, fragmentation]
 spec_id: multicol
@@ -101,7 +101,11 @@ The engine shall:
 5. **Honor spanners**: an element with `column-span: all` interrupts the
    column flow — preceding content finishes its columns, the spanner spans
    the full content width, following content starts a new set of balanced
-   columns.
+   columns. A spanner at the top of a fragmentainer shall be laid there even
+   when it is taller than the page; the spanner fragments itself and the
+   container resumes after it. The container shall never defer a spanner that
+   already starts a fragmentainer (CORE-550: a tall `column-span: all` table
+   otherwise paginated without end).
 6. **Nest multicol**: an inner multicol's columns are constrained by the
    enclosing column's measure; its fragmentainers nest inside the outer
    fragmentainer chain.

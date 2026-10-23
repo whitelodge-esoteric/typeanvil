@@ -372,7 +372,11 @@ impl<'a> Ctx<'a> {
                 };
                 let child_tok = self.child_incoming(token, si);
                 let fits = y + self.measure_block(child, inner_width) <= bottom_limit;
-                if !fits && !(placed && y == content_top) {
+                // CORE-550: a spanner at the top of the fragmentainer is laid
+                // there even when it is taller than the page (the child
+                // fragments itself). Deferring it again re-lays the same
+                // spanner on every following page, forever.
+                if !fits && y != content_top {
                     // The spanner does not fit: fragment before it.
                     // CORE-243: the resume token must name the spanner, or the
                     // next fragment starts at `items.len()` and drops the
