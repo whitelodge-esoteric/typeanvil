@@ -398,6 +398,58 @@ impl<'a> Ctx<'a> {
                 cursor += size + gap.get();
             }
             lines.push(cur);
+            // css-flexbox-1 §9.7 resolves flexible lengths PER LINE. A wrap
+            // container packs raw bases above, so grow each line's free
+            // space here (CORE-547: a `flex: 1` item, basis 0, stayed at
+            // zero width beside a fixed sibling and its text vanished).
+            // Shrink stays unapplied: packing already fits every line
+            // except a lone overlong item, which overflows as before.
+            if wrap {
+                for line in &mut lines {
+                    let used: f64 = line
+                        .items
+                        .iter()
+                        .map(|&i| outer_main(&items[i]))
+                        .sum::<f64>()
+                        + gap.get() * (line.items.len().saturating_sub(1) as f64);
+                    let line_free = inner_width.get() - used;
+                    let grow_sum: f64 = line
+                        .items
+                        .iter()
+                        .map(|&i| self.styles[items[i].id].flex_grow)
+                        .sum();
+                    if line_free <= 0.0 || grow_sum <= 0.0 {
+                        continue;
+                    }
+                    let mut cursor = 0.0f64;
+                    line.cross = Scalar::ZERO;
+                    for k in 0..line.items.len() {
+                        let i = line.items[k];
+                        let g = self.styles[items[i].id].flex_grow;
+                        if g > 0.0 {
+                            items[i].main_size =
+                                items[i].main_size + Scalar(line_free * g / grow_sum);
+                            // Re-measure at the grown main size.
+                            let natural = self.measure_block(items[i].id, items[i].main_size);
+                            let child_tok = self.child_incoming(token, items[i].block_index);
+                            let placed = if child_tok.is_break_before() {
+                                natural
+                            } else {
+                                Scalar((natural.get() - child_tok.consumed_block_size.get()).max(0.0))
+                            };
+                            items[i].cross_size = match self.resolved_height(&self.styles[items[i].id]) {
+                                Some(d) if d.get() > placed.get() => d,
+                                _ => placed,
+                            };
+                        }
+                        line.offsets[k] = Scalar(cursor);
+                        if items[i].cross_size.get() > line.cross.get() {
+                            line.cross = items[i].cross_size;
+                        }
+                        cursor += outer_main(&items[i]) + gap.get();
+                    }
+                }
+            }
             // css-flexbox-1 §9.4 §3: a SINGLE-line flex container with a
             // definite cross size stretches the line to the container's
             // inner cross size (auto cross-margins and align-self resolve
