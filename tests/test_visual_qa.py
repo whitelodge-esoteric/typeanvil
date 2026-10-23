@@ -93,9 +93,9 @@ def test_listed_entry_that_passes_is_stale():
 def test_committed_list_cites_issues_and_seeds_five_failures():
     # Seven seeded by CORE-549; the two journal-article entries (CORE-544)
     # were removed when CORE-532 fixed the fixture; the weasyprint-invoice
-    # entry was removed by CORE-545. The weasyprint-ticket entry stays,
-    # re-pointed at CORE-558 (CORE-547 fixed the dropped text; the chip row
-    # still merges "Dec" into "5:10PM").
+    # entry was removed by CORE-545. The weasyprint-ticket entry was
+    # re-pointed at CORE-558, which removed it when the flex item base size
+    # started to include padding.
     entries = vq.load_known_failures()
-    assert len(entries) == 4
+    assert len(entries) == 3
     assert all(e["issue"].startswith("CORE-") for e in entries)
