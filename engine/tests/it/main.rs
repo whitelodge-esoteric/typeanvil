@@ -57,6 +57,7 @@ mod core392_row_split_in_step;
 mod core393_multicol_background;
 mod core394_tall_atomic_in_column;
 mod core395_grid_in_multicol_hang;
+mod core550_span_all_table_hang;
 mod diagnostics;
 mod flex;
 mod core520_abspos_paint_order;
