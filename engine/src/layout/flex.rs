@@ -213,15 +213,32 @@ impl<'a> Ctx<'a> {
                     Scalar::ZERO
                 }
             }
-            FlexBasis::Content => self.shrink_to_fit(item_id, inner_width),
+            FlexBasis::Content => self.content_basis(item_id, inner_width),
             FlexBasis::Auto => {
                 if let Some(w) = self.resolved_width(s, inner_width) {
                     w
                 } else {
-                    self.shrink_to_fit(item_id, inner_width)
+                    self.content_basis(item_id, inner_width)
                 }
             }
         }
+    }
+
+    /// Max-content flex base size of an item (CORE-558): the shrink-to-fit
+    /// CONTENT width plus the item's own horizontal padding and border. The
+    /// block path hands `layout_box` this size as the border-box width and
+    /// subtracts the padding again, so a content-only basis left the text
+    /// box narrower than its text (the last word wrapped) and chip rows
+    /// with padded items sat edge to edge.
+    fn content_basis(&self, item_id: NodeId, inner_width: Scalar) -> Scalar {
+        let s = &self.styles[item_id];
+        let chrome = s.padding_left + s.padding_right + s.border_left + s.border_right;
+        let content = self.shrink_to_fit(item_id, inner_width);
+        // Replaced images and math already report an outer/used width.
+        if self.image_intrinsic_box(item_id).is_some() || crate::math::is_math(self.dom, item_id) {
+            return content;
+        }
+        content + chrome
     }
     /// Resolve the hypothetical main size of a column flex item.
     ///
