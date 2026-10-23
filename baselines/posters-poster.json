@@ -1,0 +1,17 @@
+{
+  "engine_version": "0.0.1",
+  "file": "posters/poster.html",
+  "page_count": 1,
+  "pages": [
+    {
+      "dark_pixels": 446964,
+      "dhash": "0006060220400080",
+      "page": 1,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "4a2a25bf6a5eb1cc643b2849cb1e0433c47a8ffd5839d43c901d3b4b9f921502"
+    }
+  ]
+}

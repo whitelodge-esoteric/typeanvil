@@ -1,0 +1,17 @@
+{
+  "engine_version": "0.0.1",
+  "file": "academic/math.html",
+  "page_count": 1,
+  "pages": [
+    {
+      "dark_pixels": 4977,
+      "dhash": "e8d0d0d0f0000000",
+      "page": 1,
+      "size": [
+        612.0,
+        792.0
+      ],
+      "text_sha256": "7283e75dc3c3675589428c42ca864b8a90fc1f97fe21ac346e3d5cb7e0facf5d"
+    }
+  ]
+}

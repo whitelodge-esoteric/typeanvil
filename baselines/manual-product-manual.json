@@ -4,8 +4,8 @@
   "page_count": 9,
   "pages": [
     {
-      "dark_pixels": 3316,
-      "dhash": "80c8c4c0c8c8cc02",
+      "dark_pixels": 3060,
+      "dhash": "c0ccc4c0c8c8cc02",
       "page": 1,
       "size": [
         360.0,
@@ -14,8 +14,8 @@
       "text_sha256": "1a66b7f05c8cdae2f2bf7632235010c9ec10219d97d81a8e27d2cced4786afb6"
     },
     {
-      "dark_pixels": 3045,
-      "dhash": "c2cae0c0d4c4c902",
+      "dark_pixels": 2999,
+      "dhash": "82cae0c0d0c4c902",
       "page": 2,
       "size": [
         360.0,
@@ -24,7 +24,7 @@
       "text_sha256": "714ed11cc9bd8247e430ddd361227466db1244f012fca2d8f83cb27a6364767b"
     },
     {
-      "dark_pixels": 17262,
+      "dark_pixels": 17225,
       "dhash": "82c0c999d9c88222",
       "page": 3,
       "size": [
@@ -34,8 +34,8 @@
       "text_sha256": "d824ed27bcf5b1034fd1791bf970b38867cab6ca863a48b7ad88f20c7c08fe6f"
     },
     {
-      "dark_pixels": 1819,
-      "dhash": "86c28a9a8acaca02",
+      "dark_pixels": 1682,
+      "dhash": "86c28c9acacaca02",
       "page": 4,
       "size": [
         360.0,
@@ -44,8 +44,8 @@
       "text_sha256": "9ab804392cb5e76b9f50338ab8bc0585789de1e3599484b1ca21dca889d5f5e7"
     },
     {
-      "dark_pixels": 2736,
-      "dhash": "c28a9ac4e4e0c882",
+      "dark_pixels": 2754,
+      "dhash": "c28e9ac4f4e0cc82",
       "page": 5,
       "size": [
         360.0,
@@ -54,8 +54,8 @@
       "text_sha256": "f4730e15ed73f713f6c3bac7bef714dc6792b9defb2582fa02d3065c880170b9"
     },
     {
-      "dark_pixels": 2341,
-      "dhash": "82c4c8c4c0c8f402",
+      "dark_pixels": 2379,
+      "dhash": "82c4c8c4c8c8e402",
       "page": 6,
       "size": [
         360.0,
@@ -64,7 +64,7 @@
       "text_sha256": "1cbcf69d8dbfcfdb1b3c35fa22ec333f203f5db4209e607fe10112d8ce086fb5"
     },
     {
-      "dark_pixels": 2604,
+      "dark_pixels": 2583,
       "dhash": "86e2c4c890b09402",
       "page": 7,
       "size": [
@@ -74,7 +74,7 @@
       "text_sha256": "d9362d7310e2a918270672ab79cb24b7f7dfef2381b29012db0a20236a409552"
     },
     {
-      "dark_pixels": 2905,
+      "dark_pixels": 2798,
       "dhash": "c6b89898d8d8a402",
       "page": 8,
       "size": [
@@ -84,8 +84,8 @@
       "text_sha256": "053f9189297dbe873326b7590c3be103af52f8acd396b9fdab083b703ff880be"
     },
     {
-      "dark_pixels": 415,
-      "dhash": "86c0a00000000202",
+      "dark_pixels": 414,
+      "dhash": "c6c0900000000202",
       "page": 9,
       "size": [
         360.0,

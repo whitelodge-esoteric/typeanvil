@@ -1,0 +1,127 @@
+{
+  "engine_version": "0.0.1",
+  "file": "academic/paper.html",
+  "page_count": 12,
+  "pages": [
+    {
+      "dark_pixels": 3244,
+      "dhash": "68f8c8c8f8d0e410",
+      "page": 1,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "363e04f7805930a03f13d9a39f6010965e33e76522fe9bfb57fd7f727f61a325"
+    },
+    {
+      "dark_pixels": 3782,
+      "dhash": "68e8c8c4c8c8d410",
+      "page": 2,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "90bc7cc65370b3d7b56c3450b812b501f348507aa1028cca01cbe7e7271eff89"
+    },
+    {
+      "dark_pixels": 3941,
+      "dhash": "68f0d48ca0e4dc10",
+      "page": 3,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "0a6497bee4abcdddc9e2552df5c76190149a4a1d2233d9c6bd3e6c40046d4a32"
+    },
+    {
+      "dark_pixels": 4486,
+      "dhash": "68b0f4d0d8948010",
+      "page": 4,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "285e693d4817494c03ebcb73397181d6f843b69ba13c607d62edb7c1ab22a094"
+    },
+    {
+      "dark_pixels": 4107,
+      "dhash": "68e0ccd4d4c8c810",
+      "page": 5,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "17e8ede80fd6d2c54bbb16aa0b1e377c0b34b69f9aea1031c768f759e0fa1a84"
+    },
+    {
+      "dark_pixels": 3501,
+      "dhash": "68e4e4e4c8c01010",
+      "page": 6,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "50d3caa878b834a40a351bb4dbee435b740a7ccb7783161a1ae4ff6c09dedbef"
+    },
+    {
+      "dark_pixels": 3968,
+      "dhash": "688092e8c8ecc400",
+      "page": 7,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "588b9c32aa99bd171ef6d61971543faa7da99e94180f08e954302fce0bd38131"
+    },
+    {
+      "dark_pixels": 4836,
+      "dhash": "68e0cac8e0d4d410",
+      "page": 8,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "032ec3d935ccbb71ddb0722059e04ce15d543fc3e9030db4ee56d99ae7c44868"
+    },
+    {
+      "dark_pixels": 3948,
+      "dhash": "68d8d0a8d8d20050",
+      "page": 9,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "7e3af078b3d3f67642117ce62dc48a6c3540ab22a17ecace780104733d00cf81"
+    },
+    {
+      "dark_pixels": 4056,
+      "dhash": "78e0c4d8c4ecc010",
+      "page": 10,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "9bece5b6ef6442713e2da26a425f12fdc3943382bb2a84c08fc0861f1d4b4b7a"
+    },
+    {
+      "dark_pixels": 4498,
+      "dhash": "68e0d4e4c8c89010",
+      "page": 11,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "a948799b4c8528a79f0cae25184565bca4b0bc21b4549cabdf7ae947e02f9161"
+    },
+    {
+      "dark_pixels": 3044,
+      "dhash": "68f0c8e482009010",
+      "page": 12,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "833d5cb0e3836b35ee0affe89528184f7461e65ece6be53110a2ebc5584883bd"
+    }
+  ]
+}

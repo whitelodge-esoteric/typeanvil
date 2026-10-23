@@ -1,0 +1,127 @@
+{
+  "engine_version": "0.0.1",
+  "file": "reports/board-report.html",
+  "page_count": 12,
+  "pages": [
+    {
+      "dark_pixels": 1528,
+      "dhash": "9cc4c090c0c2c210",
+      "page": 1,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "8ec4ceacb11aef4e8f42ba02e8155fb07aea5a2613002775e6d3ef82e519ed69"
+    },
+    {
+      "dark_pixels": 3607,
+      "dhash": "ccc0c4e4c4e4e410",
+      "page": 2,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "6afaf76adbd058bf14071c5b1f2cf010baf3edb1fc0b0bc9083fef42c0281cff"
+    },
+    {
+      "dark_pixels": 3844,
+      "dhash": "ccdcc0ccd090d000",
+      "page": 3,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "57d0609790567487f201414de967d15f41618d911db945f05ed7bf2a94bbf254"
+    },
+    {
+      "dark_pixels": 869,
+      "dhash": "cec8e80040001010",
+      "page": 4,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "5e87070c5d94c2e4b21b79b72d4d95a26dd7eefafd93f86824e60f8b943bc2ae"
+    },
+    {
+      "dark_pixels": 2833,
+      "dhash": "ccc2e4c49494d410",
+      "page": 5,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "141b5127dd44a58f4e985c843babfdbeb038a8afdc1e66639f1991ed490e5bfb"
+    },
+    {
+      "dark_pixels": 2958,
+      "dhash": "ccb4d6d4e4d00090",
+      "page": 6,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "727325a58d9fa2051ab35aa4236bce976bdcb922eb4426c7e8c721d2c4601f1d"
+    },
+    {
+      "dark_pixels": 3087,
+      "dhash": "8cc6c4c89cc8c810",
+      "page": 7,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "a3ce9ff40f8c94e56b2deffeb9f473bf299884fde458cc5e7dd5b5ce99910843"
+    },
+    {
+      "dark_pixels": 4185,
+      "dhash": "8c9898e490d8c810",
+      "page": 8,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "6b79735b22ffcbdb6f34c29f3a28ef84dff2ac278b2ad19a25275f007db17d02"
+    },
+    {
+      "dark_pixels": 1173,
+      "dhash": "8cd8c00010001010",
+      "page": 9,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "9db7aa846ef273fe68754ddbb51a05b5d6710c3b339159a5801ead32de459c5f"
+    },
+    {
+      "dark_pixels": 2738,
+      "dhash": "8cc4c8c0a48c9c10",
+      "page": 10,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "286ae7be0395f2c06bdd301e8ab01efe3f16686c3c0c8622f03876dbb11a67dd"
+    },
+    {
+      "dark_pixels": 1610,
+      "dhash": "8cbc8ccc9c8c0090",
+      "page": 11,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "ea757e7f4af502317690058a63580ff3775a5ca63b24a73307b7d76274c92956"
+    },
+    {
+      "dark_pixels": 2863,
+      "dhash": "8cb88cccd4c80010",
+      "page": 12,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "ccfcd4dcf1457cfcbbb7983c333c34780abbcb5826134a4a26fc638b1c1f6b17"
+    }
+  ]
+}

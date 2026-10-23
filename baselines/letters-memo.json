@@ -4,7 +4,7 @@
   "page_count": 6,
   "pages": [
     {
-      "dark_pixels": 1708,
+      "dark_pixels": 1509,
       "dhash": "96c0c468e0e40030",
       "page": 1,
       "size": [
@@ -14,8 +14,8 @@
       "text_sha256": "ce2ddb178df3e69e77cb909c20fb7030e462cc879410309d2f104b6446c1634c"
     },
     {
-      "dark_pixels": 3205,
-      "dhash": "86ccd4c480cccc10",
+      "dark_pixels": 3317,
+      "dhash": "86ccd4c480c8cc10",
       "page": 2,
       "size": [
         360.0,
@@ -24,8 +24,8 @@
       "text_sha256": "fd34483665483f02a4312c17e2d3fd53e0a0940727fee6cf461d21af40fc9454"
     },
     {
-      "dark_pixels": 2107,
-      "dhash": "868480cc60e06410",
+      "dark_pixels": 2119,
+      "dhash": "868480cc60e07410",
       "page": 3,
       "size": [
         360.0,
@@ -34,8 +34,8 @@
       "text_sha256": "9e93d5bce9dbdb7068e7fe29f5429c56e8d3009f97b390ad26d207021daa9ae8"
     },
     {
-      "dark_pixels": 1815,
-      "dhash": "86c4646880f07010",
+      "dark_pixels": 1866,
+      "dhash": "86c0646880e07010",
       "page": 4,
       "size": [
         360.0,
@@ -44,24 +44,24 @@
       "text_sha256": "02fe6daa68956e53da770ecd9ada23c25e53996a133cb632d53d0a8484e7e7fd"
     },
     {
-      "dark_pixels": 1901,
-      "dhash": "86e440606088c410",
+      "dark_pixels": 2019,
+      "dhash": "866c40606088c010",
       "page": 5,
       "size": [
         360.0,
         216.0
       ],
-      "text_sha256": "8cfe1fb1688242ed1028bfcf5ad3b136db6f02ff6854fac201c97eaa292d6173"
+      "text_sha256": "415da4a4e7804886a4b3fe638023740cf7a2c314415e3af19162ec18d04af15a"
     },
     {
-      "dark_pixels": 2693,
-      "dhash": "86d4c8dc94802410",
+      "dark_pixels": 2980,
+      "dhash": "86dc949cd4840030",
       "page": 6,
       "size": [
         360.0,
         216.0
       ],
-      "text_sha256": "cc40ba996daff7a7f6d91786d87d2a13bf5b704bcafa4f15e12b242cf7c859e7"
+      "text_sha256": "6a1aec15fe679cc8bdad6e9446af6d13ccd9ee94b2985b52dfcd0346c4abf835"
     }
   ]
 }

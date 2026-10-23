@@ -1,0 +1,117 @@
+{
+  "engine_version": "0.0.1",
+  "file": "book/prose.html",
+  "page_count": 11,
+  "pages": [
+    {
+      "dark_pixels": 4499,
+      "dhash": "48dce4c2d4d4ac02",
+      "page": 1,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "42046733c7cb868c0029ec19b74f1e4108ed0a525e8be632c4c77ec2b072c2bd"
+    },
+    {
+      "dark_pixels": 4518,
+      "dhash": "48c4ccccc6e4d402",
+      "page": 2,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "592c3c49f9c79a18bfc655b68c007995828a34b5649c0195755bb229debcc6c8"
+    },
+    {
+      "dark_pixels": 4138,
+      "dhash": "48b0d0d0d0948142",
+      "page": 3,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "ad5954d483a662ba04cf9a24aeefafc01c82726dd38f2b947fc26ba56f7339d6"
+    },
+    {
+      "dark_pixels": 3897,
+      "dhash": "48c8c8d0c4f4da02",
+      "page": 4,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "776a502459d7fa3422111c7be1029ac327ba131e29a19ae4a10bf168ca838aa3"
+    },
+    {
+      "dark_pixels": 5031,
+      "dhash": "48c4c8e4e4d4c802",
+      "page": 5,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "1d661093ad0f13dd01991b17d6eb4dd792eec962bc98f711aa06f7b17e2538ed"
+    },
+    {
+      "dark_pixels": 4091,
+      "dhash": "c8c892d0c8c0e802",
+      "page": 6,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "4aa1598001e12921bc04f8606ef766bef8626ed8e912a101800be26c3b7715ac"
+    },
+    {
+      "dark_pixels": 4486,
+      "dhash": "48d4cccaccd0d602",
+      "page": 7,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "9b19ea35f61f50272571e5e5af7dc0cad7f75c0a9d2a6083e2bce9a110b0cb6f"
+    },
+    {
+      "dark_pixels": 5145,
+      "dhash": "48ecd8d0a8e8d202",
+      "page": 8,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "fd5327add6e7224e62e2ef2646bb1458c862e2a791c22f5cc8ee91bb940b2c61"
+    },
+    {
+      "dark_pixels": 4346,
+      "dhash": "48d0d494e4a0c10a",
+      "page": 9,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "b4a4c05184c718c510c53d2f46e73dc01d95ad6649916c35a6b2cafd6ab8778a"
+    },
+    {
+      "dark_pixels": 4208,
+      "dhash": "688884e4d4d0d202",
+      "page": 10,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "c9250ca7e9d63ca4421a71c6dd1323433a33a2a0c4d12bc7bd0b14710bc988ab"
+    },
+    {
+      "dark_pixels": 475,
+      "dhash": "48e8888000000202",
+      "page": 11,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "7520232fedea7a3226926bea8d7c85149a5411860ff79127a0c69ef3697e44aa"
+    }
+  ]
+}

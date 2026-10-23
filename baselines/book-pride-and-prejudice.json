@@ -1,0 +1,3187 @@
+{
+  "engine_version": "0.0.1",
+  "file": "book/pride-and-prejudice.html",
+  "page_count": 318,
+  "pages": [
+    {
+      "dark_pixels": 2098,
+      "dhash": "5000d8f000000000",
+      "page": 1,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "1abdbcb4920f84f0be55b9054a6d5e89d693a385f861d1b4160028b94a296dfa"
+    },
+    {
+      "dark_pixels": 6973,
+      "dhash": "9082968282828682",
+      "page": 2,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "df6f53eb47c4a9d281a6d2c24e60c16eed27e798101c84347577d87d0a1fffa4"
+    },
+    {
+      "dark_pixels": 8931,
+      "dhash": "10f0c4c0c0c480f0",
+      "page": 3,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "a2efa14339d6df9543f021ba670c4b0605baa84333760a70c532bd4b4a92ed28"
+    },
+    {
+      "dark_pixels": 13379,
+      "dhash": "e0c0d0c0c4c0d094",
+      "page": 4,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "0bae28053567c750a4e938d75fd9b7af812452642b3a4a43911138251527fffc"
+    },
+    {
+      "dark_pixels": 5386,
+      "dhash": "c090c4c000000010",
+      "page": 5,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "32a14c59a4d4ade72adeb5acf1f51e3e66a44ae315a008cb20a545410604a1eb"
+    },
+    {
+      "dark_pixels": 9885,
+      "dhash": "10f0d4c0c4c4c490",
+      "page": 6,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "b50b8d099ddfb9af9f0c49088498f5e8fa6ba69e293609b18862f68be6afee3a"
+    },
+    {
+      "dark_pixels": 14013,
+      "dhash": "e4c0c880d0d4c4d0",
+      "page": 7,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "5767b1e2be192cd51961994a6160b70044e03641e6a211416c7c9ff09c6f80f5"
+    },
+    {
+      "dark_pixels": 1554,
+      "dhash": "90c8000000000010",
+      "page": 8,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "ebfdc493a77d11394df78f30cd908fe1e573d69637d345a3004cd50e464305c7"
+    },
+    {
+      "dark_pixels": 12148,
+      "dhash": "10b0d4d4c0ccc410",
+      "page": 9,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "512bf6cbd561c19fbe387d8fdc1099685274907742d0494fe6bd3f5525e3aeeb"
+    },
+    {
+      "dark_pixels": 15244,
+      "dhash": "d0c0d4c4c4d4d4d4",
+      "page": 10,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "94b16797e9ce5ccae72fd8664d7286d61e90d4389e677afc17f785d14be7d7bf"
+    },
+    {
+      "dark_pixels": 14743,
+      "dhash": "d0c4c8c0c0c4c4d4",
+      "page": 11,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "871d56e2147ace95f79e8ee4845205caf5895e22984f501f33fb1a12d2c914f4"
+    },
+    {
+      "dark_pixels": 15425,
+      "dhash": "d0c4c0d4c4c8c4d0",
+      "page": 12,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "ed5d5f07eb520bb6bc499c5a5292e8af4f99b35416641f52763bf1eb7d5d6ae4"
+    },
+    {
+      "dark_pixels": 1661,
+      "dhash": "d0d0000000000010",
+      "page": 13,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "0f9e7ec5bcb49aa713cf502e30246ba0f32530c464aea3d6decd48fffc58f6b6"
+    },
+    {
+      "dark_pixels": 10577,
+      "dhash": "10b0c4c4c0c0d450",
+      "page": 14,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "50b8552060a90482c918adabf979aef281f2b687a1642a297267804ca2bb19f6"
+    },
+    {
+      "dark_pixels": 15341,
+      "dhash": "d0ccc4c4c4c0c490",
+      "page": 15,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "43ca9dc29c5764caf64e67c89ab09d9ccfab4c36465d924cce5a6644dab21aa1"
+    },
+    {
+      "dark_pixels": 10267,
+      "dhash": "d0d4d4c4c4900010",
+      "page": 16,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "1927eedccba82aa2863ca550bedfee56173c78533e62e8844ec2dbf2e428cd37"
+    },
+    {
+      "dark_pixels": 11575,
+      "dhash": "10b0d4d480d0d090",
+      "page": 17,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "d9b1998b765522c8a8a1fe7571e3bb5b6f7e7f23e0161a008f6ff0481282bf99"
+    },
+    {
+      "dark_pixels": 13842,
+      "dhash": "f0d0c0e4dcccc4c4",
+      "page": 18,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "428596c31eafa629b5e849b3c3a3dedbd025ef7529162aef1afdb8bbac4b1361"
+    },
+    {
+      "dark_pixels": 6330,
+      "dhash": "f0d4c4c000500010",
+      "page": 19,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "3bc8a6b4b8c8ccbb4285fb87be384870b09302495be2241f0f2944fcf543fc7d"
+    },
+    {
+      "dark_pixels": 12788,
+      "dhash": "10b0d0e4c4d4d8d0",
+      "page": 20,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "0bf9d08e132a6617a1d73a725e395b37c2c20893c2470ed029c00fe2a64cca72"
+    },
+    {
+      "dark_pixels": 15149,
+      "dhash": "d0d8d4c4c4d0c4d0",
+      "page": 21,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "49974cef35ef9baa3c5744f7d8e4df34bbed8d90eef98b4f8f52d1dddc5feec1"
+    },
+    {
+      "dark_pixels": 14479,
+      "dhash": "f0d4cccce0c0d4d0",
+      "page": 22,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "4fb2fb886912f99de0dcc6aeeb69045d07dcb7f7adb39391f2396d093b6ae85b"
+    },
+    {
+      "dark_pixels": 14789,
+      "dhash": "f0d4c4c4d4c0c080",
+      "page": 23,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "74ee480690f0d8a126c5b526faa6387a6454ba21c9b5596d915908170393f577"
+    },
+    {
+      "dark_pixels": 13501,
+      "dhash": "d0c4d8e0e0c0c4b0",
+      "page": 24,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "76698d451d81e4d833fc422c5832b922cd53d8df174e0208fa9d0d490d5f159d"
+    },
+    {
+      "dark_pixels": 7748,
+      "dhash": "d0c0c0f0c4000010",
+      "page": 25,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "9c9652e31078312f679ef2220847903aba8f0cfc5b55002b20d1a548f4529e8a"
+    },
+    {
+      "dark_pixels": 12289,
+      "dhash": "10b0d4cce4c4c480",
+      "page": 26,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "e273c312e2bfeeec35a81b738f8e0ee77b61da5dc7ecde8c588c4ae71f1b99e6"
+    },
+    {
+      "dark_pixels": 13766,
+      "dhash": "d08cd0c0d8d0c0c0",
+      "page": 27,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "00e4f561b9f2baf8a44fc6b73b3af1c297dafb6666fa1b8609b71ab2821a2723"
+    },
+    {
+      "dark_pixels": 12709,
+      "dhash": "f4c0c0c4d8d4c0f4",
+      "page": 28,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "674cb6f9eb56362c252734b9263b479b6fc7573ea24cd5620ba2e92d4db13bd9"
+    },
+    {
+      "dark_pixels": 14257,
+      "dhash": "b0c4c0c0c0d0c4c0",
+      "page": 29,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "4e47abfe6dda0f727b1942ad9b3e6ff2d95aa0bba5f047502abb1f7f09335eda"
+    },
+    {
+      "dark_pixels": 14263,
+      "dhash": "d0c4c4d4c0d0c000",
+      "page": 30,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "acc83cc82bc5dd42cb33def665e7058e98974170f68bfc37cb2f284016ccddb2"
+    },
+    {
+      "dark_pixels": 12130,
+      "dhash": "10f0d0c4c8dc90d0",
+      "page": 31,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "883620c8af05bc54ab1d502f8be9996df8d0c24f990fa621044f09f272aa80b3"
+    },
+    {
+      "dark_pixels": 13818,
+      "dhash": "d088c8c0d0c4c0d4",
+      "page": 32,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "eba5d25b08fa189e263648005ddf703aa2f8c2eac658b1a6a91d95d39a7cb83a"
+    },
+    {
+      "dark_pixels": 12614,
+      "dhash": "d0c4c0d09484c490",
+      "page": 33,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "fcc4c82ce5e87e8e42f302f267172ddac3c0c1b5a7eb7ddcf2255a62df8cd585"
+    },
+    {
+      "dark_pixels": 12732,
+      "dhash": "e0c098c0d4c0c4d0",
+      "page": 34,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "04b27e981d4062c175b8bd546ccef35ab9bf6264408c1ac178bdd4420b7b4f0e"
+    },
+    {
+      "dark_pixels": 14900,
+      "dhash": "d0c4c0c0d4ccc4c0",
+      "page": 35,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "e1ff947e5897893ec3300100f63ba8536c973b2f8c0d550351161a4b3f1be225"
+    },
+    {
+      "dark_pixels": 11640,
+      "dhash": "10b0d4c4c4c4c090",
+      "page": 36,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "f46ce7359c1dd5ae1508893f13a303b4eeaed9cd5bd6a7dd6ee4700fceb36c51"
+    },
+    {
+      "dark_pixels": 13318,
+      "dhash": "d0c8c0c0d084c0f0",
+      "page": 37,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "48f98b0b344a05bea65497ea2d5fe09bbf2ac2b9d83b5e26ebd3495349843c17"
+    },
+    {
+      "dark_pixels": 14147,
+      "dhash": "d4c8c0c4c4c0c8d4",
+      "page": 38,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "1b5a5840effb0a6a7f8df251e8c1070bcc0ee7aa61875834f3826a59986b83e7"
+    },
+    {
+      "dark_pixels": 15867,
+      "dhash": "f0c4c0d4d0ccd0d0",
+      "page": 39,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "43f6f9a7ad311ce50a794b502e653b30a3286676b62e2afd75bdc039adf3fd88"
+    },
+    {
+      "dark_pixels": 3459,
+      "dhash": "d0c4800000000010",
+      "page": 40,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "9f2d1e3861e5007735a3749918c66f79b110ba549e7108c2d35f325f9c484cb9"
+    },
+    {
+      "dark_pixels": 9639,
+      "dhash": "10b0d4c4c0c08080",
+      "page": 41,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "4664628ef1d68322917e415aa49354724ff4a514d2e9712ea1be07a0a4cfa769"
+    },
+    {
+      "dark_pixels": 14216,
+      "dhash": "f0c080c0d4d4d4d4",
+      "page": 42,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "5e4b969a8a9a02e159e7453b66947224821b22b53f56cbe532d4d86ecc916b0c"
+    },
+    {
+      "dark_pixels": 13936,
+      "dhash": "d0c4c4d084d4ccd4",
+      "page": 43,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "ec8dab7cdaceb5ce15ab227fe26896b312c3d7a853ea80ea3045ea5d1c617bd1"
+    },
+    {
+      "dark_pixels": 14752,
+      "dhash": "f0ccc0d4c0d0ccb4",
+      "page": 44,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "e5ccf171badd71634ce62275889818b81b73fbed7fa2eeb6c00000d3c98eadd0"
+    },
+    {
+      "dark_pixels": 13859,
+      "dhash": "f0c4c4c4c0c4c0c0",
+      "page": 45,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "03f2a91e8001f89fdd5c32bff1cf64e36c8718948674f6f229afa23bd66c7534"
+    },
+    {
+      "dark_pixels": 9059,
+      "dhash": "d0c0c48490c00010",
+      "page": 46,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "ffbce4001d545a9e7e0e9fccb0712df4e32e5546f47c454242f5b922aa398af1"
+    },
+    {
+      "dark_pixels": 13093,
+      "dhash": "10b0d4c4d4c4cc90",
+      "page": 47,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "0b058aa385429b41a1b7c174bb25c25aa34c6e72ef1695794550a3ca0045ace4"
+    },
+    {
+      "dark_pixels": 14899,
+      "dhash": "f0c0d4d0c0c0ccd4",
+      "page": 48,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "cedf6d31b9a49b9a33dd45aab987fdf2d73716a26394b1dce25f850765ed4219"
+    },
+    {
+      "dark_pixels": 14645,
+      "dhash": "d4c4d0c0c4c0c8d0",
+      "page": 49,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "f46ca6e060b030f58e776d50375e526294efaa55c3e6ab321b198239fc980eaf"
+    },
+    {
+      "dark_pixels": 11071,
+      "dhash": "b4c0c0c4c0d0c000",
+      "page": 50,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "4a2869235a27fb49a0a5998b9cd4d51dbb569ca111bae82ad079ef25c7fefdc5"
+    },
+    {
+      "dark_pixels": 12631,
+      "dhash": "10b0d4c4d0c0c4f0",
+      "page": 51,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "50c075ddeb61629914f2939f33cbd1cbf984403d68c4daa4616393411778e0c5"
+    },
+    {
+      "dark_pixels": 11678,
+      "dhash": "d4d0ccc4d4d00050",
+      "page": 52,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "76110749b2d201c450627f639313c089c928ca5a19eaa8f4c97be672a4334bc8"
+    },
+    {
+      "dark_pixels": 11559,
+      "dhash": "10b0d0c0c0d0c4d0",
+      "page": 53,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "d661ea002a6ae7b4fb53d98add8673ecb710a4faad6930b9fbce9f0efdb17a70"
+    },
+    {
+      "dark_pixels": 15115,
+      "dhash": "d0e088c0d4c4c4d0",
+      "page": 54,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "c5bdb78ecc140d6a1cff26227c0242c081ec421438e2b5f470d60aeeec03ebf4"
+    },
+    {
+      "dark_pixels": 13631,
+      "dhash": "d0c0c0c4ccc4c4d0",
+      "page": 55,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "88c415923a6942fba811ae9817d8523e6216695d6057e7bed1ab40ca7e38011c"
+    },
+    {
+      "dark_pixels": 15808,
+      "dhash": "f0d4c4d0c4c4c4c0",
+      "page": 56,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "f07e2771c6ba1f91dc5a9e3a6fa984dc8376c583586cb55cc3db7db3152424f3"
+    },
+    {
+      "dark_pixels": 12560,
+      "dhash": "10b0d4c4ccc4c0f0",
+      "page": 57,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "5227f3cfdc6e8b36dc460cd9cfa14f4792248ae77d8222852e18dd05a2afe769"
+    },
+    {
+      "dark_pixels": 14472,
+      "dhash": "90c8c4c4ccc4c4c0",
+      "page": 58,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "ea7bf35716e5420aef2bff0dda2ccd3da1dc3947ba4da0f114a2642b2ad68d1c"
+    },
+    {
+      "dark_pixels": 12945,
+      "dhash": "f0d0d0c4d0d4c400",
+      "page": 59,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "7b4e59612efea7b56c16f0a81745a7cc7a749ccf9ee35bedfaccd3ce0e09e9a6"
+    },
+    {
+      "dark_pixels": 12906,
+      "dhash": "10b0d0d4ccc0d4d4",
+      "page": 60,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "99b1089ecbf400d3460ec36ac89a7e0e8f998317e7f1ceb33262132da87becc1"
+    },
+    {
+      "dark_pixels": 15834,
+      "dhash": "d0c0c4c4c8ccd4d0",
+      "page": 61,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "b756d1f8779e00a4039e5e4acc760bed9f35d9ced882977f7237c42daecf15ec"
+    },
+    {
+      "dark_pixels": 16544,
+      "dhash": "d0ccc8c4c0c0ccd4",
+      "page": 62,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "64d756dc84d075c3ed2cdc43ea526e05f418595a8040a2b1ccee061dc32d4860"
+    },
+    {
+      "dark_pixels": 14988,
+      "dhash": "d4d4d0ccc0d4d400",
+      "page": 63,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "da25cf95a52fd9bcdd1fe7701fb7c89c98df56de592f474159f86fd3e0d00ecc"
+    },
+    {
+      "dark_pixels": 13162,
+      "dhash": "10b0d0c8c0c8d4d4",
+      "page": 64,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "56c7febe1e1c3a8d66c3a78e2d23fc5cabe9bdd2c4e2d6df5410d72ed34c5630"
+    },
+    {
+      "dark_pixels": 15311,
+      "dhash": "d4c4c8ccc4d4c0c0",
+      "page": 65,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "017aa98d9b08cb2543fe621cb7bc7bd3ca09053122b9a5829dc144f620b6b286"
+    },
+    {
+      "dark_pixels": 14211,
+      "dhash": "d0c0c4c4c4c0c4d0",
+      "page": 66,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "e4c93d7dafcecb835dcede0e86f305307dd6b48644b60642b9963fb7eb324884"
+    },
+    {
+      "dark_pixels": 15289,
+      "dhash": "d0c4d0c4c4c4c0d4",
+      "page": 67,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "40de85c308adb560809609f0adba872581806230b6f0360f3e799cf68f33530d"
+    },
+    {
+      "dark_pixels": 14441,
+      "dhash": "d0c0c0c4d8c8c0d0",
+      "page": 68,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "f1fab7e1bd2798dd856d355b710b6bfdb3c0188bb1cbbcbb6ce71528b2331bc0"
+    },
+    {
+      "dark_pixels": 15364,
+      "dhash": "d0d0d4c0d0c4d0d0",
+      "page": 69,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "0057a9750cdb995c0386fb76e1d8283b0dc43caa3b14c394bfa05eb13b851dd9"
+    },
+    {
+      "dark_pixels": 14599,
+      "dhash": "d084d0e4d0c8c8d0",
+      "page": 70,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "b8cf1745c17aab0faa7df923d27ab1f213ad3d245e315a1cafd142e5e03cf616"
+    },
+    {
+      "dark_pixels": 13524,
+      "dhash": "d0c4c4c0d4c8c000",
+      "page": 71,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "603546d3ec598835db1b8c8fffdb0e36b10c3ffec2638a2d9d6d2e28f369cafb"
+    },
+    {
+      "dark_pixels": 12336,
+      "dhash": "10b0d4c4d4c8c8d0",
+      "page": 72,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "51b893fd046f59ab39da6790c6fbe4e4c2a3d1c84a936ef8ddcc83bdbcd36055"
+    },
+    {
+      "dark_pixels": 15581,
+      "dhash": "d0c0c0c4d4d4c0d0",
+      "page": 73,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "ab26a2c22568ef9ba36c280f6add2a32b6cc8dc2690d45ba5671519dde2e9541"
+    },
+    {
+      "dark_pixels": 16292,
+      "dhash": "f0c4ccc4ccc4c0d0",
+      "page": 74,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "236ef9dbe140caccb85dad2b852e9829702859983b3a754cc91f6dd2b91b9d87"
+    },
+    {
+      "dark_pixels": 12931,
+      "dhash": "10b0d4d4d0c4d4d4",
+      "page": 75,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "5767ae02caff717c7757f49b12ef284f0be6b616c43f010da96cb8ad310211b6"
+    },
+    {
+      "dark_pixels": 15102,
+      "dhash": "f0c4c4c4d4c4c490",
+      "page": 76,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "5a459b4ba39b566db4587c4e56eba0d7637bd752bd8d95927ac6b00e7587e0ad"
+    },
+    {
+      "dark_pixels": 13790,
+      "dhash": "90c0ccc0d4d4c4a0",
+      "page": 77,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "b1eac21bea44bc83747ca1e03ed40f4743cc9f51789e9f65f8c1381db04f572a"
+    },
+    {
+      "dark_pixels": 12839,
+      "dhash": "f0c4c0c48090c0c0",
+      "page": 78,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "bc742e61bd44f2ee298d3c7f91590b05509a7b9014fbe19e54037b7c4642eecf"
+    },
+    {
+      "dark_pixels": 14044,
+      "dhash": "90c4c4c4d0d4d4e4",
+      "page": 79,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "d494feed933f82fe46063ecb3e3edffa8b65324fe115bfe9b936d12956bfdf93"
+    },
+    {
+      "dark_pixels": 13981,
+      "dhash": "e0c4c4d4c4c4d0d0",
+      "page": 80,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "a243027d52bc5f77492b4927bbccd4c1e9863f46626dd118ac85c6f4f71cdf8b"
+    },
+    {
+      "dark_pixels": 15575,
+      "dhash": "90c4c4d0d4c0c0d8",
+      "page": 81,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "e601b06c2d1dbddee87203aa612f327245535d01ebdc42d76b6cb5edc0254c17"
+    },
+    {
+      "dark_pixels": 16199,
+      "dhash": "d0ccc8ccc4c4d0d0",
+      "page": 82,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "6fa53f7b62e5d0cbfca0ad4ac701972de1745a04e5d4761a7c358244595da9b2"
+    },
+    {
+      "dark_pixels": 15541,
+      "dhash": "f0ccc0d4c4c88cd4",
+      "page": 83,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "e50dfc4219ceac6150fb5fa0275d4732f1a6dad9e01c183c6be5c387027fde16"
+    },
+    {
+      "dark_pixels": 15995,
+      "dhash": "f0c4d4ccd0c0d8c4",
+      "page": 84,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "9ad372cffbf7c804c06d892657b7b29e5667eead97334d84abc107ed365f003a"
+    },
+    {
+      "dark_pixels": 15520,
+      "dhash": "d0d4d4d4c8d4c4c0",
+      "page": 85,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "4721b29cb82c3c5db80cb556663ea0b507e708da2846c939c9742d4f93db2a7c"
+    },
+    {
+      "dark_pixels": 15761,
+      "dhash": "d0d4c4c4c0ccd0b0",
+      "page": 86,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "a1b73d40f6021d56d5021abd46c824e143b30862323d862a6674aada755bd45b"
+    },
+    {
+      "dark_pixels": 11130,
+      "dhash": "10b0d4d4c4d8c490",
+      "page": 87,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "f1ac43903b2d9a0658fc4845a41b8fa6876ab7eb9105d593c0f71a38830d8380"
+    },
+    {
+      "dark_pixels": 16303,
+      "dhash": "b0ccc0d4c4c4c4d0",
+      "page": 88,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "d51feb65b80b7918be185a134015ae4d4f41c2c8ba7fd5bfc058ca9238fc4006"
+    },
+    {
+      "dark_pixels": 15232,
+      "dhash": "f0c4c4d0c0c4c4d0",
+      "page": 89,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "489af23e6c46f7fafd9bebe062d9462d3992f5707e44a1b6f12a9ca531971bc5"
+    },
+    {
+      "dark_pixels": 15199,
+      "dhash": "90ccc4c0c0ccd0d0",
+      "page": 90,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "5e20a81dc99731f497342fceaf11dff56bd57abfad60a0c1865e9fc2ef720495"
+    },
+    {
+      "dark_pixels": 6111,
+      "dhash": "f0c4c4c800000010",
+      "page": 91,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "c444c6bf308d336e56445f5b950ecf676c137c963d4bfaadf99a0dd7c9ce135c"
+    },
+    {
+      "dark_pixels": 12045,
+      "dhash": "10f0d4d494c4c880",
+      "page": 92,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "4f491c6a808eb1ae29696e0d99d4237c2ab54114cc6193742be51f8ef2a1d5d0"
+    },
+    {
+      "dark_pixels": 12702,
+      "dhash": "f0c4c0d0c0c0c4c0",
+      "page": 93,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "21f7d691a244de20a335ac6c69ebc9d555381b679daba069a00bff62577379f7"
+    },
+    {
+      "dark_pixels": 15235,
+      "dhash": "d0d4d0c0c4d4c4d0",
+      "page": 94,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "130abd82953c842692c1beaa95645c8a55f2ad094569d9d598c908ae12995581"
+    },
+    {
+      "dark_pixels": 14990,
+      "dhash": "d0ccc0c4c4d4ccd0",
+      "page": 95,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "05561f28aed7841a48d3dc1c233dcafb6e9665367551b481fedbe8a817bc3d6c"
+    },
+    {
+      "dark_pixels": 12251,
+      "dhash": "10b0d4c4ccc8c4d0",
+      "page": 96,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "3262dfc75c5083773cacf0dd26f335015e5101da17dc916de5ab6db903c18ed7"
+    },
+    {
+      "dark_pixels": 15346,
+      "dhash": "d0c0c4d4cce4c4d0",
+      "page": 97,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "8d9145e3d9190120258897b058e3a6ae40084430d13246b5638165cdd56733fe"
+    },
+    {
+      "dark_pixels": 15569,
+      "dhash": "d0c4d4c0ccc4dcd4",
+      "page": 98,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "b562ae8d3c7f7d0676c2c98dbd0ccb22216af92898f4fc6ff5d8ce24327d8f04"
+    },
+    {
+      "dark_pixels": 13885,
+      "dhash": "f0d0c4c4e4c0d0d4",
+      "page": 99,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "ae1f5db7824c161325003512531642bc241a4aa5495a39e854383b0f42b48dce"
+    },
+    {
+      "dark_pixels": 11068,
+      "dhash": "9084c4d4c0d00010",
+      "page": 100,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "42f7d095d0833fb0e3e9364c9884faf468108b87357fa731fea973effec0865e"
+    },
+    {
+      "dark_pixels": 12745,
+      "dhash": "10b0c0c8d4d0d4d4",
+      "page": 101,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "0fbdb5419fef86aa1dc1f5620d4a7606a4b74cc8b58b2dda560afde871ec0781"
+    },
+    {
+      "dark_pixels": 16107,
+      "dhash": "d0d0c4c4ccc4ccd4",
+      "page": 102,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "392244910b22635573c52b29d12154155e7d7c4a52f0cf6a6dbd8fd29df9e627"
+    },
+    {
+      "dark_pixels": 14781,
+      "dhash": "f0c8c0c0c4c0d0d4",
+      "page": 103,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "1f8d05c7ecc4f09a29d28571747dfe0a286e7a8cc9af44a52bf36aa013e8eb58"
+    },
+    {
+      "dark_pixels": 15133,
+      "dhash": "d0c4c0c4c4c4d4d4",
+      "page": 104,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "d650ae0ff787ef2b486ff36e34dad2c19312294a990f1b90d6a8159aae586ded"
+    },
+    {
+      "dark_pixels": 3397,
+      "dhash": "f0c4800000000010",
+      "page": 105,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "a4ec2119911a3a56caefa0db0cae49b24f9492089953cd23318be64ac456f03a"
+    },
+    {
+      "dark_pixels": 12444,
+      "dhash": "10b0d0c4c4c4ccd0",
+      "page": 106,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "0ad1d23026388f1a0ac0b31e10cbfe8d6352cd9790eb1adad0d9838ad2db8ebb"
+    },
+    {
+      "dark_pixels": 15355,
+      "dhash": "d4c494d4c4c4c4d0",
+      "page": 107,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "3fad042a8a55304f02040f5d803dd74cb1495a309e2bb4cc5e5cb3154a6eb699"
+    },
+    {
+      "dark_pixels": 15412,
+      "dhash": "d0ccc4ccd0d4e4d0",
+      "page": 108,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "602768550d62bb3fd6ee5bedd7fb98ec722262b45927d073d377ae4c3e790cc7"
+    },
+    {
+      "dark_pixels": 13933,
+      "dhash": "d0c4c4d4d0c0c0f0",
+      "page": 109,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "63382b933d3b7c7019e1e25cd8fe87c1f869f301e776f17ed8d5d4f66a6c64fa"
+    },
+    {
+      "dark_pixels": 13282,
+      "dhash": "10b0d0c8d0d4c490",
+      "page": 110,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "ecd606f7827bef3b8c17d1d850aada3cf93bc13b6a882fc5f5a70265314e75b1"
+    },
+    {
+      "dark_pixels": 14307,
+      "dhash": "f0ccd0c4c0c4c490",
+      "page": 111,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "8c599f2313db7b24050292d561fbced7169608082fcb98ccda60182cd72ac43a"
+    },
+    {
+      "dark_pixels": 15032,
+      "dhash": "d0c8c4c0c0c0c0e0",
+      "page": 112,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "49d8a26d5c7db3fb5192d7cb0f31f4d93b3c2cafbc618f208e6222a1a9a4b7f4"
+    },
+    {
+      "dark_pixels": 15189,
+      "dhash": "d0d4ccc4d0ccd4f0",
+      "page": 113,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "e551795fb69946b08d5f2c69694a075722a255a43ce79c0f99ea0f8859221c3f"
+    },
+    {
+      "dark_pixels": 7619,
+      "dhash": "d0ccdcd480000010",
+      "page": 114,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "cbbcc465243ce7ba4c271a3541a45db83901c823bff504716dab7f2481825f60"
+    },
+    {
+      "dark_pixels": 12414,
+      "dhash": "10f0d4c0ccc4c4d0",
+      "page": 115,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "d7be89b0f523fa20dc1b3cc7a7d2139fdab96e70d837f156a3c1f56ebcbc4cf0"
+    },
+    {
+      "dark_pixels": 14592,
+      "dhash": "d0ccd4e4c0d4c0d4",
+      "page": 116,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "be288a5660d866a9bf6222f1c67318f7fcb64217054ffbd161651fb5495b497f"
+    },
+    {
+      "dark_pixels": 14984,
+      "dhash": "f4c4ccc0c0c8c4d4",
+      "page": 117,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "ec68a91d8068744d1dd46a3e5562695dcf30f1fe0d8270d88e3f7ac11f10eda8"
+    },
+    {
+      "dark_pixels": 10530,
+      "dhash": "f0ccc4c8c4c00010",
+      "page": 118,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "b0c152a4989436d8816bfa64df7e1db561c07953b5f955554879d4f0e2266816"
+    },
+    {
+      "dark_pixels": 11851,
+      "dhash": "10b0c4c4c0c4c4d4",
+      "page": 119,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "b4b2cd6631f2f7fe6d112515771305a8852e304b55464ed2c43c3031f6290107"
+    },
+    {
+      "dark_pixels": 13940,
+      "dhash": "f0c8d0d0d4c0c0d4",
+      "page": 120,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "e04ff0dcb5183d8e4bf2799322262da86d058d930220b3ff1f7fe671d82b794d"
+    },
+    {
+      "dark_pixels": 15687,
+      "dhash": "d0dcc4c4c0c8d8d0",
+      "page": 121,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "cf7e602434ad5a1d0625a4250e9208923540cc2d66e35651bfbba6805061e008"
+    },
+    {
+      "dark_pixels": 16221,
+      "dhash": "d0c0d4ccd4dcc8d4",
+      "page": 122,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "37a2f62b0569e83b4a2341898492919b120b7c64297ed8a185da951a7aa93645"
+    },
+    {
+      "dark_pixels": 15752,
+      "dhash": "d0c4d0d4e4c0ccd0",
+      "page": 123,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "a731dbb00ef421a1c1d3e4a4f41788908761af8672a819e92d7d3fdfe78cd1ea"
+    },
+    {
+      "dark_pixels": 3138,
+      "dhash": "d4c8880000000010",
+      "page": 124,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "caa1bc16e43e6d7e5d643c5925c4b668a4f1a16c9f8c5316322cddd8b102be14"
+    },
+    {
+      "dark_pixels": 12331,
+      "dhash": "10b0d4d4c8c0c450",
+      "page": 125,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "c9635f79d8541f9f308a79454b53eeab4f209a178f20b4be297f2d174a369c9f"
+    },
+    {
+      "dark_pixels": 15519,
+      "dhash": "c0ccd4d0d0c4c0d0",
+      "page": 126,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "84c3d1faf45029b7771b9ecd66b7b1d4f20794d9e24c3dcc1448466f5d066637"
+    },
+    {
+      "dark_pixels": 13256,
+      "dhash": "b0c8c0c0d0c0c0d4",
+      "page": 127,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "6d413a8e70e7782d10b9347d41ccb809155d35da17733f14de432fd6515c81bb"
+    },
+    {
+      "dark_pixels": 2707,
+      "dhash": "f0c0800000000010",
+      "page": 128,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "d27c86ad5930a8a26f80efba54ad3a1ffefc8b93eddc74773f3c75c35e841553"
+    },
+    {
+      "dark_pixels": 12883,
+      "dhash": "10b0c0c8c4d0c0d4",
+      "page": 129,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "d6773daf68bc29f36543d8f90bff2534183657571bedd9179ab0accd621d45a3"
+    },
+    {
+      "dark_pixels": 15760,
+      "dhash": "f0c4c4d4c4d4c490",
+      "page": 130,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "4e01f49c36c001b40c0bb44dc639df46a42a66864752708ff2969193e1d5c774"
+    },
+    {
+      "dark_pixels": 14940,
+      "dhash": "f0d4c4d4ccc0ccf0",
+      "page": 131,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "465aa8eebb689509dc55c748f54d459203f1700db1690e23d2792ba045a28246"
+    },
+    {
+      "dark_pixels": 7682,
+      "dhash": "d0c4c0d080000010",
+      "page": 132,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "847a4b998c171ccca775857a5b39f2cdf8f7b92a6b8a81ce1b73cc0684df646f"
+    },
+    {
+      "dark_pixels": 12174,
+      "dhash": "10b0c4ccc4c4c4d0",
+      "page": 133,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "e193a318cc8b4f62f66a793e88fa1ca5502766d6e91e2234b8b23898c4990aa5"
+    },
+    {
+      "dark_pixels": 15956,
+      "dhash": "d0c4c0d0d4d4e4d4",
+      "page": 134,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "ed9ed8bad5b10786a3d467de7e2e13b356912a5d40c1c1412f143e9c173ad370"
+    },
+    {
+      "dark_pixels": 15886,
+      "dhash": "d0c4c4c4ccc4c4d0",
+      "page": 135,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "5c1c75ad27db056aa596ca4317105165babf4a0787e1c4e8c6fde893076d67b3"
+    },
+    {
+      "dark_pixels": 13113,
+      "dhash": "d0d4c488c094c8c0",
+      "page": 136,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "08d9a9089df6dfd2581d955adf9c64bc6b856d4afadf145b035e9b4af6989e71"
+    },
+    {
+      "dark_pixels": 13424,
+      "dhash": "a0c4c4c4d0dcc0c0",
+      "page": 137,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "39e382ae5ac9c622c8323b4075cd1ef461f2084dcea67b3f5745d905268ea192"
+    },
+    {
+      "dark_pixels": 12905,
+      "dhash": "f0c4c4d4c4c4d000",
+      "page": 138,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "e19e6ee9eea39c6862e6c4af27e81b2d111f2af6f4d1d8bf0bbb7b66ad557365"
+    },
+    {
+      "dark_pixels": 13091,
+      "dhash": "10b0d0ccd4d4ccd0",
+      "page": 139,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "ab9cecf00b14db5e298153861c2f24585f88a3792b1f780ad347e59f247d5dca"
+    },
+    {
+      "dark_pixels": 15614,
+      "dhash": "d0c4c0c0e0ccd4d0",
+      "page": 140,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "9bd4d5b421c9b39410e30d59f305bfd6904dbd2c5a219f2e340f790ea653676b"
+    },
+    {
+      "dark_pixels": 14571,
+      "dhash": "d0c0c0c4d4c4c8d0",
+      "page": 141,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "7808d75aa80efdfc9398d46b5ee3b77d68289acf83ff02ca632d5a24473217b3"
+    },
+    {
+      "dark_pixels": 918,
+      "dhash": "d080000000000010",
+      "page": 142,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "d4f9cf4bd981a0aa46c134a3ed2ce8992d8de19a9cf4d9464e1a6887191d9391"
+    },
+    {
+      "dark_pixels": 12351,
+      "dhash": "10b0d4c0c4ccd0d0",
+      "page": 143,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "e7bcb99f4b7a5d1dc9d478d227f70a9bff18520012e87ee681a0a51730c38b93"
+    },
+    {
+      "dark_pixels": 13529,
+      "dhash": "90c8c4c4ccc4c4d0",
+      "page": 144,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "cbd0d58c8116e14988dcd88146fd21eef1db92efb3fae6b07adf212905bd3def"
+    },
+    {
+      "dark_pixels": 14274,
+      "dhash": "d0c0c8c0c0d0d094",
+      "page": 145,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "d4111ba00345310ea872859b15f68821827678b2c8842a1bbe7c8ebbb081a393"
+    },
+    {
+      "dark_pixels": 12430,
+      "dhash": "f0c4c0d0d0c48800",
+      "page": 146,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "1eef7e790d13c7898c46d3573d11fe124156dd1553955ab0615225706e143afe"
+    },
+    {
+      "dark_pixels": 11836,
+      "dhash": "10b0c0c8d0c0c8f0",
+      "page": 147,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "cd6aa4a8785ffac809d387074dc2312724e4313629a7e5fc09f12ebe9712b92a"
+    },
+    {
+      "dark_pixels": 13478,
+      "dhash": "d0c0c8c0c0c0ccd4",
+      "page": 148,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "98b5c5cc33fa3c3d742a374536b124d711cfb5145425cbd035377eab91734113"
+    },
+    {
+      "dark_pixels": 14508,
+      "dhash": "d0c4c4c4c4d4ccd4",
+      "page": 149,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "0de3d7ec699fddee15aed0de355a260f01a904e9d6c1fa7d07c0d3dec65c92c9"
+    },
+    {
+      "dark_pixels": 11753,
+      "dhash": "90c8ccd4c4c40010",
+      "page": 150,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "cc628af80ebb7a851b891299f714438cc85452d35601056443f4673498334492"
+    },
+    {
+      "dark_pixels": 12344,
+      "dhash": "10b0f4c4c4c4c090",
+      "page": 151,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "38f1fd6254f5fbd8805d1b03eb5a59dcad28866be47f38fd4e6244171ffba515"
+    },
+    {
+      "dark_pixels": 14368,
+      "dhash": "d0c0c8c0c4c0c8d0",
+      "page": 152,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "b75d141e517dbc5842d24cd194e8c1e325885affb3e747913a43a0fe65a1bbde"
+    },
+    {
+      "dark_pixels": 13425,
+      "dhash": "d0c4c0c0c0d4c0d0",
+      "page": 153,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "aefbd1cfcc38ffcd0defe44b7545509da887e96294fa9121ddc4a88a88803d5e"
+    },
+    {
+      "dark_pixels": 14437,
+      "dhash": "d0c0d8c4c4c4c090",
+      "page": 154,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "7a10a3e33bebea27027f958df3e79f21b394158a6f70664bb352e9f3edef73f2"
+    },
+    {
+      "dark_pixels": 8120,
+      "dhash": "f0d4c4c880000010",
+      "page": 155,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "475619e751eb96d6b243dd16e3b8269c66d81aa9a6ba139dc4d488cef8e8d821"
+    },
+    {
+      "dark_pixels": 12850,
+      "dhash": "10b0d4d4d4d4d0d0",
+      "page": 156,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "879fef805413936c7b43963d1c98b597c046e55ebbe1292fd150e29f9a6f4612"
+    },
+    {
+      "dark_pixels": 15539,
+      "dhash": "d0d0c4c4d4cce4e0",
+      "page": 157,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "b2441cd44910d89541888371cccf94489ac7f91daeb2b4fba779a41c274f960e"
+    },
+    {
+      "dark_pixels": 14922,
+      "dhash": "d0d0c4d8c4c0d0d0",
+      "page": 158,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "3de4f20259912e912062ea83f0114121b878e50bdc28166b237e18efd73d8686"
+    },
+    {
+      "dark_pixels": 14370,
+      "dhash": "f0d0c4d8d0c4c0d0",
+      "page": 159,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "6b5776ba9b4ab72910abebb04b8acc558d6eef726be97fec3d3aaa4f0f931902"
+    },
+    {
+      "dark_pixels": 15072,
+      "dhash": "b0c0d0c4c4d4c4c4",
+      "page": 160,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "ba519c1bd990a1b3b7ccb51719512f6e5fdb424ac63f1c2b3a89bc7500754510"
+    },
+    {
+      "dark_pixels": 438,
+      "dhash": "c0c0000000000010",
+      "page": 161,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "e794a13cff09cc067c0fb7d890c87032f217c1a80fc0d32e22e1fce8fb05a890"
+    },
+    {
+      "dark_pixels": 12730,
+      "dhash": "10b0c4c8d4d4d8d0",
+      "page": 162,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "1112d58a390201ec31ba72fb22412216340ae7af2ab6a0e64ed40d21f9396771"
+    },
+    {
+      "dark_pixels": 16073,
+      "dhash": "d0c4c0d0d4d8d4d0",
+      "page": 163,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "8908939f75f316ff27227140ab1aaa075b8933227626e3a77f6a9984089adb93"
+    },
+    {
+      "dark_pixels": 16492,
+      "dhash": "d0c4d4ccd4d4ccd4",
+      "page": 164,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "25da543e3f2b471a83883fe2386f58747d672a4481cf81b408340d1e50f017db"
+    },
+    {
+      "dark_pixels": 16741,
+      "dhash": "f0d4e4ccd8c4d4d0",
+      "page": 165,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "da624677ebfc7899d7bf5e2f32214f6c25b60483b15d69897b53cf6e8d7d6ad3"
+    },
+    {
+      "dark_pixels": 16723,
+      "dhash": "f0ccc4d4d4d4c4d4",
+      "page": 166,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "3ae7ed5cde2d52cff07115af93483b1682287726af3daebad081dc7394c4842a"
+    },
+    {
+      "dark_pixels": 16877,
+      "dhash": "d0d4d4c4c4c4e4d4",
+      "page": 167,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "4ff496008e8e899cdb59296ce4da0af4f62cb7d967df566f5fdb353c460c3bda"
+    },
+    {
+      "dark_pixels": 7988,
+      "dhash": "f0c4ccc880000010",
+      "page": 168,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "48482e2b193b4ae88d2c1b9081118dc5f4a2b8a574a22cfc39c22272c8d5d34a"
+    },
+    {
+      "dark_pixels": 13268,
+      "dhash": "10b0d0c4d0d4d4d0",
+      "page": 169,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "72681f2c643d084abee1e945321f11ba7085e82d8d41ee051d2d20f76e0c37ca"
+    },
+    {
+      "dark_pixels": 15211,
+      "dhash": "d0d4d4c4f4c4c4d0",
+      "page": 170,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "89c1afe69b07775986fd7e683b2afec17dccc13d5a9c55dbcfa40ae2b6afeb9d"
+    },
+    {
+      "dark_pixels": 16406,
+      "dhash": "d0ccd0c0d4c4c4d0",
+      "page": 171,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "6fe4c5ac4827db17671da9d1880a523fe8475b6e19f707b9764fa2de9966c438"
+    },
+    {
+      "dark_pixels": 16010,
+      "dhash": "d0d4c0c4d4d4c4d4",
+      "page": 172,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "4e60a708436cbc8133ea0bc9c3faba74ba9d5e82b70c1cf7d986f020ede8e467"
+    },
+    {
+      "dark_pixels": 11998,
+      "dhash": "f0c4d4d0ccc48010",
+      "page": 173,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "da3aa61461d3fca529e90e430fb386abc5e8216f179800e0d670e2c28704eb9c"
+    },
+    {
+      "dark_pixels": 12265,
+      "dhash": "10b0c0ccd8d0c090",
+      "page": 174,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "96dbd49383fbf803a2a9847ebce3d89379efb03ca4e2c3e0709aef6a0915150b"
+    },
+    {
+      "dark_pixels": 13746,
+      "dhash": "f0c0c0c4c4c4c094",
+      "page": 175,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "4120dbf5b7404716967103ea62575d9bb7141e30480fa546c66432f70d4ad8e2"
+    },
+    {
+      "dark_pixels": 15740,
+      "dhash": "d0c4c0ccd4c4c4d0",
+      "page": 176,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "9b1a447fa902704a44fc4ce7535a1ef0dfe49007d4eb5563b1391111d6026f65"
+    },
+    {
+      "dark_pixels": 6116,
+      "dhash": "f0c4cc8800000010",
+      "page": 177,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "e548cbaf2ca7df7eb00496274e15eef7d131c904ed678fbee421c352450cacb7"
+    },
+    {
+      "dark_pixels": 12962,
+      "dhash": "10b0e0d0c8c4d4d0",
+      "page": 178,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "9cfdaa45ee1993ef8ad277a35ced5f14752aaf3f572807ff80975791bc632806"
+    },
+    {
+      "dark_pixels": 14549,
+      "dhash": "d4c4ccccc4c4c490",
+      "page": 179,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "5412892fd9570910efdd31f85b405f92a25947667a85e678f0f11c4ef5dab33b"
+    },
+    {
+      "dark_pixels": 9309,
+      "dhash": "90c0c0c4c0c00010",
+      "page": 180,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "2ad189e6b2b783ec8e26dae56e5a5c3ed3477b3eac2f6b5923a864d5d162acd1"
+    },
+    {
+      "dark_pixels": 12209,
+      "dhash": "10b0d4c0c0d0d892",
+      "page": 181,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "0ec76a90b05879b3f1196ee16909cbb7be4b6e31f66480d045e8d943ac0f9f59"
+    },
+    {
+      "dark_pixels": 14188,
+      "dhash": "b0c4c4c0c0c4d4c4",
+      "page": 182,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "8fe1e79ff8efa606f727c1756e4ed463a78a6100240237cef97f51ee244b1705"
+    },
+    {
+      "dark_pixels": 15129,
+      "dhash": "d0ccd4c4c0c4d4d4",
+      "page": 183,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "8dbdcdde56e28ffd53130e0b749c7feaec51607178c984ac67d9ed7a53bf317f"
+    },
+    {
+      "dark_pixels": 11653,
+      "dhash": "f0c4c8c0c4c40010",
+      "page": 184,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "81f40a5ede38fdc3313ed23462b2f1744cd6bf96cd4418017dc43811596da8dc"
+    },
+    {
+      "dark_pixels": 10875,
+      "dhash": "10b0d4c4c4c0d490",
+      "page": 185,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "9041114ae076307f0fcb7d2a938a8ff425e94bde6435110fe99df174348657dc"
+    },
+    {
+      "dark_pixels": 13699,
+      "dhash": "b0c4d0d0d0c4c0d0",
+      "page": 186,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "17b33e68d81addcc95d87eccc2ad7af4367ad518418decd663613c18ced18164"
+    },
+    {
+      "dark_pixels": 15707,
+      "dhash": "d4d0c8c4c0d4c4d0",
+      "page": 187,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "f6378a26fbd30da3ff86798d6c41b6ef526ef23715646c2248ffa2b3b80166f5"
+    },
+    {
+      "dark_pixels": 14516,
+      "dhash": "d0c4c0d0c0c4c0d0",
+      "page": 188,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "b9ef430ffd51e933d98b1bedd3504d2c4f647d230901de0bb7e00a73d81e742c"
+    },
+    {
+      "dark_pixels": 1208,
+      "dhash": "c0c0004000000010",
+      "page": 189,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "75836c11c7a11b77b97df932d4ec67177a8e7907694caa68731209da00ba3e9f"
+    },
+    {
+      "dark_pixels": 11779,
+      "dhash": "10b0d4c4c0c4d4d4",
+      "page": 190,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "a9d8399ab84bb1cd611e245f1ae9efd9e1af67322cce2a41bb1c4b2d91b80ef8"
+    },
+    {
+      "dark_pixels": 14524,
+      "dhash": "d0c4c0c0c4c0c4d0",
+      "page": 191,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "5ff70f865b5b50d666a44cfcf92b5948b5082a76319e36ce9a1ad831416333cb"
+    },
+    {
+      "dark_pixels": 15681,
+      "dhash": "d0c4d4c4ccc8c8d0",
+      "page": 192,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "8645e0cc9fc8996ff3ead2e857fc4eb752dd2c155d174d80cefa47fd5fe723cc"
+    },
+    {
+      "dark_pixels": 15248,
+      "dhash": "d0c4c4d8d4d0c0d0",
+      "page": 193,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "7e2972b835c3d7e3fd0275db420097188adb7c08dcc18133af5d25e318c011ff"
+    },
+    {
+      "dark_pixels": 13752,
+      "dhash": "f0c4c0c4d0d0c4d0",
+      "page": 194,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "ca3576688a11cdb5a1a039a5f8b672d2cebf587e01ff3085377b4b5f8ec7f896"
+    },
+    {
+      "dark_pixels": 7836,
+      "dhash": "f0c4d4c480000010",
+      "page": 195,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "74ec7bf118f19420cce2be1b20cb16018b0ce71e730859419f547252b4692db4"
+    },
+    {
+      "dark_pixels": 12956,
+      "dhash": "10b0d4c4c4d4c4d0",
+      "page": 196,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "f1b75d9ecaf40b53b2fa1ebe664274b68534e5316f1d04689069ea22972c06ca"
+    },
+    {
+      "dark_pixels": 15996,
+      "dhash": "d0d4c4c8d0d4c4d4",
+      "page": 197,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "107659cedf39a95c26da05178d13465e1b07eba0cb454e40fbae431a0550b212"
+    },
+    {
+      "dark_pixels": 16007,
+      "dhash": "d4c4c0c4c4c4d0d0",
+      "page": 198,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "a99ee9cc03338105ed2aaabc3fe65ea9265e4aa9934211c44850a4e826f9780a"
+    },
+    {
+      "dark_pixels": 15505,
+      "dhash": "d0ccd4c4c0c4c8d4",
+      "page": 199,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "fa88ccfa7ae93c2b038017254e2463245ae867bb1913efbb3acd14605329ebbf"
+    },
+    {
+      "dark_pixels": 4852,
+      "dhash": "d0d4c04000000010",
+      "page": 200,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "1bb535ec6a811919791f9632680c332282f3e11f7326ee6bf8bfe1a6219f830f"
+    },
+    {
+      "dark_pixels": 12486,
+      "dhash": "10b0e4ccd0d0d4d0",
+      "page": 201,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "2f08aa0b57b1f37f4df5f49c2085747a43b91c3cbfdabdf72fac00f17b2f8f0e"
+    },
+    {
+      "dark_pixels": 14762,
+      "dhash": "d4c4d0c4c4c4cc94",
+      "page": 202,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "64237323f64ebd752e407f515e073f2e0627ad95f60b9f7a7061ff792bbba479"
+    },
+    {
+      "dark_pixels": 12623,
+      "dhash": "b4c0c0c484c8d0d0",
+      "page": 203,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "7a919645848afa408e8e1be51f0894845ddc7113a4dae922ca4ed18cd52cdd61"
+    },
+    {
+      "dark_pixels": 13359,
+      "dhash": "f0c4d0d0c4c4c0c0",
+      "page": 204,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "49be2d28d385f42671c577b122b2480d33239037fbe13926f6038d57db9e3578"
+    },
+    {
+      "dark_pixels": 15746,
+      "dhash": "f0c4d8d4c4e4c4d0",
+      "page": 205,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "ac454e03e6bf20db5e315b231efd197543c3f5a0c4bbc68569a5cb36fd023dda"
+    },
+    {
+      "dark_pixels": 16074,
+      "dhash": "d0c0d0c0c4d0dcd4",
+      "page": 206,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "ece52149e48e9a892402c87641a2a456e05584c27796cc4bff8592babc73b855"
+    },
+    {
+      "dark_pixels": 16430,
+      "dhash": "d0c4c4e4d0d4ccd0",
+      "page": 207,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "f93e8bee8b3424fe0e8458acced5b4434c0d05c242bf7f0e7fd4d77143c04fd9"
+    },
+    {
+      "dark_pixels": 16205,
+      "dhash": "f0ccc4c4c0c4c0d0",
+      "page": 208,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "d56a6c5ef0ed21bb5c16ea6440d0ca016a6a6770b16fb1d2a70c73a72975c8d2"
+    },
+    {
+      "dark_pixels": 15518,
+      "dhash": "d0c4c4d4c8c4c4d0",
+      "page": 209,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "ace52c78d74d638e4fca16b9bb3c0c37bbee90019015c5f68e6463544f6b4d38"
+    },
+    {
+      "dark_pixels": 14615,
+      "dhash": "f0c0ccd4c8c4c4d0",
+      "page": 210,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "61adb3353495d9eb9099df87e1e631e236f5ef44d2bb0970af2c5e80ce51c271"
+    },
+    {
+      "dark_pixels": 14957,
+      "dhash": "d4c0c884c4c4d4d4",
+      "page": 211,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "cc62f140f8925c97d2b1d3dd058c03d3e40752d659b5212aa63d3c1875d0a5ab"
+    },
+    {
+      "dark_pixels": 4273,
+      "dhash": "d0d4c40000000010",
+      "page": 212,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "8d4cba209d244c083fe94bea5f01043357002ba82c736f53a7e5c4c05497acb9"
+    },
+    {
+      "dark_pixels": 13416,
+      "dhash": "10b0f0c8d4c4c4d0",
+      "page": 213,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "fc3ec1968925f3dd2969ecc6b9c9ed95b2cac2aaabdcf4d870d5a54528c69fc5"
+    },
+    {
+      "dark_pixels": 15051,
+      "dhash": "f0ccc4c4c4d0c4c4",
+      "page": 214,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "910b21ef5ea072ed70811b9ef8d7740095300a60d296db7ffdc1d46ddaf14a27"
+    },
+    {
+      "dark_pixels": 15763,
+      "dhash": "d0c4c0c4c4c4c4d0",
+      "page": 215,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "f917168c8bd5d74f083e2cce20461a8e6425bbb11cd4840ea3159868b19d0fb5"
+    },
+    {
+      "dark_pixels": 15629,
+      "dhash": "f0d0ccc0d0c0c4d4",
+      "page": 216,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "1bce9329b721b9cc4510646faef5caed68d4425092d0652387cb3bb7eaafc64a"
+    },
+    {
+      "dark_pixels": 16414,
+      "dhash": "d4c8c0c4d0c4c4d4",
+      "page": 217,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "bfd97bfc4f01ab8ee6e9d31e843deda0a9890bc0edca55952d3a10d048f12212"
+    },
+    {
+      "dark_pixels": 6113,
+      "dhash": "d0d4c4c000400010",
+      "page": 218,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "09db52ba9e3d2cbb067d62c5405edb8dc12daeb3b5dc640786bbd8481b33323b"
+    },
+    {
+      "dark_pixels": 12374,
+      "dhash": "10b0d0c4c8c4c4d0",
+      "page": 219,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "ba8dd3baeb7253b64b595d4aedf67c4c225061d49fb6726d375316e0b0334b79"
+    },
+    {
+      "dark_pixels": 15865,
+      "dhash": "f0d4c4c0d4d0ccd0",
+      "page": 220,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "0d6bc213b07b6c34602950792ee43f8a538118fb8bbb375927b00da230b82a2c"
+    },
+    {
+      "dark_pixels": 15849,
+      "dhash": "c0c4d4c4d4c0d4d0",
+      "page": 221,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "3acaf82c87803f09760672ccf31ff8ac5e5a2344cc4b3727ebc0d5d79f1594c5"
+    },
+    {
+      "dark_pixels": 15099,
+      "dhash": "f0c0c4e4c4c0d0d0",
+      "page": 222,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "c345715c0e28fd9f605657428a6abde11368e2687110a823833855a8d93a9050"
+    },
+    {
+      "dark_pixels": 2788,
+      "dhash": "d0c4000000000010",
+      "page": 223,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "058ad4cf909ef73c8a4b56fe1e5d79c7deb809da3f7fa7c3309cd8adbf9f756d"
+    },
+    {
+      "dark_pixels": 12431,
+      "dhash": "10f0f0ccd4c4d4d0",
+      "page": 224,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "e6b6f325356738f802a1c92e9501472ebdd5ecbc45dbb24f294c9aa558e6d330"
+    },
+    {
+      "dark_pixels": 15937,
+      "dhash": "f0c4c4d4c4d0d0d4",
+      "page": 225,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "9e311a5650635e2ea83105fbe6bc0096a7ccca7df9906300ff9253b1ef01e519"
+    },
+    {
+      "dark_pixels": 15687,
+      "dhash": "f0d4d4ccd0c8c4d4",
+      "page": 226,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "239ed24908ca10c49a865dda4ae9e33cb83d7e90a015bc229bf87756749a147b"
+    },
+    {
+      "dark_pixels": 14275,
+      "dhash": "d0c0c0c8e4c8c0c2",
+      "page": 227,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "8b059ef65c6ce3e57e7cebf64a1722520f11f58a21290d688b1970c17a225b5a"
+    },
+    {
+      "dark_pixels": 15062,
+      "dhash": "d0c4ccc0d0c4c0d4",
+      "page": 228,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "db0c1096620750195c558bd569e0432611f29331c8595c84d23de14c43406a47"
+    },
+    {
+      "dark_pixels": 16319,
+      "dhash": "f0c4cce4c4c8c4d0",
+      "page": 229,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "db00ebe28ccad3cd5a9fe842409a9bcfe30151f843d958e8bb8af89b33a59240"
+    },
+    {
+      "dark_pixels": 12438,
+      "dhash": "f0ccd084ccc48010",
+      "page": 230,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "f550c55d8404d5a8a4d6dffec9d321e94cd72102a9ede405f23272e67a7d553f"
+    },
+    {
+      "dark_pixels": 11799,
+      "dhash": "10b0f0c4d0c8c4d0",
+      "page": 231,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "f73f5fb87a1a9321dddad69329fd36351749f33c1cfc832ab4018861782f7eae"
+    },
+    {
+      "dark_pixels": 15637,
+      "dhash": "d4ccc8d8d4c0c494",
+      "page": 232,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "fede7af02a0ff4d351dbe34e359f45ec2af09a28abc07ae9e6020a6b7e4ada45"
+    },
+    {
+      "dark_pixels": 14904,
+      "dhash": "f0c4c4c4c4c4c0c0",
+      "page": 233,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "11a0df8e02f8bcf58c091862e7a9ad8e14a4ecaa5d1a69b081c3fb9e7a569b5d"
+    },
+    {
+      "dark_pixels": 13578,
+      "dhash": "f0ccc4c080c0c0d0",
+      "page": 234,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "8274443df72e51375a20e80c28191b0e4bf8520ccffdc353e1e9edc7c118129a"
+    },
+    {
+      "dark_pixels": 15124,
+      "dhash": "d0ccc4c4c4c8c4d4",
+      "page": 235,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "e5e50fc9f0cd9d525f04a781ddaa492b5a1da1f70c38a5d603b77011ae0b5506"
+    },
+    {
+      "dark_pixels": 15542,
+      "dhash": "f0d4d4c0c0c4d4d0",
+      "page": 236,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "48b685bd0ab4c02957290c3b6c96f951892cef176645b2d998b3d1f93a7fafc8"
+    },
+    {
+      "dark_pixels": 14716,
+      "dhash": "f0c4d0d4d4d4c4c0",
+      "page": 237,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "57d6f2e8882768ead1a1f9bbff81e68e65d6f59ec8667d712c8433c177802d43"
+    },
+    {
+      "dark_pixels": 13556,
+      "dhash": "d0c0c4c0c4c4c4d4",
+      "page": 238,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "a9641d1d40125ba13d57e99eef0579d36b164d9cabe1825c44387f6bb52a2421"
+    },
+    {
+      "dark_pixels": 13457,
+      "dhash": "d0c8c4c0d4c4c0d0",
+      "page": 239,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "6cbfccafa28574810c0cdb9992ae8228f1517f47b49ea824f5868a60e63a3223"
+    },
+    {
+      "dark_pixels": 6253,
+      "dhash": "f0c8c48000000010",
+      "page": 240,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "8d76fc2f6002bcd8e35e6d03c09a50bfde3b077062c1b327daae45c48bbb15cf"
+    },
+    {
+      "dark_pixels": 12486,
+      "dhash": "10b0d0c4c4c4c4d4",
+      "page": 241,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "950491f4fcb1d03db1158602ae9b56109f334e77bf2999bcdde90346eee373d0"
+    },
+    {
+      "dark_pixels": 15237,
+      "dhash": "d4ccd4c4c4d0c4d4",
+      "page": 242,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "e2899d5c14b3b143c45cac3e5ce76928c839ff567413cf71f7e3638b45831e0a"
+    },
+    {
+      "dark_pixels": 14652,
+      "dhash": "f0c0d4ccc4d8d494",
+      "page": 243,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "9ff16b53fb7276828a6fae3d6cc52dac5eb336c46b4882142529905af83a7b00"
+    },
+    {
+      "dark_pixels": 15467,
+      "dhash": "d0c0d4c4ccc4c4d0",
+      "page": 244,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "88b29abe34cddb65896640c97edfc4c9f4aa74bd805966ce42365ce108e0717f"
+    },
+    {
+      "dark_pixels": 14396,
+      "dhash": "d0d4c0c0c0c0c4c0",
+      "page": 245,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "1e0b177d336fe61c2fda0e75b991d0d0f193f273d1fb2cda67825776e0fd66ec"
+    },
+    {
+      "dark_pixels": 4169,
+      "dhash": "d0c0c80008000010",
+      "page": 246,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "3eec80fae21c5b1c88e96178aa38ca619a4cb9eed86f72fea02dfd8de80deb1c"
+    },
+    {
+      "dark_pixels": 11138,
+      "dhash": "10b0d0c0ccd0c0d0",
+      "page": 247,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "453ecc883dc1dac64bf76ad1934f679cd625dd1558af269d37222014b88071c9"
+    },
+    {
+      "dark_pixels": 14678,
+      "dhash": "d0d0c0d4c4ccc0d0",
+      "page": 248,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "4914b554ec23374d69f843ea6956f9c04029c84e217811efc5693d0d3e811ba1"
+    },
+    {
+      "dark_pixels": 13182,
+      "dhash": "d0c0c080d0c4c0f0",
+      "page": 249,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "68f6d06b93f080ba56f0551a8f2067906dc9816a1c9d9711efd0e7d98262f279"
+    },
+    {
+      "dark_pixels": 15084,
+      "dhash": "d0c0d4c4d0c0c4d0",
+      "page": 250,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "e121aba2a69c122b24872e2350d7e4aff8460fe5db5091cbf0881495601ef719"
+    },
+    {
+      "dark_pixels": 14614,
+      "dhash": "f0dcd4c8c4c4c4c4",
+      "page": 251,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "b2a68592bfd5d4b572bf06a1d8d6552ca8feccb0f07e1e681a5fecbc4c5145d3"
+    },
+    {
+      "dark_pixels": 5716,
+      "dhash": "d0cccc8000000010",
+      "page": 252,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "7ae6bd37ad27c513637db08376565f76b1ff8b5b2f7b4e5af9ace1340b58709d"
+    },
+    {
+      "dark_pixels": 12241,
+      "dhash": "10b0d4c4c4ccc4d0",
+      "page": 253,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "b3bdc76f149cde3ca9cf545308b8c622d9564a464974d5aadaa1615d1eddd577"
+    },
+    {
+      "dark_pixels": 16085,
+      "dhash": "d0d4d4c4d0d0cc90",
+      "page": 254,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "1824b5f03bb30476ff31cfe28a208d8556d2018d7048c6572bc66eaf6d1a09dd"
+    },
+    {
+      "dark_pixels": 15513,
+      "dhash": "d0c8c8c8c0d4c4d0",
+      "page": 255,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "afbfd0493222ba7feb5dc2ab7701baf5ceac8ac401b615bf191d9add77a73b67"
+    },
+    {
+      "dark_pixels": 15752,
+      "dhash": "d0d4c4ccc4e4d4d4",
+      "page": 256,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "5cab1a65e8b30633ad9a2a6d4cae9d0dcf615e3def8909478810e6fda5e1bf73"
+    },
+    {
+      "dark_pixels": 15564,
+      "dhash": "f0d4c4c0dcd4c4d4",
+      "page": 257,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "a4030e88fba3dd44f667d8fbd4c45017a930eb1e87070c7ef40b02e5d4409464"
+    },
+    {
+      "dark_pixels": 2052,
+      "dhash": "f0c4000000000010",
+      "page": 258,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "1fbe9592d5750d6e9a220bd21f4738dda8d0c92d4f95593963717214c8d1b913"
+    },
+    {
+      "dark_pixels": 11755,
+      "dhash": "10b0d0d0c4c4c490",
+      "page": 259,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "d209f9e5e9be9079af93141eaf4b90b00d15cc7a40e203901765930aefbb0056"
+    },
+    {
+      "dark_pixels": 14957,
+      "dhash": "d0ccc0c4c4d4c4d0",
+      "page": 260,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "74d011129021300ae1111dccf19c320bc2bd112729f8d36be9a201c03d8bf5c6"
+    },
+    {
+      "dark_pixels": 14404,
+      "dhash": "f0c4c0c0e4dcc4d0",
+      "page": 261,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "70c7b49ba39a01eeeee1c85b02b83821d7a2ee4b86dee295d75d2775005f092c"
+    },
+    {
+      "dark_pixels": 14051,
+      "dhash": "d0c0c4c4c8c4c0d0",
+      "page": 262,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "2ca5d03fd1010de80fd4c84fe9003738e7a2081327ace7335af88ce50c1b5810"
+    },
+    {
+      "dark_pixels": 13160,
+      "dhash": "d0c0c0d4c4d0c800",
+      "page": 263,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "849748c8d85617b3a4ccd67585560333127827fe9f70b4646dd6a5a7da4bf73a"
+    },
+    {
+      "dark_pixels": 12190,
+      "dhash": "10b0d0c4c4c4c0d0",
+      "page": 264,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "2f8e170ab0b41d1b9142619f1726dff93d867b9e5b432df63ba2f07a78aada41"
+    },
+    {
+      "dark_pixels": 16646,
+      "dhash": "f0c4d4c4c4c4c4f4",
+      "page": 265,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "3d7390e098eb4d64d2805cfc24a32fd585cf35511d95efd7768cfe17b507433c"
+    },
+    {
+      "dark_pixels": 16626,
+      "dhash": "d0ccd4c4c8d0c4d4",
+      "page": 266,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "84b4e1cc5dad19144c5b47882db4b7ad2a4dfd4b8a9a05db2a32ba15a4e16795"
+    },
+    {
+      "dark_pixels": 15365,
+      "dhash": "f0c4d4c4d0d4c4c0",
+      "page": 267,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "f8f149dfde6a3f878429558546e05047e8598d8d43d600fc45877031665540b4"
+    },
+    {
+      "dark_pixels": 16895,
+      "dhash": "d0c4d4d4d4c4d4d4",
+      "page": 268,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "4180492597fdf363be142699baf4a1d4aec24fa27c606d9c7b4dc72018410033"
+    },
+    {
+      "dark_pixels": 11164,
+      "dhash": "f084c4c0c0c0c0d0",
+      "page": 269,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "d5afbc7760d01e8d75d3408b891c22f12c78a95561966a493864a0b9afa6b291"
+    },
+    {
+      "dark_pixels": 11149,
+      "dhash": "e0c0d4d890c0c000",
+      "page": 270,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "104b3e7a74d21fcde5c74cd1b1d974f23de7ce4f63382c094e6172179c4cc3b3"
+    },
+    {
+      "dark_pixels": 10817,
+      "dhash": "10f0d4c8c8c4c4c0",
+      "page": 271,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "1bf5c762961f6e2f02b3e06addcc926ff7a179b7913c97f5dc3eb937d1ef0f2a"
+    },
+    {
+      "dark_pixels": 15101,
+      "dhash": "d0ccc4c0f0c4c0d0",
+      "page": 272,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "6931132febd50e0fe3fd0624de0f3dc9f183951b3bb86f95d6138284f5c2e27d"
+    },
+    {
+      "dark_pixels": 14280,
+      "dhash": "d0c8c4d0d8c0e4d0",
+      "page": 273,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "d0efc1834619a6d67dde7239c866d334d645d08282d3ae89c99b09c7b8d6cade"
+    },
+    {
+      "dark_pixels": 15367,
+      "dhash": "d0c4c4c4d4dcc0c0",
+      "page": 274,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "c772623ec298eda996aad1d4e9bf8e72905258a4a194d696e4f441832173613f"
+    },
+    {
+      "dark_pixels": 14755,
+      "dhash": "90c4c8c4c8d4c0c0",
+      "page": 275,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "2db97918d0f1f947746f38c78b38edc7181874767b8d31d4a85e88d2cd4166ad"
+    },
+    {
+      "dark_pixels": 14207,
+      "dhash": "d0c0d8d8d0c4c4d4",
+      "page": 276,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "e1fb1cfd4b6572a430b5dc319cd8ef162e68b53b04e47e9dd463780e183055fa"
+    },
+    {
+      "dark_pixels": 12114,
+      "dhash": "f0c4c0d8d4c08010",
+      "page": 277,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "459b1beaa20a196b506c3783501ca75d3e549ccaea043d49896373a45d368447"
+    },
+    {
+      "dark_pixels": 10844,
+      "dhash": "10f0d0c0c898c4d0",
+      "page": 278,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "c7f30bf9739e2f0ae6d71bee2d75b4948a9b6c546346725ac474212770d5faac"
+    },
+    {
+      "dark_pixels": 15945,
+      "dhash": "f4c8d8c4c4c4d4d0",
+      "page": 279,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "0230bb472d17b0ad4757274ae5f59f320a9659a06f223cf66bb0fba419fe8be2"
+    },
+    {
+      "dark_pixels": 13123,
+      "dhash": "d0c4d8c0c4d4c4e0",
+      "page": 280,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "70a530da0f832af7a3791289ef47cca299125911c1586d0fe2d7d21fa5e687d4"
+    },
+    {
+      "dark_pixels": 14014,
+      "dhash": "f0c4c0c494c4c4c0",
+      "page": 281,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "ed99b193f1c8592bd6fa8ac10b9d29e3b2ef02b6bc913ff700ebcdfd4e6c5ac4"
+    },
+    {
+      "dark_pixels": 11131,
+      "dhash": "10b0d0c0c4c8c4f0",
+      "page": 282,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "799332cee0a723867bc0c7f482a9ccb53aca8d62c0864d5b59f6d016a2869e1b"
+    },
+    {
+      "dark_pixels": 14272,
+      "dhash": "d0c4c4ccc4c0c0d4",
+      "page": 283,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "82bed0e580c121269870c421038edcc122a86ccea26876f1ce874991bb89676d"
+    },
+    {
+      "dark_pixels": 14978,
+      "dhash": "d0c4d4c0c4c4c0e0",
+      "page": 284,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "f388d7e1a9ef11dbbf3d5c6028c9403cd62ebb5330c3547afbc3e81f203b43a8"
+    },
+    {
+      "dark_pixels": 14578,
+      "dhash": "90c0c4c4d4c8d0d4",
+      "page": 285,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "c7d485bc9f3bdddff475f066998c27dfa137d741dee3063de635d8dcfd1f2347"
+    },
+    {
+      "dark_pixels": 14688,
+      "dhash": "d0c0c4c4c4d4c4d4",
+      "page": 286,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "a5caa73ba3c31c1e2f82f55cb970adaf045132db36a81284ba27d8116e325dc6"
+    },
+    {
+      "dark_pixels": 8417,
+      "dhash": "d0c4c4c0c0000010",
+      "page": 287,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "2e886de359a37544b7738447d9abb4765310e49cc0065b9c63f3bdc706c6be67"
+    },
+    {
+      "dark_pixels": 12278,
+      "dhash": "10b0d4ccccd0d0d4",
+      "page": 288,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "000c50605bd808c2b68be29c7706e2c812b7349cf0f63a9733b033528dd549f8"
+    },
+    {
+      "dark_pixels": 12586,
+      "dhash": "f0c0c0d0c0d0c490",
+      "page": 289,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "f99322470b2efcd842f853a79865f8af26b872fc12a2f71c32bbe05c29bb81fb"
+    },
+    {
+      "dark_pixels": 13967,
+      "dhash": "b0c0c4dcc4c0d0d0",
+      "page": 290,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "5e447596052a111068276cc9ce3e643d3edba365be058c1a20ae829d415d9c58"
+    },
+    {
+      "dark_pixels": 14267,
+      "dhash": "b0c0c4d8d0c0c0d0",
+      "page": 291,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "5bdebea32c244730487208a5268724e6db659c557209252dac3aab35c93a157c"
+    },
+    {
+      "dark_pixels": 14152,
+      "dhash": "f0c4c4d8d090c4d0",
+      "page": 292,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "c927d0cb450b6e6674fe447d96a6650a3c42e1889d778b0dcd6dd261d9d8c97c"
+    },
+    {
+      "dark_pixels": 14615,
+      "dhash": "d0c4d4d4e4c4c0d0",
+      "page": 293,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "bdb8ff9016c9a6c49032d3402b5877ab8aa579dece7694b985306a9a3a45d62a"
+    },
+    {
+      "dark_pixels": 10521,
+      "dhash": "f0c0c0c8c8800010",
+      "page": 294,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "0817fa40f86ede42ed42f4cdb4eb2162cc66d334376b78a216d9f1252da0f64f"
+    },
+    {
+      "dark_pixels": 12958,
+      "dhash": "10b0d4ccc4d4c890",
+      "page": 295,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "57d857241d6e7eecc21a4c96a4d65d05936e24be31dcc736e03fe4caa5bd461e"
+    },
+    {
+      "dark_pixels": 14462,
+      "dhash": "d4ccc0c0c4d4d4c0",
+      "page": 296,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "22b9010be7a09804a2af56d183e652ff5d9a07f95397d966291817342148a187"
+    },
+    {
+      "dark_pixels": 14935,
+      "dhash": "f0c8c4d4d4c0c4f4",
+      "page": 297,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "3b1e5d27b45a1f21ab9f683267398814c2a90e718c520e6875deaf72e77cf650"
+    },
+    {
+      "dark_pixels": 14722,
+      "dhash": "d0c4d0d0c4c4c480",
+      "page": 298,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "86e98effabc921f671ff57bd7e17584139da392225284e392252f9ae09f1a247"
+    },
+    {
+      "dark_pixels": 12003,
+      "dhash": "10b0d0ccd4c4d490",
+      "page": 299,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "590cb6674bff9c6fa460206030072418cc8a7ba724c77a88d80d7c570d56864d"
+    },
+    {
+      "dark_pixels": 15904,
+      "dhash": "d0d4c0ccd4c0ccd4",
+      "page": 300,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "fc40b21a9707b4cb56e824bfc9ecd39b45d92d9edb883aa47ab8b6574734aabb"
+    },
+    {
+      "dark_pixels": 14944,
+      "dhash": "f0c4ccd8d0c8c4f0",
+      "page": 301,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "f5d417e4e0a533d529eb12a5fb7387a85d25e7b6169510b432a42eb6e8d67ff4"
+    },
+    {
+      "dark_pixels": 15122,
+      "dhash": "d084c4c4d4c4c0d0",
+      "page": 302,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "6ca70bd5309192aed7762e0ca564719dad151a48af5d8be8fdd8cf694b34c129"
+    },
+    {
+      "dark_pixels": 13830,
+      "dhash": "d0c0c0d4c0d8c8d4",
+      "page": 303,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "104f019d8f80082a2ae4f92d235c1646a4227906f2fd35e6b71df5b9f77c92d7"
+    },
+    {
+      "dark_pixels": 11058,
+      "dhash": "f494d8c4c0c00050",
+      "page": 304,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "37158c9717b7e95c4dcbb1317d89e5204598be4112fb2920a62254d800d5ad45"
+    },
+    {
+      "dark_pixels": 11916,
+      "dhash": "10b0d0c4c8c0ccd0",
+      "page": 305,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "3eff1249f38bc577fa4148645f20566acb77a8d2444fbd2c82f7ed9bbc7b0784"
+    },
+    {
+      "dark_pixels": 12861,
+      "dhash": "90c4c890c4c8c4d4",
+      "page": 306,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "1aa4214fbc567565aef7abb298f132d8db749acd0496379b87fb365dab222e00"
+    },
+    {
+      "dark_pixels": 14810,
+      "dhash": "d4c8c0d0c0d4c4c0",
+      "page": 307,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "b555a21b7f0223483fa109f83f2a05bc14e350044e1e0c8912b89bcfa472208a"
+    },
+    {
+      "dark_pixels": 15001,
+      "dhash": "d0d4e0c4c0d4ccd4",
+      "page": 308,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "fdfc65058f14fe469d8ebd1fd4f3b6783029cc964acb507c4bd08c382e84ce72"
+    },
+    {
+      "dark_pixels": 15028,
+      "dhash": "d0c4c0d4c4c8c494",
+      "page": 309,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "790e22869def5bac51ed2cbc55e09f570650d55cb5b4068ddc4dff8584a7b7d1"
+    },
+    {
+      "dark_pixels": 12499,
+      "dhash": "d0c494d4c0c0c010",
+      "page": 310,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "26928ae660aa0f0462fa9008bb5a396e966c8a9508d5fa81717e4d8ad5aee9bc"
+    },
+    {
+      "dark_pixels": 11348,
+      "dhash": "10b0d0c4c4ccc4d0",
+      "page": 311,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "ff23e6273ac7bdb1354041d62be4a13a5df6f63f0e64d3b10d7520fdbf66deda"
+    },
+    {
+      "dark_pixels": 13746,
+      "dhash": "f0c4c0d0c8d4d0d4",
+      "page": 312,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "f7d55a4f8a110f01dc985ccfbb3bbcb7b5c68a0a3ab05c9c2cbeee80e43672a5"
+    },
+    {
+      "dark_pixels": 14930,
+      "dhash": "f0c0c4c4d0c0ccd0",
+      "page": 313,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "a08bd1b4a1f01d05ca4eada5ab496388906387995676bdfc8e5a39d1a84d6cdf"
+    },
+    {
+      "dark_pixels": 12045,
+      "dhash": "d4d4d8d0ccc40050",
+      "page": 314,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "d6edf002e2c9e83f3efca2671ff667cdf0f4965297ed7f2c81adbfe2c51628df"
+    },
+    {
+      "dark_pixels": 12249,
+      "dhash": "10b0e4c8c0ccc490",
+      "page": 315,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "63a49cee31f2170ac611afa2e83a67483f1f678141ccd91af62819a760ca966a"
+    },
+    {
+      "dark_pixels": 15282,
+      "dhash": "f0d4c4c4c4d4c4d4",
+      "page": 316,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "16a2ea9e164534a5309b194bd2185ebf64a70872c9eac1304c5febdf7510b6c1"
+    },
+    {
+      "dark_pixels": 15632,
+      "dhash": "d0d0c4d4c4c4c4c4",
+      "page": 317,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "3791606ab51a8ddc13276f598b2b664d7c3a817eec5e60991bc607facd9749c1"
+    },
+    {
+      "dark_pixels": 845,
+      "dhash": "90c0000000000010",
+      "page": 318,
+      "size": [
+        432.0,
+        648.0
+      ],
+      "text_sha256": "6f519b75ebbb13b7f8a94c6edc73589dde86aabf5aac2b0279ff7b0d70a60f54"
+    }
+  ]
+}

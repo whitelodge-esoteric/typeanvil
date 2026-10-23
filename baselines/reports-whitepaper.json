@@ -1,0 +1,107 @@
+{
+  "engine_version": "0.0.1",
+  "file": "reports/whitepaper.html",
+  "page_count": 10,
+  "pages": [
+    {
+      "dark_pixels": 2223,
+      "dhash": "8688c0c498c0c210",
+      "page": 1,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "4c1406e7c91cb1a253b4f1281825b49aeac27667a07d853afb3424e973d91c24"
+    },
+    {
+      "dark_pixels": 3808,
+      "dhash": "8cc4c4d0c8c4e810",
+      "page": 2,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "61ea60291e6446ec6e4c443849f54efcadb134372cc9532b22024e63b2105022"
+    },
+    {
+      "dark_pixels": 2583,
+      "dhash": "8c8490d0cc821010",
+      "page": 3,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "2c208077df4e44462214663eea1894ccab60165b3c55b0ef30eb6f42f2e9c9aa"
+    },
+    {
+      "dark_pixels": 3560,
+      "dhash": "8ec4c0f4d884f000",
+      "page": 4,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "99409e1fb5a84ff026b1c601bd8706c8b405139ee7b80eeb2ad2fe7a38f34cbc"
+    },
+    {
+      "dark_pixels": 3906,
+      "dhash": "c484d0e8ecc0d014",
+      "page": 5,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "1994fe9a44ba9f2ca47e890ebdb51be1f02bc0915922eca2d1569cebb93f4c79"
+    },
+    {
+      "dark_pixels": 3734,
+      "dhash": "8ec4c0e8c0c09c10",
+      "page": 6,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "8db8c8203f8dc0c523eccb35a20b3bf0fc996f4250e0041c4f59d351438f0985"
+    },
+    {
+      "dark_pixels": 2713,
+      "dhash": "86c4e0ccb49e9210",
+      "page": 7,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "664386a0ab6308cf113c8f91fd7ec7db27882a4f802f536dc53683f803536a54"
+    },
+    {
+      "dark_pixels": 2596,
+      "dhash": "86b4908accd0d010",
+      "page": 8,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "850793cbb2c0d44cad33718a48f80f3beaf0aec2260020a79de2db7044d66fe3"
+    },
+    {
+      "dark_pixels": 3775,
+      "dhash": "8ec4c0d8c8d0d810",
+      "page": 9,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "e79f65966a1fbd319bf75812f98f97c5d3270279dfded361ae7f6149ef19fcd0"
+    },
+    {
+      "dark_pixels": 1562,
+      "dhash": "84d4d48000801010",
+      "page": 10,
+      "size": [
+        360.0,
+        216.0
+      ],
+      "text_sha256": "c744749071eacf7cf0fd7e87dc6dd50ca53ea13bb0fd7514e80e778df7be2dc8"
+    }
+  ]
+}

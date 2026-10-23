@@ -1,0 +1,17 @@
+{
+  "engine_version": "0.0.1",
+  "file": "letters/weasyprint-letter.html",
+  "page_count": 1,
+  "pages": [
+    {
+      "dark_pixels": 54211,
+      "dhash": "71b18e800080cc04",
+      "page": 1,
+      "size": [
+        595.28,
+        841.89
+      ],
+      "text_sha256": "e9774da2464b3a8b80eda4dbb719ad25afc8ed2df1f3db5d6ecec026359a82a0"
+    }
+  ]
+}
