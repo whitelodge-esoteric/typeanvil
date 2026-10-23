@@ -459,6 +459,17 @@ pub fn measure_columns_scoped(
         if used.get() < 0.0 {
             used = Scalar::ZERO;
         }
+    } else {
+        // CORE-545: the table's `width` is its border box in the collapse
+        // model too, and the row grid is inset by the table's own border and
+        // padding (layout_table_grid's `grid_x`). The columns must fit inside
+        // that inset or the last column overflows the table box
+        // (weasyprint-invoice `table#total`: 18cm wide, 3cm borders).
+        used = used
+            - (style.border_left + style.border_right + style.padding_left + style.padding_right);
+        if used.get() < 0.0 {
+            used = Scalar::ZERO;
+        }
     }
     let mut widths = distribute_column_widths(&min_widths, &max_widths, used);
     // CORE-356: when the table has room beyond every column's max-content,

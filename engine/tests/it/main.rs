@@ -51,6 +51,7 @@ mod core384_author_pass_selectors;
 mod core385_list_markers;
 mod core386_glyph_fallback;
 mod core387_empty_content;
+mod core545_table_margins;
 mod core390_running_elements;
 mod core390_running_tagged;
 mod core392_row_split_in_step;

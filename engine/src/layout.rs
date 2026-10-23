@@ -2773,6 +2773,23 @@ impl<'a> Ctx<'a> {
             );
         }
 
+        // CORE-545: a table box honors its horizontal margins (css-tables-3
+        // §2: the table wrapper box carries the margins). A negative
+        // `margin: 0 -3cm` widens the available width and shifts the box.
+        if style.display == Display::Table
+            && (style.margin_left.get() != 0.0 || style.margin_right.get() != 0.0)
+        {
+            return self.layout_table_like(
+                id,
+                origin_x + style.margin_left,
+                avail_width - style.margin_left - style.margin_right,
+                top,
+                bottom_limit,
+                page_has_content,
+                token,
+                flow,
+            );
+        }
         if matches!(
             style.display,
             Display::Table

@@ -92,7 +92,8 @@ def test_listed_entry_that_passes_is_stale():
 
 def test_committed_list_cites_issues_and_seeds_five_failures():
     # Seven seeded by CORE-549; the two journal-article entries (CORE-544)
-    # were removed when CORE-532 fixed the fixture.
+    # were removed when CORE-532 fixed the fixture; the weasyprint-invoice
+    # entry was removed by CORE-545.
     entries = vq.load_known_failures()
-    assert len(entries) == 5
+    assert len(entries) == 4
     assert all(e["issue"].startswith("CORE-") for e in entries)
