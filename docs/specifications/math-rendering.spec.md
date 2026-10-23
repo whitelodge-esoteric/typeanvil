@@ -4,7 +4,7 @@ type: spec
 status: in-review
 owner: maintainers
 created: 2026-10-16
-updated: 2026-10-16
+updated: 2026-10-23
 slug: /specifications/math-rendering
 sidebar_position: 70
 tags: [math, mathml, layout, typography, tagged-pdf]
@@ -143,7 +143,7 @@ pub struct MathBox { pub width: f64, pub ascent: f64, pub descent: f64, pub ops:
 5. Given `--tagged`, the structure tree holds a `Formula` with alt text.
    Test: `tagged_formula_has_alt`.
 6. A demo showcase fixture with real equations renders (AC4):
-   `library/academic/math.html`, listed in `library/manifest.json`.
+   `corpus/academic/math.html`, listed in `corpus/manifest.json`.
 
 ## Chromium comparison (ticket AC2)
 

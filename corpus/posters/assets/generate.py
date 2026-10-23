@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the deterministic poster asset (CORE-148, trimmed in CORE-488).
 
-Writes into library/posters/assets/:
+Writes into corpus/posters/assets/:
   poster-gradient.png     — full-bleed abstract gradient for the rich media poster
 
 The chart and invoice-mark generators that lived here belonged to the showcase
@@ -15,7 +15,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-OUT = Path(__file__).resolve().parent  # this script lives in library/posters/assets/
+OUT = Path(__file__).resolve().parent  # this script lives in corpus/posters/assets/
 
 POSTER_W, POSTER_H = 2550, 3300  # full Letter page bleed
 

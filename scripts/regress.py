@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fingerprint regression gate (CORE-489).
 
-Renders library documents with the engine, fingerprints every page, and
+Renders corpus documents with the engine, fingerprints every page, and
 compares against the committed `baselines/<doc>.json`.
 
   regress.py check  [--role gate --size small] [--artifacts DIR]
@@ -42,7 +42,7 @@ PHASH_MAX = 4          # Hamming bits of 64 allowed to differ
 DARK_REL_MAX = 0.002   # 0.2 % of the baseline dark-pixel count
 DARK_LEVEL = 128       # luminance below this counts as dark
 RASTER_SCALE = 1.0     # 72 DPI: 1 pt = 1 px
-MANIFEST = REPO / "library" / "manifest.json"
+MANIFEST = REPO / "corpus" / "manifest.json"
 BASELINES = REPO / "baselines"
 
 
@@ -80,7 +80,7 @@ def engine_bin() -> Path:
 def render(entry: dict, out_pdf: Path) -> None:
     g = entry["geometry"]
     m = g["margin"]
-    src = (REPO / "library" / entry["file"]).resolve()
+    src = (REPO / "corpus" / entry["file"]).resolve()
     cmd = [
         str(engine_bin()), "render", src.name,
         "--page-width", g["width"], "--page-height", g["height"],

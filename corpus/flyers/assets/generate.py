@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the product-flyer image grid tiles (CORE-492).
 
-Writes six 600x450 abstract tiles into library/flyers/assets/ named
+Writes six 600x450 abstract tiles into corpus/flyers/assets/ named
 tile-1.png .. tile-6.png. Deterministic: pure math, no randomness. Authored
 in-repo under the repository license (AGPL-3.0-only). Needs `pillow`.
 """

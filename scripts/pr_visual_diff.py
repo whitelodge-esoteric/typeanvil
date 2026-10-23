@@ -47,8 +47,8 @@ def raw_base_url(pr: int, sha: str) -> str:
 
 
 def render_pdf(bin_path: Path, root: Path, entry: dict, out_pdf: Path) -> bool:
-    """Render one library entry from `root`. False when the file is absent."""
-    src = (root / "library" / entry["file"]).resolve()
+    """Render one corpus entry from `root`. False when the file is absent."""
+    src = (root / "corpus" / entry["file"]).resolve()
     if not src.exists():
         return False
     g = entry["geometry"]
@@ -128,7 +128,7 @@ def cmd_render(args) -> int:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     base_root = Path(args.base_root) if args.base_root else REPO
-    # render_pdf runs the binary with cwd=<library dir>, so the paths must be
+    # render_pdf runs the binary with cwd=<corpus dir>, so the paths must be
     # absolute. A relative path fails with FileNotFoundError (CORE-527).
     base_bin, head_bin = Path(args.base_bin).resolve(), Path(args.head_bin).resolve()
     for label, b in (("base", base_bin), ("head", head_bin)):
@@ -238,7 +238,7 @@ def main() -> int:
     r = sub.add_parser("render")
     r.add_argument("--base-bin", required=True)
     r.add_argument("--head-bin", required=True)
-    r.add_argument("--base-root", help="checkout of the base commit (its library/ is used)")
+    r.add_argument("--base-root", help="checkout of the base commit (its corpus/ is used)")
     r.add_argument("--out", required=True)
     r.add_argument("--pr", type=int, required=True)
     r.add_argument("--sha", required=True)

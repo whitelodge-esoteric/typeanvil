@@ -88,6 +88,7 @@ mod paged_media;
 mod paged_selectors;
 mod position;
 mod print_media_queries;
+mod resolved_repros;
 mod selectors;
 mod smoke;
 mod table_caption;

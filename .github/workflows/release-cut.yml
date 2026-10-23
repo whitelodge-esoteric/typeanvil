@@ -119,7 +119,7 @@ jobs:
           gh pr list --state merged --base "$(git branch -r --contains "$TAG" --list 'origin/release/*' | head -n1 | sed 's# *origin/##')" \
             --search "merged:>=${since}" --limit 200 --json number,title,labels > prs.json
           python3 scripts/release_cut.py notes --prs prs.json --version "$TAG" \
-            --showcase "https://github.com/${GITHUB_REPOSITORY}/tree/${TAG}/library/SHOWCASE.md" \
+            --showcase "https://github.com/${GITHUB_REPOSITORY}/tree/${TAG}/corpus/SHOWCASE.md" \
             ${prev:+--compare "https://github.com/${GITHUB_REPOSITORY}/compare/${prev}...${TAG}"} > notes.md
           # release.yml creates the release; wait for it, then set the body.
           for i in $(seq 1 60); do
@@ -163,7 +163,7 @@ jobs:
           out="$("$bin" --version)"
           echo "$out"
           [ "$out" = "typeanvil ${version}" ] || { echo "::error::--version mismatch: '$out'"; exit 1; }
-          "$bin" render library/financial/invoice-statement.html --page-width 5in --page-height 3in \
+          "$bin" render corpus/financial/invoice-statement.html --page-width 5in --page-height 3in \
             --margin-top .5in --margin-right .5in --margin-bottom .5in --margin-left .5in -o dl/smoke.pdf
           head -c 5 dl/smoke.pdf | grep -q '%PDF-'
           echo "Verified ${TAG}: sums ok, --version ok, render ok." >> "$GITHUB_STEP_SUMMARY"

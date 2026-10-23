@@ -4,7 +4,7 @@ type: research
 status: approved
 owner: maintainers
 created: 2026-09-09
-updated: 2026-10-11
+updated: 2026-10-23
 sidebar_position: 1
 tags: [prince, weasyprint, compatibility, migration, css, benchmark]
 ---
@@ -24,7 +24,7 @@ a second independent HTML→PDF engine — WeasyPrint — add to that comparison
 - The repository's CSS alignment convention and current feature specifications
   were checked on both dates.
 - On 2026-10-11 the five adopted WeasyPrint sample fixtures
-  (`library/*/weasyprint-{invoice,letter,poster,report,ticket}.html`,
+  (`corpus/*/weasyprint-{invoice,letter,poster,report,ticket}.html`,
   CORE-317) were rendered through TypeAnvil, Prince 16.2, and WeasyPrint 70.0
   at their designed page sizes. Fixture-internal `@page` rules govern the
   geometry; CLI geometry flags are defaults only, exactly like

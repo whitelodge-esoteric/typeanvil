@@ -824,7 +824,7 @@ def compare_output_dirs(baseline: Path, current: Path) -> list[str]:
     # the scoreboard (normalized), and the page images. Internal dirs (.work,
     # .results) hold intermediate PDFs/stderr that legitimately differ
     # (e.g. Prince embeds timestamps) — the spec's byte-identity applies to
-    # library/out/compare deliverables only (§Behavior 9).
+    # corpus/out/compare deliverables only (§Behavior 9).
     def collect(root: Path) -> set[Path]:
         return {
             p.relative_to(root)
@@ -876,7 +876,7 @@ def entry_matches(
     oracle: str | None = None,
     category: str | None = None,
 ) -> bool:
-    """Tag filter for library manifest entries (CORE-488). An unset filter
+    """Tag filter for corpus manifest entries (CORE-488). An unset filter
     matches everything; entries without the field (repros manifest) fail a
     set filter."""
     if role and role not in (entry.get("roles") or []):
@@ -952,7 +952,7 @@ def render_showcase_md(
     Returns a deterministic markdown body: one section per manifest fixture,
     per-page <img> tags referencing the rasterized PNGs at
     `<image_prefix>/<base>/page-NNN-ta.png`, relative to the showcase README.
-    The caller splices it into library/SHOWCASE.md below its marker.
+    The caller splices it into corpus/SHOWCASE.md below its marker.
     No timestamps — showcase output is byte-identical across rebuilds.
     """
     lines: list[str] = []
@@ -961,7 +961,7 @@ def render_showcase_md(
     lines.append(
         "Realistic-size pages rendered by the TypeAnvil engine only "
         f"(commit `{typeanvil_version}`). The side-by-side comparison "
-        "gallery lives in [the library README](README.md) and "
+        "gallery lives in [the corpus README](README.md) and "
         "runs the `gate` documents at their small geometry so diffs stay "
         "cheap; these pages show the same engine at the geometry documents "
         "actually print at. Prince renders only the comparison pipeline — "
@@ -985,7 +985,7 @@ def render_showcase_md(
             lines.append("")
             continue
         for png in pages:
-            # Relative to library/ (where SHOWCASE.md lives).
+            # Relative to corpus/ (where SHOWCASE.md lives).
             rel = f"{image_prefix}/{base}/{png.name}"
             lines.append(f'<img src="{rel}" alt="{name} — {png.stem}" width="420">')
         lines.append("")

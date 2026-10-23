@@ -4,7 +4,7 @@ type: convention
 status: approved
 owner: maintainers
 created: 2026-08-24
-updated: 2026-10-17
+updated: 2026-10-23
 sidebar_position: 3
 tags: [css, engine, compatibility, prince, weasyprint]
 ---
@@ -106,7 +106,7 @@ css-page-3 §6.2 fixes the page-margin-box defaults in a table: `top-left`,
 implements that table directly, so a margin box shorter than its band is centred
 in the band.
 
-The visible consequence is in `library/reports/weasyprint-report.html`. The
+The visible consequence is in `corpus/reports/weasyprint-report.html`. The
 sample's `@top-center` is a 1.42pt background rule that its author drew to sit
 beneath the running head. Under the spec's `middle` default it lands on the
 running head's centre line instead, so the rule crosses the text. WeasyPrint

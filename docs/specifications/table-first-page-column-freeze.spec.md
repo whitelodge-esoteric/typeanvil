@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-20
-updated: 2026-10-16
+updated: 2026-10-23
 sidebar_position: 14
 tags: [layout, tables, css-tables, engine, demo-parity]
 spec_id: table-first-page-column-freeze
@@ -242,7 +242,7 @@ pipeline:
    shorter than the header alone, when the scope resolves, then it degrades
    to `FirstPage { body_rows: 0 }` without panic and the table lays out
    (`test_freeze_header_only_scope`).
-6. **Table-stress page-count movement** — Given `library/stress/table-stress.html`
+6. **Table-stress page-count movement** — Given `corpus/stress/table-stress.html`
    at the demo geometry (build-demo.sh flags: `--page-width 5in --page-height
    3in`, 0.5in margins → 288pt content), when the page count is measured,
    then `typeanvil_pages` ≥ 40 (from 21; Prince 45)
@@ -292,7 +292,7 @@ pipeline:
 2. `python3 scripts/validate_docs.py` OK (this spec + amended
    `auto-table-layout` if touched).
 3. Demo regen: table-stress `typeanvil_pages` ≥ 40 in the regenerated
-   `library/out/compare/scoreboard.json`; two-column probe width unchanged within ±2%
+   `corpus/out/compare/scoreboard.json`; two-column probe width unchanged within ±2%
    (char-box extraction, `scripts/demo/col_words.py`).
 4. Harness: css-break table subset pass count does not regress from the
    recorded baseline.

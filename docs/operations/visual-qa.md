@@ -49,7 +49,7 @@ The script applies track-specific page geometry and DPI from its source. Read `s
 
 ## Known failures
 
-`library/visual-qa-known-failures.json` lists accepted failures as `{file, page, check, issue}` entries. `page` is `"*"` for document-level checks (`text_roundtrip`, `declared_fills`). Visual QA fails only on failures that are not in the list. It also fails when a listed entry now passes ("stale known failure, remove it"). The nightly summary shows known failures separately, with their Linear ids.
+`corpus/visual-qa-known-failures.json` lists accepted failures as `{file, page, check, issue}` entries. `page` is `"*"` for document-level checks (`text_roundtrip`, `declared_fills`). Visual QA fails only on failures that are not in the list. It also fails when a listed entry now passes ("stale known failure, remove it"). The nightly summary shows known failures separately, with their Linear ids.
 
 Every entry shall cite an open Linear issue. The list changes only in a dedicated, reviewed PR, never inside a feature commit (CORE-549, CORE-539).
 

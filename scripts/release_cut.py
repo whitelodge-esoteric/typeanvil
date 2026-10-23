@@ -29,7 +29,7 @@ SECTIONS = [
     ("harness", "Harness"),
     ("docs", "Documentation"),
     ("tooling", "Tooling"),
-    ("demo", "Demo and library"),
+    ("demo", "Demo and corpus"),
 ]
 OTHER = "Other"
 

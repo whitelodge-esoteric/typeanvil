@@ -86,7 +86,7 @@ def test_render_missing_binary_fails_clearly(tmp_path, capsys):
 def test_render_accepts_relative_binary_path(tmp_path, monkeypatch):
     """CORE-527: the renderer runs with cwd=<doc dir>, so a relative binary path must still work."""
     from PIL import Image
-    lib = tmp_path / "library" / "d"
+    lib = tmp_path / "corpus" / "d"
     lib.mkdir(parents=True)
     (lib / "a.html").write_text("<p>x</p>")
     fake = tmp_path / "bin" / "typeanvil"

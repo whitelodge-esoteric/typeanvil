@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the event-poster artwork (CORE-492).
 
-Writes into library/posters/assets/:
+Writes into corpus/posters/assets/:
   event-poster-art.png - full-bleed night-sky gradient, skyline, spotlight cones
 
 Deterministic: pure math, no randomness, no timestamps. Authored in-repo under

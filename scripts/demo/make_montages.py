@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Build side-by-side TA | Prince montages for every shared page in the demo.
 
-Reads library/out/compare/images/<doc>/page-NNN-{ta,pr}.png and writes
-library/out/compare/montages/<doc>/page-NNN.png (side-by-side, labeled).
+Reads corpus/out/compare/images/<doc>/page-NNN-{ta,pr}.png and writes
+corpus/out/compare/montages/<doc>/page-NNN.png (side-by-side, labeled).
 PIL available in the repo venv (.venv/bin/python).
 """
 import sys
@@ -10,7 +10,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-OUT = Path("library/out/compare")
+OUT = Path("corpus/out/compare")
 IMAGES = OUT / "images"
 MONTAGES = OUT / "montages"
 LABEL_H = 24

@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-08-16
-updated: 2026-10-17
+updated: 2026-10-23
 sidebar_position: 1
 tags: [harness, wpt, conformance, testing]
 spec_id: wpt-conformance-harness
@@ -244,7 +244,7 @@ enumerable suite is 283 tests; earlier recorded runs used subsets
 | css-page/margin-boxes | 0/37 | 0% |
 | **Total** | **117/283** | **41.3%** |
 
-Named residual drivers (attribution follows `library/TRIAGE.md` conventions):
+Named residual drivers (attribution follows `corpus/TRIAGE.md` conventions):
 
 - **Margin-box styling layer missing** (0/37): all 16 margin-box positions
   render with correct content, but `@page` font inheritance, margin-box

@@ -81,8 +81,8 @@ def test_workflow_never_force_pushes():
 
 
 def test_workflow_repo_paths_exist():
-    refs = set(re.findall(r"\b((?:library|docs|scripts|tests|engine|harness)/[A-Za-z0-9_./-]+\.[A-Za-z0-9]+)", WORKFLOW))
-    assert "library/financial/invoice-statement.html" in refs
-    assert "library/SHOWCASE.md" in refs
+    refs = set(re.findall(r"\b((?:corpus|docs|scripts|tests|engine|harness)/[A-Za-z0-9_./-]+\.[A-Za-z0-9]+)", WORKFLOW))
+    assert "corpus/financial/invoice-statement.html" in refs
+    assert "corpus/SHOWCASE.md" in refs
     missing = sorted(p for p in refs if not (ROOT / p).exists())
     assert not missing, missing

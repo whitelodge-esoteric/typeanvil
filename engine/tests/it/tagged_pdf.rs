@@ -136,7 +136,7 @@ fn ua_validator_gates_conformance() {
 #[test]
 fn no_empty_marked_content_sequences() {
     use std::io::Read;
-    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../library/");
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../corpus/");
     for (cat, name) in [
         ("tickets", "weasyprint-ticket"),
         ("financial", "weasyprint-invoice"),

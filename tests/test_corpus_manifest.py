@@ -1,4 +1,4 @@
-"""Document library manifest contract (docs/specifications/document-library.spec.md, CORE-488)."""
+"""Document corpus manifest contract (docs/specifications/document-corpus.spec.md, CORE-488)."""
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-LIBRARY = ROOT / "library"
-MANIFEST = LIBRARY / "manifest.json"
+CORPUS = ROOT / "corpus"
+MANIFEST = CORPUS / "manifest.json"
 REPROS = ROOT / "repros"
 SIZES = {"small", "heavy", "visual"}
 ORACLES = {"prince", "weasyprint", "chromium"}
@@ -43,14 +43,14 @@ def test_required_fields_and_vocabulary(entries):
 
 def test_files_exist_and_category_matches_directory(entries):
     for e in entries:
-        path = LIBRARY / e["file"]
+        path = CORPUS / e["file"]
         assert path.is_file(), e["file"]
         assert path.parent.name == e["category"], e["file"]
 
 
-def test_every_html_under_library_is_listed(entries):
+def test_every_html_under_corpus_is_listed(entries):
     listed = {e["file"] for e in entries}
-    on_disk = {p.relative_to(LIBRARY).as_posix() for p in LIBRARY.glob("*/*.html")}
+    on_disk = {p.relative_to(CORPUS).as_posix() for p in CORPUS.glob("*/*.html")}
     assert on_disk == listed
 
 
@@ -91,7 +91,7 @@ def test_baseline_pages_recorded(entries):
 
 
 def test_heavy_documents_record_source_and_license(entries):
-    licenses = (LIBRARY / "LICENSES.md").read_text(encoding="utf-8")
+    licenses = (CORPUS / "LICENSES.md").read_text(encoding="utf-8")
     heavy = [e for e in entries if e["size"] == "heavy" and e["geometry"]["width"] != "5in"]
     assert len(heavy) == 4
     for e in heavy:
@@ -102,13 +102,13 @@ def test_heavy_documents_record_source_and_license(entries):
 def test_assets_referenced_by_fixtures_exist(entries):
     ref = re.compile(r"""(?:src="|url\(["']?)(assets/[^"')]+)""")
     for e in entries:
-        path = LIBRARY / e["file"]
+        path = CORPUS / e["file"]
         for rel in ref.findall(path.read_text(encoding="utf-8")):
             assert (path.parent / rel).is_file(), f"{e['file']} -> {rel}"
 
 
 def test_non_repo_licenses_are_documented(entries):
-    licenses = (LIBRARY / "LICENSES.md").read_text(encoding="utf-8")
+    licenses = (CORPUS / "LICENSES.md").read_text(encoding="utf-8")
     for e in entries:
         if e["oracle"] == "weasyprint":
             assert "weasyprint-samples" in licenses.lower() or "WeasyPrint" in licenses
@@ -121,8 +121,10 @@ def test_demo_has_no_fixtures():
 
 
 def test_repros_manifest_matches_files():
+    # An empty list is valid: an entry leaves when its gap is fixed and its
+    # fixture becomes an engine regression test (CORE-559).
     items = json.loads((REPROS / "manifest.json").read_text(encoding="utf-8"))
-    assert items
+    assert isinstance(items, list)
     for e in items:
         assert re.fullmatch(r"CORE-\d+-[a-z0-9-]+\.html", e["file"]), e["file"]
         assert (REPROS / e["file"]).is_file(), e["file"]

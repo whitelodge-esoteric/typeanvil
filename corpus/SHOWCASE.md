@@ -7,4 +7,4 @@ repo, also served on its
 [Pages site](https://whitelodge-esoteric.github.io/typeanvil-showcase/).
 
 To render locally, run `scripts/build-showcase.sh`. Output goes to the ignored
-`library/out/showcase/` tree. See `docs/operations/showcase.md`.
+`corpus/out/showcase/` tree. See `docs/operations/showcase.md`.

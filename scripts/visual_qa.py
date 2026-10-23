@@ -558,7 +558,7 @@ def _pdf_page_texts(pdf_path: Path) -> list[str]:
         pdf.close()
 
 
-KNOWN_FAILURES_PATH = ROOT / 'library' / 'visual-qa-known-failures.json'
+KNOWN_FAILURES_PATH = ROOT / 'corpus' / 'visual-qa-known-failures.json'
 DOC_LEVEL_CHECKS = ("text_roundtrip", "declared_fills")
 
 
@@ -615,12 +615,12 @@ def run_visual_qa(
 
     Returns exit code 0 (all pass) or 1 (any check failed).
     """
-    # One library manifest (CORE-488); `file` is <category>/<doc>.html under
-    # library/. The track picks the checks (page-box vs MediaBox overflow,
+    # One corpus manifest (CORE-488); `file` is <category>/<doc>.html under
+    # corpus/. The track picks the checks (page-box vs MediaBox overflow,
     # TA-only vs TA+PR); the tag filters (same as visual-qa.sh passes to
     # demo_compare.py list-manifest) pick the documents.
-    manifest_path = ROOT / 'library' / 'manifest.json'
-    fixtures_dir = ROOT / 'library'
+    manifest_path = ROOT / 'corpus' / 'manifest.json'
+    fixtures_dir = ROOT / 'corpus'
     sys.path.insert(0, str(ROOT / 'scripts'))
     from demo_compare import entry_matches  # noqa: E402
     filters = filters or {}
@@ -771,7 +771,7 @@ def main() -> int:
                             "(CORE-217 overlay); corpus always checks PR)")
     for flag in ("role", "size", "oracle", "category"):
         parser.add_argument(f"--{flag}", default=None,
-                            help=f"library/manifest.json {flag} tag filter")
+                            help=f"corpus/manifest.json {flag} tag filter")
 
     args = parser.parse_args()
 

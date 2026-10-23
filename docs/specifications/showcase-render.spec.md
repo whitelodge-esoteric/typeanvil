@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-09-08
-updated: 2026-10-17
+updated: 2026-10-23
 sidebar_position: 6
 tags: [demo, showcase, print-resolution, gallery]
 spec_id: showcase-render
@@ -61,9 +61,9 @@ repository (CourtBouillon/weasyprint-samples, public domain) as
   poster, report, ticket. These are the shared test bed for the future
   WeasyPrint comparison (CORE-318).
 - Output is NOT committed (CORE-495): per-page PNGs and the generated gallery
-  (`gallery.md`) go to the ignored `library/out/showcase/` tree. Releases
+  (`gallery.md`) go to the ignored `corpus/out/showcase/` tree. Releases
   publish them to the `typeanvil-showcase` repo
-  (`showcase-publish.spec.md`). `library/SHOWCASE.md` is a hand-written
+  (`showcase-publish.spec.md`). `corpus/SHOWCASE.md` is a hand-written
   pointer to that repo. Neither build touches the other's output.
 
 ## Non-Goals
@@ -81,7 +81,7 @@ repository (CourtBouillon/weasyprint-samples, public domain) as
 ## Behavior
 
 1. `scripts/build-showcase.sh` SHALL render every fixture listed in
-   `library/manifest.json` through the TypeAnvil binary at US Letter
+   `corpus/manifest.json` through the TypeAnvil binary at US Letter
    (`8.5in × 11in`) with `0.75in` margins, from each fixture directory as the
    process CWD (relative `url()`/`src` resolution matches the comparison
    pipeline's corpus-dir pattern; `--base-url` threading is shared). A
@@ -90,12 +90,12 @@ repository (CourtBouillon/weasyprint-samples, public domain) as
    sizes); a fixture-internal `@page { margin }` SHALL override the CLI
    margins.
 2. The renderer SHALL rasterize each render's pages to PNG at 300 DPI into
-   `library/out/showcase/images/<fixture>/page-NNN-ta.png`.
+   `corpus/out/showcase/images/<fixture>/page-NNN-ta.png`.
 3. The build SHALL write the showcase gallery into
-   `library/out/showcase/gallery.md` (ignored, CORE-495) below the
+   `corpus/out/showcase/gallery.md` (ignored, CORE-495) below the
    `BEGIN GENERATED SHOWCASE` marker:
    fixture name, per-page images referenced as `images/...` so they
-   resolve from `library/out/showcase/`, and the manifest notes. The
+   resolve from `corpus/out/showcase/`, and the manifest notes. The
    hand-maintained preamble above the marker is never rewritten. The build
    SHALL NOT emit an intermediate `index.md` — the README is the single
    gallery artifact for this track. The comparison track's README is never
@@ -117,8 +117,8 @@ repository (CourtBouillon/weasyprint-samples, public domain) as
    additionally render every showcase fixture through
    `scripts/render-prince.sh` at the identical page geometry (US Letter,
    0.75in margins) and rasterize at the same 300 DPI into
-   `library/out/showcase/images/<fixture>/page-NNN-pr.png`, then emit
-   `library/out/showcase/inspect.md` — a per-page TypeAnvil | Prince
+   `corpus/out/showcase/images/<fixture>/page-NNN-pr.png`, then emit
+   `corpus/out/showcase/inspect.md` — a per-page TypeAnvil | Prince
    side-by-side that is explicitly NOT scored and NOT part of the gallery.
    The overlay is a REFERENCE for making OUR defects visible; a visual
    difference from Prince is a hint, never a defect. A Prince render failure
@@ -134,12 +134,12 @@ repository (CourtBouillon/weasyprint-samples, public domain) as
 
 - Build entry: `scripts/build-showcase.sh [--keep-work] [--dry-run]
   [--determinism]`.
-- Manifest: `library/manifest.json`, same entry schema as the
+- Manifest: `corpus/manifest.json`, same entry schema as the
   comparison manifest (name, file, wedge_features, known_limitations,
   expected_deltas) minus the diff-specific fields.
 - Gallery writer: `scripts/demo_compare.py assemble-showcase --manifest
-  library/manifest.json --images-dir library/out/showcase/images --readme
-  library/out/showcase/gallery.md --marker "<!-- BEGIN GENERATED SHOWCASE -->"
+  corpus/manifest.json --images-dir corpus/out/showcase/images --readme
+  corpus/out/showcase/gallery.md --marker "<!-- BEGIN GENERATED SHOWCASE -->"
   --image-prefix images`. The splice itself lives in `splice_readme`,
   shared with the comparison track, so both tracks replace only their own
   README's generated section and neither emits an `index.md`.
@@ -161,17 +161,17 @@ repository (CourtBouillon/weasyprint-samples, public domain) as
   on the continuation page, and every page SHALL carry a running footer
   built from `counter(page)` and `counter(pages)`.
 - **AC2 (raster)** — Given a rendered PDF, When rasterized, Then each page
-  PNG exists under `library/out/showcase/images/` and measures the fixture's
+  PNG exists under `corpus/out/showcase/images/` and measures the fixture's
   declared page size at 300 DPI. US-Letter fixtures measure 2550 × 3301 px
   (Letter @ 300 DPI is 2550 × 3300; the rasterizer rounds the height up by
   one pixel — the committed baseline has always been 3301). WeasyPrint
   fixtures measure their designed sizes: A4 2480 × 3508 px, A4 landscape
   3508 × 2480 px, poster 3283 × 4583 px.
 - **AC3 (gallery)** — Given a completed build, Then
-  `library/SHOWCASE.md` contains the generated showcase section with
-  `<img>` tags whose `src` paths resolve from `library/` on GitHub, no
-  `index.md` exists under `library/out/showcase/`, and the comparison track's
-  `library/README.md` is untouched by the showcase build.
+  `corpus/SHOWCASE.md` contains the generated showcase section with
+  `<img>` tags whose `src` paths resolve from `corpus/` on GitHub, no
+  `index.md` exists under `corpus/out/showcase/`, and the comparison track's
+  `corpus/README.md` is untouched by the showcase build.
 - **AC4 (determinism)** — Given two consecutive builds, Then the showcase
   output trees are byte-identical.
 - **AC5 (no comparison impact from the showcase)** — Given a showcase-only
@@ -189,7 +189,7 @@ repository (CourtBouillon/weasyprint-samples, public domain) as
   visually lossless at viewing size), JPEG for the rich-media fixture's
   full-color pages. Record the actual committed size in the spec's
   References when landing.
-- **Fixture 1 chart images:** committed under `library/*/assets/` with
+- **Fixture 1 chart images:** committed under `corpus/*/assets/` with
   licenses; generated programmatically (deterministic script) rather than
   hand-drawn, so a rebuild can regenerate identical bytes.
 - **Multi-byte/non-ASCII text** in fixtures is fine (the mojibake class is
