@@ -1,0 +1,86 @@
+{
+ "schema": "typeanvil.harness.reviews/1",
+ "candidate": {
+  "label": "candidate-e2bb647",
+  "source_commit": "e2bb6472e6e76d439404f24f94b603922426e5aa",
+  "binary_sha256": "6a1a62d5e204ac8759a7b532b476462f60ef9321de438107bb05f651c74c709d"
+ },
+ "note": "Re-keyed 2026-10-23 from candidate-69d4f99c3a74 after review round 2 (e2bb647). The gate reports the same 10 change_ids, so those dispositions carry over unchanged. body-background-slr-print no longer differs from the baseline: the sideways-lr direction fix restored its inline edges. Its disposition was removed.",
+ "baseline": {
+  "label": "baseline-b5fe782542a0e43fba9d492c21e51e87e3a63381",
+  "source_commit": "b5fe782542a0e43fba9d492c21e51e87e3a63381",
+  "binary_sha256": "31d61b6d501e19badc0f16bd1007cc729f25e5916f8fb877192c360516218a84"
+ },
+ "dispositions": [
+  {
+   "doc_id": "css/css-break/block-001-wm-vlr-print.html",
+   "change_id": "463b321bf7009ece126a49c8bec4bbd69e103388928cdf9e4575db151fc0f88e",
+   "kind": "correction",
+   "reason": "Pages 12 -> 1. inline-size:50vh and block-size:210vw now land on physical height and width (css-writing-modes-3 §7.2; css-values-4 viewport units stay physical). Viewed baseline|candidate: the 12-page horizontal-extent layout became one box with the declared inline extent. Page progression is CORE-553.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md Behaviors 16, 18, 22; engine/tests/it/writing_modes.rs"
+  },
+  {
+   "doc_id": "css/css-break/block-001-wm-vlr-ref.html",
+   "change_id": "68e9059c4a8872374fe9f13a510884a2e53ef298ecb004fe8d9dbb0588f33142",
+   "kind": "correction",
+   "reason": "Reference side of block-001-wm-vlr; pages 12 -> 3 under the same logical sizing mapping. Reference moves with its test (spec: both sides of the pair move together).",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md Behaviors 16, 18, 22"
+  },
+  {
+   "doc_id": "css/css-break/block-001-wm-vrl-print.html",
+   "change_id": "7464b6fe44805a25b7398c70e1f5ca3cf85e01ae517e64a8795622191997282c",
+   "kind": "correction",
+   "reason": "Pages 12 -> 1, same mapping as block-001-wm-vlr for vertical-rl. Border-block-start/inline-start colors now map to the right physical sides.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md Behaviors 16, 18, 22"
+  },
+  {
+   "doc_id": "css/css-break/block-001-wm-vrl-ref.html",
+   "change_id": "e38586cd9d5d9fdba61b65c3627013d7ede32567916775c7bb7a9ee4ef172c61",
+   "kind": "correction",
+   "reason": "Reference side of block-001-wm-vrl; pages 12 -> 3.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md Behaviors 16, 18, 22"
+  },
+  {
+   "doc_id": "css/css-break/block-002-wm-vlr-print.html",
+   "change_id": "5bbd7cc80e4068d24c1034d8be0f56d66921f7f14623679be052f9e9fa871a4d",
+   "kind": "correction",
+   "reason": "Pages 10 -> 2 from logical sizing. Test and reference both moved (ref 15 -> 4); residual page-count mismatch is root-vertical progression, owned by CORE-553.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md Behaviors 16, 18, 22"
+  },
+  {
+   "doc_id": "css/css-break/block-002-wm-vlr-ref.html",
+   "change_id": "26451f31d590c02860b3d7f66712e0e8a66007bfb1de12af57ab7bf06c49f77d",
+   "kind": "correction",
+   "reason": "Reference side of block-002-wm-vlr; pages 15 -> 4.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md Behaviors 16, 18, 22"
+  },
+  {
+   "doc_id": "css/css-break/block-002-wm-vrl-print.html",
+   "change_id": "93c39d5ad8e62df22094d33cfecdac9031f8eccbcb5da0b59f7dcb1541ca480c",
+   "kind": "correction",
+   "reason": "Pages 10 -> 2 from logical sizing (vertical-rl).",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md Behaviors 16, 18, 22"
+  },
+  {
+   "doc_id": "css/css-break/block-002-wm-vrl-ref.html",
+   "change_id": "98a475b2c33b286bb68e452dd6fa3cc5bad3882d9211d86f4af9fad54f77e331",
+   "kind": "correction",
+   "reason": "Reference side of block-002-wm-vrl; pages 15 -> 4.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md Behaviors 16, 18, 22"
+  },
+  {
+   "doc_id": "css/css-break/firefox-bug-2026295-print.html",
+   "change_id": "bd84ec5d3347c81530c15a8263f72abee1124f779b9536f8d95cd35869134410",
+   "kind": "variation",
+   "reason": "Rendered image only (page count unchanged). Viewed baseline|candidate: the small glyph shifts by a few points, a consequence of now honoring logical margin/padding. Status FAIL -> FAIL; this crashtest is owned by CORE-183, not vertical layout.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (mis-attributed families); CORE-183"
+  },
+  {
+   "doc_id": "css/css-page/page-box-008-print.html",
+   "change_id": "98e4aae53b9bf69d659da85dd496426739eb9ea44ba000bc018b7b111ae0445b",
+   "kind": "variation",
+   "reason": "Pages 2 -> 1, which now matches the reference page count (the target listed it test=2 ref=1). Viewed baseline|candidate: the paragraph now lays out on one line and overflows leftward, because vertical line stacking and glyph orientation are CORE-555 and root-vertical progression is CORE-553. Status FAIL -> FAIL. Page count moves toward the reference; the text layout is a known interim state, not a regression of passing behavior.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md Behaviors 16, 18; CORE-553; CORE-555"
+  }
+ ]
+}
