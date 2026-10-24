@@ -824,11 +824,13 @@ fn ua_heading_margin_preserved_at_document_start() {
     // (36) + 16pt margin + ascent (24×1854/2048) + half-leading of the 24pt
     // line at lh 1.2 → 74.72. The old Prince-matching behavior truncated the
     // margin to flush the heading at 58.72.
+    // CORE-566: the body's 8px (6pt) UA margin collapses with the h1's
+    // 16pt (CSS 2.2 §8.3.1), so the offset is max(6, 16) = 16pt, not 22pt.
     let html = "<html><head><style>html { font-family: Arial; }</style></head><body><h1>Heading</h1></body></html>";
     let geo = geometry(5.0, 3.0, 0.5);
     let layout = lay(html, geo);
     let (_, y) = text_pos(&layout.pages[0], "Heading").expect("text must be present");
-    let expected = 42.0 + 16.0 + 24.0 * 1854.0 / 2048.0
+    let expected = 36.0 + 16.0 + 24.0 * 1854.0 / 2048.0
         + (24.0 * 1.2 - 24.0 * 1854.0 / 2048.0 - 24.0 * 434.0 / 2048.0) * 0.5;
     assert!(
         (y - expected).abs() < 0.1,
@@ -842,11 +844,12 @@ fn ua_heading_font_sizes_are_fixed_pt() {
     // Prince's h1 is 24pt REGARDLESS of body font-size; the HTML4 2em value
     // would scale to 16pt at body 8pt. Baseline = content top (36) + 16pt
     // margin (preserved at document start) + 24pt line box → 74.72.
+    // Body 8px margin collapses into the h1's 16pt (CORE-566).
     let html = "<html><head><style>html { font-family: Arial; } body { font-size: 8pt; }</style></head><body><h1>Heading</h1></body></html>";
     let geo = geometry(5.0, 3.0, 0.5);
     let layout = lay(html, geo);
     let (_, y) = text_pos(&layout.pages[0], "Heading").expect("text must be present");
-    let expected = 42.0 + 16.0 + 24.0 * 1854.0 / 2048.0
+    let expected = 36.0 + 16.0 + 24.0 * 1854.0 / 2048.0
         + (24.0 * 1.2 - 24.0 * 1854.0 / 2048.0 - 24.0 * 434.0 / 2048.0) * 0.5;
     assert!(
         (y - expected).abs() < 0.1,
