@@ -5758,8 +5758,30 @@ impl<'a> Ctx<'a> {
                     let extent_fits = self
                         .specified_extent(*child, cstyle)
                         .is_some_and(|ext| y.get() + ext.get() <= bottom_limit.get() + 0.01);
+                    // CORE-567: a declared-height box with NO content (no DOM
+                    // children) that paints nothing is a pure spacer. It has
+                    // no first line that could be stranded, so its extent
+                    // fragments like any block-size (css-break-3 §4.4 /
+                    // §5.3). Chromium slices it (body-background-slr ref: a
+                    // 500px spacer after a box ending at 580px puts 20px on
+                    // page 1 and 480px on page 2).
+                    // PROVISIONAL scope: painted boxes keep the deferral.
+                    // Widening it moved two references the engine cannot yet
+                    // match on the test side: table-fragmentation-002a (the
+                    // table-cell content does not fragment) and
+                    // monolithic-overflow-018 (`contain: size` is monolithic
+                    // in Chromium; the engine does not model `contain`).
+                    // The general rule is tracked as CORE-569.
+                    let empty_spacer = self.dom.nodes[*child].children.is_empty()
+                        && self.specified_extent(*child, cstyle).is_some()
+                        && cstyle.background_color.is_none()
+                        && cstyle.background_gradient.is_none()
+                        && cstyle.background_image.is_none()
+                        && cstyle.border_top.get() <= 0.0
+                        && cstyle.border_bottom.get() <= 0.0;
                     if res.outgoing.is_some()
                         && !extent_fits
+                        && !empty_spacer
                         && child_tok.is_break_before()
                         && !child_tok.deferred_once
                         && placed
