@@ -206,6 +206,10 @@ struct Flow {
     /// fragmentainer root's children after each page (css-break-3: the
     /// fragmentainer is their parent, not the CSS containing block).
     abspos: Vec<(Option<i32>, Fragment)>,
+    /// CORE-553 Behavior 28: `horizontal-tb` abspos boxes laid in the
+    /// PHYSICAL frame of a vertical root. They attach to the page root after
+    /// the logical body is mapped, so they are never transposed.
+    abspos_physical: Vec<(Option<i32>, Fragment)>,
     /// CORE-169: abspos boxes waiting to continue on the NEXT fragmentainer.
     /// A page-anchored `position: absolute` box at its static position with
     /// auto insets fragments across pages like an in-flow box (css-break-3
@@ -426,6 +430,15 @@ struct Ctx<'a> {
     /// `None` outside multicol. Set and restored by `fill_one_column`; read
     /// through [`Ctx::fragmentainer_height`].
     column_height: std::cell::Cell<Option<Scalar>>,
+    /// True when this Ctx lays a root-vertical body in its LOGICAL
+    /// (transposed) frame (CORE-553, `vertical.rs`): styles are already
+    /// rotated, so the CORE-153 physical-frame vertical rules must not fire.
+    logical_frame: bool,
+    /// CORE-553 Behavior 28: the PHYSICAL page content rect and ICB rect
+    /// behind a root-vertical logical frame. `Some` only on the body `Ctx` of
+    /// a vertical root. A `horizontal-tb` abspos subtree inside that body lays
+    /// out against it (`Ctx::layout_physical_abspos`) and is never mapped.
+    phys_frame: Option<(Rect, Rect)>,
 }
 
 /// Interned `<img>` info for one source element (CORE-106). Layout reads the
@@ -750,6 +763,9 @@ struct CollectedLink {
     href: String,
     /// The source `<a>` element (CORE-111).
     node: NodeId,
+    /// CORE-553: the rect is already in physical points (a horizontal abspos
+    /// subtree inside a vertical root); the page-level mapping skips it.
+    physical: bool,
 }
 
 /// Intersect a placed line's source span against its run's recorded link
@@ -810,6 +826,7 @@ fn collect_line_links(
             h: lh,
             href: span.href.clone(),
             node: span.node,
+            physical: false,
         });
     }
 }
@@ -1147,6 +1164,7 @@ fn paginate(
         pending_floats: Vec::new(),
         abspos_cb: None,
         abspos: Vec::new(),
+        abspos_physical: Vec::new(),
         abspos_jobs: Vec::new(),
         abspos_resume_tokens: std::collections::BTreeMap::new(),
         abspos_finished: Vec::new(),
@@ -1172,6 +1190,17 @@ fn paginate(
     // paged media: fixed content repeats on all pages; Chromium resolves
     // the box against the ICB and repeats it verbatim, fixedpos-010's ref).
     let fixed_ids = collect_fixed_ids(dom, styles, root);
+    // CORE-553: a vertical root lays its body out in a LOGICAL (transposed)
+    // frame — logical x = inline axis (physical y), logical y = block axis
+    // (physical x) — so the horizontal fragmentation machinery progresses
+    // along the page's block axis. Each page's body subtree is mapped to
+    // physical points once (`vertical::map_root`). Page chrome, footnotes and
+    // fixed boxes keep the PHYSICAL styles.
+    let root_mode = styles[dom.find_tag("html").unwrap_or(dom.root)].writing_mode;
+    let root_vertical = root_mode.is_vertical();
+    let logical_styles =
+        root_vertical.then(|| crate::vertical::transpose_styles(dom, styles, root_mode));
+    let body_styles: &[ComputedStyle] = logical_styles.as_deref().unwrap_or(styles);
     // The page context's `inherit` source: the root element's computed
     // margins (css-page-3 §3; page-margin-006's `@page { margin: inherit }`
     // takes the root's 0.5in).
@@ -1337,12 +1366,20 @@ fn paginate(
             if inner_w.get() < 0.0 { Scalar::ZERO } else { inner_w },
             if inner_h.get() < 0.0 { Scalar::ZERO } else { inner_h },
         );
-        let content = body_rect;
-
-        let icb = icb_content.unwrap_or(content);
+        // CORE-553: in a root-vertical document the body lays out in the
+        // logical frame (origin 0,0; inline extent = physical height, block
+        // extent = physical width). `phys_content` keeps the physical rect.
+        let phys_content = body_rect;
+        let swap_rect = |r: Rect| Rect::new(Scalar::ZERO, Scalar::ZERO, r.height, r.width);
+        let content = if root_vertical { swap_rect(body_rect) } else { body_rect };
+        let icb_phys = icb_content.unwrap_or(phys_content);
+        let icb = if root_vertical { swap_rect(icb_phys) } else { icb_phys };
+        let page_links_start = links.borrow().len();
         let ctx = Ctx {
             dom,
-            styles,
+            styles: body_styles,
+            logical_frame: root_vertical,
+            phys_frame: root_vertical.then_some((phys_content, icb_phys)),
             content_x: content.x,
             content_width: content.width,
             content_y: content.y,
@@ -1365,7 +1402,7 @@ fn paginate(
         // from page 0's own resolved spec (named pages included) — resolving
         // it separately after the loop cannot know which name was in effect.
         if page_index == 0 {
-            icb_content = Some(content);
+            icb_content = Some(phys_content);
         }
         let mut fragmentainer = Fragmentainer::new(page_index, spec.size);
         fragmentainer.background = spec.background;
@@ -1410,7 +1447,67 @@ fn paginate(
         let saved_links_len = links.borrow().len();
         let mut res =
             ctx.layout_root(root, content.y, &token, &mut flow);
-        if !fn_numbers.is_empty() && !flow.pending_footnotes.is_empty() {
+        // CORE-553 Behavior 27: in a vertical root the footnote band is a
+        // PHYSICAL bottom band, attached AFTER the body is mapped (below).
+        // `footnote_reserve` is its height; `page_notes` its notes.
+        let mut footnote_reserve = Scalar::ZERO;
+        let mut page_notes: Vec<(usize, NodeId)> = Vec::new();
+        // One body attempt with `inline` points of logical inline extent and
+        // `reserve` points held back from the block extent for notes.
+        let relay = |inline_x: Scalar, inline: Scalar, reserve: Scalar, flow: &mut Flow| -> BlockResult {
+            *flow = saved_flow.clone();
+            links.borrow_mut().truncate(saved_links_len);
+            let ctx2 = Ctx {
+                dom,
+                styles: body_styles,
+                logical_frame: root_vertical,
+                phys_frame: root_vertical.then_some((phys_content, icb_phys)),
+                content_x: inline_x,
+                content_width: inline,
+                content_y: content.y,
+                page_height: content_bottom - reserve - content.y,
+                icb_width: icb.width,
+                icb_height: icb.height,
+                target_pages,
+                target_counters,
+                total_pages,
+                links,
+                page_index,
+                image_infos,
+                fn_numbers,
+                counter_snaps: &counter_snaps,
+                column_height: std::cell::Cell::new(None),
+            };
+            ctx2.layout_root(root, content.y, &token, flow)
+        };
+        if root_vertical && !fn_numbers.is_empty() && !flow.pending_footnotes.is_empty() {
+            // The band consumes the body's INLINE extent (physical height):
+            // re-lay the body at the inline extent left above a band sized to
+            // the notes the full-height attempt reached, then size the band to
+            // the notes that attempt actually placed (a subset: a narrower
+            // inline extent only pushes content later).
+            let first_notes = flow.pending_footnotes.clone();
+            let band = footnote_area_height(dom, styles, &first_notes, phys_content.width);
+            if band.get() > 0.0 {
+                let inline = content.width - band;
+                let inline = if inline.get() < 0.0 { Scalar::ZERO } else { inline };
+                // The band sits at the PHYSICAL bottom. In `sideways-lr` the
+                // inline axis runs bottom-up (`y_p = H - i - I`), so the body
+                // starts `band` into the logical inline axis; in the other
+                // modes it starts at the inline origin and ends `band` short.
+                let inline_x = if root_mode.inline_runs_negative(false) {
+                    content.x + band
+                } else {
+                    content.x
+                };
+                res = relay(inline_x, inline, Scalar::ZERO, &mut flow);
+                page_notes = std::mem::take(&mut flow.pending_footnotes);
+                footnote_reserve =
+                    footnote_area_height(dom, styles, &page_notes, phys_content.width);
+            } else {
+                flow.pending_footnotes.clear();
+            }
+        } else if !fn_numbers.is_empty() && !flow.pending_footnotes.is_empty() {
             let area_of = |notes: &[(usize, NodeId)]| {
                 footnote_area_height(dom, styles, notes, content.width)
             };
@@ -1418,31 +1515,8 @@ fn paginate(
             let mut area_h = area_of(&first_notes);
             if area_h.get() > 0.0 {
                 if content.y + res.used > content_bottom - area_h {
-                    // One attempt with `reserve` points held back for notes.
-                    let relay = |reserve: Scalar, flow: &mut Flow| -> BlockResult {
-                        *flow = saved_flow.clone();
-                        links.borrow_mut().truncate(saved_links_len);
-                        let ctx2 = Ctx {
-                            dom,
-                            styles,
-                            content_x: content.x,
-                            content_width: content.width,
-                            content_y: content.y,
-                            page_height: content_bottom - reserve - content.y,
-                            icb_width: icb.width,
-                            icb_height: icb.height,
-                            target_pages,
-                            target_counters,
-                            total_pages,
-                            links,
-                            page_index,
-                            image_infos,
-                            fn_numbers,
-                            counter_snaps: &counter_snaps,
-                            column_height: std::cell::Cell::new(None),
-                        };
-                        ctx2.layout_root(root, content.y, &token, flow)
-                    };
+                    let relay =
+                        |reserve: Scalar, flow: &mut Flow| relay(content.x, content.width, reserve, flow);
                     let (mut lo, mut hi) = (1usize, first_notes.len());
                     while lo < hi {
                         let mid = (lo + hi) / 2;
@@ -1775,8 +1849,63 @@ fn paginate(
             && fragmentainer.root_border.is_none()
             // CORE-169: a drain-only page holds (or will hold) abspos
             // fragments — keep it while a continuation job is pending.
-            && flow.abspos_jobs.is_empty();
+            && flow.abspos_jobs.is_empty()
+            // CORE-553: physical-frame abspos boxes and a vertical root's
+            // footnote band attach below, after the body is mapped.
+            && flow.abspos_physical.is_empty()
+            && page_notes.is_empty();
         let is_final = res.outgoing.is_none();
+
+        // CORE-553: map this page's logical body subtree (body, footnotes,
+        // abspos pool and drains — every root child so far; fixed clones
+        // attach after the page loop) and its link rects to physical points,
+        // once. Margin boxes live in their own physical field.
+        if root_vertical {
+            for child in &mut fragmentainer.root.children {
+                crate::vertical::map_root(child, root_mode, phys_content);
+            }
+            for l in links.borrow_mut().iter_mut().skip(page_links_start) {
+                if l.physical {
+                    continue;
+                }
+                (l.x, l.y, l.w, l.h) =
+                    crate::vertical::map_rect(root_mode, phys_content, (l.x, l.y, l.w, l.h));
+            }
+            // Behavior 27: the footnote band is a PHYSICAL bottom band. The
+            // body was re-laid at an inline extent shortened by the band, so
+            // after the mapping no body fragment paints into it; the notes
+            // attach here, unmapped, against the physical content rect.
+            if footnote_reserve.get() > 0.0 {
+                attach_footnotes(
+                    &mut fragmentainer,
+                    dom,
+                    styles,
+                    &std::mem::take(&mut page_notes),
+                    phys_content.x,
+                    phys_content.width,
+                    phys_content.y + phys_content.height,
+                    footnote_reserve,
+                );
+            }
+        }
+        // Behavior 28: horizontal abspos boxes laid in the physical frame
+        // attach after the mapping, so they are never transposed. Same
+        // z-order rule as the logical pool.
+        if !flow.abspos_physical.is_empty() {
+            let mut pool = std::mem::take(&mut flow.abspos_physical);
+            pool.sort_by_key(|(z, _)| *z);
+            let (mut behind, front): (Vec<_>, Vec<_>) =
+                pool.into_iter().partition(|(z, _)| z.is_some_and(|v| v < 0));
+            for (_, frag) in behind.drain(..).rev() {
+                fragmentainer.root.children.insert(0, frag);
+            }
+            for (z, mut frag) in front {
+                if frag.z_index.is_none() {
+                    frag.z_index = Some(z.unwrap_or(0));
+                }
+                fragmentainer.root.children.push(frag);
+            }
+        }
 
         if is_final && page_blank && !page_forced {
             // Drop the page: do not push it, and let the loop end (no
@@ -1865,6 +1994,7 @@ fn paginate(
             pending_floats: Vec::new(),
             abspos_cb: None,
             abspos: Vec::new(),
+            abspos_physical: Vec::new(),
             abspos_jobs: Vec::new(),
             abspos_resume_tokens: std::collections::BTreeMap::new(),
             abspos_finished: Vec::new(),
@@ -1881,6 +2011,8 @@ fn paginate(
             let anchor = Ctx {
                 dom,
                 styles,
+                logical_frame: false,
+                phys_frame: None,
                 content_x: content0.x,
                 content_width: content0.width,
                 content_y: content0.y,
@@ -2372,6 +2504,297 @@ impl<'a> Ctx<'a> {
         crate::math::layout_math(self.dom, id, style.font_size.get(), style.font_face)
     }
 
+    /// CORE-553: true when `id` is a plain in-flow block that declares a
+    /// vertical mode inside a HORIZONTAL page flow, and no descendant declares
+    /// a different mode. Only such boxes take the interior logical-frame path.
+    fn is_simple_interior_vertical(&self, id: NodeId) -> bool {
+        let s = &self.styles[id];
+        if self.logical_frame
+            || id >= self.dom.nodes.len()
+            || !s.writing_mode_declared
+            || !s.writing_mode.is_vertical()
+            || self.page_flow_writing_mode().is_vertical()
+            || s.display != Display::Block
+            || s.float != crate::css::Float::None
+            || matches!(s.position, Position::Absolute | Position::Fixed)
+            || s.running_name.is_some()
+            // Flex/grid items size through their container (stretch etc.);
+            // they keep the existing path.
+            || self.dom.nodes[id].parent.is_some_and(|p| {
+                matches!(
+                    self.styles[p].display,
+                    Display::Flex | Display::InlineFlex | Display::Grid
+                )
+            })
+        {
+            return false;
+        }
+        let mode = s.writing_mode;
+        // Narrow slice: the logical pass is monolithic and drops out-of-flow
+        // state, so subtrees holding multicol, floats, positioned boxes,
+        // transforms or flex/grid/table formatting keep the existing path
+        // (CORE-554 owns them).
+        let plain = |c: &ComputedStyle| {
+            c.column_count.is_none()
+                && c.column_width.is_none()
+                && c.transform.is_empty()
+                && c.float == crate::css::Float::None
+                && !matches!(c.position, Position::Absolute | Position::Fixed)
+                && matches!(c.display, Display::Block | Display::Inline | Display::None)
+        };
+        if !plain(s) {
+            return false;
+        }
+        // Ancestors too: inside floats, multicol, positioned or non-block
+        // containers the box is measured by other paths that do not know
+        // this frame.
+        let mut anc = self.dom.nodes[id].parent;
+        while let Some(a) = anc {
+            if self.dom.nodes[a].kind.element().is_some() {
+                let c = &self.styles[a];
+                if !plain(c) || c.display != Display::Block {
+                    return false;
+                }
+            }
+            anc = self.dom.nodes[a].parent;
+        }
+        let mut stack: Vec<NodeId> = self.dom.nodes[id].children.clone();
+        while let Some(n) = stack.pop() {
+            let c = &self.styles[n];
+            if c.writing_mode_declared && c.writing_mode != mode {
+                return false;
+            }
+            if self.dom.nodes[n].kind.element().is_some() && !plain(c) {
+                return false;
+            }
+            stack.extend(self.dom.nodes[n].children.iter().copied());
+        }
+        true
+    }
+
+    /// CORE-553: lay an interior vertical block (see
+    /// [`Ctx::is_simple_interior_vertical`]) out in its own logical frame.
+    /// The subtree's styles rotate into the frame (`vertical::transpose_style`),
+    /// the box lays out at an inline extent bounded by the page content
+    /// height, and the result maps back to physical points once. The box is
+    /// monolithic: it defers whole when it does not fit and the page already
+    /// holds content. Physical margins position it (auto margins absorb the
+    /// free inline space, css2 §10.3.3).
+    #[allow(clippy::too_many_arguments)]
+    fn layout_interior_vertical(
+        &self,
+        id: NodeId,
+        origin_x: Scalar,
+        avail_width: Scalar,
+        top: Scalar,
+        bottom_limit: Scalar,
+        page_has_content: bool,
+        flow: &Flow,
+    ) -> BlockResult {
+        let style = &self.styles[id];
+        let mode = style.writing_mode;
+        let mut logical: Vec<ComputedStyle> = self.styles.to_vec();
+        let mut stack = vec![id];
+        while let Some(n) = stack.pop() {
+            logical[n] = crate::vertical::transpose_style(&self.styles[n], mode);
+            stack.extend(self.dom.nodes[n].children.iter().copied());
+        }
+        // The box's own margins are applied physically below.
+        {
+            let s = &mut logical[id];
+            s.margin_top = Scalar::ZERO;
+            s.margin_right = Scalar::ZERO;
+            s.margin_bottom = Scalar::ZERO;
+            s.margin_left = Scalar::ZERO;
+            s.margin_top_auto = false;
+            s.margin_right_auto = false;
+            s.margin_bottom_auto = false;
+            s.margin_left_auto = false;
+        }
+        let inline_avail = self.page_height;
+        let sub = Ctx {
+            dom: self.dom,
+            styles: &logical,
+            logical_frame: true,
+            phys_frame: None,
+            content_x: Scalar::ZERO,
+            content_width: inline_avail,
+            content_y: Scalar::ZERO,
+            page_height: Scalar(f64::MAX / 4.0),
+            icb_width: self.icb_height,
+            icb_height: self.icb_width,
+            target_pages: self.target_pages,
+            target_counters: self.target_counters,
+            total_pages: self.total_pages,
+            links: self.links,
+            page_index: self.page_index,
+            image_infos: self.image_infos,
+            fn_numbers: self.fn_numbers,
+            counter_snaps: self.counter_snaps,
+            column_height: std::cell::Cell::new(None),
+        };
+        let links_before = self.links.borrow().len();
+        // Orthogonal flow (css-writing-modes-3 §7.3): an auto inline size is
+        // fit-content, bounded by the available inline space (the page
+        // content height).
+        let inline_avail = if logical[id].width.is_none() && logical[id].width_percent.is_none() {
+            let stf = sub.shrink_to_fit(id, inline_avail);
+            if stf.get() < inline_avail.get() { stf } else { inline_avail }
+        } else {
+            inline_avail
+        };
+        let mut scratch = flow.clone();
+        scratch.abspos.clear();
+        let res = sub.layout_box(
+            id,
+            Scalar::ZERO,
+            inline_avail,
+            Scalar::ZERO,
+            Scalar(f64::MAX / 4.0),
+            false,
+            &BreakToken::break_before(),
+            &mut scratch,
+        );
+        // Link rects from the logical pass are in the wrong frame: drop them
+        // (interior vertical links are out of scope for this slice).
+        self.links.borrow_mut().truncate(links_before);
+        let mut frag = res.fragment;
+        let (lw, lh) = frag.size;
+        let (pw, ph) = (lh, lw);
+        let box_top = top + style.margin_top;
+        if box_top + ph > bottom_limit && page_has_content {
+            return BlockResult {
+                fragment: Fragment::block(Point::new(origin_x, top), (avail_width, Scalar::ZERO)),
+                used: Scalar::ZERO,
+                outgoing: Some(BreakToken::break_before()),
+                empty: true,
+            };
+        }
+        let free = avail_width - style.margin_left - style.margin_right - pw;
+        let box_left = match (style.margin_left_auto, style.margin_right_auto) {
+            (true, true) => origin_x + Scalar((free.get() / 2.0).max(0.0)),
+            (true, false) => origin_x + style.margin_left + Scalar(free.get().max(0.0)),
+            _ => origin_x + style.margin_left,
+        };
+        crate::vertical::map_root(&mut frag, mode, Rect::new(box_left, box_top, pw, ph));
+        // `map_root` adds the rect origin to the mapped offset; the logical
+        // border box sits at (0,0), so the result is the box's physical origin.
+        BlockResult { used: ph + style.margin_top, fragment: frag, outgoing: None, empty: false }
+    }
+
+    /// CORE-553 Behavior 28: lay a `horizontal-tb` `position: absolute` box
+    /// that sits inside a root-vertical LOGICAL frame out in the PHYSICAL
+    /// frame. Returns `None` when the box is not such a case (the caller
+    /// takes the ordinary out-of-flow branch).
+    ///
+    /// The box reads the PHYSICAL cascaded styles (the logical copy left it
+    /// untransposed, so they are identical) against the physical page content
+    /// box as its containing block: insets resolve against that box, the
+    /// width is the declared or shrink-to-fit width, and the box is
+    /// monolithic (spec Behavior 9's pinned model). The fragment is
+    /// page-absolute and is attached after the body is mapped, so it is never
+    /// rotated. A positioned ancestor inside the vertical body is a mixed
+    /// frame this slice does not model: the box then falls back to the
+    /// ordinary branch (mapped with its ancestor).
+    fn layout_physical_abspos(&self, id: NodeId, flow: &mut Flow) -> Option<BlockResult> {
+        let (phys, icb) = self.phys_frame?;
+        let style = &self.styles[id];
+        if style.position != Position::Absolute
+            || self.writing_mode_at(id) != crate::css::PageWritingMode::HorizontalTb
+            || flow.abspos_cb.is_some()
+        {
+            return None;
+        }
+        let ctx = Ctx {
+            dom: self.dom,
+            styles: self.styles,
+            logical_frame: false,
+            phys_frame: None,
+            content_x: phys.x,
+            content_width: phys.width,
+            content_y: phys.y,
+            page_height: phys.height,
+            icb_width: icb.width,
+            icb_height: icb.height,
+            target_pages: self.target_pages,
+            target_counters: self.target_counters,
+            total_pages: self.total_pages,
+            links: self.links,
+            page_index: self.page_index,
+            image_infos: self.image_infos,
+            fn_numbers: self.fn_numbers,
+            counter_snaps: self.counter_snaps,
+            column_height: std::cell::Cell::new(None),
+        };
+        let (mut fw, fh) = ctx.measure_float(id, phys.width);
+        if let Some(dw) = ctx.resolved_width(style, phys.width) {
+            let border_w = if style.box_sizing == crate::css::StyloBoxSizing::BorderBox {
+                dw
+            } else {
+                dw + style.padding_left + style.padding_right + style.border_left + style.border_right
+            };
+            fw = border_w + style.margin_left + style.margin_right;
+        }
+        let x = match ctx.resolved_inset(style.inset_left, style.inset_left_viewport) {
+            Some(l) => phys.x + l,
+            None => match ctx.resolved_inset(style.inset_right, style.inset_right_viewport) {
+                Some(r) => phys.x + phys.width - fw - r,
+                None => phys.x,
+            },
+        };
+        let y = match ctx.resolved_inset(style.inset_top, style.inset_top_viewport) {
+            Some(t) => phys.y + t,
+            None => match ctx.resolved_inset(style.inset_bottom, style.inset_bottom_viewport) {
+                Some(b) => phys.y + phys.height - fh - b,
+                None => phys.y,
+            },
+        };
+        // The subtree's own out-of-flow state must not leak into the logical
+        // flow: lay with a scratch Flow and keep only the fragment. Nested
+        // abspos inside it are rebased into the fragment (fixed-box pattern).
+        let mut scratch = flow.clone();
+        scratch.abspos.clear();
+        scratch.abspos_physical.clear();
+        scratch.abspos_cb = None;
+        let links_before = self.links.borrow().len();
+        let res = ctx.layout_box(
+            id,
+            x,
+            fw,
+            y,
+            Scalar(f64::MAX),
+            false,
+            &BreakToken::break_before(),
+            &mut scratch,
+        );
+        // Link rects from this box are already physical: tag them so the
+        // page-level mapping pass leaves them alone.
+        for l in self.links.borrow_mut().iter_mut().skip(links_before) {
+            l.physical = true;
+        }
+        let mut frag = res.fragment;
+        let origin = Point::new(x, y);
+        let mut spilled = std::mem::take(&mut scratch.abspos);
+        spilled.extend(std::mem::take(&mut scratch.abspos_physical));
+        spilled.sort_by_key(|(z, _)| *z);
+        for (sz, mut sf) in spilled {
+            sf.offset = Point::new(sf.offset.x - origin.x, sf.offset.y - origin.y);
+            if sz.is_some_and(|z| z < 0) {
+                frag.children.insert(0, sf);
+            } else {
+                frag.children.push(sf);
+            }
+        }
+        // Footnote calls inside the box register on the logical flow (they
+        // belong to this page).
+        for n in scratch.pending_footnotes {
+            if !flow.pending_footnotes.contains(&n) {
+                flow.pending_footnotes.push(n);
+            }
+        }
+        Some(BlockResult { fragment: frag, used: Scalar::ZERO, outgoing: None, empty: false })
+    }
+
     /// CORE-363: a `<math>` element as a monolithic block fragment. Math
     /// children paint as shaped text runs and filled rules (spec Behavior
     /// 13). `display="block"` centers the box in the available width.
@@ -2562,6 +2985,7 @@ impl<'a> Ctx<'a> {
                         h: used_h,
                         href: href.to_string(),
                         node: p,
+                        physical: false,
                     });
                     break;
                 }
@@ -2900,6 +3324,14 @@ impl<'a> Ctx<'a> {
 
         let fresh = token.is_break_before();
 
+        // CORE-553: an interior vertical block in a horizontal flow lays out
+        // in its own logical frame as one monolithic box (minimal slice of
+        // writing-modes-layout Behavior 20; general orthogonal flows are
+        // CORE-554).
+        if fresh && self.is_simple_interior_vertical(id) {
+            return self.layout_interior_vertical(id, origin_x, avail_width, top, bottom_limit, page_has_content, flow);
+        }
+
         // Margins/padding adjoining a fragmentainer break truncate to zero
         // (css-break-3 §3.1). On resume (not fresh) the top margin/padding is
         // gone. A fresh box keeps its full top margin — including the first
@@ -3017,7 +3449,7 @@ impl<'a> Ctx<'a> {
         let box_wm = self.writing_mode_at(id);
         let border_x =
             if style.rtl
-                || matches!(
+                || !self.logical_frame && matches!(
                     box_wm,
                     crate::css::PageWritingMode::VerticalRl
                         | crate::css::PageWritingMode::SidewaysRl
@@ -4451,6 +4883,16 @@ impl<'a> Ctx<'a> {
                             continue;
                         }
                         // ---- out-of-flow branch ----
+                        // CORE-553 Behavior 28: a `horizontal-tb` abspos box
+                        // inside a root-vertical LOGICAL frame lays out in the
+                        // PHYSICAL frame against the page content box and is
+                        // never transposed (Chromium keeps it horizontal).
+                        if let Some(res) = self.layout_physical_abspos(*child, flow) {
+                            flow.abspos_physical.push((cstyle.z_index, res.fragment));
+                            oof_placed = true;
+                            i += 1;
+                            continue;
+                        }
                         // The box is taken out of flow: no cursor advance, no
                         // in-flow height, and its fragment attaches to the
                         // fragmentainer root (css-break-3), not to this box's
@@ -5619,6 +6061,7 @@ impl<'a> Ctx<'a> {
             // reftest pairs were self-consistent, so both sides moved together
             // and the A/B showed zero flips.
             if fresh
+                && !self.logical_frame
                 && self.page_flow_writing_mode() != crate::css::PageWritingMode::HorizontalTb
                 && style.height.is_none()
                 && style.height_percent.is_none()
@@ -10339,16 +10782,20 @@ mod core153_vertical_rl_tests {
             "the interior declaration is recorded on the box"
         );
         let laid = layout(&dom, &stylesheet, geometry());
-        // Page 600x400px -> 450x300pt. Box 200px = 150pt wide; margin-right
-        // 20px = 15pt, so the border box spans [435-150, 435] = x 285..435.
+        // Page 600x400px -> 450x300pt. Box 200px = 150pt wide.
+        // CORE-553 supersedes the CORE-182 right-anchoring: the box's
+        // horizontal margins resolve in its CONTAINING block (body,
+        // horizontal-tb ltr), so the over-constrained `margin-right` is
+        // ignored (css2 §10.3.3) and the box sits at x 0. A right-anchored
+        // interior vertical box needs `margin-left: auto` (page-size-012 ref).
         let found = boxes(&laid, 0)
             .into_iter()
             .find(|(_, _, w, _)| (*w - 150.0).abs() < 1.0);
         let (ax, _ay, w, _h) = found.expect("div paint box present");
         assert_eq!(w, 150.0, "200px width");
         assert!(
-            (ax - 285.0).abs() < 0.01,
-            "interior vertical block right-anchors: x={ax} want 285"
+            ax.abs() < 0.01,
+            "interior vertical block anchors at the containing block's start: x={ax} want 0"
         );
     }
 

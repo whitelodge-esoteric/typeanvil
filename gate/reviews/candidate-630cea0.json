@@ -1,0 +1,183 @@
+{
+ "schema": "typeanvil.harness.reviews/1",
+ "candidate": {
+  "label": "candidate-630cea0",
+  "source_commit": "630cea0",
+  "binary_sha256": "f28d8e9f3f7d3c2a8946417ac285965059d9bb153ab06c15768bd2df372acbcc"
+ },
+ "baseline": {
+  "label": "baseline-67981adeafb4",
+  "source_commit": "67981adeafb428b667f944a33a184aa317b836c5",
+  "binary_sha256": "f7ad303fc3ceba050b708fda0820a7cba860ce17996952ab4f174bbcae6794b3"
+ },
+ "dispositions": [
+  {
+   "doc_id": "css/css-break/block-001-wm-vlr-print.html",
+   "change_id": "33068d7cd3b290d184a23fd1bca049918f16ce80cbd5f18144a6f55c06b4763b",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 1 -> cand 3, Chromium 3 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 200490 -> 35. Owning test block-001-wm-vlr-print.html: FAIL -> FAIL. Measured closer to the Chromium oracle on page count and raster. Residual FAIL: the reference's logical border-block-*-style is not parsed (separate defect).",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-break/block-001-wm-vrl-print.html",
+   "change_id": "5c04f9131ae01f5b4b2071db2c3625ec1497ecaed713d52cb10f8fb29119777a",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 1 -> cand 3, Chromium 3 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 200490 -> 35. Owning test block-001-wm-vrl-print.html: FAIL -> FAIL. Measured closer to the Chromium oracle on page count and raster. Residual FAIL: the reference's logical border-block-*-style is not parsed (separate defect).",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-break/block-002-wm-vlr-print.html",
+   "change_id": "504b0c5358b96239e2251a0f3a2ea63212f4247b9f1d817bdb8afb56cb6feef2",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 2 -> cand 2, Chromium 3 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 117940 -> 113007. Owning test block-002-wm-vlr-print.html: FAIL -> FAIL. Measured closer to the Chromium oracle on page count and raster. Residual FAIL: html root margins (margin-block-start: 80vw) are ignored in every writing mode (separate defect).",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-break/block-002-wm-vlr-ref.html",
+   "change_id": "42b6b62fadd7968d00503e6e4c4848de919d97762ee8023db429ba134bd46d3d",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 4 -> cand 3, Chromium 3 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 117165 -> 17391. Owning test block-002-wm-vlr.html: None -> None. Measured closer to the Chromium oracle on page count and raster. Residual FAIL: html root margins (margin-block-start: 80vw) are ignored in every writing mode (separate defect).",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-break/block-002-wm-vrl-print.html",
+   "change_id": "d47164324027fdf2ba268fb41d6d3a9456f61cb0666df90fbb37a28670bb3516",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 2 -> cand 2, Chromium 3 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 117940 -> 113007. Owning test block-002-wm-vrl-print.html: FAIL -> FAIL. Measured closer to the Chromium oracle on page count and raster. Residual FAIL: html root margins (margin-block-start: 80vw) are ignored in every writing mode (separate defect).",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-break/block-002-wm-vrl-ref.html",
+   "change_id": "985a3fbb23f1a12a9a304c4796928a894a8d11a98d0efaa31de5b2a9ae8b4bd7",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 4 -> cand 3, Chromium 3 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 117165 -> 17391. Owning test block-002-wm-vrl.html: None -> None. Measured closer to the Chromium oracle on page count and raster. Residual FAIL: html root margins (margin-block-start: 80vw) are ignored in every writing mode (separate defect).",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-page/body-background-slr-print.html",
+   "change_id": "b1c31a99ffa5fafa33e3a2fa485dadffe5e86f32ec6e56ab74725e162aac54d0",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 1 -> cand 2, Chromium 2 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 229758 -> 11881. Owning test body-background-slr-print.html: FAIL -> FAIL. Measured closer to the Chromium oracle on page count and raster. Residual FAIL: the canvas gradient is CORE-556.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-page/body-background-srl-print.html",
+   "change_id": "280766f701ed55524cc825262f2ef05cb2181323356cfa1850cd0c020a9a6433",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 1 -> cand 2, Chromium 2 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 184370 -> 7931. Owning test body-background-srl-print.html: FAIL -> FAIL. Measured closer to the Chromium oracle on page count and raster. Residual FAIL: the canvas gradient is CORE-556.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-page/body-background-vlr-print.html",
+   "change_id": "25d102c7c6fb010b20e6df096809bf64453284f30a836cbaf272657968c091c3",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 1 -> cand 2, Chromium 2 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 109781 -> 11190. Owning test body-background-vlr-print.html: FAIL -> FAIL. Measured closer to the Chromium oracle on page count and raster. Residual FAIL: the canvas gradient is CORE-556.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-page/body-background-vrl-print.html",
+   "change_id": "b672da30601a20e43c4f973b8c948cf98c9da998b988f0055d4965d56d980d35",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 1 -> cand 2, Chromium 2 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 109847 -> 8540. Owning test body-background-vrl-print.html: FAIL -> FAIL. Measured closer to the Chromium oracle on page count and raster. Residual FAIL: the canvas gradient is CORE-556.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-page/page-box-008-print-ref.html",
+   "change_id": "19e6efdd1d421e6c1d15af999e4f0342c3e22711a6b1c308a4c7d175ce19e08f",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 1 -> cand 1, Chromium 1 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 33236 -> 6193. Owning test page-box-008-print.html: FAIL -> PASS. Measured closer to the Chromium oracle on page count and raster.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-page/page-box-008-print.html",
+   "change_id": "bb96598c968f39079b36a7632119162e202f0eb0441451ee11b2286b1b1acd0f",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 1 -> cand 1, Chromium 1 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 112975 -> 6193. Owning test page-box-008-print.html: FAIL -> PASS. Measured closer to the Chromium oracle on page count and raster.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-page/page-margin-002-print-ref.html",
+   "change_id": "51db764eadbfd6eb2705330503b7f1ab06daef571fb4d154124e0f357bc40161",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 3 -> cand 3, Chromium 3 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 1668 -> 623. Owning test page-margin-002-print.html: PASS -> PASS. Measured closer to the Chromium oracle on page count and raster.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-page/page-margin-002-print.html",
+   "change_id": "ae7f44842d9f1916b95de34aad4e118d0cc1c4cba5378a6a9ca66de421c21839",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 3 -> cand 3, Chromium 3 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 1668 -> 623. Owning test page-margin-002-print.html: PASS -> PASS. Measured closer to the Chromium oracle on page count and raster.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-page/page-margin-003-print-ref.html",
+   "change_id": "7ece0264fb235fb54a0aba4d4389577b5276d669bcacaa215503ab3cbcebe707",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 3 -> cand 3, Chromium 3 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 1570 -> 297. Owning test page-margin-003-print.html: PASS -> PASS. Measured closer to the Chromium oracle on page count and raster.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-page/page-margin-003-print.html",
+   "change_id": "8cae406fa4e9eb77f5daea825b3b237efc886595d3967194b3bfe88dfa038604",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 3 -> cand 3, Chromium 3 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 1570 -> 297. Owning test page-margin-003-print.html: PASS -> PASS. Measured closer to the Chromium oracle on page count and raster.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-page/page-name-orthogonal-writing-001-print-ref.html",
+   "change_id": "1c55e9c47da36d3cf5e9f543d343d21330d1fe0c654d7fe3d4906cbec9859a12",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 2 -> cand 1, Chromium 1 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 100101 -> 150. Owning test page-name-orthogonal-writing-001-print.html: PASS -> PASS. Measured closer to the Chromium oracle on page count and raster.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-page/page-name-orthogonal-writing-001-print.html",
+   "change_id": "90c8351e79ada670a5c280370e5b0d41591864b0ca7838c6634153038479fb38",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 2 -> cand 1, Chromium 1 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 100101 -> 150. Owning test page-name-orthogonal-writing-001-print.html: PASS -> PASS. Measured closer to the Chromium oracle on page count and raster.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-page/page-name-orthogonal-writing-002-print-ref.html",
+   "change_id": "2c63127d3a205891c7e393863dd7592c78536ca2da830e371d6c6ab1f721f1d2",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 2 -> cand 2, Chromium 2 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 148 -> 47. Owning test page-name-orthogonal-writing-002-print.html: PASS -> PASS. Measured closer to the Chromium oracle on page count and raster.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-page/page-name-orthogonal-writing-002-print.html",
+   "change_id": "c8d304520455a13437b7c000e90c190c99c44ed882b5e909a10b13664b8858cd",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 2 -> cand 2, Chromium 2 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 148 -> 47. Owning test page-name-orthogonal-writing-002-print.html: PASS -> PASS. Measured closer to the Chromium oracle on page count and raster.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-page/page-name-orthogonal-writing-003-print-ref.html",
+   "change_id": "9cbe09792def60afbc332fdeee10a85b65adb0ca0a1307aac9708ccbfbd9a556",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 1 -> cand 1, Chromium 1 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 148 -> 35. Owning test page-name-orthogonal-writing-003-print.html: PASS -> PASS. Measured closer to the Chromium oracle on page count and raster.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-page/page-name-orthogonal-writing-003-print.html",
+   "change_id": "345f3fe2c2165e2908f4389ddc9b2a42fa66f59b3c48be3bb989e75dcdc6734c",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 1 -> cand 1, Chromium 1 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 148 -> 35. Owning test page-name-orthogonal-writing-003-print.html: PASS -> PASS. Measured closer to the Chromium oracle on page count and raster.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-page/page-size-012-print-ref.html",
+   "change_id": "b27acd8d3cb652614d735b5fdb6be1df9cd8169951eca645ba21b83b82bddfd9",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 2 -> cand 2, Chromium 2 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 6279 -> 2292. Owning test page-size-012-print.html: PASS -> PASS. Measured closer to the Chromium oracle on page count and raster.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  },
+  {
+   "doc_id": "css/css-page/page-size-012-print.html",
+   "change_id": "70de3924fae088e65759fe4a1ed3692f9df818402bf496f943d8a28b111b96b1",
+   "kind": "correction",
+   "reason": "Root-vertical progression / interior vertical frame (CORE-553). Pages base 2 -> cand 2, Chromium 2 (host Playwright, 5x3in, 0.5in margins). Raster distance to Chromium at 96 dpi (pixels differing by >64 luma): 6279 -> 2292. Owning test page-size-012-print.html: PASS -> PASS. Measured closer to the Chromium oracle on page count and raster.",
+   "provenance": "docs/specifications/writing-modes-layout.spec.md (root-vertical progression, frame mapping, Behavior 20 interior slice); CORE-553; evidence ~/workspace/typeanvil-evidence/CORE-553/classify553.json"
+  }
+ ]
+}

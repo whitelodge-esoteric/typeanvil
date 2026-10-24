@@ -77,8 +77,8 @@ fn logical_sizes_land_on_named_axes() {
 /// Behavior 16: logical margins map to the physical edges named in the
 /// table, per mode and direction. horizontal-tb maps all four; the vertical
 /// modes map the INLINE pair here (inline-start 6pt, inline-end 12pt). The
-/// block pair in a vertical mode is deferred, see
-/// `block_margins_in_vertical_modes_are_deferred_to_core553`.
+/// block pair in a vertical mode is covered by
+/// `block_margins_in_vertical_modes_map_to_block_edges`.
 #[test]
 fn logical_edges_map_per_mode() {
     let (is, ie, bs, be) = (6.0, 12.0, 18.0, 24.0);
@@ -108,24 +108,215 @@ fn logical_edges_map_per_mode() {
     }
 }
 
-/// DEFERRED to CORE-553: `margin-block-start/end` in a vertical mode keep the
-/// horizontal-tb slots (top/bottom). The block path still paginates along y,
-/// so a physical left/right block margin turns the
-/// page-name-orthogonal-writing-002 ref's `margin-block-end: 999in` into a
-/// zero-width box that drops its text instead of breaking the page (canary).
-/// CORE-553 flips this when it moves progression to x.
+/// CORE-553: `margin-block-start/end` map to the physical BLOCK edges:
+/// right/left for vertical-rl and sideways-rl, left/right for vertical-lr and
+/// sideways-lr (block-start 18pt, block-end 24pt).
 #[test]
-fn block_margins_in_vertical_modes_are_deferred_to_core553() {
-    let (dom, st) = styles_of(
-        &doc(
-            "vertical-rl",
-            "<div id=d style=\"margin-block-start:24px;margin-block-end:32px\"></div>",
-        ),
-        "",
+fn block_margins_in_vertical_modes_map_to_block_edges() {
+    // (mode, [top, right, bottom, left])
+    let cases: &[(&str, [f64; 4])] = &[
+        ("vertical-rl", [0.0, 18.0, 0.0, 24.0]),
+        ("sideways-rl", [0.0, 18.0, 0.0, 24.0]),
+        ("vertical-lr", [0.0, 24.0, 0.0, 18.0]),
+        ("sideways-lr", [0.0, 24.0, 0.0, 18.0]),
+    ];
+    for (wm, want) in cases {
+        let (dom, st) = styles_of(
+            &doc(
+                wm,
+                "<div id=d style=\"margin-block-start:24px;margin-block-end:32px\"></div>",
+            ),
+            "",
+        );
+        let s = &st[by_id(&dom, "d")];
+        let got = [s.margin_top, s.margin_right, s.margin_bottom, s.margin_left];
+        for (i, side) in ["top", "right", "bottom", "left"].iter().enumerate() {
+            assert!(close(got[i], want[i]), "{wm}: margin-{side} {} want {}", got[i].get(), want[i]);
+        }
+    }
+}
+
+/// Collect `(x, y, w, h)` page-absolute rects of every fragment sourced from
+/// `id` on one page.
+fn rects_of(f: &Fragment, id: NodeId, px: f64, py: f64, out: &mut Vec<(f64, f64, f64, f64)>) {
+    let (x, y) = (px + f.offset.x.get(), py + f.offset.y.get());
+    if f.source == Some(id) {
+        out.push((x, y, f.size.0.get(), f.size.1.get()));
+    }
+    for c in &f.children {
+        rects_of(c, id, x, y, out);
+    }
+}
+
+/// CORE-553 (Behaviors 11-12, 15): a vertical root paginates along the
+/// physical x axis. A box with a block extent of 2.5 page widths fragments
+/// into 3 pages; each fragment spans the full page height (its inline axis)
+/// and the pages progress from the block-start edge (right for -rl, left for
+/// -lr). The loop terminates.
+#[test]
+fn root_vertical_progression_fragments_along_x() {
+    // Page 600x400pt, no margins. Block extent 2.5 * 600 = 1500pt.
+    for (wm, rl) in [("vertical-rl", true), ("vertical-lr", false)] {
+        let html = doc(wm, "<div id=b style=\"block-size:1500pt;background:red\"></div>");
+        let dom = Dom::parse(&html).unwrap();
+        let l = layout(&dom, &Stylesheet::parse(""), geo());
+        assert_eq!(l.pages.len(), 3, "{wm}: page count");
+        let b = by_id(&dom, "b");
+        let widths = [600.0, 600.0, 300.0];
+        for (pi, page) in l.pages.iter().enumerate() {
+            let mut r = Vec::new();
+            rects_of(&page.root, b, 0.0, 0.0, &mut r);
+            let (x, y, w, h) = *r
+                .iter()
+                .max_by(|a, b| (a.2 * a.3).partial_cmp(&(b.2 * b.3)).unwrap())
+                .unwrap_or_else(|| panic!("{wm}: no fragment of #b on page {pi}"));
+            assert!((w - widths[pi]).abs() < 0.5, "{wm} p{pi}: width {w}");
+            assert!((h - 400.0).abs() < 0.5, "{wm} p{pi}: height {h}");
+            assert!(y.abs() < 0.5, "{wm} p{pi}: y {y}");
+            // Block-start edge: right for -rl, left for -lr.
+            let want_x = if rl { 600.0 - widths[pi] } else { 0.0 };
+            assert!((x - want_x).abs() < 0.5, "{wm} p{pi}: x {x} want {want_x}");
+        }
+    }
+}
+
+/// CORE-553: block-axis margins push content along x in a vertical root,
+/// and a huge block-end margin ends the page rather than dropping text
+/// (page-name-orthogonal-writing-002 ref shape: 2 pages).
+#[test]
+fn root_vertical_block_end_margin_breaks_the_page() {
+    let html = doc(
+        "vertical-rl",
+        "<div id=a style=\"margin-block-end:999in\">a</div><div id=b>b</div>",
     );
-    let s = &st[by_id(&dom, "d")];
-    assert!(close(s.margin_top, 18.0) && close(s.margin_bottom, 24.0));
-    assert!(close(s.margin_left, 0.0) && close(s.margin_right, 0.0));
+    let dom = Dom::parse(&html).unwrap();
+    let l = layout(&dom, &Stylesheet::parse(""), geo());
+    assert_eq!(l.pages.len(), 2, "a then b on the next page");
+    let a = by_id(&dom, "a");
+    let mut r = Vec::new();
+    rects_of(&l.pages[0].root, a, 0.0, 0.0, &mut r);
+    let (x, _, w, h) = r[0];
+    assert!((x + w - 600.0).abs() < 0.5, "vertical-rl: first box at the right edge, x={x} w={w}");
+    assert!((h - 400.0).abs() < 0.5, "auto inline size fills the page height, h={h}");
+}
+
+/// Every fragment of `id` on one page, with its page-absolute origin and
+/// whether any text run in its subtree carries a rotation.
+fn subtree_of(f: &Fragment, id: NodeId, px: f64, py: f64, out: &mut Vec<(f64, f64, f64, f64, bool)>) {
+    fn rotated(f: &Fragment) -> bool {
+        f.transform.is_some() || f.children.iter().any(rotated)
+    }
+    let (x, y) = (px + f.offset.x.get(), py + f.offset.y.get());
+    if f.source == Some(id) {
+        out.push((x, y, f.size.0.get(), f.size.1.get(), rotated(f)));
+    }
+    for c in &f.children {
+        subtree_of(c, id, x, y, out);
+    }
+}
+
+/// CORE-553 Behavior 28 (AC 8): an `absolute` box whose mode is
+/// `horizontal-tb` inside a vertical root lays out in the PHYSICAL frame. Its
+/// text is not rotated, its box is wider than tall, and its insets resolve
+/// against the physical page content box (`left:20px; top:20px` = 15pt).
+#[test]
+fn horizontal_abspos_in_vertical_root_is_not_transposed() {
+    for wm in ["vertical-rl", "vertical-lr", "sideways-lr"] {
+        let html = doc(
+            wm,
+            "<div style=\"block-size:200px;background:yellow\">vertical body text</div>\
+             <div id=h style=\"position:absolute;writing-mode:horizontal-tb;left:20px;top:20px;width:200px;background:lime\">Horizontal abspos text</div>",
+        );
+        let dom = Dom::parse(&html).unwrap();
+        let l = layout(&dom, &Stylesheet::parse(""), geo());
+        assert_eq!(l.pages.len(), 1, "{wm}: one page");
+        let h = by_id(&dom, "h");
+        let mut r = Vec::new();
+        subtree_of(&l.pages[0].root, h, 0.0, 0.0, &mut r);
+        let (x, y, w, hh, rotated) = *r
+            .iter()
+            .max_by(|a, b| (a.2 * a.3).partial_cmp(&(b.2 * b.3)).unwrap())
+            .unwrap_or_else(|| panic!("{wm}: no fragment of #h"));
+        assert!(!rotated, "{wm}: horizontal abspos text must not carry a rotation");
+        assert!(w > hh, "{wm}: box wider than tall, w={w} h={hh}");
+        assert!((w - 150.0).abs() < 0.5, "{wm}: width 200px = 150pt, got {w}");
+        assert!((x - 15.0).abs() < 0.5, "{wm}: left:20px = 15pt, got x={x}");
+        assert!((y - 15.0).abs() < 0.5, "{wm}: top:20px = 15pt, got y={y}");
+    }
+}
+
+/// CORE-553 Behavior 27 (AC 7, footnotes): in a vertical root the footnote
+/// band is a PHYSICAL bottom band. Every note line lies inside the page
+/// content rect's bottom band, unrotated, and the body does not paint into
+/// the band.
+#[test]
+fn footnotes_in_vertical_root_stay_in_a_physical_bottom_band() {
+    use typeanvil::frag::FragPart;
+    fn walk(f: &Fragment, px: f64, py: f64, notes: &mut Vec<(f64, f64, f64, f64, bool)>, body_max_y: &mut f64) {
+        let (x, y) = (px + f.offset.x.get(), py + f.offset.y.get());
+        let (w, h) = (f.size.0.get(), f.size.1.get());
+        if f.part == FragPart::FootnoteBody {
+            notes.push((x, y, w, h, f.transform.is_some()));
+        } else if f.source.is_some() && w > 0.0 && h > 0.0 {
+            *body_max_y = body_max_y.max(y + h);
+        }
+        for c in &f.children {
+            walk(c, x, y, notes, body_max_y);
+        }
+    }
+    let html = "<!DOCTYPE html><html style=\"writing-mode:vertical-rl\"><head><style>\
+        @page { margin: 30pt; } body { margin: 0 } .fn { float: footnote; }\
+        </style></head><body><div style=\"background:yellow\">Body line one<span class=\"fn\">FOOTNOTE text</span></div></body></html>";
+    let dom = Dom::parse(html).unwrap();
+    let g = PageGeometry {
+        width: Scalar(600.0),
+        height: Scalar(400.0),
+        margin_top: Scalar(30.0),
+        margin_right: Scalar(30.0),
+        margin_bottom: Scalar(30.0),
+        margin_left: Scalar(30.0),
+    };
+    let l = layout(&dom, &Stylesheet::parse(".fn { float: footnote; }"), g);
+    assert_eq!(l.pages.len(), 1);
+    let mut notes = Vec::new();
+    let mut body_max_y = 0.0;
+    walk(&l.pages[0].root, 0.0, 0.0, &mut notes, &mut body_max_y);
+    assert!(!notes.is_empty(), "the footnote body must be laid out");
+    let content_bottom = 400.0 - 30.0;
+    let band_top = notes.iter().map(|n| n.1).fold(f64::MAX, f64::min);
+    for (x, y, w, h, rotated) in &notes {
+        assert!(!rotated, "note line must not be rotated");
+        assert!(*x >= 0.0 && x + w <= 600.0, "note line inside the page width: x={x} w={w}");
+        assert!(*y >= 30.0 && y + h <= content_bottom + 0.01, "note line inside the content rect: y={y} h={h}");
+        assert!(w > h, "a note line runs horizontally: w={w} h={h}");
+    }
+    assert!(
+        body_max_y <= band_top + 0.01,
+        "body paints above the footnote band: body bottom {body_max_y} > band top {band_top}"
+    );
+}
+
+/// CORE-553 (page-size-012 ref shape): an interior `vertical-rl` block in a
+/// horizontal root lays out in its own frame. Its physical width is its
+/// content's block extent (not the page width), and `margin-left: auto` with
+/// `margin-right: 50pt` puts it 50pt from the right edge.
+#[test]
+fn interior_vertical_block_sizes_to_content_and_honours_auto_margin() {
+    let html = doc(
+        "horizontal-tb",
+        "<div id=v style=\"writing-mode:vertical-rl;margin-left:auto;margin-right:50pt;height:400pt;background:yellow\">a<br>b</div>",
+    );
+    let dom = Dom::parse(&html).unwrap();
+    let l = layout(&dom, &Stylesheet::parse(""), geo());
+    assert_eq!(l.pages.len(), 1);
+    let v = by_id(&dom, "v");
+    let mut r = Vec::new();
+    rects_of(&l.pages[0].root, v, 0.0, 0.0, &mut r);
+    let (x, y, w, h) = r[0];
+    assert!(w > 0.0 && w < 100.0, "width is two line columns, w={w}");
+    assert!((h - 400.0).abs() < 0.5, "declared height is the inline size, h={h}");
+    assert!((x + w - 550.0).abs() < 0.5, "right edge 50pt in, x={x} w={w}");
+    assert!(y.abs() < 0.5, "y={y}");
 }
 
 /// Behavior 16: padding follows the same map as margin (inline-start 3pt,

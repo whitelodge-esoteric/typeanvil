@@ -3150,7 +3150,7 @@ pub(crate) fn cascade_evaluated(
         });
         let needs = |s: &str| {
             let l = s.to_ascii_lowercase();
-            l.contains("sideways-") || (any_vertical && l.contains("margin-block-"))
+            l.contains("sideways-")
         };
         let any_attr = dom.nodes.iter().any(|n| {
             n.kind.element().and_then(|e| e.attr("style")).is_some_and(needs)
@@ -3278,11 +3278,8 @@ mod logical_sizing {
     /// no mode (a style attribute inside a vertical subtree).
     pub(super) fn rewrite_sideways(text: &str, doc_vertical: bool) -> Option<String> {
         let lower = text.to_ascii_lowercase();
-        let has_sideways = lower.contains("sideways-");
-        let has_vertical = doc_vertical || has_sideways || lower.contains("vertical-");
-        // `margin-block-*` needs the stand-in only where a vertical mode can
-        // apply; in horizontal-tb block-start/end already are top/bottom.
-        if !has_sideways && !(has_vertical && lower.contains("margin-block-")) {
+        let _ = doc_vertical;
+        if !lower.contains("sideways-") {
             return None;
         }
         // ASCII-only scanning keeps byte offsets identical, so the
@@ -3327,31 +3324,19 @@ mod logical_sizing {
                 _ if c.is_ascii_whitespace() => {}
                 _ if at_prop => {
                     at_prop = false;
-                    // DEFERRED to CORE-553 (root-vertical progression): the
-                    // block-axis margins keep the horizontal-tb slots
-                    // (top/bottom). Mapping them to left/right before the
-                    // engine paginates along the block axis turns
-                    // `margin-block-end: 999in` (page-name-orthogonal-
-                    // writing-002 ref) into a zero-width box that drops its
-                    // text instead of breaking the page.
+                    // CORE-553: `margin-block-*` is no longer rewritten. The
+                    // root-vertical body now paginates along the block axis,
+                    // so stylo's physical mapping (right/left for `-rl`,
+                    // left/right for `-lr`; the sideways-lr stand-in shares
+                    // vertical-lr's block axis) is the correct one.
                     let name_end = lower[i..]
                         .find(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '-'))
                         .map_or(text.len(), |e| i + e);
                     let name = &lower[i..name_end];
                     let rest = lower[name_end..].trim_start();
                     if rest.starts_with(':') {
-                        let swap = match name {
-                            "margin-block-start" if has_vertical => Some("margin-top"),
-                            "margin-block-end" if has_vertical => Some("margin-bottom"),
-                            _ => None,
-                        };
                         in_wm_value = name == "writing-mode";
-                        if let Some(s) = swap {
-                            out.push_str(s);
-                            changed = true;
-                        } else {
-                            out.push_str(&text[i..name_end]);
-                        }
+                        out.push_str(&text[i..name_end]);
                         i = name_end;
                         continue;
                     }
@@ -3513,7 +3498,7 @@ mod logical_sizing {
                 out,
                 "/* sideways-lr margin-block-end: x */\n\
                 [data-x=\"sideways-lr\"] { content: \"sideways-rl margin-block-start:1px\"; }\n\
-                div { writing-mode: vertical-lr;direction:rtl; margin-bottom: 4px; font-family: sideways-rl }"
+                div { writing-mode: vertical-lr;direction:rtl; margin-block-end: 4px; font-family: sideways-rl }"
             );
         }
 
@@ -3524,11 +3509,9 @@ mod logical_sizing {
                 Some("writing-mode:vertical-rl")
             );
             // horizontal-tb only: block-start/end already are top/bottom.
+            // CORE-553: block margins are never rewritten.
             assert_eq!(rewrite_sideways("margin-block-end: 4px", false), None);
-            assert_eq!(
-                rewrite_sideways("margin-block-end: 4px", true).as_deref(),
-                Some("margin-bottom: 4px")
-            );
+            assert_eq!(rewrite_sideways("margin-block-end: 4px", true), None);
             // A mention outside a declaration changes nothing.
             assert_eq!(rewrite_sideways("content:'sideways-lr'", true), None);
         }
@@ -5238,6 +5221,12 @@ mod viewport_units {
     use crate::dom::NodeKind;
     use crate::stylo_dom::TyBackend;
     use crate::geom::Scalar;
+
+    thread_local! {
+        /// The root element's axis for the current pass (`vb`/`vi` units).
+        /// Set once at the start of `apply_viewport_properties`.
+        static ROOT_VERTICAL: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
     /// One viewport-unit declaration keyed to a field.
     #[derive(Clone, Copy)]
     enum ViewportDecl {
@@ -5336,7 +5325,14 @@ mod viewport_units {
     /// Parse a plain `Nvw`/`Nvh` into `(is_vw, value/100)`.
     fn parse_plain(s: &str) -> Option<(bool, f64)> {
         let s = s.trim();
-        if let Some(n) = s.strip_suffix("vw") {
+        // CORE-553: `vb`/`vi` (css-values-4 §6.1.2) follow the ROOT element's
+        // writing mode: in a vertical root the block axis is the page width.
+        let rv = ROOT_VERTICAL.with(|c| c.get());
+        if let Some(n) = s.strip_suffix("vb") {
+            Some((rv, n.trim().parse::<f64>().ok()? / 100.0))
+        } else if let Some(n) = s.strip_suffix("vi") {
+            Some((!rv, n.trim().parse::<f64>().ok()? / 100.0))
+        } else if let Some(n) = s.strip_suffix("vw") {
             Some((true, n.trim().parse::<f64>().ok()? / 100.0))
         } else if let Some(n) = s.strip_suffix("vh") {
             Some((false, n.trim().parse::<f64>().ok()? / 100.0))
@@ -5435,6 +5431,8 @@ mod viewport_units {
         icb_h: Scalar,
     ) {
         let dom = backend.dom;
+        let root_el = dom.find_tag("html").unwrap_or(dom.root);
+        ROOT_VERTICAL.with(|c| c.set(styles[root_el].writing_mode.is_vertical()));
         let rules = parse_rules(css, &url_data());
 
         // CORE-468: set one border side from a viewport-unit width.

@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-09-15
-updated: 2026-09-27
+updated: 2026-10-23
 sidebar_position: 2
 tags: [harness, wpt, conformance, testing, release, gate]
 spec_id: harness-release-gate
@@ -265,7 +265,12 @@ Check keys: `page_count`, `page_size_pt`, `text_present`, `text_absent`,
 same orientation as the rasterized page. `paint_region` measures the fraction of
 dark pixels inside the rectangle.
 
-`text_orientation` sums the absolute centre-to-centre delta along x, and along y,
+`text_orientation` first counts glyphs that carry a text rotation of about 90°
+(pdfium char angle). When more than half of the non-blank glyphs in the
+rectangle are rotated, it reports `vertical`: rotated Latin text in a vertical
+mode runs along y even when each line holds one glyph and the lines sit side by
+side (CORE-553, `test_direct.py::test_text_orientation_rotated_single_glyph_lines_are_vertical`).
+Otherwise it sums the absolute centre-to-centre delta along x, and along y,
 for consecutive glyphs inside the rectangle, and reports the larger axis.
 Summing glyph box widths is not equivalent: a horizontal line of text has taller
 boxes than wide ones, so that comparison reports horizontal text as vertical
