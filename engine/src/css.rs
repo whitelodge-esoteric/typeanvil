@@ -1266,6 +1266,12 @@ pub struct ComputedStyle {
     /// gecko only, so the paged pass carries it. `false` = `balance`, the
     /// initial value.
     pub column_fill_auto: bool,
+    /// `contain` includes size containment (`size` or `strict`; `content`
+    /// does not) — CORE-569. stylo gates `contain` behind
+    /// `layout.unimplemented` in the servo build, so the paged pass carries
+    /// it. A size-contained box is monolithic (css-contain-2 §3.2;
+    /// Chromium keeps it whole: monolithic-overflow-018).
+    pub contain_size: bool,
     /// `column-gap`; `normal`/`auto` resolve to 1em. Points.
     pub column_gap: Scalar,
     /// Flex container properties (css-flexbox-1). Computed by stylo (all
@@ -1496,6 +1502,7 @@ impl ComputedStyle {
             column_width: None,
             column_span: ColumnSpan::None,
             column_fill_auto: false,
+            contain_size: false,
             column_gap: px_to_pt(16.0),
             flex_direction: FlexDirection::Row,
             flex_wrap: FlexWrap::Nowrap,
@@ -2679,6 +2686,7 @@ impl CascadeSession {
             column_width,
             column_span,
             column_fill_auto: false,
+            contain_size: false,
             column_gap,
             flex_direction,
             flex_wrap,
@@ -4883,6 +4891,9 @@ mod paged_props {
         /// `column-fill: auto | balance` — `true` when `auto` (CORE-368;
         /// gecko-only in stylo's servo build).
         ColumnFill(bool),
+        /// `contain` — `true` when the value includes size containment
+        /// (`size` or `strict`). CORE-569; pref-gated in stylo's servo build.
+        ContainSize(bool),
         /// `list-style-type` / `list-style` shorthand (CORE-385).
         ListStyleType(super::ListStyleType),
         /// `transform` (CORE-481); empty list = `none`.
@@ -5075,6 +5086,16 @@ mod paged_props {
                     _ => None,
                 }
             }
+            // CORE-569 (css-contain-2 §2): `none | strict | content |
+            // [size || inline-size || layout || style || paint]`. Only full
+            // size containment matters to fragmentation (monolithic box).
+            "contain" => {
+                let v = value.trim().to_ascii_lowercase();
+                let size = v
+                    .split_whitespace()
+                    .any(|t| t == "size" || t == "strict");
+                Some(PagedDecl::ContainSize(size))
+            }
             _ => None,
         }
     }
@@ -5213,6 +5234,7 @@ mod paged_props {
             float: Option<(u32, u32)>,
             writing_mode: Option<(u32, u32)>,
             column_fill: Option<(u32, u32)>,
+            contain: Option<(u32, u32)>,
             list_style_type: Option<(u32, u32)>,
             transform: Option<(u32, u32)>,
             transform_origin: Option<(u32, u32)>,
@@ -5334,6 +5356,12 @@ mod paged_props {
                                     won[id].column_fill = Some(prio);
                                 }
                             }
+                            PagedDecl::ContainSize(v) => {
+                                if won[id].contain.is_none_or(|w| prio >= w) {
+                                    styles[id].contain_size = *v;
+                                    won[id].contain = Some(prio);
+                                }
+                            }
                             PagedDecl::Transform(v) => {
                                 if won[id].transform.is_none_or(|w| prio >= w) {
                                     styles[id].transform = v.clone();
@@ -5444,6 +5472,9 @@ mod paged_props {
                     }
                     PagedDecl::ColumnFill(v) => {
                         styles[id].column_fill_auto = v;
+                    }
+                    PagedDecl::ContainSize(v) => {
+                        styles[id].contain_size = v;
                     }
                     PagedDecl::Transform(v) => {
                         styles[id].transform = v;
