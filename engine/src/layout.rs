@@ -5758,27 +5758,35 @@ impl<'a> Ctx<'a> {
                     let extent_fits = self
                         .specified_extent(*child, cstyle)
                         .is_some_and(|ext| y.get() + ext.get() <= bottom_limit.get() + 0.01);
-                    // CORE-567: a declared-height box with NO content (no DOM
-                    // children) that paints nothing is a pure spacer. It has
-                    // no first line that could be stranded, so its extent
-                    // fragments like any block-size (css-break-3 §4.4 /
-                    // §5.3). Chromium slices it (body-background-slr ref: a
-                    // 500px spacer after a box ending at 580px puts 20px on
-                    // page 1 and 480px on page 2).
-                    // PROVISIONAL scope: painted boxes keep the deferral.
-                    // Widening it moved two references the engine cannot yet
-                    // match on the test side: table-fragmentation-002a (the
-                    // table-cell content does not fragment) and
-                    // monolithic-overflow-018 (`contain: size` is monolithic
-                    // in Chromium; the engine does not model `contain`).
-                    // The general rule is tracked as CORE-569.
+                    // CORE-567/CORE-569: a declared-height box with NO content
+                    // (no DOM children) has no first line that could be
+                    // stranded, so its extent fragments like any block-size
+                    // (css-break-3 §4.4 / §5.3), painted or not. Chromium
+                    // slices it (body-background-slr ref: a 500px spacer
+                    // after a box ending at 580px puts 20px on page 1 and
+                    // 480px on page 2; table-fragmentation-002a ref: the
+                    // gold 1.5in box splits across 2 pages).
+                    // A size-contained box is monolithic (css-contain-2
+                    // §3.2) and keeps the deferral (monolithic-overflow-018:
+                    // Chromium keeps the `contain:size` green box whole).
+                    // A PAINTED spacer fragments only when its parent's
+                    // block size is auto. Inside a declared-height parent
+                    // the spacer can overflow it (ink overflow,
+                    // css-overflow-3), and slicing it there misplaced the
+                    // painted slice: section-with-overflow-001 (a 130px
+                    // green box in a 40px parent) showed 1924 red px. The
+                    // unpainted CORE-567 spacer keeps its rule.
+                    let painted = cstyle.background_color.is_some()
+                        || cstyle.background_gradient.is_some()
+                        || cstyle.background_image.is_some()
+                        || cstyle.border_top.get() > 0.0
+                        || cstyle.border_bottom.get() > 0.0;
                     let empty_spacer = self.dom.nodes[*child].children.is_empty()
                         && self.specified_extent(*child, cstyle).is_some()
-                        && cstyle.background_color.is_none()
-                        && cstyle.background_gradient.is_none()
-                        && cstyle.background_image.is_none()
-                        && cstyle.border_top.get() <= 0.0
-                        && cstyle.border_bottom.get() <= 0.0;
+                        && !cstyle.contain_size
+                        && (!painted
+                            || (self.specified_extent(id, &self.styles[id]).is_none()
+                                && !self.avoid_inside_ancestor(*child)));
                     if res.outgoing.is_some()
                         && !extent_fits
                         && !empty_spacer
@@ -7587,7 +7595,14 @@ impl<'a> Ctx<'a> {
         // - CORE-116: a CONTINUATION (!fresh) of an already-split row must
         //   place now. Deferring it would hit the same header wall as
         //   CORE-109, and its remaining height only shrinks page over page.
+        // CORE-569: a row whose cells hold only content-free declared-height
+        // boxes has no line or monolithic piece to strand, so it fragments
+        // like the CORE-567 block spacer instead of deferring whole
+        // (table-fragmentation-002a/b: Chromium splits the gold cell box
+        // across 2 pages, matching the div-based reference).
         if top + row_height > bottom_limit
+            && (self.styles[id].break_inside == BreakInside::Avoid
+                || !cells.iter().all(|&c| self.content_free_splittable(c)))
             && page_has_content
             && fresh
             && row_height.get() <= self.page_height.get()
@@ -8131,6 +8146,65 @@ impl<'a> Ctx<'a> {
             h = used;
         }
         h
+    }
+
+    /// CORE-569: is `id`'s in-flow content made only of content-free
+    /// declared-height boxes (the CORE-567 spacer shape), so a break inside it
+    /// strands no line and no monolithic piece? Whitespace text is ignored.
+    /// Any non-blank text, replaced element, size-contained box, or
+    /// non-block child (table, flex, grid, float, abspos, inline-level)
+    /// answers `false`. A box with no element content at all also answers
+    /// `false`: nothing in it fragments, so the caller's deferral stays.
+    fn content_free_splittable(&self, id: NodeId) -> bool {
+        if self.styles[id].break_inside == BreakInside::Avoid {
+            return false;
+        }
+        let mut found = false;
+        for &c in &self.dom.nodes[id].children {
+            match &self.dom.nodes[c].kind {
+                NodeKind::Text(t) => {
+                    if !t.trim().is_empty() {
+                        return false;
+                    }
+                }
+                NodeKind::Element(_) => {
+                    let s = &self.styles[c];
+                    if s.display == Display::None {
+                        continue;
+                    }
+                    if s.display != Display::Block
+                        || s.contain_size
+                        || s.float != crate::css::Float::None
+                        || !matches!(s.position, Position::Static | Position::Relative)
+                        || self.is_replaced_image(c)
+                    {
+                        return false;
+                    }
+                    let leaf = self.dom.nodes[c].children.is_empty()
+                        && self.specified_extent(c, s).is_some();
+                    if !leaf && !self.content_free_splittable(c) {
+                        return false;
+                    }
+                    found = true;
+                }
+                _ => return false,
+            }
+        }
+        found
+    }
+
+    /// CORE-569: does any ancestor of `id` declare `break-inside: avoid`?
+    /// A painted spacer inside such a box does not slice (table-border-006:
+    /// the green box in an avoid row split and showed red).
+    fn avoid_inside_ancestor(&self, id: NodeId) -> bool {
+        let mut cur = self.dom.nodes[id].parent;
+        while let Some(n) = cur {
+            if self.styles[n].break_inside == BreakInside::Avoid {
+                return true;
+            }
+            cur = self.dom.nodes[n].parent;
+        }
+        false
     }
 
     /// CORE-187: does any ANCESTOR of `id` clip its overflow

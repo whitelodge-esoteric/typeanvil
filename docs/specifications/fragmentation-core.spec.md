@@ -145,14 +145,22 @@ The engine shall:
     whose declared extent fits the remaining space is not deferred whole
     when only its overflowing child breaks (block-002-wm-*). A content-free
     spacer shall fragment at the break instead of deferring whole
-    (CORE-567, 2026-10-24). A spacer has a declared extent, no DOM children,
-    no background, and no block-axis border. It has no first line that a
+    (CORE-567, 2026-10-24). A spacer has a declared extent and no DOM
+    children. A painted spacer (background or block-axis border) shall
+    fragment only when its parent's block size is auto (CORE-569,
+    2026-10-24). In a declared-height parent it overflows as ink overflow
+    and keeps the whole-box deferral (section-with-overflow-001). Under an
+    ancestor with `break-inside: avoid` it also keeps the deferral
+    (table-border-006). It has no first line that a
     break could strand (css-break-3 §4.4, §5.3). Chromium puts 20px of the
-    500px spacer in the body-background-slr reference on page 1. A painted
-    declared-height box keeps the whole-box deferral for now. Widening the
-    rule moved references that the engine cannot match on the test side
-    (table-fragmentation-002a/b, monolithic-overflow-018; tracked as
-    CORE-569). An extent crossing the
+    500px spacer in the body-background-slr reference on page 1. A box with
+    size containment (`contain: size` or `strict`) is monolithic
+    (css-contain-2 §3.2) and keeps the whole-box deferral
+    (monolithic-overflow-018). A fresh table row whose every cell holds
+    only such spacers (through plain in-flow blocks, whitespace ignored)
+    and is not `break-inside: avoid` fragments in the same way instead of
+    deferring whole
+    (table-fragmentation-002a/b: 2 pages, matching Chromium). An extent crossing the
     fragmentainer edge paints through it without emitting a continuation —
     empty declared-height boxes are treated as monolithic (the
     page-change fixtures pin this; true extent fragmentation is future
