@@ -1,0 +1,43 @@
+{
+  "schema": "typeanvil.harness.reviews/1",
+  "candidate": {
+    "label": "candidate-77b1929",
+    "source_commit": "77b19297cfaf9b6ed8def41a83e8557538ff7758",
+    "binary_sha256": "d433df8514f3e816087026de8953748a657c00737c14dbe96b2620580a2a6e0f"
+  },
+  "baseline": {
+    "label": "baseline-90e816e84b1653862b2b04dbd8d1b002b19dbbc7",
+    "source_commit": "90e816e84b1653862b2b04dbd8d1b002b19dbbc7",
+    "binary_sha256": "608ef826e051fc8343278f1b9fa3c9972b3cdfbae85b04b5bddba863b387d3ba"
+  },
+  "dispositions": [
+    {
+      "doc_id": "css/css-break/block-001-wm-vlr-ref.html",
+      "change_id": "ffc149d12f9710e77726dcb0b28b452ad5c23b1698e135c954f42af902e4303d",
+      "kind": "correction",
+      "reason": "The ref sets `border: 5px solid` then `border-block-start-style: none` / `border-block-end-style: none` per box. Baseline painted all four sides because the declared-width pass re-applied 5px to sides stylo had zeroed. Candidate drops the block-axis (left/right in vertical-lr) edges as declared; side-by-side image checked. The test moves FAIL -> PASS.",
+      "provenance": "CORE-562; css-logical-1 section 4.3 (flow-relative border styles), css-backgrounds-3 section 4.2 (border-style none computes width 0)"
+    },
+    {
+      "doc_id": "css/css-break/block-001-wm-vrl-ref.html",
+      "change_id": "8a81416b17c9db5de5f81aa3c65c1357c61a9092b3db2f2519b32c2277249b4c",
+      "kind": "correction",
+      "reason": "Same ref as the vertical-lr case in vertical-rl: the block-start/end `none` styles now remove the right/left edges. The test moves FAIL -> PASS.",
+      "provenance": "CORE-562; css-logical-1 section 4.3, css-backgrounds-3 section 4.2"
+    },
+    {
+      "doc_id": "css/css-break/block-002-wm-vlr-ref.html",
+      "change_id": "664215e7e63dabd717dabe9229268ed9ee1c4409df1ebe9d036cae4c930e1ab0",
+      "kind": "correction",
+      "reason": "The ref uses the same `border-block-{start,end}-style: none` pattern on the black and grey boxes; candidate now omits those edges. The test stays FAIL for the separate root-margin defect CORE-563 (page count test=2 / ref=3).",
+      "provenance": "CORE-562; css-logical-1 section 4.3, css-backgrounds-3 section 4.2"
+    },
+    {
+      "doc_id": "css/css-break/block-002-wm-vrl-ref.html",
+      "change_id": "a4f42724c790f1ac7995958b09885cdc389ac9b792035a5bac15bd35583e1501",
+      "kind": "correction",
+      "reason": "vertical-rl twin of block-002-wm-vlr-ref: block-axis `none` sides are now removed. The test stays FAIL for CORE-563.",
+      "provenance": "CORE-562; css-logical-1 section 4.3, css-backgrounds-3 section 4.2"
+    }
+  ]
+}
