@@ -1,0 +1,83 @@
+{
+  "schema": "typeanvil.harness.reviews/1",
+  "candidate": {
+    "label": "candidate-f64d61a49340c970bbf251edcc8ce529bd6a56f1",
+    "source_commit": "f64d61a49340c970bbf251edcc8ce529bd6a56f1"
+  },
+  "baseline": {
+    "label": "baseline-62b3ba8a03d23ece920307c845bb8ce1ae28722c",
+    "source_commit": "62b3ba8a03d23ece920307c845bb8ce1ae28722c"
+  },
+  "dispositions": [
+    {
+      "doc_id": "css/css-break/block-002-wm-vlr-ref.html",
+      "change_id": "4d7fce11894d6512b3bf87c10e01cb61de327fc0bf13d26a501a1904c162840c",
+      "kind": "correction",
+      "reason": "4 -> 3 pages like Chromium. Box b1 no longer defers whole for its overflowing child, and each box advances the flow by its declared extent only. Owning test block-002-wm-vlr-print.html: FAIL -> PASS.",
+      "provenance": "CORE-565; css-overflow-3 (overflow is ink overflow), css-break-3 section 4.4"
+    },
+    {
+      "doc_id": "css/css-break/block-002-wm-vrl-ref.html",
+      "change_id": "02fadddb64cb9052c71b4fe3adb1943c6f17c75ef0c13fec53e050048cbcc350",
+      "kind": "correction",
+      "reason": "4 -> 3 pages like Chromium (same cause as the vlr ref). Owning test block-002-wm-vrl-print.html: FAIL -> PASS.",
+      "provenance": "CORE-565; css-overflow-3, css-break-3 section 4.4"
+    },
+    {
+      "doc_id": "css/css-break/block-002-wm-vlr-print.html",
+      "change_id": "9b7d3e9cad7fc38d5bb8c7c5eac77cf8ff545d0a9db5fb8defb0b27dc7381f4c",
+      "kind": "correction",
+      "reason": "Page 3: the .after box now follows the 130vw declared extent of .b and overlaps the overflowing grey child, matching the ref. Test FAIL -> PASS.",
+      "provenance": "CORE-565; css-overflow-3"
+    },
+    {
+      "doc_id": "css/css-break/block-002-wm-vrl-print.html",
+      "change_id": "c3ec7f720811209497211254b06ed389813b011f4f96173fdbc0d3479e3bcc5d",
+      "kind": "correction",
+      "reason": "Page 3: the .after box now follows the 130vw declared extent of .b and overlaps the overflowing grey child, matching the ref. Test FAIL -> PASS.",
+      "provenance": "CORE-565; css-overflow-3"
+    },
+    {
+      "doc_id": "css/css-page/monolithic-overflow-019-print.html",
+      "change_id": "88b943898e9fbae988da2f398426b2e152bef5008880e69c498aaf5aa540c7cb",
+      "kind": "correction",
+      "reason": "The trailing text now sits at the middle of page 1 overlapping the 50vh box's overflow, as the test text requires (\"at the middle of the first page, overlapping with stuff\"). Test stays PASS (ref moved identically).",
+      "provenance": "CORE-565; css-overflow-3"
+    },
+    {
+      "doc_id": "css/css-page/monolithic-overflow-019-print-ref.html",
+      "change_id": "15a5a27e7cbf5835a7521c9779d08ca44bc1f17917b9c729495add375ede786a",
+      "kind": "correction",
+      "reason": "Same change as the test: trailing text follows the declared 50vh extent and overlaps the overflow. Test stays PASS.",
+      "provenance": "CORE-565; css-overflow-3"
+    },
+    {
+      "doc_id": "css/css-page/monolithic-overflow-020-print.html",
+      "change_id": "b058492687737b59cc7700e486aecadcf28b0521427379c2ceb342a566ca8540",
+      "kind": "correction",
+      "reason": "5 -> 4 pages. The reference text says \"This text should start on the fourth page\"; it now does. Test stays PASS.",
+      "provenance": "CORE-565; css-overflow-3"
+    },
+    {
+      "doc_id": "css/css-page/monolithic-overflow-020-print-ref.html",
+      "change_id": "f98a4ebb1fe316631016af080fdbc170114e0a88735402a8ea792c17a432326e",
+      "kind": "correction",
+      "reason": "5 -> 4 pages; the text starts on page 4 as the reference states. Test stays PASS.",
+      "provenance": "CORE-565; css-overflow-3"
+    },
+    {
+      "doc_id": "css/css-break/flexbox/single-line-row-flex-fragmentation-042-print-ref.html",
+      "change_id": "f86349aa6e953e9f9a900662fe13bb172dcfa8c595dfaca08a4b798d985dff5a",
+      "kind": "correction",
+      "reason": "The trailing gray div now sits directly below the 2.5in flexbox border box; it was pushed down by the overflowing items. Owning test stays FAIL (unrelated flex fragmentation gap).",
+      "provenance": "CORE-565; css-overflow-3"
+    },
+    {
+      "doc_id": "css/css-multicol/moz-multicol3-column-balancing-break-inside-avoid-1-ref.html",
+      "change_id": "0f2fa6bff8580a6f141f80dd34c889c139a70267be5b84d6ab20e0c6f9b25d6d",
+      "kind": "correction",
+      "reason": "The last .colset wraps its 5px .short child, so its border is short and the text overflows below it; the border stretched around the overflowing text before. Owning test stays FAIL (unrelated column balancing gap).",
+      "provenance": "CORE-565; css-overflow-3, CSS 2.2 section 10.6"
+    }
+  ]
+}

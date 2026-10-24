@@ -5,7 +5,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-08-16
-updated: 2026-10-23
+updated: 2026-10-24
 sidebar_position: 2
 tags: [layout, fragmentation, css-break, engine]
 spec_id: fragmentation-core
@@ -138,8 +138,12 @@ The engine shall:
     pagination — the cursor advances by it and a fresh child whose extent
     fits one fragmentainer but not the remaining space defers whole to the
     next page. Own-inline overflow still clamps the flow extent down to
-    content (`height: 0` divs, page-size-007/008), and block-child overflow
-    keeps the content extent (block-002-wm-*). An extent crossing the
+    content (`height: 0` divs, page-size-007/008). Block-child overflow
+    also advances the flow by the declared extent only, fresh or resumed
+    (CORE-565, 2026-10-24): the child's overflow is ink overflow
+    (css-overflow-3) and does not push following siblings. A fresh box
+    whose declared extent fits the remaining space is not deferred whole
+    when only its overflowing child breaks (block-002-wm-*). An extent crossing the
     fragmentainer edge paints through it without emitting a continuation —
     empty declared-height boxes are treated as monolithic (the
     page-change fixtures pin this; true extent fragmentation is future
