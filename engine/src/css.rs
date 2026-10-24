@@ -5501,6 +5501,66 @@ mod viewport_units {
         /// CORE-468: a border width in viewport units. Side index:
         /// 0 top, 1 right, 2 bottom, 3 left.
         Border(usize, ViewportLen),
+        /// CORE-563: a margin in viewport units. Side index as `Border`;
+        /// logical sides map to physical through [`margin_side`].
+        Margin(usize, ViewportLen),
+        /// A logical margin before mapping: 0 block-start, 1 block-end,
+        /// 2 inline-start, 3 inline-end.
+        LogicalMargin(usize, ViewportLen),
+    }
+
+    /// CORE-563: physical side (0 top, 1 right, 2 bottom, 3 left) of a
+    /// logical margin (0 block-start, 1 block-end, 2 inline-start,
+    /// 3 inline-end) under `mode`, ltr direction.
+    fn margin_side(logical: usize, mode: super::PageWritingMode) -> usize {
+        use super::PageWritingMode as M;
+        match (mode, logical) {
+            (M::HorizontalTb, 0) => 0,
+            (M::HorizontalTb, 1) => 2,
+            (M::HorizontalTb, 2) => 3,
+            (M::HorizontalTb, _) => 1,
+            (M::VerticalRl | M::SidewaysRl, 0) => 1,
+            (M::VerticalRl | M::SidewaysRl, 1) => 3,
+            (M::VerticalLr | M::SidewaysLr, 0) => 3,
+            (M::VerticalLr | M::SidewaysLr, 1) => 1,
+            (M::SidewaysLr, 2) => 2,
+            (M::SidewaysLr, _) => 0,
+            (_, 2) => 0,
+            (_, _) => 2,
+        }
+    }
+
+    /// CORE-563: a single-value `margin-<side>: <N>vw|vh` (physical or
+    /// logical longhand). The `margin` shorthand stays with stylo.
+    fn parse_margin_decl(prop: &str, value: &str) -> Option<ViewportDecl> {
+        let prop = prop.trim().to_ascii_lowercase();
+        let side = match prop.as_str() {
+            "margin-top" => (false, 0),
+            "margin-right" => (false, 1),
+            "margin-bottom" => (false, 2),
+            "margin-left" => (false, 3),
+            "margin-block-start" => (true, 0),
+            "margin-block-end" => (true, 1),
+            "margin-inline-start" => (true, 2),
+            "margin-inline-end" => (true, 3),
+            _ => return None,
+        };
+        let v = parse_viewport_len(value)?;
+        Some(if side.0 {
+            ViewportDecl::LogicalMargin(side.1, v)
+        } else {
+            ViewportDecl::Margin(side.1, v)
+        })
+    }
+
+    /// CORE-563: set one margin side from a resolved length.
+    fn set_margin(st: &mut ComputedStyle, side: usize, m: Scalar) {
+        match side {
+            0 => st.margin_top = m,
+            1 => st.margin_right = m,
+            2 => st.margin_bottom = m,
+            _ => st.margin_left = m,
+        }
     }
 
     /// CORE-468: border widths declared in `vw`/`vh` (`border-bottom: 50vh
@@ -5622,6 +5682,7 @@ mod viewport_units {
             ViewportDecl::InlineSize(v) => ViewportDecl::Width(v),
             ViewportDecl::BlockSize(v) if mode.is_vertical() => ViewportDecl::Width(v),
             ViewportDecl::BlockSize(v) => ViewportDecl::Height(v),
+            ViewportDecl::LogicalMargin(s, v) => ViewportDecl::Margin(margin_side(s, mode), v),
             other => other,
         }
     }
@@ -5659,6 +5720,7 @@ mod viewport_units {
                         decls.push(d);
                     }
                     decls.extend(parse_border_decls(prop, value));
+                    decls.extend(parse_margin_decl(prop, value));
                 }
             }
             if !decls.is_empty() {
@@ -5705,6 +5767,7 @@ mod viewport_units {
         #[derive(Clone, Copy, Default)]
         struct Won {
             border: [Option<(u32, u32)>; 4],
+            margin: [Option<(u32, u32)>; 4],
             width: Option<(u32, u32)>,
             height: Option<(u32, u32)>,
             top: Option<(u32, u32)>,
@@ -5721,7 +5784,15 @@ mod viewport_units {
                     let mode = super::logical_sizing::mode_at(dom, styles, id);
                     for decl in &rule.decls {
                         match physical(*decl, mode) {
-                            ViewportDecl::InlineSize(_) | ViewportDecl::BlockSize(_) => {}
+                            ViewportDecl::InlineSize(_)
+                            | ViewportDecl::BlockSize(_)
+                            | ViewportDecl::LogicalMargin(..) => {}
+                            ViewportDecl::Margin(side, v) => {
+                                if won[id].margin[side].is_none_or(|w| prio >= w) {
+                                    set_margin(&mut styles[id], side, v.resolve(icb_w, icb_h));
+                                    won[id].margin[side] = Some(prio);
+                                }
+                            }
                             ViewportDecl::Border(side, v) => {
                                 if won[id].border[side].is_none_or(|w| prio >= w) {
                                     set_border(&mut styles[id], side, v.resolve(icb_w, icb_h));
@@ -5790,7 +5861,7 @@ mod viewport_units {
                         }
                     }
                 }
-                let Some(decl) = parse_decl(&prop, &value) else {
+                let Some(decl) = parse_decl(&prop, &value).or_else(|| parse_margin_decl(&prop, &value)) else {
                     continue;
                 };
                 let prio = (u32::MAX, inline_order);
@@ -5798,7 +5869,13 @@ mod viewport_units {
                 let mode = super::logical_sizing::mode_at(dom, styles, id);
                 match physical(decl, mode) {
                     ViewportDecl::InlineSize(_) | ViewportDecl::BlockSize(_) => {}
-                    ViewportDecl::Border(..) => {}
+                    ViewportDecl::Border(..) | ViewportDecl::LogicalMargin(..) => {}
+                    ViewportDecl::Margin(side, v) => {
+                        if won[id].margin[side].is_none_or(|w| prio >= w) {
+                            set_margin(&mut styles[id], side, v.resolve(icb_w, icb_h));
+                            won[id].margin[side] = Some(prio);
+                        }
+                    }
                     ViewportDecl::Width(v) => {
                         if won[id].width.is_none_or(|w| prio >= w) {
                             styles[id].width_viewport = Some(v);
