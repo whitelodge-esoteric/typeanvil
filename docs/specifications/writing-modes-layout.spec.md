@@ -599,7 +599,9 @@ rect in `paginate`, in the logical frame of the page flow.
   pages like Chromium (2 before). Their references render 4 pages, where
   Chromium renders 3. The same shape renders 4 pages in horizontal-tb on the
   base binary: an overflowing child's continuation pushes the next sibling.
-  That defect is CORE-565, so both tests stay FAIL. `root-margin-001` now
+  That defect is CORE-565, so both tests stay FAIL. **Update (CORE-565,
+  2026-10-24):** fixed; both references render 3 pages and both tests
+  PASS. See fragmentation-core Behavior 11. `root-margin-001` now
   leaves page 1 blank as it asserts. It stays FAIL on a pixel residual.
 - Tests: `engine/tests/it/core563_root_margins.rs`.
 

@@ -5752,7 +5752,16 @@ impl<'a> Ctx<'a> {
                     // and must keep flowing, not re-defer (monolithic-
                     // overflow-007).
                     let not_huge = res.fragment.size.1.get() <= self.page_height.get();
+                    // CORE-565: a box whose DECLARED extent fits the remaining
+                    // space is not empty here — the box itself fits; only its
+                    // overflowing content continues (css-overflow-3 ink
+                    // overflow). Deferring it re-laid the whole box on the
+                    // next page (block-002-wm-* ref: 4 pages, Chromium 3).
+                    let extent_fits = self
+                        .specified_extent(*child, cstyle)
+                        .is_some_and(|ext| y.get() + ext.get() <= bottom_limit.get() + 0.01);
                     if res.outgoing.is_some()
+                        && !extent_fits
                         && child_tok.is_break_before()
                         && !child_tok.deferred_once
                         && placed
@@ -6299,9 +6308,6 @@ impl<'a> Ctx<'a> {
                 children.insert(0, line);
             }
         }
-        let has_block_child = children
-            .iter()
-            .any(|c| matches!(c.kind, crate::frag::FragmentKind::Block));
         fragment.children = children;
         // CORE-319: element `background-image` (below borders and content).
         if let Some(bif) = element_background_image(
@@ -6408,10 +6414,9 @@ impl<'a> Ctx<'a> {
         // occupies the FLOW (pagination grows to it — page-margin-007's
         // page-filler divs), while own-inline overflow still clamps the
         // extent down to content (page-size-007/008's height:0 divs). A box
-        // whose overflow comes from a BLOCK child keeps the content extent:
-        // the block child itself fragments/positions against the box, and
-        // growing the flow extent would double-count the child's pages
-        // (block-002-wm-* regression). Resumed boxes use the REMAINING
+        // whose overflow comes from a BLOCK child also takes only its
+        // extent (CORE-565; the CORE-167-era block-child exemption made
+        // siblings stack below the child's ink overflow). Resumed boxes use the REMAINING
         // extent (extent minus what earlier fragments consumed), so the
         // declared extent fragments across pages instead of restarting.
         // Out-of-scope classes keep the content extent (fragmented here —
@@ -6426,11 +6431,13 @@ impl<'a> Ctx<'a> {
             // (paint box 108.75 vs cursor 7.5 in the CORE-207 probe).
             // CORE-241: a declared `height: 0` box takes no flow space even
             // when block children overflow it.
-            Some(remaining)
-                if fresh
-                    && (!has_block_child || remaining.get() <= 0.0)
-                    && token.cross_override.is_none() =>
-            {
+            // CORE-565: this holds for boxes with BLOCK children too, fresh
+            // or resumed. A block child that overflows the declared extent
+            // is ink overflow (css-overflow-3, css-break-3 §4.4): it paints
+            // past the box but does not push the following siblings. The
+            // earlier block-child exemption made the next sibling start
+            // below the child's overflow (block-002-wm-* pages 3 and 4).
+            Some(remaining) if token.cross_override.is_none() => {
                 if remaining.get() < box_height.get() {
                     remaining
                 } else {

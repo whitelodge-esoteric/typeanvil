@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-08-18
-updated: 2026-10-17
+updated: 2026-10-24
 sidebar_position: 7
 tags: [engine, layout, css-float, css-break, fragmentation]
 spec_id: floats-fragmentation
@@ -225,9 +225,9 @@ The engine shall additionally:
     preceding sibling's line box pushing it down when that sibling declares
     `height: 0` (css-sizing-3 §5.1: the declared height sizes the flow
     extent; overflow content paints but does not advance the cursor). The
-    clamp applies only when the box has no block-child fragments — a box
-    whose overflow comes from a block child keeps the content extent, or
-    following siblings displace (block-002-wm-* regression).
+    clamp applies to boxes with block-child fragments too (CORE-565,
+    2026-10-24): block-child overflow is ink overflow and does not displace
+    following siblings.
 13. Pack floats per css2 §9.5.1 rules 2+7: a float that has no stacking-free
     x lane beside vertically-overlapping same-side floats moves DOWN below
     them (probe loop: `float_placement_y` returns the lowered y); fits and
