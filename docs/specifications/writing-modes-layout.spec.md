@@ -449,6 +449,13 @@ Three gaps stay in the engine's own passes:
 - **Logical borders and viewport units.** The border pass and the
   viewport-unit pass map `border-{block,inline}-*` and `inline-size` /
   `block-size` in `vw`/`vh` by the mode in effect (`mode_at`).
+- **Logical border styles (CORE-562).** stylo maps
+  `border-{block,inline}-*-style` to the physical sides and zeroes the width
+  of a `none`/`hidden` side. The declared-width pass, which restores widths
+  stylo snapped to device pixels, shall not revive a side stylo computed as
+  0. Before the fix, `border: 5px solid; border-block-end-style: none`
+  painted all four sides (`block-001-wm-*` refs). Test:
+  `writing_modes.rs::logical_border_style_none_removes_mapped_side`.
 - **Block-axis margins (resolved by CORE-553).** Until CORE-553,
   `margin-block-start/end` kept the `top`/`bottom` slots in a vertical mode.
   CORE-553 removed that stand-in in the same change as the frame swap: stylo's

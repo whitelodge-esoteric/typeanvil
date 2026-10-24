@@ -487,3 +487,42 @@ fn horizontal_subtree_in_sideways_lr_keeps_its_direction() {
     assert!(r.rtl);
     assert!(close(r.margin_right, 6.0) && close(r.margin_left, 0.0));
 }
+
+/// CORE-562 (css-logical-1 §4.3): `border-{block,inline}-*-style: none`
+/// removes the physical side the mode maps it to, after a `border: 5px
+/// solid` shorthand. Before the fix, the declared-width pass re-applied the
+/// shorthand's 5px (3.75pt) to the side stylo had already zeroed. Both the
+/// stylesheet and inline paths are checked.
+#[test]
+fn logical_border_style_none_removes_mapped_side() {
+    let w = 3.75;
+    // (mode, logical style property, [top, right, bottom, left])
+    let cases: &[(&str, &str, [f64; 4])] = &[
+        ("horizontal-tb", "border-block-end-style", [w, w, 0.0, w]),
+        ("horizontal-tb", "border-inline-start-style", [w, w, w, 0.0]),
+        ("vertical-lr", "border-block-start-style", [w, w, w, 0.0]),
+        ("vertical-lr", "border-block-end-style", [w, 0.0, w, w]),
+        ("vertical-rl", "border-block-start-style", [w, 0.0, w, w]),
+        ("vertical-rl", "border-inline-end-style", [w, w, 0.0, w]),
+    ];
+    for (wm, prop, want) in cases {
+        for inline in [false, true] {
+            let (html, css) = if inline {
+                (doc(wm, &format!("<div id=d style=\"border:5px solid black;{prop}:none\"></div>")), String::new())
+            } else {
+                (doc(wm, "<div id=d class=b></div>"), format!(".b {{ border: 5px solid black; {prop}: none; }}"))
+            };
+            let (dom, st) = styles_of(&html, &css);
+            let s = &st[by_id(&dom, "d")];
+            let got = [s.border_top, s.border_right, s.border_bottom, s.border_left];
+            for (i, side) in ["top", "right", "bottom", "left"].iter().enumerate() {
+                assert!(
+                    close(got[i], want[i]),
+                    "{wm} {prop} inline={inline}: border-{side} {} want {}",
+                    got[i].get(),
+                    want[i]
+                );
+            }
+        }
+    }
+}

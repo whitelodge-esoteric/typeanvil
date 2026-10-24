@@ -4638,6 +4638,23 @@ mod borders {
             left: Option<Prio>,
         }
         let mut won = vec![Won::default(); styles.len()];
+        // CORE-562: stylo already computed each side's width with its
+        // `border-*-style` applied (physical AND logical style longhands,
+        // `none`/`hidden` → 0). This pass only restores declared widths that
+        // stylo snapped to device pixels; it must not revive a side whose
+        // style is `none`. stylo never snaps a nonzero width to 0, so a zero
+        // stylo width means the side has no border.
+        let stylo_zero: Vec<[bool; 4]> = styles
+            .iter()
+            .map(|s| {
+                [
+                    s.border_top == Scalar::ZERO,
+                    s.border_right == Scalar::ZERO,
+                    s.border_bottom == Scalar::ZERO,
+                    s.border_left == Scalar::ZERO,
+                ]
+            })
+            .collect();
 
         // One declaration applied to one element's style: widths per side.
         // Colors come from stylo (CORE-384).
@@ -4719,6 +4736,21 @@ mod borders {
                 inline_order += 1;
                 let mode = super::logical_sizing::mode_at(dom, styles, id);
                 apply_decl(&mut styles[id], &mut won[id], &decl, prio, mode);
+            }
+        }
+
+        for (st, zero) in styles.iter_mut().zip(&stylo_zero) {
+            if zero[0] {
+                st.border_top = Scalar::ZERO;
+            }
+            if zero[1] {
+                st.border_right = Scalar::ZERO;
+            }
+            if zero[2] {
+                st.border_bottom = Scalar::ZERO;
+            }
+            if zero[3] {
+                st.border_left = Scalar::ZERO;
             }
         }
     }
