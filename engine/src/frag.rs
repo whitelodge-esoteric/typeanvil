@@ -520,6 +520,9 @@ pub struct Fragmentainer {
     /// propagation (default white). The `@page` box background is separate
     /// (`Fragmentainer::background`) and paints under this fill.
     pub canvas_background: Option<crate::css::Color>,
+    /// The propagated canvas `linear-gradient` slice (CORE-556), painted
+    /// over the page content area above `canvas_background`.
+    pub canvas_gradient: Option<CanvasGradientSlice>,
     /// Page-box outline (CORE-153): (width, color, offset) resolved to points.
     /// Painted outside the page border box (the page area) by `offset`.
     pub outline: Option<(crate::geom::Scalar, crate::css::Color, crate::geom::Scalar)>,
@@ -541,6 +544,47 @@ pub struct Fragmentainer {
         crate::css::Color,
         (crate::geom::Scalar, crate::geom::Scalar, crate::geom::Scalar, crate::geom::Scalar),
     )>,
+}
+
+/// One page's slice of the document canvas gradient (CORE-556). The canvas
+/// is one strip: every page's content area laid end to end along the page
+/// progression axis in DOCUMENT order, page 1 at the strip origin (top for a
+/// horizontal root, left for a vertical root, whatever the block direction —
+/// measured against Chromium, `body-background-{vlr,vrl,slr,srl}-print`).
+/// The gradient is sized to the whole strip; each page paints its own part.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CanvasGradientSlice {
+    pub gradient: crate::css::LinearGradientStyle,
+    /// This page's content-area origin inside the strip (points).
+    pub offset: (Scalar, Scalar),
+    /// The whole strip's size (points).
+    pub strip_size: (Scalar, Scalar),
+}
+
+impl CanvasGradientSlice {
+    /// The color the slice paints at `(x, y)`, page-content-relative
+    /// (points). Test and probe helper; the PDF emitter uses a shading.
+    pub fn color_at(&self, x: f32, y: f32) -> crate::css::Color {
+        let (sw, sh) = (self.strip_size.0.to_f32(), self.strip_size.1.to_f32());
+        let (x1, y1, x2, y2) = self.gradient.line(0.0, 0.0, sw, sh);
+        let (px, py) = (x + self.offset.0.to_f32(), y + self.offset.1.to_f32());
+        let (dx, dy) = (x2 - x1, y2 - y1);
+        let len2 = dx * dx + dy * dy;
+        let t = if len2 > 0.0 { ((px - x1) * dx + (py - y1) * dy) / len2 } else { 0.0 };
+        let stops = self.gradient.resolved_stops(len2.sqrt());
+        if t <= stops[0].0 {
+            return stops[0].1;
+        }
+        for w in stops.windows(2) {
+            let ((p0, c0), (p1, c1)) = (w[0], w[1]);
+            if t < p1 {
+                let f = if p1 > p0 { (t - p0) / (p1 - p0) } else { 1.0 };
+                let mix = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * f).round() as u8;
+                return crate::css::Color { r: mix(c0.r, c1.r), g: mix(c0.g, c1.g), b: mix(c0.b, c1.b), a: mix(c0.a, c1.a) };
+            }
+        }
+        stops[stops.len() - 1].1
+    }
 }
 
 impl Fragmentainer {
@@ -603,6 +647,7 @@ impl Fragmentainer {
             content_origin: Point::default(),
             content_size: size,
             canvas_background: None,
+            canvas_gradient: None,
             page_border: None,
             page_chrome_hidden: false,
             root_border: None,
