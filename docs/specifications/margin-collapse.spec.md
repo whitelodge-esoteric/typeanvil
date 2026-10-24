@@ -4,7 +4,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-08-24
-updated: 2026-10-23
+updated: 2026-10-24
 slug: /specifications/margin-collapse
 sidebar_position: 42
 tags: [layout, css-box, margins]
@@ -43,10 +43,9 @@ them:
 
 - Empty self-collapsing boxes (a box with no content collapses its own top
   and bottom margins through itself).
-- Parent-child collapse of the BOTTOM edge, and top-edge collapse when the
-  first child's margin-top exceeds the parent's (the parent fragment would
-  have to start above its own cursor). Only the parent-top / first-child-top
-  case with child ≤ parent is implemented (Behavior 6, CORE-483).
+- Parent-child collapse of the BOTTOM edge. The parent-top / first-child-top
+  case is implemented for both orderings (Behavior 6, CORE-483; Behavior 7,
+  CORE-566).
 - Clearance and BFC-isolation exceptions.
 - **Float adjacency:** floats do not participate in vertical margin
   collapse. The engine treats a float as a break in the sibling chain — the
@@ -79,6 +78,17 @@ them:
    margin-top (`max`). Probe: `<section style="margin-top:30pt"><ul
    style="margin:12pt 0">` places the text 12pt higher than the summed
    result (Prince: 31.8pt vs 43.7pt before the fix).
+7. (CORE-566) When the first in-flow block child's (collapsed) top margin
+   EXCEEDS the parent's, the parent's used top margin SHALL be that larger
+   value, so the parent's border edge and the child's coincide at
+   `max(mt_parent, mt_child)` (CSS 2.2 §8.3.1). The rule applies
+   recursively down the chain of collapsing first children, and the
+   collapsed value is also the margin used in sibling collapse
+   (Behavior 2). Out-of-flow (absolute/fixed), floated, running,
+   footnote and `display: none` children are skipped when finding the
+   first in-flow child, so a leading abspos box does not separate the
+   margins. Probe: `<body style="margin:20px"><div
+   style="margin-top:100px">` places the div at 100px (120px before).
 
 ## Interfaces
 
@@ -114,6 +124,10 @@ Each criterion maps to a test in `engine/tests/margin_collapse.rs`.
   0pt; with `border-top` on the section it moves 12pt.
   → `first_child_top_margin_collapses_through_parent`,
   `parent_border_blocks_first_child_collapse`.
+- **AC-6 (larger first child):** Given `section { margin-top: 20pt }`
+  containing `ul { margin-top: 100pt }` at a 72pt content top, the text sits
+  at 172pt (pre-fix 192pt), also with a leading `position: absolute`
+  sibling. → `larger_first_child_top_margin_collapses_through_parent`.
 - **AC-4 (no regression):** Full engine suite stays green; WPT buckets
   (css-page / css-break / css-multicol) show no status regressions vs
   main's binary.

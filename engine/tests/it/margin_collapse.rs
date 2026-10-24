@@ -192,6 +192,35 @@ ul {{ margin: {ul}; padding: 0; list-style: none; font-size: 10pt; line-height: 
     assert!(delta.abs() < 0.05, "expected 0pt delta, got {delta}");
 }
 
+/// CORE-566: a first-child top margin LARGER than the parent's still
+/// collapses: the gap is max(parent, child), never the sum (CSS 2.2
+/// §8.3.1). Before the fix the child landed at parent + child.
+#[test]
+fn larger_first_child_top_margin_collapses_through_parent() {
+    let html = |pre: &str| {
+        format!(
+            r#"<html><head><style>
+body {{ margin: 0; }}
+section {{ margin-top: 20pt; }}
+ul {{ margin: 100pt 0 0 0; padding: 0; list-style: none; font-size: 10pt; line-height: 10pt; }}
+</style></head><body><section>{pre}<ul><li>MARK</li></ul></section></body></html>"#
+        )
+    };
+    let top = |h: &str| {
+        let l = lay(h);
+        let mut t = Vec::new();
+        line_tops_with_prefix(&l.pages[0].root, "MARK", 0.0, &mut t);
+        assert_eq!(t.len(), 1);
+        t[0]
+    };
+    // Content top is 72pt (page margin); collapsed margin is max(20,100).
+    let plain = top(&html(""));
+    assert!((plain - 172.0).abs() < 0.05, "expected 172pt, got {plain}");
+    // A leading out-of-flow sibling does not separate the margins.
+    let abspos = top(&html(r#"<p style="position:absolute;top:0;margin:0">x</p>"#));
+    assert!((abspos - 172.0).abs() < 0.05, "expected 172pt with abspos sibling, got {abspos}");
+}
+
 /// A border on the parent separates the margins: no collapse.
 #[test]
 fn parent_border_blocks_first_child_collapse() {

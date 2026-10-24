@@ -3408,7 +3408,7 @@ impl<'a> Ctx<'a> {
         // at every page start, regressing page-left-right-001/002 and
         // page-box-006.
         let margin_top = if fresh {
-            style.margin_top
+            self.collapsed_margin_top(id)
         } else {
             Scalar::ZERO
         };
@@ -5611,7 +5611,9 @@ impl<'a> Ctx<'a> {
                     // adds its own full margin-top inside layout_box. Remove
                     // the overlap so the gap is max(mb_prev, mt_this).
                     if child_tok.is_break_before() && placed && prev_margin_bottom.get() > 0.0 {
-                        let mt = self.styles[*child].margin_top;
+                        // CORE-566: the child's top margin includes any
+                        // collapsed-through first-child margin.
+                        let mt = self.collapsed_margin_top(*child);
                         let overlap = if mt.get() < prev_margin_bottom.get() {
                             mt
                         } else {
@@ -5627,25 +5629,21 @@ impl<'a> Ctx<'a> {
                     // remove the overlap and the gap becomes max(mt_parent,
                     // mt_child). The child's border edge then coincides with
                     // the parent's.
-                    if i == 0
-                        && fresh
-                        && children.is_empty()
+                    // CORE-566: a child margin larger than the parent's is
+                    // already folded into the parent's `margin_top` by
+                    // `collapsed_margin_top`, so the comparison uses the
+                    // child's own collapsed margin against that value.
+                    // The collapse child is the first IN-FLOW child, so a
+                    // leading abspos/float item (CORE-566 slr fixture) may
+                    // precede it.
+                    if fresh
                         && child_tok.is_break_before()
-                        && matches!(items[0], Item::Block(_))
-                        && style.display == Display::Block
-                        && style.float == Float::None
-                        && matches!(style.position, Position::Static | Position::Relative)
-                        && !style.clips_overflow
-                        && style.border_top.get() <= 0.0
-                        && style.padding_top.get() <= 0.0
-                        && style.margin_top.get() > 0.0
-                        && self.styles[*child].margin_top.get() > 0.0
-                        // Child larger than parent would need the parent's
-                        // fragment to start above its own cursor; deferred
-                        // (spec Non-Goals).
-                        && self.styles[*child].margin_top.get() <= style.margin_top.get()
+                        && self.top_margin_collapse_child(id) == Some(*child)
                     {
-                        y = y - self.styles[*child].margin_top;
+                        let cm = self.collapsed_margin_top(*child);
+                        if cm.get() <= margin_top.get() {
+                            y = y - cm;
+                        }
                     }
 
                     let res = self.layout_box(
@@ -8680,6 +8678,63 @@ impl<'a> Ctx<'a> {
             ));
         }
         items
+    }
+
+    /// CORE-483/CORE-566 parent/first-child top-margin collapse (CSS 2.2
+    /// §8.3.1): `id`'s top margin adjoins its first in-flow block child's
+    /// when nothing (border, padding, BFC, out-of-flow, clipping) separates
+    /// them. Returns the first child when the pair collapses.
+    fn top_margin_collapse_child(&self, id: NodeId) -> Option<NodeId> {
+        let style = &self.styles[id];
+        if !(style.display == Display::Block
+            && style.float == Float::None
+            && matches!(style.position, Position::Static | Position::Relative)
+            && !style.clips_overflow
+            && style.border_top.get() <= 0.0
+            && style.padding_top.get() <= 0.0
+            && style.margin_top.get() > 0.0
+            && style.content.is_empty())
+        {
+            return None;
+        }
+        for &c in &self.dom.nodes[id].children {
+            match &self.dom.nodes[c].kind {
+                NodeKind::Text(t) if t.trim().is_empty() => continue,
+                NodeKind::Element(el) => {
+                    let cs = &self.styles[c];
+                    if cs.display == Display::None
+                        || cs.float != Float::None
+                        || cs.float_footnote
+                        || cs.running_name.is_some()
+                        || matches!(cs.position, Position::Absolute | Position::Fixed)
+                    {
+                        continue;
+                    }
+                    let block = el.tag != "br"
+                        && !self.is_replaced_image(c)
+                        && !crate::math::is_math(self.dom, c)
+                        && cs.display == Display::Block;
+                    return (block && cs.margin_top.get() > 0.0).then_some(c);
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
+
+    /// The collapsed top margin of a fresh box: the maximum of its own
+    /// positive top margin and those of its chain of collapsing first
+    /// children (CORE-566). The child-larger case moves the parent's border
+    /// edge down to the child's, so the parent's background starts there.
+    fn collapsed_margin_top(&self, id: NodeId) -> Scalar {
+        let mt = self.styles[id].margin_top;
+        match self.top_margin_collapse_child(id) {
+            Some(c) if self.styles[c].display == Display::Block => {
+                let cm = self.collapsed_margin_top(c);
+                if cm.get() > mt.get() { cm } else { mt }
+            }
+            _ => mt,
+        }
     }
 
     /// The border-box x of a block: after its left margin (css-sizing-3 —
