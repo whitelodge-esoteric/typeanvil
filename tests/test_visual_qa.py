@@ -142,7 +142,16 @@ def test_committed_list_cites_issues_and_seeds_five_failures():
     # entry was removed by CORE-545. The weasyprint-ticket entry was
     # re-pointed at CORE-558, which removed it when the flex item base size
     # started to include padding. The two weasyprint-report overflow entries
-    # were removed by CORE-546 (declared edge_bleed in the manifest).
+    # were removed by CORE-546 (declared edge_bleed in the manifest). The
+    # last entry (academic/math.html) was removed by CORE-548.
     entries = vq.load_known_failures()
-    assert len(entries) == 1
+    assert len(entries) == 0
     assert all(e["issue"].startswith("CORE-") for e in entries)
+
+
+def test_roundtrip_splits_function_name_from_greek_argument():
+    # CORE-548: <mi>cos</mi><mi>θ</mi> extracts as one glued run.
+    pdf = "R = ( \U0001D450\U0001D45C\U0001D460\U0001D703 - sin\u03b8 )"
+    src = "R = ( cos \u03b8 - sin \u03b8 )"
+    res = vq.check_text_roundtrip_coverage(pdf, src)
+    assert res["pass"] and not res["missing_tokens"], res
