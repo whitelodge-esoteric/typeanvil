@@ -143,7 +143,16 @@ The engine shall:
     (CORE-565, 2026-10-24): the child's overflow is ink overflow
     (css-overflow-3) and does not push following siblings. A fresh box
     whose declared extent fits the remaining space is not deferred whole
-    when only its overflowing child breaks (block-002-wm-*). An extent crossing the
+    when only its overflowing child breaks (block-002-wm-*). A content-free
+    spacer shall fragment at the break instead of deferring whole
+    (CORE-567, 2026-10-24). A spacer has a declared extent, no DOM children,
+    no background, and no block-axis border. It has no first line that a
+    break could strand (css-break-3 §4.4, §5.3). Chromium puts 20px of the
+    500px spacer in the body-background-slr reference on page 1. A painted
+    declared-height box keeps the whole-box deferral for now. Widening the
+    rule moved references that the engine cannot match on the test side
+    (table-fragmentation-002a/b, monolithic-overflow-018; tracked as
+    CORE-569). An extent crossing the
     fragmentainer edge paints through it without emitting a continuation —
     empty declared-height boxes are treated as monolithic (the
     page-change fixtures pin this; true extent fragmentation is future

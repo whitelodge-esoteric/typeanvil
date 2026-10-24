@@ -1,0 +1,18 @@
+{
+ "schema": "typeanvil.harness.reviews/1",
+ "candidate": {
+  "label": "candidate-e4aa5c329176dc02dff6868a098b5e66ea501dcf",
+  "source_commit": "e4aa5c329176dc02dff6868a098b5e66ea501dcf",
+  "binary_sha256": "02cf2909a99579bd9f0d72b977a911e45bdb59bccfbeabd66ae5e5fabf0832e0"
+ },
+ "baseline": {
+  "label": "baseline-512c78687b56f549ec26842f270d8bcb3c221cdc",
+  "source_commit": "512c78687b56f549ec26842f270d8bcb3c221cdc",
+  "binary_sha256": "a966df7bd3e76dfec0123cabf9b52e5893eab76cc3721976854c67bfb49c6b2b"
+ },
+ "note": "CORE-567: a content-free, unpainted declared-height spacer fragments at a page break instead of deferring whole. Full WPT status run: base 232 PASS / 77 FAIL, candidate 232 PASS / 77 FAIL, zero flips.",
+ "dispositions": [
+  {"doc_id": "css/css-page/body-background-slr-print-ref.html", "change_id": "26d9a0398507b60372d81842f20f612a7d4bd7d1a78290a51e63ca8c420f6954", "kind": "correction", "reason": "Reference: the 500px spacer after the blue box (ends at 580px) now fragments, 20px on page 1 and 480px on page 2. The hotpink box on page 2 moves from 375-449pt to 360-434pt, which matches Chromium's print of this reference and the test. Test-vs-ref page-2 diff 34400 px -> 2400 px. The remaining 2400 px is the thin canvas band at the page-2 top, the same as body-background-srl (CORE-568). Status FAIL -> FAIL.", "provenance": "css-break-3 sections 4.4 and 5.3 (block-size fragments at a break); Chromium print evidence CORE-556; CORE-567"},
+  {"doc_id": "css/css-break/flexbox/multi-line-row-flex-fragmentation-064-print-ref.html", "change_id": "903fb25c768fe8c858b320b5c329dc3a93e53206d0c92c601956aea127ab41c9", "kind": "correction", "reason": "Reference: the 0.25in unpainted .gap spacers now fragment at page breaks. Raster distance to Chromium's print of this reference (96 dpi, >64 luma) per page: base 87/3594/4742/39446 -> candidate 87/138/1225/88. 4 pages on both sides. The test still fails (5 pages, a separate flex fragmentation gap). Status FAIL -> FAIL.", "provenance": "css-break-3 sections 4.4 and 5.3; host Chromium via harness ChromiumEngine 5x3in/0.5in; CORE-567"}
+ ]
+}
