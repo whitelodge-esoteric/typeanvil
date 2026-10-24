@@ -3522,6 +3522,31 @@ impl<'a> Ctx<'a> {
             } else {
                 Self::frag_border_x(style, origin_x)
             };
+        // CORE-564: css2 §10.3.3 — a definite-width in-flow block with
+        // `auto` inline margins absorbs the free space: both auto centers
+        // the box, a lone `margin-left: auto` pushes it to the end edge.
+        // Over-constrained (negative free space) keeps the start anchoring.
+        // Physical horizontal frame only; the vertical logical frame and
+        // rtl keep their existing anchoring.
+        let border_x = if declared_border_w.is_some()
+            && !style.rtl
+            && !self.logical_frame
+            && style.margin_left_auto
+            && border_x == Self::frag_border_x(style, origin_x)
+        {
+            let free = (avail_width - style.margin_left - style.margin_right - box_border_w).get();
+            if free > 0.0 {
+                if style.margin_right_auto {
+                    origin_x + style.margin_left + Scalar(free / 2.0)
+                } else {
+                    origin_x + style.margin_left + Scalar(free)
+                }
+            } else {
+                border_x
+            }
+        } else {
+            border_x
+        };
         let inner_left = border_x + style.border_left + style.padding_left;
         let inner_width = box_border_w
             - style.padding_left
@@ -8653,8 +8678,8 @@ impl<'a> Ctx<'a> {
     /// The border-box x of a block: after its left margin (css-sizing-3 —
     /// the margin box occupies the containing block, the border box starts
     /// at margin-left). `margin-left: auto` computes to 0 in stylo's
-    /// `lp_or_auto_to_pt`, so no auto-centering resolve is needed in v1
-    /// (the WPT auto-centering refs need it — Stage 3 follow-up).
+    /// `lp_or_auto_to_pt`; `layout_box` resolves auto margins on
+    /// definite-width blocks after this (CORE-564).
     ///
     /// Under rtl (CORE-166) a block-level box anchors at the inline-END
     /// edge (css-writing-modes-1 §2.2 + css2.1 §10.3.3 mirrored): the
