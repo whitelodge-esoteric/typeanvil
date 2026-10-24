@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-10-23
-updated: 2026-10-23
+updated: 2026-10-24
 sidebar_position: 72
 tags: [engine, layout, writing-modes, css-writing-modes, fragmentation, coordinates]
 spec_id: writing-modes-layout
@@ -572,6 +572,36 @@ document order. Chromium confirms it at matching settings.
 - Tests: `engine/tests/it/canvas_gradient.rs`. They check slice offsets and
   painted colors against the Chromium page colors. They do not compare two
   renders of the engine.
+
+## Implementation notes — root element margins (CORE-563, 2026-10-24)
+
+**DECIDED 2026-10-24 (agent):** the root element's margins inset the body
+rect in `paginate`, in the logical frame of the page flow.
+
+- **Rule.** The `html` box's inline-start and inline-end margins inset every
+  page. Its block-start margin offsets page 1 only, because a margin that
+  adjoins a break is truncated (css-break-3 §5.2). A block-start margin larger
+  than the page clamps to the page extent. The block-end margin is not
+  modelled. In a vertical root the styles are already transposed, so the
+  block-start margin lands on the right edge (`vertical-rl`) or the left edge
+  (`vertical-lr`) after `vertical::map_root`.
+- **Viewport-unit margins.** `margin-top/right/bottom/left` and the logical
+  `margin-block-*`/`margin-inline-*` longhands with a plain `Nvw`/`Nvh` (or a
+  `calc(Nvw ± Mpx)`) value resolve against the page content box in the
+  viewport-unit pass (`css.rs` `viewport_units`). Logical sides map to
+  physical sides with the mode in effect at the element. The `margin`
+  shorthand stays with stylo.
+- **Exact fit.** The declared-extent slice check in `layout_box` allows a
+  1e-6pt tolerance. Without it, `80vw + 20vw` overshoots the page width by a
+  rounding error, and the second box slices into an empty fragment and an
+  extra page.
+- **Result.** The `block-002-wm-vrl` and `block-002-wm-vlr` tests render 3
+  pages like Chromium (2 before). Their references render 4 pages, where
+  Chromium renders 3. The same shape renders 4 pages in horizontal-tb on the
+  base binary: an overflowing child's continuation pushes the next sibling.
+  That defect is CORE-565, so both tests stay FAIL. `root-margin-001` now
+  leaves page 1 blank as it asserts. It stays FAIL on a pixel residual.
+- Tests: `engine/tests/it/core563_root_margins.rs`.
 
 ## Child issue map
 

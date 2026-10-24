@@ -1,0 +1,64 @@
+{
+  "schema": "typeanvil.harness.reviews/1",
+  "candidate": {
+    "label": "candidate-9e902e6",
+    "source_commit": "9e902e63a9331fc2fcaec2af34759cc21dcf5c7e",
+    "binary_sha256": "47462bb9cab7ae086300321657ead53fb9cd2b331cf109a7eec6ea7805e64482"
+  },
+  "baseline": {
+    "label": "baseline-59bfde4c5cc5",
+    "source_commit": "59bfde4c5cc5de38d0a952a8380bf6c20507ebf5",
+    "binary_sha256": "fe925dd648667fae58457c836ff82c53f8f0e6fa044100c41ee7f4e75a4ae05e"
+  },
+  "dispositions": [
+    {
+      "doc_id": "css/css-break/block-002-wm-vlr-print.html",
+      "change_id": "a574a878f8241ceb239f7f0608fe0e407777bde5b80c57538d7c3f9a9dd48c75",
+      "kind": "correction",
+      "reason": "`html { margin-block-start: 80vw }` now offsets the body from the left edge on page 1 (vertical-lr), so the test renders 3 pages like Chromium (was 2). The test stays FAIL because the reference renders 4 pages: an overflowing child's continuation pushes the next sibling (separate defect, split from CORE-563).",
+      "provenance": "CORE-563; CSS 2.2 section 8.3, css-break-3 section 5.2 (margins truncated at a break), css-values-4 section 6.1.2 (viewport units)"
+    },
+    {
+      "doc_id": "css/css-break/block-002-wm-vlr-ref.html",
+      "change_id": "1818c07e4fde206c2bf16c0a79071eefefbf334e2cac230c973f62da809640e4",
+      "kind": "correction",
+      "reason": "Root 80vw block-start margin now applies on page 1. 80vw + 20vw fills the page exactly; the 1e-6pt fit tolerance stops float rounding from creating an empty slice. Page count 3 -> 4 is the pre-existing overflow-continuation residual now exposed (the same document with an 80vw spacer div renders 4 pages on the baseline).",
+      "provenance": "CORE-563; CSS 2.2 section 8.3, css-break-3 section 5.2"
+    },
+    {
+      "doc_id": "css/css-break/block-002-wm-vrl-print.html",
+      "change_id": "fbf3eebd826e7c09a85d98fe36fc7c72410988d311756927e69fbd2e61bd394e",
+      "kind": "correction",
+      "reason": "vertical-rl twin of block-002-wm-vlr-print: the root block-start margin now offsets the body from the right edge on page 1; 3 pages like Chromium (was 2).",
+      "provenance": "CORE-563; CSS 2.2 section 8.3, css-break-3 section 5.2"
+    },
+    {
+      "doc_id": "css/css-break/block-002-wm-vrl-ref.html",
+      "change_id": "83e415e4cd14cef25cb2ef38fdec86d717362b1c79908ae83660d4204661c704",
+      "kind": "correction",
+      "reason": "vertical-rl twin of block-002-wm-vlr-ref: root margin applied; the remaining 4th page is the split overflow-continuation residual.",
+      "provenance": "CORE-563; CSS 2.2 section 8.3, css-break-3 section 5.2"
+    },
+    {
+      "doc_id": "css/css-break/root-margin-001-print.html",
+      "change_id": "9aa80a54c7c1cd6de68b8a3e579b59e8bbf433b89362a3a3e4efa0f4ba924680",
+      "kind": "correction",
+      "reason": "`html { margin-top: 10in }` is taller than the page: page 1 is now blank and the text moves to page 2, as the test asserts (baseline drew the text on page 1). The test stays FAIL on a pixel residual against its reference (text inset on page 2).",
+      "provenance": "CORE-563; css-break-3 section 5.2 (break-margins), CSS 2.2 section 8.3"
+    },
+    {
+      "doc_id": "css/css-page/page-margin-006-print-ref.html",
+      "change_id": "d14e51a20b32582db34123d77330dc3f947736bac7fcb8fcf2755fc766ef7852",
+      "kind": "correction",
+      "reason": "`:root { margin: 0.5in }` now insets the body (cyan box and text) by 0.5in inside the page area, as the fixture text states. Test and reference change identically; the test stays PASS.",
+      "provenance": "CORE-563; CSS 2.2 section 8.3"
+    },
+    {
+      "doc_id": "css/css-page/page-margin-006-print.html",
+      "change_id": "b05556d7954b861ab61d615558379c57b957afa64075791929ab07f0ed1cb9c7",
+      "kind": "correction",
+      "reason": "Same as the reference: the 0.5in root margin now insets the body. The test stays PASS.",
+      "provenance": "CORE-563; CSS 2.2 section 8.3"
+    }
+  ]
+}

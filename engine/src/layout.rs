@@ -1410,6 +1410,31 @@ fn paginate(
         let phys_content = body_rect;
         let swap_rect = |r: Rect| Rect::new(Scalar::ZERO, Scalar::ZERO, r.height, r.width);
         let content = if root_vertical { swap_rect(body_rect) } else { body_rect };
+        // CORE-563: the root element's own margins offset its box inside the
+        // page area (CSS 2.2 §8.3). Read in the LOGICAL frame (body_styles
+        // are transposed in a vertical root), so `margin_top` is the root's
+        // block-start margin and `margin_left/right` its inline margins.
+        // Inline margins inset every page; the block-start margin applies on
+        // the first fragment only (css-break-3 §5.2: margins adjoining a
+        // break are truncated). The block-end margin is not modeled.
+        let content = match dom.find_tag("html") {
+            Some(h) if h != root => {
+                let s = &body_styles[h];
+                let mut c = content;
+                c.x = c.x + s.margin_left;
+                c.width = c.width - s.margin_left - s.margin_right;
+                if c.width.get() < 0.0 {
+                    c.width = Scalar::ZERO;
+                }
+                if page_index == 0 && s.margin_top.get() != 0.0 {
+                    let mt = if s.margin_top.get() > c.height.get() { c.height } else { s.margin_top };
+                    c.y = c.y + mt;
+                    c.height = c.height - mt;
+                }
+                c
+            }
+            _ => content,
+        };
         let icb_phys = icb_content.unwrap_or(phys_content);
         let icb = if root_vertical { swap_rect(icb_phys) } else { icb_phys };
         let page_links_start = links.borrow().len();
@@ -6139,7 +6164,7 @@ impl<'a> Ctx<'a> {
         // emits the next slice. Gated on a declared height — content-only
         // overflow keeps its last-resort model.
         if let Some(remaining) = remaining_spec {
-            if !broke && remaining.get() > (bottom_limit - box_top).get() {
+            if !broke && remaining.get() > (bottom_limit - box_top).get() + 1e-6 {
                 // Zero room: no slice possible on this page; the box ends
                 // here (no token) so the page loop always makes progress.
                 if (bottom_limit - box_top).get() > 0.0 {
