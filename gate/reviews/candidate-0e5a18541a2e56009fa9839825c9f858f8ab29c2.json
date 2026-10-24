@@ -1,0 +1,49 @@
+{
+ "schema": "typeanvil.harness.reviews/1",
+ "candidate": {
+  "label": "candidate-0e5a18541a2e56009fa9839825c9f858f8ab29c2",
+  "source_commit": "0e5a18541a2e56009fa9839825c9f858f8ab29c2"
+ },
+ "baseline": {
+  "label": "baseline-c7eaa708529033d3f28383a8ed78fd6c7aab459f",
+  "source_commit": "c7eaa708529033d3f28383a8ed78fd6c7aab459f"
+ },
+ "dispositions": [
+  {
+   "doc_id": "css/css-page/body-background-vlr-print.html",
+   "change_id": "2d988dd61f7e646c2410436b2fdf847d75c43807e0b8883d7a6e47cb5388dfe2",
+   "kind": "correction",
+   "reason": "CORE-556: the body linear-gradient now propagates to the canvas (css-backgrounds-3 §2.11.2) and paints one strip in document order. Page 1 is lightgray and page 2 is white, which matches the Chromium print of this test at its own 800x600px @page size. FAIL -> PASS."
+  },
+  {
+   "doc_id": "css/css-page/body-background-vrl-print.html",
+   "change_id": "9b7ad6c15ea25cd9430e650619182c3621a147521abaf63053b8c7594ab916c3",
+   "kind": "correction",
+   "reason": "CORE-556: canvas gradient strip in document order (css-backgrounds-3 §2.11.2). Page 1 is lightgray and page 2 is white, which matches Chromium. The status stays FAIL because the reference's margin-left:auto box is placed left instead of right (a reference-side layout residual outside this card)."
+  },
+  {
+   "doc_id": "css/css-page/body-background-slr-print.html",
+   "change_id": "b36e0011fd35a1ea7b06ee2136b254e614aca117136d2521577a06acbe781a4c",
+   "kind": "correction",
+   "reason": "CORE-556: canvas gradient strip (css-backgrounds-3 §2.11.2). Page 1 is lightgray and page 2 is white, which matches Chromium. The status stays FAIL because the reference body's margin/padding geometry differs (a reference-side residual)."
+  },
+  {
+   "doc_id": "css/css-page/body-background-slr-print-ref.html",
+   "change_id": "802e50ec2b4af0c72ac4f9645e9f7b58c84e029b741dbec628c36c379a3590f3",
+   "kind": "correction",
+   "reason": "CORE-556: the reference's body linear-gradient now paints the canvas (css-backgrounds-3 §2.11.2). Page 1 is lightgray and page 2 is white, which matches Chromium."
+  },
+  {
+   "doc_id": "css/css-page/body-background-srl-print.html",
+   "change_id": "ddf38f61ff076529230329922f05c1ac07fb486f27d782d86c5b94bae7a9df11",
+   "kind": "correction",
+   "reason": "CORE-556: canvas `to left` gradient strip. Page 1 is white and page 2 is lightgray, which matches Chromium (the assertion text is wrong; the gradient and the reference agree). The status stays FAIL because of a reference-side margin-left:auto placement residual."
+  },
+  {
+   "doc_id": "css/css-page/body-background-srl-print-ref.html",
+   "change_id": "2f01e4bced51191ff30204859c591bfdb941c00827e9a016d356fdc4f8b3adcd",
+   "kind": "correction",
+   "reason": "CORE-556: the reference's `to bottom` body gradient now paints a vertical strip across both pages. Page 2 is lightgray, which matches Chromium."
+  }
+ ]
+}

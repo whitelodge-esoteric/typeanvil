@@ -522,6 +522,50 @@ no `inline_extent()` accessor yet. The `Dimension` type and the
 `PageWritingMode` helpers (`block_is_horizontal`, `block_runs_negative`,
 `inline_runs_negative`) are in `css.rs`. Tests: `engine/tests/it/writing_modes.rs`.
 
+## Implementation notes — child 5/5 (CORE-556, 2026-10-23)
+
+**DECIDED 2026-10-23 (agent):** the canvas gradient is one strip in
+document order. Chromium confirms it at matching settings.
+
+- **Evidence.** Each fixture and reference was printed with Chromium
+  (Playwright `page.pdf`, `prefer_css_page_size`, backgrounds on) and with the
+  engine at the harness flags (`--page-width 5in --page-height 3in`, 0.5in
+  margins). Every PDF has 2 pages of 600x450pt (800x600px). The fixture's
+  `@page size` overrides the CLI flags, and `margin: 0` removes the margins.
+  Chromium paints page 1 lightgray and page 2 white for `vlr`, `vrl` and `slr`.
+  It paints page 1 white and page 2 lightgray for `srl`. Chromium and its
+  reference agree for all four. The `srl` assertion text ("first page is
+  lightgray") is wrong: the `to left` gradient and the reference's
+  white-first gradient both put white on page 1. The engine follows the
+  gradient. Evidence: `~/workspace/typeanvil-evidence/CORE-556/`.
+- **Rule.** All page content areas are laid end to end along the page
+  progression axis, in document order, with page 1 at the strip origin. The
+  axis is `y` for a horizontal root and `x` for a vertical root. The order is
+  document order for `vertical-rl` too, where pages progress right to left.
+  The gradient line is sized to the whole strip (css-images-3 §3.1.1). Each
+  page paints its own part (`Fragmentainer::canvas_gradient`,
+  `frag::CanvasGradientSlice`, `layout::assign_canvas_gradient_slices`).
+- **Scope.** `css.rs::linear_gradient_style` models non-repeating
+  `linear-gradient` with angle, side or corner directions, plus color stops
+  that have percentage, length or auto positions. Repeating, radial or conic
+  gradients, interpolation hints and non-absolute colors are not modelled,
+  and the image is ignored as before. Element boxes still do not paint
+  gradients (CORE-319). An all-same-color gradient keeps the CORE-153 solid
+  collapse.
+- **Seams.** Each page shades only its own segment of the strip line, so a
+  hard stop that falls on a page seam does not bleed onto the next page.
+- **Root lookup (not changed).** `resolve_canvas_background` reads
+  `styles[dom.root]`, which is the document node, so an `html` background
+  never owns the canvas. Reading `<html>` instead flips
+  `page-background-image-print` from PASS to FAIL, because `@page
+  background-image` does not paint. Both fixes move to CORE-564.
+- **Result.** `body-background-vlr-print` passes. `vrl`, `slr` and `srl`
+  stay FAIL for box-placement residuals on the reference side, tracked in
+  CORE-564. Their canvas slices match Chromium.
+- Tests: `engine/tests/it/canvas_gradient.rs`. They check slice offsets and
+  painted colors against the Chromium page colors. They do not compare two
+  renders of the engine.
+
 ## Child issue map
 
 | Child | Issue | Owns behaviors | Depends on |
@@ -653,6 +697,7 @@ first.
 | 7 | 25, 26, 27 | Footnotes: `engine/tests/it/writing_modes.rs::footnotes_in_vertical_root_stay_in_a_physical_bottom_band`. Margin boxes and page border rings: no direct test; `attach_margin_boxes` and the chrome rings never enter the logical frame, and the canaries `page-margin-002/003` plus the review probe `review-chrome-vrl` (evidence `CORE-553/review-r1`) hold them | Footnote lines lie inside the physical content rect, unrotated, below every body fragment; margin boxes and rings keep physical rects in a vertical root |
 | 8 | 28 | `engine/tests/it/writing_modes.rs::horizontal_abspos_in_vertical_root_is_not_transposed` | An abspos `horizontal-tb` box inside a vertical-rl/-lr/sideways-lr root carries no rotation, is wider than tall, and its `left`/`top` insets resolve against the physical page content box |
 | 9 | 31-34 | `fragmentation.rs::height_continuation_*` (AC1-AC6, exist) plus `engine/tests/it/writing_modes.rs::root_vertical_progression_fragments_along_x` (a 1500pt declared block extent on a 600pt page ends in exactly 3 pages) | Consumed extent does not read paint size; a vertical declared-extent box ends in at most `ceil(extent / H)` pages |
+| 11 | canvas strip (5/5) | `engine/tests/it/canvas_gradient.rs` (10 tests) | Page 1/2 slice colors match Chromium for vlr/vrl/slr (lightgray, white) and srl (white, lightgray); strip offsets run along `x` for vertical and `y` for horizontal roots; a body gradient is the canvas donor; the PDF carries a shading |
 | 10 | targets | WPT gate (`python -m harness gate`) | Each child's gate report lists every ID in "Targets" and "Canaries" with before and after status; zero canary PASS to FAIL |
 
 Child ownership of criteria 1-10 is in the child issue map. A child that

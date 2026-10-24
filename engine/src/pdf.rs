@@ -138,6 +138,64 @@ fn solid_fill(c: Color) -> Fill {
     }
 }
 
+/// CORE-556: a krilla linear-gradient fill for one page's canvas slice. The
+/// gradient line is computed over the whole strip, then shifted so this
+/// page's content origin `(ox, oy)` sits at its strip offset. Stop offsets
+/// outside 0..1 are clamped (the pad spread extends the end colors).
+fn gradient_fill(slice: &crate::frag::CanvasGradientSlice, ox: f32, oy: f32, cw: f32, ch: f32) -> Option<Fill> {
+    use krilla::paint::{LinearGradient, SpreadMethod, Stop};
+    let (sw, sh) = (slice.strip_size.0.to_f32(), slice.strip_size.1.to_f32());
+    let (sx, sy) = (ox - slice.offset.0.to_f32(), oy - slice.offset.1.to_f32());
+    let (x1, y1, x2, y2) = slice.gradient.line(sx, sy, sw, sh);
+    let len = ((x2 - x1).powi(2) + (y2 - y1).powi(2)).sqrt();
+    if len <= 0.0 {
+        return None;
+    }
+    // Re-express the shading on THIS page's segment [t0, t1] of the strip
+    // line, so a hard stop on the page seam is a page edge, never sampled
+    // across (no seam bleed). End colors are the one-sided limits.
+    let (dx, dy) = ((x2 - x1) / (len * len), (y2 - y1) / (len * len));
+    let ts = [(ox, oy), (ox + cw, oy), (ox, oy + ch), (ox + cw, oy + ch)].map(|(px, py)| (px - x1) * dx + (py - y1) * dy);
+    let t0 = ts.iter().cloned().fold(f32::INFINITY, f32::min);
+    let t1 = ts.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+    if t1 - t0 <= 0.0 {
+        return None;
+    }
+    let resolved = slice.gradient.resolved_stops(len);
+    let mut local: Vec<(f32, Color)> = vec![(0.0, crate::css::LinearGradientStyle::color_at_t(&resolved, t0, true))];
+    for (p, c) in &resolved {
+        if *p > t0 && *p < t1 {
+            local.push(((p - t0) / (t1 - t0), *c));
+        }
+    }
+    local.push((1.0, crate::css::LinearGradientStyle::color_at_t(&resolved, t1, false)));
+    let stops: Vec<Stop> = local
+        .into_iter()
+        .map(|(p, c)| Stop {
+            offset: NormalizedF32::new(p.clamp(0.0, 1.0)).unwrap_or(NormalizedF32::ZERO),
+            color: to_krilla_color(c).into(),
+            opacity: NormalizedF32::new(c.opacity()).unwrap_or(NormalizedF32::ONE),
+        })
+        .collect();
+    let (x1, y1, x2, y2) = (
+        x1 + (x2 - x1) * t0,
+        y1 + (y2 - y1) * t0,
+        x1 + (x2 - x1) * t1,
+        y1 + (y2 - y1) * t1,
+    );
+    let lg = LinearGradient {
+        x1,
+        y1,
+        x2,
+        y2,
+        transform: krilla::geom::Transform::identity(),
+        spread_method: SpreadMethod::Pad,
+        stops,
+        anti_alias: false,
+    };
+    Some(Fill { paint: lg.into(), opacity: NormalizedF32::ONE, rule: FillRule::NonZero })
+}
+
 /// A fixed macOS system font bundle, embedded for deterministic output.
 /// Verified to exist on this machine. (A later issue will ship a bundled font
 /// / use fontique for portable discovery.)
@@ -365,6 +423,27 @@ pub fn render_with_options(
                 pb.push_rect(rect);
                 if let Some(path) = pb.finish() {
                     surface.set_fill(Some(solid_fill(bg)));
+                    if tagged {
+                        surface.start_tagged(background_artifact(Some(rect), page_xform));
+                        surface.draw_path(&path);
+                        surface.end_tagged();
+                    } else {
+                        surface.draw_path(&path);
+                    }
+                }
+            }
+        }
+
+        // CORE-556: the canvas gradient slice paints over the same page
+        // content area, above the solid canvas color, under all content.
+        if let Some(slice) = &page.canvas_gradient {
+            let (ox, oy) = (page.content_origin.x.to_f32(), page.content_origin.y.to_f32());
+            let (cw, ch) = (page.content_size.0.to_f32(), page.content_size.1.to_f32());
+            if let (Some(rect), Some(fill)) = (Rect::from_xywh(ox, oy, cw, ch), gradient_fill(slice, ox, oy, cw, ch)) {
+                let mut pb = krilla::geom::PathBuilder::new();
+                pb.push_rect(rect);
+                if let Some(path) = pb.finish() {
+                    surface.set_fill(Some(fill));
                     if tagged {
                         surface.start_tagged(background_artifact(Some(rect), page_xform));
                         surface.draw_path(&path);

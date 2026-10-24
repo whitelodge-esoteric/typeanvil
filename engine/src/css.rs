@@ -1134,6 +1134,9 @@ pub enum BorderLineStyle {
 pub struct ComputedStyle {
     pub color: Color,
     pub background_color: Option<Color>,
+    /// First modelled multi-color `linear-gradient` layer (CORE-556). Read
+    /// only by canvas propagation; element boxes do not paint it.
+    pub background_gradient: Option<LinearGradientStyle>,
     /// Element `background-image: url(...)` with position/size/repeat.
     pub background_image: Option<BackgroundImageStyle>,
     /// Border widths (points) on each side; 0 = no border.
@@ -1436,6 +1439,7 @@ impl ComputedStyle {
         ComputedStyle {
             color: Color::BLACK,
             background_color: None,
+            background_gradient: None,
             background_image: None,
             border_top: Scalar::ZERO,
             border_right: Scalar::ZERO,
@@ -2275,6 +2279,18 @@ impl CascadeSession {
                     _ => None,
                 })
         });
+        // CORE-556: a multi-color linear gradient (first gradient layer) is
+        // kept for canvas propagation. A solid one already collapsed above.
+        let background_gradient = background
+            .clone_background_image()
+            .0
+            .iter()
+            .find_map(|img| match img {
+                StyloImage::Gradient(g) if solid_gradient_color(g).is_none() => Some(linear_gradient_style(g)),
+                StyloImage::Gradient(_) => Some(None),
+                _ => None,
+            })
+            .flatten();
 
         let font_size = px_to_pt(font.clone_font_size().computed_size().px() as f64);
         let font_weight = font.clone_font_weight().value();
@@ -2596,6 +2612,7 @@ impl CascadeSession {
         ComputedStyle {
             color,
             background_color,
+            background_gradient,
             background_image,
             box_sizing,
             cell_valign: CellVAlign::Middle,
@@ -3077,6 +3094,195 @@ fn solid_gradient_color(g: &ComputedGradient) -> Option<Color> {
     solid
 }
 
+/// The direction of a linear gradient line (css-images-3 §3.1.1). Corner
+/// keywords resolve against the painted box ("magic corners").
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum GradientDirection {
+    /// A CSS angle in degrees: 0 = to top, 90 = to right, clockwise.
+    Angle(f32),
+    /// `to <h> <v>`: `(x_sign, y_sign)`, +1 = right/bottom, -1 = left/top.
+    Corner(f32, f32),
+}
+
+/// A color-stop position before resolution against the gradient line.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum StopPosition {
+    /// A fraction of the gradient line (CSS percentage / 100).
+    Fraction(f32),
+    /// An absolute length along the line, in points.
+    Length(f32),
+}
+
+/// A propagated canvas `linear-gradient` (CORE-556). Only non-repeating
+/// linear gradients without interpolation hints are modelled; anything else
+/// is ignored as before.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LinearGradientStyle {
+    pub direction: GradientDirection,
+    /// Stops in source order; `None` = auto position.
+    pub stops: Vec<(Option<StopPosition>, Color)>,
+}
+
+impl LinearGradientStyle {
+    /// The gradient line for a `w` x `h` box with origin `(x, y)`:
+    /// `(x1, y1, x2, y2)` in the same y-down coordinates. The line passes
+    /// through the box center; its length makes the 0%/100% points meet the
+    /// box corners (css-images-3 §3.1.1).
+    pub fn line(&self, x: f32, y: f32, w: f32, h: f32) -> (f32, f32, f32, f32) {
+        let (dx, dy) = match self.direction {
+            GradientDirection::Angle(deg) => {
+                let r = deg.to_radians();
+                (r.sin(), -r.cos())
+            }
+            GradientDirection::Corner(sx, sy) => {
+                // Perpendicular to the diagonal joining the two other
+                // corners, pointing into the named corner.
+                let (vx, vy) = (sx * h, sy * w);
+                let n = (vx * vx + vy * vy).sqrt();
+                if n == 0.0 { (0.0, 1.0) } else { (vx / n, vy / n) }
+            }
+        };
+        let len = (w * dx).abs() + (h * dy).abs();
+        let (cx, cy) = (x + w * 0.5, y + h * 0.5);
+        let half = len * 0.5;
+        (cx - dx * half, cy - dy * half, cx + dx * half, cy + dy * half)
+    }
+
+    /// Resolve the stops to `(fraction, color)` along a line of length
+    /// `line_len` points (css-images-3 §3.5 "color stop fixup"): a missing
+    /// first/last position is 0%/100%, a position below an earlier one
+    /// clamps to it, and runs of auto stops spread evenly.
+    pub fn resolved_stops(&self, line_len: f32) -> Vec<(f32, Color)> {
+        let n = self.stops.len();
+        let mut pos: Vec<Option<f32>> = self
+            .stops
+            .iter()
+            .map(|(p, _)| match p {
+                Some(StopPosition::Fraction(f)) => Some(*f),
+                Some(StopPosition::Length(l)) => {
+                    Some(if line_len > 0.0 { *l / line_len } else { 0.0 })
+                }
+                None => None,
+            })
+            .collect();
+        if n == 0 {
+            return Vec::new();
+        }
+        if pos[0].is_none() {
+            pos[0] = Some(0.0);
+        }
+        if pos[n - 1].is_none() {
+            pos[n - 1] = Some(1.0);
+        }
+        let mut max = f32::MIN;
+        for p in pos.iter_mut().flatten() {
+            if *p < max {
+                *p = max;
+            }
+            max = *p;
+        }
+        let mut i = 0;
+        while i < n {
+            if pos[i].is_none() {
+                let start = i - 1;
+                let mut end = i;
+                while pos[end].is_none() {
+                    end += 1;
+                }
+                let (a, b) = (pos[start].unwrap(), pos[end].unwrap());
+                let span = (end - start) as f32;
+                for (k, slot) in pos.iter_mut().enumerate().take(end).skip(start + 1) {
+                    *slot = Some(a + (b - a) * (k - start) as f32 / span);
+                }
+                i = end;
+            }
+            i += 1;
+        }
+        pos.into_iter()
+            .zip(self.stops.iter())
+            .map(|(p, (_, c))| (p.unwrap_or(0.0), *c))
+            .collect()
+    }
+
+    /// The color of resolved `stops` at line position `t`. At a hard stop
+    /// (two stops at one position) `right` picks the side after it.
+    pub fn color_at_t(stops: &[(f32, Color)], t: f32, right: bool) -> Color {
+        let before = |p: f32| if right { p <= t } else { p < t };
+        if stops.is_empty() {
+            return Color::BLACK;
+        }
+        if !before(stops[0].0) && t <= stops[0].0 {
+            return stops[0].1;
+        }
+        for w in stops.windows(2) {
+            let ((p0, c0), (p1, c1)) = (w[0], w[1]);
+            if before(p0) && !before(p1) {
+                let f = if p1 > p0 { ((t - p0) / (p1 - p0)).clamp(0.0, 1.0) } else { 1.0 };
+                let mix = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * f).round() as u8;
+                return Color { r: mix(c0.r, c1.r), g: mix(c0.g, c1.g), b: mix(c0.b, c1.b), a: mix(c0.a, c1.a) };
+            }
+        }
+        stops[stops.len() - 1].1
+    }
+}
+
+/// CORE-556: model a computed `linear-gradient` for canvas propagation.
+/// Returns `None` for repeating, radial/conic, hinted or non-absolute-color
+/// gradients (the image is ignored, as before).
+fn linear_gradient_style(g: &ComputedGradient) -> Option<LinearGradientStyle> {
+    use style::values::computed::image::LineDirection;
+    use style::values::generics::image::GradientFlags;
+    use style::values::specified::position::{HorizontalPositionKeyword as H, VerticalPositionKeyword as V};
+    let (direction, items, flags) = match g {
+        ComputedGradient::Linear { direction, items, flags, .. } => (direction, items, flags),
+        _ => return None,
+    };
+    if flags.contains(GradientFlags::REPEATING) {
+        return None;
+    }
+    let hx = |h: &H| if matches!(h, H::Right) { 1.0 } else { -1.0 };
+    let vy = |v: &V| if matches!(v, V::Bottom) { 1.0 } else { -1.0 };
+    let direction = match direction {
+        LineDirection::Angle(a) => GradientDirection::Angle(a.degrees()),
+        LineDirection::Horizontal(h) => GradientDirection::Angle(if hx(h) > 0.0 { 90.0 } else { 270.0 }),
+        LineDirection::Vertical(v) => GradientDirection::Angle(if vy(v) > 0.0 { 180.0 } else { 0.0 }),
+        LineDirection::Corner(h, v) => GradientDirection::Corner(hx(h), vy(v)),
+    };
+    let mut stops = Vec::new();
+    for item in items.iter() {
+        let (color, position) = match item {
+            GradientItem::SimpleColorStop(c) => (c, None),
+            GradientItem::ComplexColorStop { color, position } => {
+                let p = if let Some(pc) = position.to_percentage() {
+                    StopPosition::Fraction(pc.0)
+                } else if let Some(l) = position.to_length() {
+                    StopPosition::Length(px_to_pt(l.px() as f64).to_f32())
+                } else {
+                    return None; // calc() mixing length and percentage
+                };
+                (color, Some(p))
+            }
+            GradientItem::InterpolationHint(_) => return None,
+        };
+        let c = match color {
+            ComputedColor::Absolute(c) => {
+                let [r, g, b, a] = c.to_nscolor().to_le_bytes();
+                Color { r, g, b, a }
+            }
+            _ => return None,
+        };
+        stops.push((position, c));
+    }
+    (stops.len() >= 2).then_some(LinearGradientStyle { direction, stops })
+}
+
+/// True when the element has a canvas-propagatable background: a color or
+/// a modelled gradient (css-backgrounds-3 §2.11.2 — the root donates when
+/// its `background-image` or `background-color` is not the initial value).
+fn has_canvas_background(s: &ComputedStyle) -> bool {
+    s.background_color.is_some() || s.background_gradient.is_some()
+}
+
 /// Resolve the document CANVAS background (CORE-144, css-backgrounds-3 §2.2 +
 /// css-page-3): the root element's (html) background if set, else the body
 /// background; the donor element paints none of its own. Returns
@@ -3084,18 +3290,37 @@ fn solid_gradient_color(g: &ComputedGradient) -> Option<Color> {
 /// box's own background fill. `None` canvas = no propagation (transparent
 /// page).
 pub fn resolve_canvas_background(dom: &Dom, styles: &[ComputedStyle]) -> (Option<Color>, bool) {
-    let html_bg = styles[dom.root].background_color;
+    // NOTE: `dom.root` is the document node, not `<html>`, so an html
+    // background never owns the canvas today. Fixing it exposes the missing
+    // `@page background-image` paint (page-background-image-print); split
+    // out of CORE-556. Kept as-is so the two land together.
+    let html = &styles[dom.root];
     match dom.find_tag("body") {
         Some(body) if styles[body].display != Display::None => {
-            let body_bg = styles[body].background_color;
-            match html_bg {
-                Some(c) => (Some(c), false), // html owns the canvas, body keeps its own paint
-                None => (body_bg, body_bg.is_some()), // body propagates, paints none
+            if has_canvas_background(html) {
+                // html owns the canvas, body keeps its own paint
+                (html.background_color, false)
+            } else {
+                let b = &styles[body];
+                (b.background_color, has_canvas_background(b))
             }
         }
         // No body element: the root element itself is the only candidate and
         // there is no separate donor box to suppress.
-        _ => (html_bg, false),
+        _ => (html.background_color, false),
+    }
+}
+
+/// The canvas gradient (CORE-556): taken from the same donor
+/// [`resolve_canvas_background`] picks.
+pub fn resolve_canvas_gradient(dom: &Dom, styles: &[ComputedStyle]) -> Option<LinearGradientStyle> {
+    // Same root lookup as `resolve_canvas_background` (see its note).
+    let html = &styles[dom.root];
+    match dom.find_tag("body") {
+        Some(body) if styles[body].display != Display::None && !has_canvas_background(html) => {
+            styles[body].background_gradient.clone()
+        }
+        _ => html.background_gradient.clone(),
     }
 }
 

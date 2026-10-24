@@ -681,6 +681,11 @@ pub fn layout_with_images_and_store(
     // the final pass) is all that's needed.
     // Build the bookmark outline from the final pass's element→page map.
     // `target_counters` IS the final pass's snapshot map (same mechanism).
+    // CORE-556: the canvas gradient paints one strip across all pages.
+    if let Some(gradient) = crate::css::resolve_canvas_gradient(dom, &styles) {
+        let root_mode = styles[dom.find_tag("html").unwrap_or(dom.root)].writing_mode;
+        assign_canvas_gradient_slices(&mut pages, &gradient, root_mode.is_vertical());
+    }
     let headings = build_headings(dom, &styles, &pages, &target_pages, &target_counters);
     // Resolve internal `#fragment` links against the FINAL pass's id → page
     // map (the same map target-counter uses); unresolved ids drop silently.
@@ -698,6 +703,39 @@ pub fn layout_with_images_and_store(
         headings,
         links,
         images: std::mem::take(images),
+    }
+}
+
+/// CORE-556: give every page its slice of the canvas gradient strip. The
+/// strip joins the page content areas end to end along the page progression
+/// axis (y for a horizontal root, x for a vertical one) in document order,
+/// page 1 at the strip origin. Chromium paints `body-background-vrl-print`
+/// (`90deg`, right-to-left progression) with page 1 lightgray, the strip's
+/// LEFT half, so the order is document order even when pages progress
+/// right to left. The cross size is the widest page.
+fn assign_canvas_gradient_slices(
+    pages: &mut [Fragmentainer],
+    gradient: &crate::css::LinearGradientStyle,
+    vertical: bool,
+) {
+    let along = |p: &Fragmentainer| if vertical { p.content_size.0 } else { p.content_size.1 };
+    let across = |p: &Fragmentainer| if vertical { p.content_size.1 } else { p.content_size.0 };
+    let total: f64 = pages.iter().map(|p| along(p).get()).sum();
+    let cross = pages.iter().map(|p| across(p).get()).fold(0.0, f64::max);
+    let strip_size = if vertical {
+        (Scalar(total), Scalar(cross))
+    } else {
+        (Scalar(cross), Scalar(total))
+    };
+    let mut at = 0.0;
+    for page in pages.iter_mut() {
+        let offset = if vertical { (Scalar(at), Scalar::ZERO) } else { (Scalar::ZERO, Scalar(at)) };
+        at += along(page).get();
+        page.canvas_gradient = Some(crate::frag::CanvasGradientSlice {
+            gradient: gradient.clone(),
+            offset,
+            strip_size,
+        });
     }
 }
 
