@@ -51,6 +51,12 @@ class Page:
         parts.append("ET")
         self.fragments.append("\n".join(parts))
 
+    def rotated_text(self, x: float, y: float, s: str, size: float = 12.0) -> None:
+        """Text rotated 90° clockwise, origin at top-left ``(x, y)``."""
+        self.fragments.append(
+            f"BT\n/F1 {size} Tf\n0 -1 1 0 {x} {self.height - y} Tm\n({_esc(s)}) Tj\nET"
+        )
+
     def link(self, uri: str, rect: tuple[float, float, float, float]) -> None:
         """Add a ``/Link`` annotation with a URI, rect in top-left coordinates."""
         self.links.append({"uri": uri, "rect": list(rect)})

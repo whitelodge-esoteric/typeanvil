@@ -28,3 +28,4 @@ pub mod tags;
 pub mod texmath;
 pub mod transform;
 pub mod typography;
+pub mod vertical;

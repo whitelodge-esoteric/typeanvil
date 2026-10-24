@@ -57,6 +57,19 @@ def test_text_orientation_mismatch_detected():
     assert "horizontal" in result.detail
 
 
+def test_text_orientation_rotated_single_glyph_lines_are_vertical():
+    # CORE-553: vertical-rl one-glyph lines sit side by side (step along x),
+    # but each glyph is rotated 90°. Rotation decides the axis.
+    page = Page(360, 216)
+    page.rotated_text(70, 40, "a")
+    page.rotated_text(55, 40, "b")
+    result = _check(
+        {"text_orientation": {"page": 0, "rect_pt": [40, 30, 90, 70], "expected": "vertical"}},
+        build_pdf(page),
+    )
+    assert result.passed, result.detail
+
+
 def test_link_target_present_passes():
     page = Page(360, 216)
     page.link("https://example.com/typeanvil/quarterly", (100, 100, 160, 120))

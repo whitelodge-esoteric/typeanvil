@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import ctypes
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -301,18 +302,23 @@ def _check_paint_region(check: DirectCheck, doc, value: dict, dpi: int) -> Check
     return CheckResult(check.id, check.input, passed, detail)
 
 
-def _glyph_boxes(page, page_height: float) -> list[tuple[float, float, float, float]]:
-    """Glyph boxes in top-left-origin (x0, y0, x1, y1), x right, y down."""
+def _glyphs(page, page_height: float):
+    """(box, angle) per char: top-left-origin box and pdfium rotation (rad)."""
+    import pypdfium2.raw as pdfium_c
+
     textpage = page.get_textpage()
-    boxes = []
+    out = []
     try:
         for i in range(textpage.count_chars()):
             left, bottom, right, top = textpage.get_charbox(i)
             # top-left origin: flip y about the page height.
-            boxes.append((left, page_height - top, right, page_height - bottom))
+            box = (left, page_height - top, right, page_height - bottom)
+            angle = float(pdfium_c.FPDFText_GetCharAngle(textpage.raw, i))
+            if textpage.get_text_range(i, 1).strip():
+                out.append((box, angle))
     finally:
         textpage.close()
-    return boxes
+    return out
 
 
 def _intersects(box, rect) -> bool:
@@ -333,6 +339,11 @@ def _check_text_orientation(check: DirectCheck, doc, value: dict) -> CheckResult
 
     A rect holding no glyphs fails the check. An absent measurement is not
     evidence of either axis, and must not pass a ``horizontal`` expectation.
+
+    Rotation first (CORE-553): when most non-blank glyphs carry a ~90° text
+    rotation, the text runs along y (Latin `text-orientation: mixed` in a
+    vertical mode). Advance alone misjudges one-glyph lines: in vertical-rl
+    such lines sit side by side, so consecutive glyphs step along x.
     """
     page_idx = int(value["page"])
     rect = [float(v) for v in value["rect_pt"]]
@@ -340,10 +351,10 @@ def _check_text_orientation(check: DirectCheck, doc, value: dict) -> CheckResult
 
     page = doc[page_idx]
     height = page.get_size()[1]
-    boxes = _glyph_boxes(page, height)
+    glyphs = _glyphs(page, height)
     page.close()
 
-    in_rect = [b for b in boxes if _intersects(b, rect)]
+    in_rect = [(b, a) for b, a in glyphs if _intersects(b, rect)]
     if not in_rect:
         return CheckResult(
             check.id,
@@ -353,16 +364,21 @@ def _check_text_orientation(check: DirectCheck, doc, value: dict) -> CheckResult
             f"rect={rect!r} expected={expected!r} actual='no glyphs in rect'",
         )
 
-    centres = [((b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0) for b in in_rect]
+    rotated = sum(1 for _, a in in_rect if abs(math.sin(a)) > 0.7)
+    centres = [((b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0) for b, _ in in_rect]
     sum_dx = sum(abs(b[0] - a[0]) for a, b in zip(centres, centres[1:]))
     sum_dy = sum(abs(b[1] - a[1]) for a, b in zip(centres, centres[1:]))
-    dominant = "horizontal" if sum_dx >= sum_dy else "vertical"
+    if rotated * 2 > len(in_rect):
+        dominant = "vertical"
+    else:
+        dominant = "horizontal" if sum_dx >= sum_dy else "vertical"
 
     passed = dominant == expected
     detail = (
         f"{check.id}: input={check.input} text_orientation page={page_idx} "
         f"rect={rect!r} expected={expected!r} actual={dominant!r} "
-        f"glyphs={len(in_rect)} advance_x={sum_dx:.1f} advance_y={sum_dy:.1f}"
+        f"glyphs={len(in_rect)} rotated={rotated} "
+        f"advance_x={sum_dx:.1f} advance_y={sum_dy:.1f}"
     )
     return CheckResult(check.id, check.input, passed, detail)
 

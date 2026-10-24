@@ -272,15 +272,24 @@ the box were horizontal and returns the initial `writing-mode`).
 27. **Footnotes stay physical.** The footnote band is reserved from the
     physical page bottom in `footnote_area_height` and painted by
     `attach_footnotes`. In a vertical root the band is a physical bottom
-    band. Making it follow the block-end edge is a separate decision, deferred
-    by this spec (not planned in epic CORE-203).
+    band: the notes are laid horizontally against the physical content rect,
+    unrotated, and lie inside it. The band consumes the body's INLINE extent
+    (the physical height), so the body is re-laid at the inline extent above
+    the band and no body fragment paints into it. Making the band follow the
+    block-end edge is a separate decision, deferred by this spec (not planned
+    in epic CORE-203).
 28. **A horizontal out-of-flow subtree inside a vertical root uses a physical
     frame.** An `absolute`/`fixed` box whose mode is `horizontal-tb` inside a
     vertical root is laid out in the PHYSICAL frame and attached to the
     fragmentainer root. It is not transposed. The containing block it reads
-    comes from a second, physical `Ctx` that the block path threads through
-    the child-item loop (the cost that made CORE-181/182 net negative).
-    Every `body-background-*` fixture carries one such box.
+    comes from a second, physical `Ctx` (`Ctx::phys_frame`, the physical page
+    content rect and ICB) that the out-of-flow branch uses for such a box
+    (`Ctx::layout_physical_abspos`). Its insets resolve against the physical
+    page content box; the box is monolithic. A `horizontal-tb` abspos box
+    whose containing block is a positioned ancestor inside the vertical body
+    is a mixed frame this spec does not model: it takes the ordinary branch
+    and maps with its ancestor. Every `body-background-*` fixture carries one
+    page-anchored box of the modelled kind.
 29. **Out-of-flow placement shares the coordinate contract.** The abspos path
     (CORE-204, landed as `0a7e374`) places a box in page-absolute physical
     coordinates and decides fragmentation against the REAL fragmentainer
@@ -440,14 +449,73 @@ Three gaps stay in the engine's own passes:
 - **Logical borders and viewport units.** The border pass and the
   viewport-unit pass map `border-{block,inline}-*` and `inline-size` /
   `block-size` in `vw`/`vh` by the mode in effect (`mode_at`).
-- **Block-axis margins are deferred to CORE-553.** In a vertical mode,
-  `margin-block-start/end` keep the `top`/`bottom` slots until progression
-  moves to x. Mapping them early turns `margin-block-end: 999in`
-  (`page-name-orthogonal-writing-002` ref) into a zero-width box that drops its
-  text. Test: `writing_modes.rs::block_margins_in_vertical_modes_are_deferred_to_core553`.
-  CORE-553 flips it in the same change as the frame swap. The item is
-  recorded in CORE-553's Done when, and CORE-552's Done when is narrowed to
-  match (2026-10-23).
+- **Block-axis margins (resolved by CORE-553).** Until CORE-553,
+  `margin-block-start/end` kept the `top`/`bottom` slots in a vertical mode.
+  CORE-553 removed that stand-in in the same change as the frame swap: stylo's
+  mapping (right/left for `-rl`, left/right for `-lr`) now applies. Test:
+  `writing_modes.rs::block_margins_in_vertical_modes_map_to_block_edges`.
+
+## Implementation notes — child 2/5 (CORE-553, 2026-10-23)
+
+**DECIDED 2026-10-23 (agent):** the root-vertical body is laid out in a
+logical (transposed) frame and mapped to physical points once per page.
+
+- `engine/src/vertical.rs::transpose_styles` copies the cascaded styles and
+  rotates every box whose mode in effect is vertical into the root frame:
+  width/height swap (with percent, viewport and min/max), and margins,
+  padding, borders, border colours/styles and insets permute geometrically
+  (`logical_to_physical_sides`). Viewport lengths swap axis, so `vw` stays
+  the physical page width (Behavior 22).
+- `paginate` lays the body with those styles against a swapped content rect
+  (origin 0,0, width = physical height, height = physical width). The
+  existing break tokens, declared-extent continuation and page-loop cap run
+  unchanged on the block axis (Behaviors 11-15, 31-34).
+- `vertical::map_root` maps each page's body subtree, abspos pool and drain
+  fragments to physical points, parent-relative, once (Behavior 4-5). Text
+  lines keep their logical interior and paint under a 90° matrix
+  (`Fragment::transform`). Link rects map through `map_rect`.
+- Margin boxes, the canvas fill, page border rings and fixed boxes never
+  enter the logical frame (Behaviors 25-26). Fixed boxes keep the physical
+  styles.
+- Footnotes (Behavior 27): when the full-extent body attempt registers notes,
+  the body is re-laid once at a logical inline extent shortened by the band
+  height (`sideways-lr` starts the inline axis `band` later, since its inline
+  axis runs bottom-up), the notes that attempt places size the band, and
+  `attach_footnotes` attaches them after the mapping against the physical
+  content rect. Test `footnotes_in_vertical_root_stay_in_a_physical_bottom_band`.
+- Horizontal abspos (Behavior 28): a `horizontal-tb` `position: absolute` box
+  whose containing block is the page lays out through
+  `Ctx::layout_physical_abspos` against `Ctx::phys_frame`, collects in
+  `Flow::abspos_physical`, and attaches after the mapping. Its link rects are
+  tagged `physical` and skip the page-level map. Test
+  `horizontal_abspos_in_vertical_root_is_not_transposed`.
+- `Ctx::logical_frame` disables the CORE-153 physical-frame rules (vertical-rl
+  right anchoring, inline fill) inside the logical frame, where they are
+  implied by the mapping.
+- `vb`/`vi` units resolve against the root mode in the viewport-unit pass
+  (`page-box-008` uses `block-size: 100vb`).
+
+Limits carried to later children:
+
+- A `horizontal-tb` IN-FLOW subtree inside a vertical root is copied
+  untransposed and rides the root mapping. General interior orthogonal boxes
+  are CORE-554. The page-anchored abspos case is delivered here (Behavior 28).
+- **Interior vertical slice (DECIDED 2026-10-23, agent; folded in to keep
+  `page-size-012` green).** `Ctx::layout_interior_vertical` lays a vertical
+  block inside a horizontal page flow in its own logical frame as one
+  monolithic box, mapped once. Gate: `Ctx::is_simple_interior_vertical` — the
+  box and its subtree are plain (`display` block/inline/none, no float,
+  positioned box, multicol or transform, no other declared mode), and every
+  ancestor is a plain block. An auto inline size is fit-content bounded by the
+  page content height (css-writing-modes-3 §7.3). The box's physical margins
+  resolve in its horizontal containing block, so an over-constrained
+  `margin-right` no longer right-anchors it (this supersedes the CORE-182
+  anchoring test). Link rects inside the box are dropped. Everything outside
+  the gate keeps the existing path and stays with CORE-554.
+- `html` root margins are ignored in every mode (`probe/root-margin-*.html`),
+  which keeps `block-002-wm-*` at test=2 / ref=3 pages. Split out as
+  CORE-563. Logical border styles (`block-001-wm-*` pixel residual) are
+  CORE-562.
 
 Unchanged by this child: the layout code still reads physical fields and has
 no `inline_extent()` accessor yet. The `Dimension` type and the
@@ -568,22 +636,23 @@ re-measured at `9a5a00e` is marked as historical.
 ## Acceptance Criteria
 
 Each criterion names the behavior it checks and the test that proves it. The
-spec ships with criterion 0 only. Criteria 1-9 are the contract that the
-children implement; each child adds its own tests under the name shown.
-Tests marked `(new)` do not exist yet and shall be written RED first.
+spec shipped with criterion 0 only. Criteria 1-9 are the contract that the
+children implement; each child adds its own tests and records the real test
+names here. Tests marked `(new)` do not exist yet and shall be written RED
+first.
 
 | # | Behavior | Test | Asserts |
 |---|---|---|---|
 | 0 | Frontmatter, slug | `scripts/validate_docs.py` (with PyYAML) | The spec validates; `slug` starts with `/specifications/` and does not end in `.spec` |
-| 1 | 4, 5, 12 | `engine/tests/it/writing_modes.rs::frame_maps_each_mode` (new) | `Frame::to_physical` gives the table in "Frame mapping" for all five modes and both directions |
+| 1 | 4, 5, 12 | `engine/src/vertical.rs::map_frag` via `engine/tests/it/writing_modes.rs::root_vertical_progression_fragments_along_x` (vertical-rl, vertical-lr) and `layout::core153_vertical_rl_tests::sideways_modes_are_vertical_page_flows` (sideways-rl, sideways-lr); horizontal-tb is the identity path | The "Frame mapping" table holds per mode (block-start edge, swapped sizes). No standalone `Frame::to_physical` type exists; the mapping is `vertical::map_root` |
 | 2 | 16, 18 | `engine/tests/it/writing_modes.rs::logical_sizes_land_on_named_axes` (new) | `width:600px; height:100px` under `vertical-rl` has physical block extent 600 and inline extent 100 |
 | 3 | 19 | existing `layout::core153_vertical_rl_tests` + `page-size-012-print` | auto inline size fills the page content box in a vertical page flow; PASS |
 | 4 | 8 | `page_boundaries.rs::page_change_suppressed_when_inner_mode_orthogonal_to_page_flow` | interior vertical wrapper stays one page (guard, exists) |
-| 5 | 12, 13 | `engine/tests/it/writing_modes.rs::root_vertical_pages_advance_along_x` (new) | A vertical-rl root whose block extent is 2.5 page widths paginates to 3 pages, content starts at each page's right edge |
+| 5 | 12, 13 | `engine/tests/it/writing_modes.rs::root_vertical_progression_fragments_along_x`, `root_vertical_block_end_margin_breaks_the_page` | A vertical-rl/-lr root whose block extent is 2.5 page widths paginates to 3 pages, content starts at each page's block-start edge; a block-end margin breaks the page |
 | 6 | 22 | `engine/tests/it/writing_modes.rs::viewport_units_stay_physical` (new) | `block-size: 210vw` in vertical-rl equals 2.1 page widths; `100vh` is page height |
-| 7 | 25, 26, 27 | `engine/tests/it/writing_modes.rs::page_chrome_stays_physical` (new) | Page border ring, margin boxes and footnote band keep physical rects in a vertical root |
-| 8 | 28 | `engine/tests/it/writing_modes.rs::horizontal_abspos_in_vertical_root_is_not_transposed` (new) | An abspos `horizontal-tb` box inside a vertical root has a wider-than-tall text run box; its fragments are not mapped |
-| 9 | 31-34 | `fragmentation.rs::height_continuation_*` (AC1-AC6, exist) plus `engine/tests/it/writing_modes.rs::vertical_declared_extent_terminates` (new) | Consumed extent does not read paint size; a vertical declared-extent box ends in at most `ceil(extent / H)` pages |
+| 7 | 25, 26, 27 | Footnotes: `engine/tests/it/writing_modes.rs::footnotes_in_vertical_root_stay_in_a_physical_bottom_band`. Margin boxes and page border rings: no direct test; `attach_margin_boxes` and the chrome rings never enter the logical frame, and the canaries `page-margin-002/003` plus the review probe `review-chrome-vrl` (evidence `CORE-553/review-r1`) hold them | Footnote lines lie inside the physical content rect, unrotated, below every body fragment; margin boxes and rings keep physical rects in a vertical root |
+| 8 | 28 | `engine/tests/it/writing_modes.rs::horizontal_abspos_in_vertical_root_is_not_transposed` | An abspos `horizontal-tb` box inside a vertical-rl/-lr/sideways-lr root carries no rotation, is wider than tall, and its `left`/`top` insets resolve against the physical page content box |
+| 9 | 31-34 | `fragmentation.rs::height_continuation_*` (AC1-AC6, exist) plus `engine/tests/it/writing_modes.rs::root_vertical_progression_fragments_along_x` (a 1500pt declared block extent on a 600pt page ends in exactly 3 pages) | Consumed extent does not read paint size; a vertical declared-extent box ends in at most `ceil(extent / H)` pages |
 | 10 | targets | WPT gate (`python -m harness gate`) | Each child's gate report lists every ID in "Targets" and "Canaries" with before and after status; zero canary PASS to FAIL |
 
 Child ownership of criteria 1-10 is in the child issue map. A child that
@@ -620,7 +689,10 @@ issue-evidence rules).
 
 ## Open questions deferred
 
-- Footnote band edge in vertical roots (Behavior 27): physical bottom for now.
+- Footnote band edge in vertical roots (Behavior 27): physical bottom,
+  implemented by CORE-553. Following the block-end edge stays deferred.
+- A `horizontal-tb` abspos box whose containing block is a positioned
+  ancestor inside a vertical body (Behavior 28, mixed frame).
 - Vertical multicol, flex and grid (Behavior 24).
 - Margin-box vertical content, owned by CORE-184 after CORE-555.
 
