@@ -1,0 +1,55 @@
+{
+  "schema": "typeanvil.harness.reviews/1",
+  "candidate": {
+    "label": "candidate-e4845a79913fe6909a77b295b639ef9aff32ed02",
+    "source_commit": "e4845a79913fe6909a77b295b639ef9aff32ed02"
+  },
+  "baseline": {
+    "label": "baseline-597b95f03bee23ade49722417ba0662c79edcda5",
+    "source_commit": "597b95f03bee23ade49722417ba0662c79edcda5"
+  },
+  "dispositions": [
+    {
+      "doc_id": "css/css-page/body-background-vrl-print-ref.html",
+      "change_id": "cda555aa4c63a23a0042714555b1b2fd34adaa1a04c8fb7935dc74f961b271f9",
+      "kind": "correction",
+      "reason": "The 600px `margin-left:auto` blue box now sits at the right edge (x=200px) like Chromium; it painted at x=0. Owning test body-background-vrl-print.html: FAIL -> PASS.",
+      "provenance": "CORE-564; CSS 2.2 section 10.3.3 (auto margins absorb free space)"
+    },
+    {
+      "doc_id": "css/css-page/body-background-srl-print-ref.html",
+      "change_id": "bb79e2940194fccf40d4d3815078c984ac7c6679c56a876482213d4e00ab8b58",
+      "kind": "correction",
+      "reason": "Page 1 blue `margin-left:auto` box now right-aligned like Chromium; page 1 pair diff 31977 px -> 0. Owning test stays FAIL on page 2 (2400 px, max 44: the hotpink box's body-margin placement on the continuation page; residual).",
+      "provenance": "CORE-564; CSS 2.2 section 10.3.3"
+    },
+    {
+      "doc_id": "css/css-page/monolithic-overflow-030-print-ref.html",
+      "change_id": "5828dca0bcd899e78b7e87cda0834e5c9e5bef331a11a67e22554412323d0e53",
+      "kind": "correction",
+      "reason": "The four `margin-left:auto; width:0.5in` green boxes now hug the right edge. Owning test monolithic-overflow-030-print.html: FAIL -> PASS (all 4 pages 0 px diff).",
+      "provenance": "CORE-564; CSS 2.2 section 10.3.3"
+    },
+    {
+      "doc_id": "css/css-page/margin-boxes/auto-margins-001-print-ref.html",
+      "change_id": "3050aa03975a77c0860990a562c80629e1db3b252f6b7a60139da964b37c92eb",
+      "kind": "correction",
+      "reason": "The ref's `margin: 0 auto` boxes now center in their cells (top/bottom middle squares moved to center). Owning test stays FAIL (25567 -> 25567 px); its other boxes depend on grid vertical auto margins, out of scope.",
+      "provenance": "CORE-564; CSS 2.2 section 10.3.3"
+    },
+    {
+      "doc_id": "css/css-page/margin-boxes/auto-margins-003-print-ref.html",
+      "change_id": "39695054201e2d4be9ef784786eb94bff144cf4fb790989baa6bea068acdb596",
+      "kind": "correction",
+      "reason": "Horizontal auto margins now center/end-align the ref's definite-width boxes. Owning test stays FAIL (15696 -> 15594 px, slightly closer).",
+      "provenance": "CORE-564; CSS 2.2 section 10.3.3"
+    },
+    {
+      "doc_id": "css/css-page/margin-boxes/overconstrained-001-print-ref.html",
+      "change_id": "4468a75bab62f72ad619b726909f5fb6a757359f3a53876e6b7d0b2e29eef572",
+      "kind": "correction",
+      "reason": "The ref's `margin-left:auto` box now end-aligns. Owning test stays FAIL (20821 -> 20149 px, closer); the `margin-top:auto` half is a vertical auto margin, out of scope.",
+      "provenance": "CORE-564; CSS 2.2 section 10.3.3"
+    }
+  ]
+}
