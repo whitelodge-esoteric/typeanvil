@@ -354,6 +354,10 @@ def check_text_roundtrip_coverage(pdf_page_text: str, source_text: str) -> Dict[
         text = text.replace("\ufffe", "").replace("\u00ad", "")
         text = re.sub(r"[^\w\s]", " ", text)
         text = re.sub(r"(?<=[a-z])(?=\d)|(?<=\d)(?=[a-z])", " ", text)
+        # CORE-548: adjacent MathML tokens (`<mi>cos</mi><mi>θ</mi>`) have
+        # no space in the PDF text layer ("cosθ"); split Latin<->Greek
+        # letter boundaries so the function name survives as a token.
+        text = re.sub(r"(?<=[a-z])(?=[\u0370-\u03ff])|(?<=[\u0370-\u03ff])(?=[a-z])", " ", text)
         return set(t for t in text.split() if t)
 
     source_tokens = normalize_set(source_text)

@@ -1,3 +1,1 @@
-[
-  {"file": "academic/math.html", "page": "*", "check": "text_roundtrip", "issue": "CORE-548"}
-]
+[]
