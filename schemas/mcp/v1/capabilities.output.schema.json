@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://typeanvil.com/schemas/mcp/v1/capabilities.output.schema.json",
+  "title": "capabilities — output",
+  "type": "object",
+  "required": ["environment", "tools", "input_forms", "output_modes", "limits"],
+  "properties": {
+    "environment": { "$ref": "common.schema.json#/$defs/Environment" },
+    "tools": { "type": "array", "items": { "enum": ["render", "validate", "inspect_page", "capabilities", "explain"] }, "uniqueItems": true },
+    "input_forms": {
+      "type": "object",
+      "required": ["path", "content", "url"],
+      "properties": {
+        "path": { "type": "boolean", "description": "False on cloud." },
+        "content": { "type": "boolean" },
+        "url": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "output_modes": { "type": "array", "items": { "enum": ["path", "bytes", "link"] }, "uniqueItems": true },
+    "input_languages": { "type": "array", "items": { "enum": ["html", "markdown"] } },
+    "limits": {
+      "type": "object",
+      "description": "Every key is optional. null means no limit is enforced.",
+      "properties": {
+        "timeout_seconds": { "type": ["number", "null"] },
+        "max_input_bytes": { "type": ["integer", "null"] },
+        "max_output_bytes": { "type": ["integer", "null"] },
+        "max_pages": { "type": ["integer", "null"] },
+        "max_assets": { "type": ["integer", "null"] },
+        "quota": {
+          "type": ["object", "null"],
+          "properties": {
+            "unit": { "enum": ["renders", "pages"] },
+            "remaining": { "type": "integer" },
+            "resets_at": { "type": "string", "format": "date-time" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "fonts": {
+      "type": "object",
+      "properties": {
+        "bundle": { "type": "array", "items": { "type": "string" }, "description": "Family names in the font bundle." },
+        "system_fonts": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "css": {
+      "type": "object",
+      "properties": { "support_guide": { "type": "string", "format": "uri" } },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

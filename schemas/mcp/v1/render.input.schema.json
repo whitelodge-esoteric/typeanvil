@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://typeanvil.com/schemas/mcp/v1/render.input.schema.json",
+  "title": "render — input",
+  "type": "object",
+  "required": ["document"],
+  "properties": {
+    "document": { "$ref": "common.schema.json#/$defs/ContentSource" },
+    "stylesheets": {
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/ContentSource" },
+      "description": "Extra author stylesheets, applied after the document's own."
+    },
+    "assets": { "$ref": "common.schema.json#/$defs/AssetMap" },
+    "options": { "$ref": "common.schema.json#/$defs/PageOptions" },
+    "output": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "enum": ["path", "bytes", "link", "auto"],
+          "default": "auto",
+          "description": "path: local only. bytes: base64 in the result. link: cloud download URL (local MAY support it with a file:// URL). auto: local = bytes, cloud = link."
+        },
+        "path": { "type": "string", "description": "Required when mode is path. Local only." }
+      },
+      "if": { "properties": { "mode": { "const": "path" } }, "required": ["mode"] },
+      "then": { "required": ["path"] },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

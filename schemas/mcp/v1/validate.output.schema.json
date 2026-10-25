@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://typeanvil.com/schemas/mcp/v1/validate.output.schema.json",
+  "title": "validate — output",
+  "type": "object",
+  "required": ["environment", "ok", "page_count", "diagnostics", "assertions", "fonts"],
+  "properties": {
+    "environment": { "$ref": "common.schema.json#/$defs/Environment" },
+    "ok": { "type": "boolean", "description": "True when no error-severity diagnostic exists and every assertion passed." },
+    "page_count": { "type": "integer", "minimum": 0 },
+    "diagnostics": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/Diagnostic" } },
+    "assertions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["index", "kind", "passed"],
+        "properties": {
+          "index": { "type": "integer", "minimum": 0 },
+          "id": { "type": "string" },
+          "kind": { "type": "string" },
+          "passed": { "type": "boolean" },
+          "detail": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "fonts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["family", "face", "embedded"],
+        "properties": {
+          "family": { "type": "string" },
+          "face": { "type": "string" },
+          "embedded": { "type": "boolean" },
+          "source": { "enum": ["bundle", "system", "document"] }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

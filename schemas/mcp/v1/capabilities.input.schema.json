@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://typeanvil.com/schemas/mcp/v1/capabilities.input.schema.json",
+  "title": "capabilities — input",
+  "type": "object",
+  "properties": {
+    "section": { "enum": ["all", "limits", "css", "fonts", "inputs", "outputs"], "default": "all" }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://typeanvil.com/schemas/mcp/v1/validate.input.schema.json",
+  "title": "validate — input",
+  "type": "object",
+  "required": ["document"],
+  "properties": {
+    "document": { "$ref": "common.schema.json#/$defs/ContentSource" },
+    "stylesheets": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/ContentSource" } },
+    "assets": { "$ref": "common.schema.json#/$defs/AssetMap" },
+    "options": { "$ref": "common.schema.json#/$defs/PageOptions" },
+    "assertions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "enum": ["page_count", "no_overflow", "no_diagnostics", "text_on_page", "element_on_page", "fonts_embedded"] },
+          "equals": { "type": "integer" },
+          "min": { "type": "integer" },
+          "max": { "type": "integer" },
+          "text": { "type": "string" },
+          "selector": { "type": "string" },
+          "page": { "type": "integer", "minimum": 1 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
