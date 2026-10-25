@@ -49,6 +49,20 @@ fn main() -> ExitCode {
             eprintln!("typeanvil: error: {e}");
             ExitCode::from(4)
         }
+        // CORE-576: template / data / schema errors (exit 5, no PDF). One
+        // stderr line per error: `typeanvil: error: [CODE] <where>: <msg>`.
+        Err(e) if e.downcast_ref::<typeanvil::template::TemplateErrors>().is_some() => {
+            let errs = e.downcast_ref::<typeanvil::template::TemplateErrors>().unwrap();
+            for t in &errs.0 {
+                eprintln!(
+                    "typeanvil: error: [{}] {}: {}",
+                    t.code,
+                    typeanvil::template::location(t),
+                    t.message
+                );
+            }
+            ExitCode::from(5)
+        }
         Err(e) => {
             eprintln!("typeanvil: error: {e:#}");
             // CORE-513 B14: usage errors for the Markdown flags exit 2.
@@ -89,6 +103,23 @@ fn run() -> Result<ExitCode> {
                 _ => Err(UsageError("usage: typeanvil capabilities --json".to_string()).into()),
             }
         }
+        // CORE-576: publish a template's data schema.
+        "template-schema" => {
+            let rest: Vec<String> = args.collect();
+            let [tmpl] = rest.as_slice() else {
+                return Err(
+                    UsageError("usage: typeanvil template-schema <template>".to_string()).into()
+                );
+            };
+            let path = PathBuf::from(tmpl);
+            match typeanvil::template::load_schema(&path, None)? {
+                Some(s) => {
+                    println!("{}", serde_json::to_string_pretty(&s).expect("JSON serializes"));
+                    Ok(ExitCode::SUCCESS)
+                }
+                None => bail!("no schema for {}", path.display()),
+            }
+        }
         // CORE-575: MCP server over stdio.
         "mcp" => {
             let rest: Vec<String> = args.collect();
@@ -127,7 +158,7 @@ fn run() -> Result<ExitCode> {
             Ok(if is_error { ExitCode::FAILURE } else { ExitCode::SUCCESS })
         }
         other => bail!(
-            "unknown subcommand `{other}` (expected `render`, `capabilities`, `mcp` or `call`)"
+            "unknown subcommand `{other}` (expected `render`, `capabilities`, `template-schema`, `mcp` or `call`)"
         ),
     }
 }
@@ -179,6 +210,7 @@ typeanvil — AI-first HTML and Markdown to PDF typesetting engine
 
 Usage: typeanvil render <input.html|input.md> [flags] -o <output.pdf>
        typeanvil capabilities --json
+       typeanvil template-schema <template>
        typeanvil mcp [--root <dir>]...
        typeanvil call <tool> [--root <dir>]... < request.json
        typeanvil --version
@@ -188,6 +220,7 @@ Subcommands:
   render        Render an HTML or Markdown document to a paged PDF
                 (.md, .markdown, .mdown select Markdown)
   capabilities  Print the CSS/input capability manifest as JSON (--json)
+  template-schema  Print a template's data JSON Schema
   mcp           Serve the MCP tools (render, validate, inspect_page,
                 capabilities, explain) over stdio
   call          Run one MCP tool: JSON request on stdin, JSON result on stdout
@@ -210,6 +243,11 @@ Flags (render):
       --assert <file.json>  Evaluate layout assertions; verdicts join the
                             diagnostics JSON (implies --diagnostics json)
       --fail-on-assert      Exit 3 when any assertion fails (needs --assert)
+      --data <file.json>    Treat the input as a MiniJinja template and render
+                            it with this JSON data (escaped by default)
+      --schema <file.json>  Validate --data against this JSON Schema (default:
+                            the template's sibling <name>.schema.json, if any).
+                            Template or data errors write no PDF and exit 5
 
 Safety flags (render; untrusted input, default off):
       --fetch <mode>        none | local | allow-list | unrestricted (default).
@@ -266,6 +304,9 @@ struct RenderArgs {
     timeout: Option<std::time::Duration>,
     max_input_bytes: Option<usize>,
     max_image_pixels: Option<u64>,
+    /// CORE-576: `--data` (the input is a template) and `--schema`.
+    data: Option<PathBuf>,
+    schema: Option<PathBuf>,
 }
 
 /// Output format for `--diagnostics`.
@@ -280,6 +321,20 @@ fn render(args: Vec<String>) -> Result<()> {
 
     let source = std::fs::read_to_string(&opts.input)
         .with_context(|| format!("reading input {}", opts.input.display()))?;
+    // CORE-576: data template mode. Validate, then expand, before any render
+    // work; an error writes no PDF (exit 5).
+    let source = match &opts.data {
+        None => source,
+        Some(data_path) => match expand_template(&opts, &source, data_path) {
+            Ok(html) => html,
+            Err(errs) => {
+                if opts.diagnostics == Some(DiagnosticsMode::Json) {
+                    print!("{}", typeanvil::template::errors_json(&errs.0));
+                }
+                return Err(errs.into());
+            }
+        },
+    };
     let mut extra_css = Vec::new();
     for f in &opts.css_files {
         extra_css.push(
@@ -424,6 +479,31 @@ fn render(args: Vec<String>) -> Result<()> {
     Ok(())
 }
 
+/// CORE-576: load data + schema, validate, expand.
+fn expand_template(
+    opts: &RenderArgs,
+    source: &str,
+    data_path: &std::path::Path,
+) -> std::result::Result<String, typeanvil::template::TemplateErrors> {
+    use typeanvil::template::{self as t, TemplateError, TemplateErrors};
+    let text = std::fs::read_to_string(data_path).map_err(|e| {
+        TemplateErrors::from(TemplateError {
+            code: "TEMPLATE_DATA_INVALID_JSON",
+            pointer: None,
+            line: None,
+            message: format!("reading {}: {e}", data_path.display()),
+        })
+    })?;
+    let data = t::parse_data(&text)?;
+    if let Some(schema) = t::load_schema(&opts.input, opts.schema.as_deref())? {
+        let errs = t::validate_data(&schema, &data);
+        if !errs.is_empty() {
+            return Err(TemplateErrors(errs));
+        }
+    }
+    t::expand(source, &data)
+}
+
 fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
     let mut input: Option<PathBuf> = None;
     let mut output: Option<PathBuf> = None;
@@ -452,6 +532,8 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
     let mut timeout: Option<std::time::Duration> = None;
     let mut max_input_bytes: Option<usize> = None;
     let mut max_image_pixels: Option<u64> = None;
+    let mut data: Option<PathBuf> = None;
+    let mut schema: Option<PathBuf> = None;
 
     let mut it = args.into_iter();
     while let Some(arg) = it.next() {
@@ -484,6 +566,8 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
             "--no-default-css" => no_default_css = true,
             "--assert" => assert_file = Some(PathBuf::from(next_value(&mut it, &arg)?)),
             "--fail-on-assert" => fail_on_assert = true,
+            "--data" => data = Some(PathBuf::from(next_value(&mut it, &arg)?)),
+            "--schema" => schema = Some(PathBuf::from(next_value(&mut it, &arg)?)),
             // CORE-578: fetch policy and limits.
             "--fetch" => fetch_mode = Some(next_value(&mut it, &arg)?),
             "--fetch-hosts" => fetch_hosts = Some(next_value(&mut it, &arg)?),
@@ -532,6 +616,14 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
             "--css and --no-default-css apply to Markdown input only".to_string(),
         )
         .into());
+    }
+
+    // CORE-576: templates are HTML; `--schema` needs `--data`.
+    if data.is_some() && markdown {
+        return Err(UsageError("--data applies to HTML templates only".to_string()).into());
+    }
+    if schema.is_some() && data.is_none() {
+        return Err(UsageError("--schema requires --data <file.json>".to_string()).into());
     }
 
     // CORE-573: validate the assertions file BEFORE rendering (usage error,
@@ -596,6 +688,8 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
         timeout,
         max_input_bytes,
         max_image_pixels,
+        data,
+        schema,
     })
 }
 

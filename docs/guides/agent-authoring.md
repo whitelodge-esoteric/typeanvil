@@ -92,7 +92,7 @@ it and the render report warns.
 
 **Selectors:** `attribute`, `class`, `combinators`, `id`, `structural-pseudo-classes`, `type`
 
-**Input formats:** `html`, `markdown`
+**Input formats:** `html`, `markdown`, `template`
 
 **Partial support:** `display:inline-flex` (inline-flex is treated as a block-level flex container), `display:inline-table` (inline-table falls back to block), `display:table-column` (table-column boxes are unsupported and fall back to block), `display:table-column-group` (table-column-group falls back to block)
 

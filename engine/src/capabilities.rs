@@ -120,6 +120,10 @@ const SELECTOR_FEATURES: &[(&str, Status, &str)] = &[
 const INPUT_FORMATS: &[(&str, &str)] = &[
     ("html", "HTML documents (default for other extensions)"),
     ("markdown", "CommonMark + GFM (.md, .markdown, .mdown)"),
+    (
+        "template",
+        "MiniJinja HTML template + JSON data (--data; schema via template-schema)",
+    ),
 ];
 
 fn hint<'a>(

@@ -1,0 +1,15 @@
+{
+  "number": "INV-2026-0142",
+  "issue_date": "2026-10-25",
+  "due_date": "2026-11-24",
+  "currency": "EUR",
+  "tax_rate": 0.2,
+  "seller": { "name": "Northwind Typesetting Ltd", "address": ["12 Foundry Lane", "Bristol BS1 4XE", "United Kingdom"] },
+  "buyer": { "name": "Contoso & Partners", "address": ["Rue de la Loi 200", "1040 Brussels", "Belgium"] },
+  "items": [
+    { "description": "Annual report layout (48 pages)", "quantity": 1, "unit_price": 3200 },
+    { "description": "Chart redraws", "quantity": 14, "unit_price": 85 },
+    { "description": "Proof rounds <after the second>", "quantity": 2, "unit_price": 240.5 }
+  ],
+  "notes": "Payment by bank transfer within 30 days. Thank you for your business."
+}
