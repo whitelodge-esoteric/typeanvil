@@ -46,7 +46,9 @@ publish `llms.txt`, `llms-full.txt` and a Markdown copy of each page.
 4. `/llms.txt` shall open with the H1 `# TypeAnvil` (the product name; the
    binary stays lowercase `typeanvil`) and a one-paragraph summary, then a
    when-to-use line, a not-a-fit line, and a link to the install guide
-   (`/guides/getting-started.md`). It then lists one link per page, grouped
+   (`/guides/getting-started.md`) and a link to the agent authoring guide
+   (`/guides/agent-authoring.md`, generated from the capability manifest,
+   CORE-580). It then lists one link per page, grouped
    by top-level section. A page description appears only when the page sets
    it in frontmatter and it ends in sentence punctuation. Descriptions the
    docs plugin derives from body text are not used.

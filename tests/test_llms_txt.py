@@ -9,7 +9,7 @@ mod = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(mod)
 
 
-def make_build(tmp_path, drop_md=False):
+def make_build(tmp_path, drop_md=False, no_authoring=False):
     (tmp_path / "guides").mkdir()
     (tmp_path / "sitemap.xml").write_text(
         "<urlset><url><loc>https://typeanvil.dev/guides/getting-started</loc></url></urlset>"
@@ -20,6 +20,7 @@ def make_build(tmp_path, drop_md=False):
     (tmp_path / "llms.txt").write_text(
         "# TypeAnvil\n\nUse these docs to render.\n\nThese are not a fit for cloud.\n\n"
         "Install: https://typeanvil.dev/guides/getting-started.md\n"
+        + ("" if no_authoring else "Authoring: https://typeanvil.dev/guides/agent-authoring.md\n")
     )
     (tmp_path / "llms-full.txt").write_text(page)
     return tmp_path
@@ -32,6 +33,11 @@ def test_complete_build_passes(tmp_path):
 def test_missing_page_markdown_fails(tmp_path):
     errors = mod.check(make_build(tmp_path, drop_md=True))
     assert any("no Markdown copy" in e for e in errors)
+
+
+def test_missing_authoring_guide_link_fails(tmp_path):
+    errors = mod.check(make_build(tmp_path, no_authoring=True))
+    assert any("agent-authoring.md" in e for e in errors)
 
 
 def test_missing_artifact_fails(tmp_path):
