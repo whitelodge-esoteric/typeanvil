@@ -63,7 +63,7 @@ pub struct Diagnostic {
 /// The engine's consumed-property set (spec Appendix A): everything read by
 /// `css.rs::convert`, the break pass, the border pass, the paged pass, or
 /// `@font-face` descriptors. MUST stay sorted (binary search); lowercase.
-const SUPPORTED_PROPERTIES: &[&str] = &[
+pub(crate) const SUPPORTED_PROPERTIES: &[&str] = &[
     "align-items",
     "align-self",
     "background-color",
@@ -99,13 +99,13 @@ const SUPPORTED_PROPERTIES: &[&str] = &[
     "counter-increment",
     "counter-reset",
     "display",
-    "float",
     "flex",
     "flex-basis",
     "flex-direction",
     "flex-grow",
     "flex-shrink",
     "flex-wrap",
+    "float",
     "font-family",
     "font-size",
     "font-style",
@@ -146,12 +146,12 @@ const SUPPORTED_PROPERTIES: &[&str] = &[
 ];
 
 /// At-rules the engine understands.
-const SUPPORTED_AT_RULES: &[&str] = &["font-face", "media", "page"];
+pub(crate) const SUPPORTED_AT_RULES: &[&str] = &["font-face", "media", "page"];
 
 /// `@page`-level descriptors (css-page-3 §3/§4): `size` sets the page box,
 /// the four margin longhands + shorthand set the page margins, `background`
 /// paints the page background.
-const SUPPORTED_PAGE_DESCRIPTORS: &[&str] = &[
+pub(crate) const SUPPORTED_PAGE_DESCRIPTORS: &[&str] = &[
     "margin",
     "margin-bottom",
     "margin-left",
@@ -178,7 +178,7 @@ const MARGIN_BOXES: &[&str] = &[
 
 /// `display` values the engine maps to a documented fallback in
 /// `css.rs::convert` instead of honoring literally.
-const DISPLAY_FALLBACKS: &[(&str, &str)] = &[
+pub(crate) const DISPLAY_FALLBACKS: &[(&str, &str)] = &[
     ("inline-table", "inline-table falls back to block"),
     (
         "table-column",
@@ -248,7 +248,7 @@ pub fn to_json(events: &[Diagnostic]) -> String {
     out
 }
 
-fn json_string(s: &str) -> String {
+pub(crate) fn json_string(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('"');
     for c in s.chars() {
@@ -420,10 +420,11 @@ fn handle_at_rule(
     };
     if !SUPPORTED_AT_RULES.contains(&name) {
         let (line, col) = scanner.coords_of(prelude_start);
+        let hint = crate::capabilities::diagnostic_suffix("at-rule", name);
         events.push(Diagnostic {
             code: "unknown-at-rule".to_string(),
             severity: "warning".to_string(),
-            message: format!("at-rule `{keyword}` is not supported and was ignored"),
+            message: format!("at-rule `{keyword}` is not supported and was ignored{hint}"),
             line,
             column: col,
         });
@@ -623,10 +624,16 @@ fn check_declaration(
     };
     if supported.binary_search(&prop.as_str()).is_err() {
         let (line, col) = scanner.coords_of(prop_col_offset);
+        // CORE-572: point at the manifest entry when it names an alternative.
+        let hint = if in_page_body {
+            String::new()
+        } else {
+            crate::capabilities::diagnostic_suffix("property", &prop)
+        };
         events.push(Diagnostic {
             code: "unsupported-property".to_string(),
             severity: "warning".to_string(),
-            message: format!("property `{prop}` is not supported and was ignored"),
+            message: format!("property `{prop}` is not supported and was ignored{hint}"),
             line,
             column: col,
         });

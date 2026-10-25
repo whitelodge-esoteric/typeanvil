@@ -7,6 +7,7 @@
 //! directly — pagination, break tokens, orphans/widows — instead of only
 //! observing PDF bytes through the CLI.
 
+pub mod capabilities;
 pub mod css;
 pub mod diagnostics;
 pub mod dom;

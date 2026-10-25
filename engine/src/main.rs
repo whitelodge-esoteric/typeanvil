@@ -61,7 +61,18 @@ fn run() -> Result<()> {
             Ok(())
         }
         "render" => render(args.collect()),
-        other => bail!("unknown subcommand `{other}` (expected `render`)"),
+        // CORE-572: capability manifest generated from the diagnostics tables.
+        "capabilities" => {
+            let rest: Vec<String> = args.collect();
+            match rest.as_slice() {
+                [flag] if flag == "--json" => {
+                    print!("{}", typeanvil::capabilities::to_json());
+                    Ok(())
+                }
+                _ => Err(UsageError("usage: typeanvil capabilities --json".to_string()).into()),
+            }
+        }
+        other => bail!("unknown subcommand `{other}` (expected `render` or `capabilities`)"),
     }
 }
 
@@ -81,12 +92,14 @@ const HELP: &str = "\
 typeanvil — AI-first HTML and Markdown to PDF typesetting engine
 
 Usage: typeanvil render <input.html|input.md> [flags] -o <output.pdf>
+       typeanvil capabilities --json
        typeanvil --version
        typeanvil --help
 
 Subcommands:
   render        Render an HTML or Markdown document to a paged PDF
                 (.md, .markdown, .mdown select Markdown)
+  capabilities  Print the CSS/input capability manifest as JSON (--json)
 
 Flags (render):
   -o, --output <path>       Output PDF path (required)
