@@ -1,0 +1,12 @@
+{
+  "id": "render-no-source",
+  "tool": "render",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "document": { "format": "html" }
+  },
+  "expect": {
+    "error": "INPUT_SOURCE_AMBIGUOUS",
+    "checks": [{ "pointer": "/field", "equals": "/document" }]
+  }
+}

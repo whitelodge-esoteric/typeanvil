@@ -1,0 +1,29 @@
+{
+  "id": "validate-assertions-pass",
+  "tool": "validate",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "document": { "content": "<!DOCTYPE html><html><body><h1 id=\"t\">Title</h1><p>Body text.</p><p style=\"break-before: page\">Second page.</p></body></html>" },
+    "assertions": [
+      { "id": "pages", "kind": "page_count", "equals": 2 },
+      { "kind": "text_on_page", "text": "Second page.", "page": 2 },
+      { "kind": "element_on_page", "selector": "#t", "page": 1 },
+      { "kind": "no_overflow" },
+      { "kind": "fonts_embedded" }
+    ]
+  },
+  "expect": {
+    "ok": true,
+    "checks": [
+      { "pointer": "/ok", "equals": true },
+      { "pointer": "/page_count", "equals": 2 },
+      { "pointer": "/assertions/0/id", "equals": "pages" },
+      { "pointer": "/assertions/0/passed", "equals": true },
+      { "pointer": "/assertions/1/passed", "equals": true },
+      { "pointer": "/assertions/2/passed", "equals": true },
+      { "pointer": "/assertions/3/passed", "equals": true },
+      { "pointer": "/assertions/4/passed", "equals": true },
+      { "pointer": "/fonts/0/embedded", "equals": true }
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "id": "inspect-page-valid",
+  "tool": "inspect_page",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "document": { "content": "<!DOCTYPE html><html><body><p>First page.</p><p style=\"break-before: page\">Second page.</p></body></html>" },
+    "options": { "page_width": "5in", "page_height": "3in" },
+    "page": 2,
+    "image": { "include": true, "dpi": 72 }
+  },
+  "expect": {
+    "ok": true,
+    "checks": [
+      { "pointer": "/page", "equals": 2 },
+      { "pointer": "/page_count", "equals": 2 },
+      { "pointer": "/page_size/width", "equals": 360 },
+      { "pointer": "/page_size/height", "equals": 216 },
+      { "pointer": "/truncated", "equals": false },
+      { "pointer": "/image/media_type", "equals": "image/png" },
+      { "pointer": "/image/width_px", "equals": 360 },
+      { "pointer": "/image/height_px", "equals": 216 },
+      { "pointer": "/boxes", "min_items": 1 }
+    ]
+  }
+}

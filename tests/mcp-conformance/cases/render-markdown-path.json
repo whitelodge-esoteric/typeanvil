@@ -1,0 +1,15 @@
+{
+  "id": "render-markdown-path",
+  "tool": "render",
+  "runtimes": ["local"],
+  "input": {
+    "document": { "path": "fixtures/notes.md" }
+  },
+  "expect": {
+    "ok": true,
+    "checks": [
+      { "pointer": "/page_count", "equals": 1 },
+      { "pointer": "/artifact/kind", "equals": "bytes" }
+    ]
+  }
+}

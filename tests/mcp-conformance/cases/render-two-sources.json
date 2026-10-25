@@ -1,0 +1,12 @@
+{
+  "id": "render-two-sources",
+  "tool": "render",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "document": { "content": "<p>a</p>", "url": "{{BASE_URL}}/simple.html" }
+  },
+  "expect": {
+    "error": "INPUT_SOURCE_AMBIGUOUS",
+    "checks": [{ "pointer": "/field", "equals": "/document" }]
+  }
+}

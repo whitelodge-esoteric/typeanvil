@@ -1,0 +1,17 @@
+{
+  "id": "render-path",
+  "tool": "render",
+  "runtimes": ["local"],
+  "input": {
+    "document": { "path": "fixtures/two-pages.html" },
+    "output": { "mode": "bytes" }
+  },
+  "expect": {
+    "ok": true,
+    "checks": [
+      { "pointer": "/page_count", "equals": 2 },
+      { "pointer": "/artifact/kind", "equals": "bytes" },
+      { "pointer": "/artifact/data_base64", "exists": true }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "render-url",
+  "tool": "render",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "document": { "url": "{{BASE_URL}}/simple.html" }
+  },
+  "expect": {
+    "ok": true,
+    "checks": [
+      { "pointer": "/page_count", "equals": 1 },
+      { "pointer": "/byte_size", "min": 1 }
+    ]
+  }
+}

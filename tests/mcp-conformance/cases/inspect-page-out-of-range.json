@@ -1,0 +1,13 @@
+{
+  "id": "inspect-page-out-of-range",
+  "tool": "inspect_page",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "document": { "content": "<p>One page.</p>" },
+    "page": 5
+  },
+  "expect": {
+    "error": "PAGE_OUT_OF_RANGE",
+    "checks": [{ "pointer": "/field", "equals": "/page" }]
+  }
+}

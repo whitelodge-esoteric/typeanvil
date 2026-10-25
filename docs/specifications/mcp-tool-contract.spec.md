@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-10-24
-updated: 2026-10-24
+updated: 2026-10-25
 sidebar_position: 73
 tags: [mcp, ai-native, cli, cloud, contract]
 spec_id: mcp-tool-contract
@@ -340,12 +340,18 @@ A contract test suite shall exist and both servers shall pass it.
 6. Given the error table, then each code in it appears in
    `common.schema.json#/$defs/ErrorCode`, and the reverse.
 
-Criteria 2, 3 and 6 are checked by `tests/mcp-conformance` when it lands.
-They are checked by hand for this spec.
+Criteria 2, 3 and 6 are checked in `cargo test` by
+`engine/tests/it/mcp_conformance.rs` (`schema_files_are_valid_and_complete`,
+`error_codes_match_spec_table`), which also runs the 2020-12
+meta-validation of Conformance Behavior 7.
 
 ## Implementation pointers
 
-- Local server: child issue under CORE-570 (`typeanvil mcp`, stdio).
+- Local server: CORE-575, `typeanvil mcp` (stdio) and `typeanvil call`.
+  Server behavior beyond this contract (defaults, roots, URL fetch, the
+  in-engine `inspect_page` raster) is in `mcp-server.spec.md`. The suite is
+  `tests/mcp-conformance/`; the local runner is
+  `engine/tests/it/mcp_conformance.rs`.
 - Cloud endpoint: Platform repo. The Platform team implements this spec and
   the schemas in `schemas/mcp/v1/`, and runs the conformance suite.
 

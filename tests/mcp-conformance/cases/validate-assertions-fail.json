@@ -1,0 +1,24 @@
+{
+  "id": "validate-assertions-fail",
+  "tool": "validate",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "document": { "content": "<!DOCTYPE html><html><body><p>Only one page.</p></body></html>" },
+    "assertions": [
+      { "kind": "page_count", "equals": 3 },
+      { "kind": "text_on_page", "text": "Not in the document" },
+      { "kind": "element_on_page", "selector": "table" },
+      { "kind": "page_count", "max": 1 }
+    ]
+  },
+  "expect": {
+    "ok": true,
+    "checks": [
+      { "pointer": "/ok", "equals": false },
+      { "pointer": "/assertions/0/passed", "equals": false },
+      { "pointer": "/assertions/1/passed", "equals": false },
+      { "pointer": "/assertions/2/passed", "equals": false },
+      { "pointer": "/assertions/3/passed", "equals": true }
+    ]
+  }
+}

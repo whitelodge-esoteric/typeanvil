@@ -1,0 +1,12 @@
+{
+  "id": "render-path-on-cloud",
+  "tool": "render",
+  "runtimes": ["cloud"],
+  "input": {
+    "document": { "path": "fixtures/simple.html" }
+  },
+  "expect": {
+    "error": "PATH_INPUT_UNSUPPORTED",
+    "checks": [{ "pointer": "/field", "equals": "/document/path" }]
+  }
+}

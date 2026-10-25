@@ -1,0 +1,12 @@
+{
+  "id": "render-path-not-found",
+  "tool": "render",
+  "runtimes": ["local"],
+  "input": {
+    "document": { "path": "fixtures/does-not-exist.html" }
+  },
+  "expect": {
+    "error": "PATH_NOT_FOUND",
+    "checks": [{ "pointer": "/field", "equals": "/document/path" }]
+  }
+}

@@ -4172,6 +4172,25 @@ mod breaks {
     }
 }
 
+/// Element ids that match a CSS selector list, in document order (CORE-575
+/// MCP `explain`). Uses stylo's own selector parser and matcher, the same
+/// path as the cascade's author passes. Returns `None` when the list does not
+/// parse; selectors with a pseudo-element never match an element.
+pub fn select_elements(dom: &Dom, selector: &str) -> Option<Vec<NodeId>> {
+    use style::selector_parser::SelectorParser;
+    let url_data = breaks::url_data();
+    let list = SelectorParser::parse_author_origin_no_namespace(selector, &url_data).ok()?;
+    let lock = SharedRwLock::new();
+    let backend = TyBackend::new(dom, &lock);
+    let mut ids: Vec<NodeId> = Vec::new();
+    for sel in list.slice().iter().filter(|s| !s.has_pseudo_element()) {
+        ids.extend(breaks::matching_ids(&backend, sel));
+    }
+    ids.sort_unstable();
+    ids.dedup();
+    Some(ids)
+}
+
 /// Author-CSS parse for the `border` shorthand/longhands (CORE-61 tables).
 ///
 /// stylo's servo build DOES compile border widths/colors, but the engine's

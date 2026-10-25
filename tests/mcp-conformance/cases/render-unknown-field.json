@@ -1,0 +1,13 @@
+{
+  "id": "render-unknown-field",
+  "tool": "render",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "document": { "content": "<p>a</p>" },
+    "colour": "red"
+  },
+  "expect": {
+    "error": "INVALID_INPUT",
+    "checks": [{ "pointer": "/field", "equals": "/colour" }]
+  }
+}

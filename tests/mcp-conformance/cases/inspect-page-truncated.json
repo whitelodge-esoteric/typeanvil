@@ -1,0 +1,19 @@
+{
+  "id": "inspect-page-truncated",
+  "tool": "inspect_page",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "document": { "content": "<!DOCTYPE html><html><body><p>a</p><p>b</p><p>c</p></body></html>" },
+    "page": 1,
+    "image": { "include": false },
+    "max_boxes": 1
+  },
+  "expect": {
+    "ok": true,
+    "checks": [
+      { "pointer": "/truncated", "equals": true },
+      { "pointer": "/boxes/1", "exists": false },
+      { "pointer": "/image", "exists": false }
+    ]
+  }
+}

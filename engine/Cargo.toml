@@ -71,6 +71,16 @@ gif = "0.13"
 comrak = { version = "0.56", default-features = false }
 # Errors.
 anyhow = "1"
+# MCP server + `typeanvil call` JSON request mode (CORE-575): JSON in and out
+# (BTreeMap-backed maps, so serialized key order is deterministic) and base64
+# for PDF/PNG payloads (already in the lock graph via krilla).
+serde_json = "1"
+base64 = "0.22"
+# inspect_page raster (CORE-575): pure-Rust PDF rasterizer. It rasterizes the
+# exact PDF bytes `render` returns, so the PNG shows what the PDF shows. The
+# default `embed-fonts` feature (standard-14 substitutes) is off: TypeAnvil
+# PDFs embed every font they use.
+hayro = { version = "0.8", default-features = false }
 
 [profile.dev]
 # CORE-458: line tables keep file:line in panics and backtraces but cut the
@@ -86,6 +96,10 @@ lto = "thin"
 [dev-dependencies]
 tempfile = "3"
 flate2 = "1"
+# MCP conformance suite (CORE-575): an independent JSON Schema 2020-12
+# validator for every result, error and tool listing, plus meta-validation
+# of `schemas/mcp/v1/`. Test-only; no network resolution.
+jsonschema = { version = "0.60", default-features = false }
 
 [lints.rust]
 # ratchet: 9 existing hits as of 2026-10-17, CORE-474

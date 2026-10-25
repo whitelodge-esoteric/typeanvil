@@ -1,0 +1,13 @@
+{
+  "id": "explain-invalid-selector",
+  "tool": "explain",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "document": { "content": "<p>x</p>" },
+    "selector": "p[["
+  },
+  "expect": {
+    "error": "SELECTOR_INVALID",
+    "checks": [{ "pointer": "/field", "equals": "/selector" }]
+  }
+}

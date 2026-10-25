@@ -1,0 +1,10 @@
+{
+  "id": "render-output-path-on-cloud",
+  "tool": "render",
+  "runtimes": ["cloud"],
+  "input": {
+    "document": { "content": "<p>a</p>" },
+    "output": { "mode": "path", "path": "out.pdf" }
+  },
+  "expect": { "error": "OUTPUT_FORM_UNSUPPORTED" }
+}

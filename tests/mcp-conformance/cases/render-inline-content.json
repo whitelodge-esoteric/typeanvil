@@ -1,0 +1,18 @@
+{
+  "id": "render-inline-content",
+  "tool": "render",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "document": { "content": "<!DOCTYPE html><html><body><h1>Hello</h1><p>Inline content.</p></body></html>" },
+    "options": { "page_width": "5in", "page_height": "3in" }
+  },
+  "expect": {
+    "ok": true,
+    "checks": [
+      { "pointer": "/page_count", "equals": 1 },
+      { "pointer": "/byte_size", "min": 1 },
+      { "pointer": "/sha256", "exists": true },
+      { "pointer": "/diagnostics", "exists": true }
+    ]
+  }
+}

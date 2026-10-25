@@ -1,0 +1,16 @@
+{
+  "id": "explain-no-match",
+  "tool": "explain",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "document": { "content": "<p>Nothing here matches.</p>" },
+    "selector": "table.ledger"
+  },
+  "expect": {
+    "ok": true,
+    "checks": [
+      { "pointer": "/match_count", "equals": 0 },
+      { "pointer": "/matches/0", "exists": false }
+    ]
+  }
+}

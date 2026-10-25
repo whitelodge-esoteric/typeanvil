@@ -1,0 +1,7 @@
+{
+  "id": "tools-list",
+  "tool": "tools/list",
+  "runtimes": ["local", "cloud"],
+  "input": {},
+  "expect": { "ok": true }
+}

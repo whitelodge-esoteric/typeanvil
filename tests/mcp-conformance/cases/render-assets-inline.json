@@ -1,0 +1,15 @@
+{
+  "id": "render-assets-inline",
+  "tool": "render",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "document": { "content": "<!DOCTYPE html><html><head><link rel=\"stylesheet\" href=\"theme.css\"></head><body><p class=\"x\">Styled by an asset.</p></body></html>" },
+    "assets": {
+      "theme.css": { "content_base64": "LnggeyBjb2xvcjogcmVkOyB9", "media_type": "text/css" }
+    }
+  },
+  "expect": {
+    "ok": true,
+    "checks": [{ "pointer": "/page_count", "equals": 1 }]
+  }
+}

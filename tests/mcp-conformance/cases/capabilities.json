@@ -1,0 +1,16 @@
+{
+  "id": "capabilities",
+  "tool": "capabilities",
+  "runtimes": ["local", "cloud"],
+  "input": {},
+  "expect": {
+    "ok": true,
+    "checks": [
+      { "pointer": "/tools", "contains": "render" },
+      { "pointer": "/tools", "contains": "explain" },
+      { "pointer": "/input_forms/content", "equals": true },
+      { "pointer": "/input_forms/url", "equals": true }
+    ],
+    "capabilities_agree": true
+  }
+}
