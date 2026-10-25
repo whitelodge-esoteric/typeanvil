@@ -3412,7 +3412,11 @@ pub(crate) fn cascade_evaluated(
                     for &(id, rtl) in pins {
                         logical_sizing::pin_direction(&mut nodes[id], rtl);
                     }
-                    walk_dom = Dom { nodes, root: dom.root };
+                    walk_dom = Dom {
+                        nodes,
+                        root: dom.root,
+                        source_lines: Vec::new(),
+                    };
                     walk_backend = TyBackend::new(&walk_dom, &lock);
                     (
                         &walk_backend,

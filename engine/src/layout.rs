@@ -128,6 +128,13 @@ pub struct Layout {
     /// emitter reads bytes through this store; layout fragments carry only
     /// the key.
     pub images: crate::images::ImageStore,
+    /// Pagination passes run (1, or up to `MAX_TOC_PASSES` for
+    /// target-counter / `counter(pages)` documents). Render report summary
+    /// (CORE-571); never read by the PDF emitter.
+    pub passes: usize,
+    /// `<img>` elements whose source failed to load or decode, in node
+    /// order (render report `image-missing`, CORE-571).
+    pub broken_images: Vec<NodeId>,
 }
 
 /// The outcome of laying out one box into one fragmentainer.
@@ -595,6 +602,8 @@ pub fn layout_with_images_and_store(
             headings: Vec::new(),
             links: Vec::new(),
             images: std::mem::take(images),
+            passes: 0,
+            broken_images: Vec::new(),
         };
     }
 
@@ -638,7 +647,9 @@ pub fn layout_with_images_and_store(
         let mut total_pages: usize = 0;
     let mut collected_links: Vec<CollectedLink> = Vec::new();
     let mut pages = Vec::new();
+    let mut passes_run = 0;
     for _ in 0..passes {
+        passes_run += 1;
         // Footnote numbers are per-PASS (CORE-107): document order is stable,
         // so the numbers never change mid-pass even though individual pages
         // may be re-laid-out by the footnote retry loop inside `paginate`.
@@ -703,6 +714,12 @@ pub fn layout_with_images_and_store(
         headings,
         links,
         images: std::mem::take(images),
+        passes: passes_run,
+        broken_images: image_infos
+            .iter()
+            .filter(|(id, info)| info.broken && **id < source_len)
+            .map(|(id, _)| *id)
+            .collect(),
     }
 }
 

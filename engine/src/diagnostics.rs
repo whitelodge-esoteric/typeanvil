@@ -214,38 +214,43 @@ pub fn analyze(css: &str) -> Vec<Diagnostic> {
 /// can contain (quotes, backslashes, control chars).
 pub fn to_json(events: &[Diagnostic]) -> String {
     let mut out = String::with_capacity(256 + events.len() * 160);
-    out.push_str("{\n  \"schema\": 1,\n  \"diagnostics\": [");
+    // CORE-571: schema 2 adds layout events and a render summary (emitted by
+    // `render_report::to_json`). The stylesheet events keep their shape.
+    out.push_str("{\n  \"schema\": 2,\n  \"diagnostics\": [");
     if events.is_empty() {
         out.push_str("],\n");
     } else {
         out.push('\n');
         for (idx, d) in events.iter().enumerate() {
             let comma = if idx + 1 == events.len() { "" } else { "," };
-            // CORE-513: events from the Markdown converter (code prefix
-            // `markdown-`) carry `"source": "markdown"`; CSS events keep the
-            // schema-1 shape byte-for-byte.
-            let source = if d.code.starts_with("markdown-") {
-                ", \"source\": \"markdown\""
-            } else {
-                ""
-            };
-            let _ = writeln!(
-                out,
-                "    {{\"code\": {}, \"severity\": {}, \"message\": {}, \"line\": {}, \"column\": {}{}}}{}",
-                json_string(&d.code),
-                json_string(&d.severity),
-                json_string(&d.message),
-                d.line,
-                d.column,
-                source,
-                comma
-            );
+            let _ = writeln!(out, "    {}{}", event_json(d), comma);
         }
         out.push_str("  ],\n");
     }
     let _ = writeln!(out, "  \"counts\": {{\"warnings\": {}}}", events.len());
     out.push('}');
     out
+}
+
+/// One stylesheet/Markdown event as a single-line JSON object.
+pub(crate) fn event_json(d: &Diagnostic) -> String {
+    // CORE-513: events from the Markdown converter (code prefix
+    // `markdown-`) carry `"source": "markdown"`; CSS events keep the
+    // schema-1 shape byte-for-byte.
+    let source = if d.code.starts_with("markdown-") {
+        ", \"source\": \"markdown\""
+    } else {
+        ""
+    };
+    format!(
+        "{{\"code\": {}, \"severity\": {}, \"message\": {}, \"line\": {}, \"column\": {}{}}}",
+        json_string(&d.code),
+        json_string(&d.severity),
+        json_string(&d.message),
+        d.line,
+        d.column,
+        source
+    )
 }
 
 pub(crate) fn json_string(s: &str) -> String {

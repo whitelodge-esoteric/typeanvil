@@ -112,6 +112,7 @@ mod tagged_reading_order;
 mod tagged_roles;
 mod tagged_untagged_content;
 mod tounicode;
+mod render_report;
 mod typography;
 mod ua_heading_breaks;
 mod writing_modes;

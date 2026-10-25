@@ -392,6 +392,25 @@ pub fn resolve_font(families: &[FamilySpec], weight: f32, style: FontStyle) -> F
     }
 }
 
+/// True when a named family resolves to at least one face (an `@font-face`
+/// rule or an installed system family). Render report (CORE-571): a `false`
+/// first family means the text used a later family or the bundled fallback.
+pub fn family_available(name: &str) -> bool {
+    !family_candidates(&FamilySpec::Name(name.to_string())).is_empty()
+}
+
+/// Identity of the bundled face set this process renders with (CORE-571):
+/// `<regular PostScript name>@<FNV-1a 64 of the four face files, hex>`.
+/// Stable for one host; changes when the bundled files change.
+pub fn bundle_fingerprint() -> String {
+    let mut h: u64 = 0xcbf29ce484222325;
+    for &id in BUNDLED_FACES.iter() {
+        h ^= content_hash(face_bytes(id));
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    format!("{}@{:016x}", face_postscript_name(FACE_REGULAR), h)
+}
+
 /// Every candidate face id for one family slot: @font-face rules first
 /// (they shadow system families), then system faces.
 fn family_candidates(spec: &FamilySpec) -> Vec<FaceId> {

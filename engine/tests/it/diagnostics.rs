@@ -55,7 +55,7 @@ fn fixture_events_exact_json() {
     assert_eq!(
         to_json(&events),
         r#"{
-  "schema": 1,
+  "schema": 2,
   "diagnostics": [
     {"code": "unsupported-property", "severity": "warning", "message": "property `text-indent` is not supported and was ignored (capability property:text-indent; alternative: use `padding-left` or `margin-left` on the block)", "line": 4, "column": 5},
     {"code": "display-fallback", "severity": "warning", "message": "inline-table falls back to block", "line": 5, "column": 5},
@@ -121,6 +121,6 @@ fn empty_and_clean_stylesheets_emit_empty_document() {
     let json = to_json(&analyze(""));
     assert_eq!(
         json,
-        "{\n  \"schema\": 1,\n  \"diagnostics\": [],\n  \"counts\": {\"warnings\": 0}\n}"
+        "{\n  \"schema\": 2,\n  \"diagnostics\": [],\n  \"counts\": {\"warnings\": 0}\n}"
     );
 }

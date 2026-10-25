@@ -4,7 +4,7 @@ type: spec
 status: approved
 owner: maintainers
 created: 2026-08-24
-updated: 2026-09-27
+updated: 2026-10-25
 slug: /specifications/diagnostics
 sidebar_position: 43
 tags: [cli, diagnostics, css-parsing]
@@ -42,9 +42,9 @@ true statements about the render even though it runs as a separate pass.
 
 ## Non-Goals
 
-- **Layout-time events** ("float deferred past page", fallback taken during
-  fragmentation) require threading a sink through `layout()`; deferred to a
-  follow-up issue. Iteration one reports the stylesheet surface only.
+- **Layout-time events** are specified separately in
+  `render-report.spec.md` (CORE-571, schema 2). This spec keeps the
+  stylesheet surface.
 - **Harness integration** (per-test diagnostic counts in WPT reports) —
   deferred to a later harness revision.
 - Value-level validation beyond structural checks (a full CSS value grammar
@@ -111,9 +111,13 @@ CLI: `typeanvil render <input.html> … [--diagnostics json|text] -o out.pdf`
 
 ## JSON Schema
 
+Schema 2 (CORE-571) is current: `schema` is `2`, layout events follow the
+stylesheet events, and a `summary` object follows `counts` (see
+`render-report.spec.md`). Stylesheet event objects are unchanged.
+
 ```json
 {
-  "schema": 1,
+  "schema": 2,
   "diagnostics": [
     {
       "code": "unsupported-property",
@@ -132,7 +136,7 @@ CLI: `typeanvil render <input.html> … [--diagnostics json|text] -o out.pdf`
 - Event codes (stable): `unsupported-property`, `unknown-at-rule`,
   `display-fallback`, `malformed-declaration`.
 - `counts.warnings` equals the number of events (all severities are
-  `warning` in schema 1).
+  `warning` in schemas 1 and 2).
 
 ## Acceptance Criteria
 

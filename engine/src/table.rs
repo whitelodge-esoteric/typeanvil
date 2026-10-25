@@ -1107,5 +1107,9 @@ pub fn fixup_anonymous_table_boxes(dom: &Dom, styles: &mut Vec<ComputedStyle>) -
         }
         id += 1;
     }
-    Some(Dom { nodes, root: dom.root })
+    Some(Dom {
+        nodes,
+        root: dom.root,
+        source_lines: dom.source_lines.clone(),
+    })
 }
