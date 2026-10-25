@@ -588,6 +588,13 @@ fn event_json(e: &LayoutEvent) -> String {
 /// [`crate::diagnostics::to_json`] prints them), then layout events, then the
 /// summary.
 pub fn to_json(events: &[Diagnostic], report: &RenderReport) -> String {
+    to_json_with(events, report, None)
+}
+
+/// [`to_json`] with an optional extra top-level member (CORE-573: the
+/// `"assertions"` block, already indented, no trailing comma) placed after
+/// `counts` and before `summary`.
+pub fn to_json_with(events: &[Diagnostic], report: &RenderReport, extra: Option<&str>) -> String {
     let mut lines: Vec<String> = events.iter().map(crate::diagnostics::event_json).collect();
     lines.extend(report.events.iter().map(event_json));
     let mut out = String::new();
@@ -605,6 +612,10 @@ pub fn to_json(events: &[Diagnostic], report: &RenderReport) -> String {
         out.push_str("  ],\n");
     }
     let _ = writeln!(out, "  \"counts\": {{\"warnings\": {}}},", lines.len());
+    if let Some(extra) = extra {
+        out.push_str(extra);
+        out.push_str(",\n");
+    }
     let _ = writeln!(
         out,
         "  \"summary\": {{\"pages\": {}, \"passes\": {}, \"font_bundle\": {}}}",

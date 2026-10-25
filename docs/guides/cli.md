@@ -91,6 +91,8 @@ Flags and the input path can come in any order after `render`.
 | `--from` | `html` or `markdown` | by extension | Input format. Overrides the file extension. Any other value is a usage error. |
 | `--css` | file path | none | Markdown only. Append an author stylesheet after the default one. Repeat the flag for more files. HTML input rejects it. |
 | `--no-default-css` | none (switch) | off | Markdown only. Omit the built-in stylesheet. HTML input rejects it. |
+| `--assert` | JSON file path | none | Evaluate layout assertions after the render. Verdicts join the `--diagnostics` JSON. Implies `--diagnostics json`. |
+| `--fail-on-assert` | none (switch) | off | Exit `3` when any assertion fails. Needs `--assert`. |
 
 Parsing rules:
 
@@ -234,12 +236,37 @@ for a tool error and `2` for a usage error. `--root <dir>` limits file access
 to that directory. Client setup and request examples:
 [MCP server and JSON requests](./mcp.md).
 
+## Assertions
+
+`--assert goals.json` states layout goals and gets a verdict per goal. The
+file is a JSON array. Each object has a `kind` and an optional `id`:
+
+```json
+[
+  {"id": "fit", "kind": "max-pages", "value": 2},
+  {"kind": "keep-together", "selector": "table.totals"},
+  {"kind": "on-page", "selector": "#signature", "page": 2},
+  {"kind": "outline-covers", "selector": "h1, h2"},
+  {"kind": "no-overflow"}
+]
+```
+
+The kinds are `max-pages`, `exact-pages`, `no-overflow`, `no-empty-pages`,
+`keep-together`, `on-page`, `outline-covers`, and `fonts-resolved`. The
+diagnostics JSON gains an `assertions` object with `passed`, `failed`, and
+one result per goal. A failing result lists evidence: page, rect, source
+line and column, and element selector. The exit status does not change
+unless you also pass `--fail-on-assert`. A bad assertions file is a usage
+error (exit `2`). Spec: `docs/specifications/intent-assertions.spec.md`.
+
 ## Exit codes and errors
 
 | Exit | Meaning |
 |---|---|
 | `0` | Success: the PDF was written, or `--version` / `--help` was printed. |
 | `1` | Any error. |
+| `2` | Usage error for `--from`, `--css`, `--no-default-css`, `--assert`, or `--fail-on-assert`. |
+| `3` | `--fail-on-assert`: at least one assertion failed. The PDF and diagnostics were written. |
 
 On error, the CLI prints a single line to stderr in the form
 `typeanvil: error: <reason>`. The reasons include:
