@@ -45,7 +45,12 @@ def check(build: Path) -> list[str]:
 
     if not index.startswith("# TypeAnvil\n"):
         errors.append("llms.txt must start with the H1 '# TypeAnvil'")
-    for needle in ("Use these docs", "not a fit", "/guides/getting-started.md"):
+    for needle in (
+        "Use these docs",
+        "not a fit",
+        "/guides/getting-started.md",
+        "/guides/agent-authoring.md",
+    ):
         if needle not in index:
             errors.append(f"llms.txt lacks required text: {needle!r}")
 

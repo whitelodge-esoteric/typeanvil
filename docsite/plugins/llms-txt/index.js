@@ -12,6 +12,8 @@ const fs = require('fs');
 const path = require('path');
 
 const INSTALL_PATH = '/guides/getting-started';
+// Generated from the capability manifest (CORE-579, CORE-580).
+const AUTHORING_PATH = '/guides/agent-authoring';
 
 function stripFrontmatter(text) {
   const m = text.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/);
@@ -64,6 +66,8 @@ function buildIndex(siteConfig, docs, siteDir) {
       'JavaScript execution or interactive layout. The engine is a static renderer.',
     '',
     `Start with the install guide: ${abs(INSTALL_PATH + '.md')}`,
+    '',
+    `Before writing HTML for TypeAnvil, read the agent authoring guide: ${abs(AUTHORING_PATH + '.md')}`,
     '',
     `Full text of every page in one file: ${abs('/llms-full.txt')}`,
     '',
