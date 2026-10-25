@@ -57,7 +57,7 @@ fn fixture_events_exact_json() {
         r#"{
   "schema": 1,
   "diagnostics": [
-    {"code": "unsupported-property", "severity": "warning", "message": "property `text-indent` is not supported and was ignored", "line": 4, "column": 5},
+    {"code": "unsupported-property", "severity": "warning", "message": "property `text-indent` is not supported and was ignored (capability property:text-indent; alternative: use `padding-left` or `margin-left` on the block)", "line": 4, "column": 5},
     {"code": "display-fallback", "severity": "warning", "message": "inline-table falls back to block", "line": 5, "column": 5},
     {"code": "unknown-at-rule", "severity": "warning", "message": "at-rule `@ruby` is not supported and was ignored", "line": 8, "column": 1},
     {"code": "malformed-declaration", "severity": "warning", "message": "declaration `widows` has no property-value separator", "line": 12, "column": 5},

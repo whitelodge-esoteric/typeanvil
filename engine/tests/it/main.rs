@@ -9,6 +9,7 @@ mod canvas_gradient;
 mod bookmarks;
 mod br_wrap_probe;
 mod break_between_avoid;
+mod capabilities;
 mod cli_surface;
 mod core319_background_image;
 mod core116_oversized_row;

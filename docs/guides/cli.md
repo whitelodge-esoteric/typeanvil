@@ -4,7 +4,7 @@ type: guide
 status: approved
 owner: maintainers
 created: 2026-10-14
-updated: 2026-10-18
+updated: 2026-10-24
 sidebar_position: 3
 tags: [guide, cli, reference]
 slug: /guides/cli
@@ -12,12 +12,15 @@ slug: /guides/cli
 
 # CLI reference
 
-TypeAnvil ships one command-line program, `typeanvil`. It has one subcommand,
-`render`, which reads an HTML or Markdown file and writes a PDF. Two more flags
-print the version and the help text.
+TypeAnvil ships one command-line program, `typeanvil`. The `render`
+subcommand reads an HTML or Markdown file and writes a PDF. The
+`capabilities --json` subcommand prints a manifest of supported CSS (see
+[Capabilities](#capabilities)). Two more flags print the version and the help
+text.
 
 ```text
 typeanvil render <input.html|input.md> [flags] -o <output.pdf>
+typeanvil capabilities --json
 typeanvil --version
 typeanvil --help
 ```
@@ -207,6 +210,16 @@ Things to know about diagnostics:
 
 The [diagnostics specification](../specifications/diagnostics.spec.md) defines
 the schema.
+
+## Capabilities
+
+`typeanvil capabilities --json` prints a JSON manifest of CSS properties,
+`@page` descriptors, `display` values, at-rules, selector features, and input
+formats. Each entry has a `status` (`supported`, `partial`, or
+`unsupported`), a `note`, and sometimes an `alternative`. A property that is
+not listed is unsupported. The manifest comes from the same tables as
+`--diagnostics`, so a warning always agrees with it. Spec:
+`docs/specifications/capability-manifest.spec.md`.
 
 ## Exit codes and errors
 
