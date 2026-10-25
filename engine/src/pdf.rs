@@ -304,9 +304,57 @@ pub fn render_with_options(
     tagged: bool,
     ua: bool,
 ) -> Result<Vec<u8>> {
+    render_with_attachments(layout, dom, meta, tagged, ua, &[])
+}
+
+/// How an embedded file relates to the document (CORE-577,
+/// pdf-embedded-source.spec.md). Written as `/AFRelationship`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AttachmentRelation {
+    /// The PDF was created from this file (the input HTML / Markdown).
+    Source,
+    /// Structured data the presentation derives from (e.g. invoice JSON).
+    Data,
+}
+
+/// A file embedded in the PDF as an associated file (CORE-577).
+#[derive(Clone, Debug)]
+pub struct Attachment {
+    /// File name shown in viewers and used as the `/EmbeddedFiles` key.
+    pub name: String,
+    /// MIME type, e.g. `text/markdown`. Must be `type/subtype`.
+    pub mime_type: String,
+    pub description: String,
+    pub relation: AttachmentRelation,
+    pub data: Vec<u8>,
+}
+
+/// [`render_with_options`] plus embedded files (CORE-577). With an empty
+/// `attachments` slice the output is byte-identical to
+/// `render_with_options`. With attachments, the file version is PDF 2.0
+/// (so krilla writes `/AFRelationship` and the catalog `/AF` array), except
+/// under `--ua`, where PDF/UA-1 caps the version at 1.7 and the files are
+/// embedded without the association keys. No modification date is written.
+pub fn render_with_attachments(
+    layout: &Layout,
+    dom: Option<&crate::dom::Dom>,
+    meta: &DocumentMetadata,
+    tagged: bool,
+    ua: bool,
+    attachments: &[Attachment],
+) -> Result<Vec<u8>> {
     // Tagging requires the DOM (the tree is semantic, not geometric).
     let tagged = tagged && dom.is_some();
-    let settings = if ua {
+    let settings = if !attachments.is_empty() && !ua {
+        SerializeSettings {
+            enable_tagging: tagged,
+            configuration: krilla::configure::ConfigurationBuilder::new()
+                .with_version(krilla::configure::PdfVersion::Pdf20)
+                .finish()
+                .map_err(|e| anyhow!("invalid PDF configuration: {e:?}"))?,
+            ..SerializeSettings::default()
+        }
+    } else if ua {
         SerializeSettings {
             enable_tagging: true,
             configuration: krilla::configure::ConfigurationBuilder::new()
@@ -735,6 +783,29 @@ pub fn render_with_options(
             m = m.keywords(meta.keywords.clone());
         }
         document.set_metadata(m);
+    }
+
+    // Associated files (CORE-577): no modification date, so the bytes stay
+    // deterministic. Duplicate names are a caller error.
+    for a in attachments {
+        let mime = krilla::embed::MimeType::new(&a.mime_type)
+            .ok_or_else(|| anyhow!("invalid attachment MIME type `{}`", a.mime_type))?;
+        let file = krilla::embed::EmbeddedFile {
+            path: a.name.clone(),
+            mime_type: Some(mime),
+            description: Some(a.description.clone()),
+            association_kind: match a.relation {
+                AttachmentRelation::Source => krilla::embed::AssociationKind::Source,
+                AttachmentRelation::Data => krilla::embed::AssociationKind::Data,
+            },
+            data: a.data.clone().into(),
+            modification_date: None,
+            compress: Some(true),
+            location: None,
+        };
+        document
+            .embed_file(file)
+            .ok_or_else(|| anyhow!("duplicate attachment name `{}`", a.name))?;
     }
 
     document
