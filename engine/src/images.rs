@@ -142,8 +142,28 @@ fn load_bytes(src: &str, base_url: Option<&Path>) -> Option<Vec<u8>> {
     if trimmed.is_empty() {
         return None;
     }
+    // CORE-578: a URL with a scheme is a remote reference (the engine never
+    // fetches it); under a restricted fetch policy it is reported blocked.
+    if has_url_scheme(trimmed) && crate::safety::restricted_fetch() {
+        crate::safety::allow_remote(trimmed, "img");
+        return None;
+    }
     let path = resolve_path(trimmed, base_url);
+    if !crate::safety::allow_local(&path, "img") {
+        return None;
+    }
     std::fs::read(path).ok()
+}
+
+/// True for `scheme:` URLs (`http:`, `https:`, `file:`, `ftp:` ...), with a
+/// scheme of two or more characters so a Windows drive letter is not one.
+pub(crate) fn has_url_scheme(s: &str) -> bool {
+    match s.find(':') {
+        Some(i) if i >= 2 => s[..i]
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '-' || c == '.'),
+        _ => false,
+    }
 }
 
 /// Resolve a document-relative path against `--base-url`. Absolute paths
@@ -267,6 +287,22 @@ fn decode_base64(bytes: &[u8]) -> Option<Vec<u8>> {
 /// `width_px`/`height_px` are CSS pixels at the 96 DPI baseline
 /// (1px = 0.75pt), same for every format.
 fn sniff(b: &[u8]) -> Option<(u32, u32, ImageKind, Vec<u8>)> {
+    // CORE-578: check the header dimensions against --max-image-pixels
+    // BEFORE any decode or rasterization.
+    let header = if is_png(b) {
+        png_dimensions(b)
+    } else if is_jpeg(b) {
+        jpeg_dimensions(b)
+    } else if is_gif(b) {
+        gif_dimensions(b)
+    } else {
+        None
+    };
+    if let Some((w, h)) = header {
+        if !crate::safety::check_image_size(w, h) {
+            return None;
+        }
+    }
     if is_png(b) {
         png_dimensions(b).map(|(w, h)| (w, h, ImageKind::Png, b.to_vec()))
     } else if is_jpeg(b) {
@@ -468,11 +504,26 @@ fn rasterize_svg(b: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
     // function of the database, same registry model as fonts.rs).
     opts.fontdb = svg_fontdb();
     opts.font_family = "Arial".into();
+    // CORE-578: under a restricted fetch policy an SVG `<image href>` that
+    // names a file or URL loads nothing (data: URIs still decode).
+    if crate::safety::restricted_fetch() {
+        opts.image_href_resolver.resolve_string = Box::new(|href: &str, _| {
+            if crate::images::has_url_scheme(href) {
+                crate::safety::allow_remote(href, "svg image");
+            } else {
+                crate::safety::allow_local(std::path::Path::new(href), "svg image");
+            }
+            None
+        });
+    }
 
     let tree = resvg::usvg::Tree::from_str(text, &opts).ok()?;
     let size = tree.size();
     let (w, h) = (size.width().round() as u32, size.height().round() as u32);
     if w == 0 || h == 0 || w > 16_384 || h > 16_384 {
+        return None;
+    }
+    if !crate::safety::check_image_size(w, h) {
         return None;
     }
 

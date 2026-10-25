@@ -41,6 +41,11 @@ pub struct RenderInput {
     /// Called after HTML parse, before stylesheet collection. The MCP tools
     /// use it to point `assets` references at their materialized files.
     pub rewrite: Option<Box<dyn Fn(&mut Dom)>>,
+    /// CORE-578: fetch policy and limits. `Policy::unrestricted()` keeps the
+    /// legacy behavior.
+    pub policy: crate::safety::Policy,
+    /// CORE-578: largest accepted document source, in bytes.
+    pub max_input_bytes: Option<usize>,
 }
 
 /// The finished render: the PDF plus the intermediate state the report,
@@ -52,10 +57,37 @@ pub struct Rendered {
     pub pdf: Vec<u8>,
     /// Markdown converter events (empty for HTML input).
     pub md_events: Vec<Diagnostic>,
+    /// CORE-578: `fetch-blocked` diagnostics (empty without a policy).
+    pub blocked: Vec<String>,
 }
 
 /// Parse and lay out the document, then write the PDF.
+///
+/// A tripped limit returns a [`crate::safety::LimitError`] (downcast the
+/// `anyhow` error) and produces no PDF.
 pub fn run(input: RenderInput) -> Result<Rendered> {
+    use crate::safety::{LimitError, LimitKind};
+    if let Some(max) = input.max_input_bytes {
+        if input.source.len() > max {
+            return Err(LimitError {
+                kind: LimitKind::InputSize,
+                message: format!(
+                    "the input is {} bytes, above --max-input-bytes {max}",
+                    input.source.len()
+                ),
+                blocked: Vec::new(),
+            }
+            .into());
+        }
+    }
+    let _guard = crate::safety::install(input.policy.clone());
+    let stage = || -> Result<()> {
+        crate::safety::check_deadline();
+        match crate::safety::take_limit_error() {
+            Some(e) => Err(e.into()),
+            None => Ok(()),
+        }
+    };
     let mut md_events = Vec::new();
     let (html, html_extra) = if input.markdown {
         let doc = crate::markdown::convert(&input.source, &input.extra_css, input.default_css)
@@ -70,20 +102,25 @@ pub fn run(input: RenderInput) -> Result<Rendered> {
     if let Some(rewrite) = &input.rewrite {
         rewrite(&mut dom);
     }
+    stage()?;
     inline_iframe_sources(&mut dom, &input.input);
     let stylesheet = extract_stylesheet(&dom, &input.input, &html_extra);
+    stage()?;
 
     let layout =
         crate::layout::layout_with_images(&dom, &stylesheet, input.geometry, input.base_url.as_deref());
+    stage()?;
     let meta = crate::metadata::extract_metadata(&dom, input.title, input.author);
     let pdf = crate::pdf::render_with_options(&layout, Some(&dom), &meta, input.tagged, input.ua)
         .context("rendering PDF")?;
+    stage()?;
     Ok(Rendered {
         dom,
         stylesheet,
         layout,
         pdf,
         md_events,
+        blocked: crate::safety::take_blocked(),
     })
 }
 
@@ -181,7 +218,20 @@ fn read_link_stylesheet(el: &dom::Element, input_dir: &Path) -> Option<String> {
 ///   `--base-url`.
 /// - `http(s)://` and other non-file schemes return `None` (offline contract).
 pub fn resolve_asset_path(input_dir: &Path, href: &str) -> Option<PathBuf> {
+    let found = resolve_asset_path_unchecked(input_dir, href)?;
+    // CORE-578: the fetch policy decides whether the resolved file is read.
+    crate::safety::allow_local(&found, "resource").then_some(found)
+}
+
+fn resolve_asset_path_unchecked(input_dir: &Path, href: &str) -> Option<PathBuf> {
     let href = href.trim();
+    if (href.starts_with("http://") || href.starts_with("https://") || href.starts_with("file:"))
+        && crate::safety::restricted_fetch()
+    {
+        // Never fetched (offline contract); reported under a policy.
+        crate::safety::allow_remote(href, "resource");
+        return None;
+    }
     if href.is_empty()
         || href.starts_with("http://")
         || href.starts_with("https://")

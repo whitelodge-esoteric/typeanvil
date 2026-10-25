@@ -2014,6 +2014,16 @@ fn paginate(
         if pages.len() >= MAX_PAGES {
             break;
         }
+        // CORE-578: user limits. A tripped limit stops pagination; the
+        // pipeline turns it into an error and writes no PDF.
+        if incoming.is_some()
+            && (!crate::safety::check_page_count(pages.len()) || !crate::safety::check_deadline())
+        {
+            break;
+        }
+        if crate::safety::tripped() {
+            break;
+        }
     }
 
     if pages.is_empty() {

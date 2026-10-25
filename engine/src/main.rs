@@ -32,6 +32,7 @@ use anyhow::{anyhow, bail, Context, Result};
 
 use typeanvil::geom::{PageGeometry, Scalar};
 use typeanvil::pipeline::{self, parse_length, RenderInput};
+use typeanvil::safety::{FetchPolicy, LimitError, Policy};
 
 fn main() -> ExitCode {
     match run() {
@@ -41,6 +42,12 @@ fn main() -> ExitCode {
         Err(e) if e.downcast_ref::<AssertionsFailed>().is_some() => {
             eprintln!("typeanvil: {e}");
             ExitCode::from(3)
+        }
+        // CORE-578: a resource limit stopped the render (exit 4, no PDF).
+        // stderr carries the stable code: `typeanvil: error: [LIMIT_...] ...`.
+        Err(e) if e.downcast_ref::<LimitError>().is_some() => {
+            eprintln!("typeanvil: error: {e}");
+            ExitCode::from(4)
         }
         Err(e) => {
             eprintln!("typeanvil: error: {e:#}");
@@ -204,6 +211,17 @@ Flags (render):
                             diagnostics JSON (implies --diagnostics json)
       --fail-on-assert      Exit 3 when any assertion fails (needs --assert)
 
+Safety flags (render; untrusted input, default off):
+      --fetch <mode>        none | local | allow-list | unrestricted (default).
+                            local: reads only under --base-url (else the
+                            input's directory); blocked reads are reported
+      --fetch-hosts <list>  Comma-separated hosts for --fetch allow-list
+      --max-pages <n>       Stop with LIMIT_PAGE_COUNT above n pages
+      --timeout <seconds>   Stop with LIMIT_TIMEOUT after the time budget
+      --max-input-bytes <n> Stop with LIMIT_INPUT_SIZE above n source bytes
+      --max-image-pixels <n> Stop with LIMIT_IMAGE_SIZE for a larger image
+                            A stopped render writes no PDF and exits 4
+
 Flags (mcp, call):
       --root <dir>          Allow file access only under <dir> (repeatable)
 
@@ -242,6 +260,12 @@ struct RenderArgs {
     assertions: Option<Vec<typeanvil::assertions::Assertion>>,
     /// CORE-573: `--fail-on-assert`.
     fail_on_assert: bool,
+    /// CORE-578: `--fetch` (Unrestricted when absent).
+    fetch: FetchPolicy,
+    max_pages: Option<usize>,
+    timeout: Option<std::time::Duration>,
+    max_input_bytes: Option<usize>,
+    max_image_pixels: Option<u64>,
 }
 
 /// Output format for `--diagnostics`.
@@ -271,8 +295,27 @@ fn render(args: Vec<String>) -> Result<()> {
         Some(PathBuf::from(opts.base_url.as_str()))
     };
 
+    // CORE-578: the confinement root is `--base-url` when given, else the
+    // input file's directory. Without any safety flag the policy is
+    // unrestricted and the render is the legacy one.
+    let root = base_url.clone().unwrap_or_else(|| {
+        opts.input
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("."))
+    });
+    let policy = Policy {
+        fetch: opts.fetch.clone(),
+        roots: Vec::new(),
+        max_pages: opts.max_pages,
+        deadline: opts.timeout.map(|t| std::time::Instant::now() + t),
+        max_image_pixels: opts.max_image_pixels,
+    }
+    .with_root(&root);
+
     // CORE-575: the same pipeline the MCP `render` tool calls.
-    let done = pipeline::run(RenderInput {
+    let result = pipeline::run(RenderInput {
         source,
         input: opts.input.clone(),
         markdown: opts.markdown,
@@ -292,7 +335,26 @@ fn render(args: Vec<String>) -> Result<()> {
         tagged: opts.tagged,
         ua: opts.ua,
         rewrite: None,
-    })?;
+        policy,
+        max_input_bytes: opts.max_input_bytes,
+    });
+    let done = match result {
+        Ok(d) => d,
+        Err(e) => {
+            // Partial diagnostics: blocked fetches seen before the stop.
+            if let Some(le) = e.downcast_ref::<LimitError>() {
+                for msg in &le.blocked {
+                    eprintln!("typeanvil: warning: [fetch-blocked] {msg}");
+                }
+            }
+            return Err(e);
+        }
+    };
+    // CORE-578: blocked fetches are never silent — one stderr line each,
+    // and a `fetch-blocked` event in `--diagnostics` output.
+    for msg in &done.blocked {
+        eprintln!("typeanvil: warning: [fetch-blocked] {msg}");
+    }
 
     std::fs::write(&opts.output, &done.pdf)
         .with_context(|| format!("writing output {}", opts.output.display()))?;
@@ -302,6 +364,15 @@ fn render(args: Vec<String>) -> Result<()> {
     if let Some(mode) = opts.diagnostics {
         let mut events = done.md_events;
         events.extend(typeanvil::diagnostics::analyze(done.stylesheet.source()));
+        for msg in &done.blocked {
+            events.push(typeanvil::diagnostics::Diagnostic {
+                code: "fetch-blocked".to_string(),
+                severity: "warning".to_string(),
+                message: msg.clone(),
+                line: 0,
+                column: 0,
+            });
+        }
         // CORE-128: broken bookmark anchors collected during layout join the
         // stream as trailing warning events (no source position — 0,0).
         for msg in typeanvil::diagnostics::take_broken_anchors() {
@@ -375,6 +446,12 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
     let mut no_default_css = false;
     let mut assert_file: Option<PathBuf> = None;
     let mut fail_on_assert = false;
+    let mut fetch_mode: Option<String> = None;
+    let mut fetch_hosts: Option<String> = None;
+    let mut max_pages: Option<usize> = None;
+    let mut timeout: Option<std::time::Duration> = None;
+    let mut max_input_bytes: Option<usize> = None;
+    let mut max_image_pixels: Option<u64> = None;
 
     let mut it = args.into_iter();
     while let Some(arg) = it.next() {
@@ -407,6 +484,25 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
             "--no-default-css" => no_default_css = true,
             "--assert" => assert_file = Some(PathBuf::from(next_value(&mut it, &arg)?)),
             "--fail-on-assert" => fail_on_assert = true,
+            // CORE-578: fetch policy and limits.
+            "--fetch" => fetch_mode = Some(next_value(&mut it, &arg)?),
+            "--fetch-hosts" => fetch_hosts = Some(next_value(&mut it, &arg)?),
+            "--max-pages" => max_pages = Some(parse_count(&next_value(&mut it, &arg)?, &arg)?),
+            "--timeout" => {
+                let v = next_value(&mut it, &arg)?;
+                let secs: f64 = v
+                    .parse()
+                    .ok()
+                    .filter(|s: &f64| s.is_finite() && *s > 0.0)
+                    .ok_or_else(|| UsageError(format!("invalid --timeout `{v}` (seconds > 0)")))?;
+                timeout = Some(std::time::Duration::from_secs_f64(secs));
+            }
+            "--max-input-bytes" => {
+                max_input_bytes = Some(parse_count(&next_value(&mut it, &arg)?, &arg)?)
+            }
+            "--max-image-pixels" => {
+                max_image_pixels = Some(parse_count(&next_value(&mut it, &arg)?, &arg)? as u64)
+            }
             other if other.starts_with('-') => bail!("unknown flag `{other}`"),
             _ => {
                 if input.is_none() {
@@ -459,6 +555,22 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
         (d, _) => d,
     };
 
+    // CORE-578: no flag = unrestricted (the legacy contract).
+    let fetch = match fetch_mode.as_deref() {
+        None if fetch_hosts.is_some() => {
+            return Err(UsageError("--fetch-hosts requires --fetch allow-list".to_string()).into())
+        }
+        None => FetchPolicy::Unrestricted,
+        Some(m) => {
+            if m != "allow-list" && fetch_hosts.is_some() {
+                return Err(
+                    UsageError("--fetch-hosts requires --fetch allow-list".to_string()).into()
+                );
+            }
+            FetchPolicy::parse(m, fetch_hosts.as_deref()).map_err(UsageError)?
+        }
+    };
+
     Ok(RenderArgs {
         input,
         assertions,
@@ -479,7 +591,20 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
         tagged: ua || !no_tagged,
         ua,
         diagnostics,
+        fetch,
+        max_pages,
+        timeout,
+        max_input_bytes,
+        max_image_pixels,
     })
+}
+
+/// A positive integer flag value (usage error otherwise).
+fn parse_count(v: &str, flag: &str) -> Result<usize> {
+    v.parse::<usize>()
+        .ok()
+        .filter(|n| *n > 0)
+        .ok_or_else(|| UsageError(format!("invalid {flag} `{v}` (a positive integer)")).into())
 }
 
 fn next_value(it: &mut impl Iterator<Item = String>, flag: &str) -> Result<String> {

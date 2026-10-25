@@ -3018,6 +3018,14 @@ fn apply_font_face_rules(css_source: &str) {
 /// document-relative resolution threads through `--base-url` at the CLI
 /// layer by rewriting `url()` before parse (see main.rs).
 fn read_font_file(path: &str) -> Option<Vec<u8>> {
+    // CORE-578: font sources obey the fetch policy like every other read.
+    if crate::images::has_url_scheme(path) && crate::safety::restricted_fetch() {
+        crate::safety::allow_remote(path, "font");
+        return None;
+    }
+    if !crate::safety::allow_local(std::path::Path::new(path), "font") {
+        return None;
+    }
     std::fs::read(path).ok()
 }
 
