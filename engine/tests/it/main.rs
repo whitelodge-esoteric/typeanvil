@@ -114,6 +114,7 @@ mod tagged_untagged_content;
 mod tounicode;
 mod mcp_conformance;
 mod render_report;
+mod assertions;
 mod typography;
 mod ua_heading_breaks;
 mod writing_modes;

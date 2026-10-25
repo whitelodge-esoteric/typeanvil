@@ -36,6 +36,12 @@ use typeanvil::pipeline::{self, parse_length, RenderInput};
 fn main() -> ExitCode {
     match run() {
         Ok(code) => code,
+        // CORE-573: `--fail-on-assert` with failing assertions exits 3. The
+        // PDF and diagnostics were already written.
+        Err(e) if e.downcast_ref::<AssertionsFailed>().is_some() => {
+            eprintln!("typeanvil: {e}");
+            ExitCode::from(3)
+        }
         Err(e) => {
             eprintln!("typeanvil: error: {e:#}");
             // CORE-513 B14: usage errors for the Markdown flags exit 2.
@@ -149,6 +155,18 @@ impl std::fmt::Display for UsageError {
 
 impl std::error::Error for UsageError {}
 
+/// CORE-573: one or more assertions failed under `--fail-on-assert` (exit 3).
+#[derive(Debug)]
+struct AssertionsFailed(usize);
+
+impl std::fmt::Display for AssertionsFailed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} assertion(s) failed", self.0)
+    }
+}
+
+impl std::error::Error for AssertionsFailed {}
+
 const HELP: &str = "\
 typeanvil — AI-first HTML and Markdown to PDF typesetting engine
 
@@ -182,6 +200,9 @@ Flags (render):
       --from <format>       Input format: html | markdown (default: by extension)
       --css <file>          Markdown only: append an author stylesheet (repeatable)
       --no-default-css      Markdown only: omit the embedded default stylesheet
+      --assert <file.json>  Evaluate layout assertions; verdicts join the
+                            diagnostics JSON (implies --diagnostics json)
+      --fail-on-assert      Exit 3 when any assertion fails (needs --assert)
 
 Flags (mcp, call):
       --root <dir>          Allow file access only under <dir> (repeatable)
@@ -217,6 +238,10 @@ struct RenderArgs {
     css_files: Vec<PathBuf>,
     /// CORE-513: `--no-default-css` (Markdown only).
     no_default_css: bool,
+    /// CORE-573: parsed `--assert` file.
+    assertions: Option<Vec<typeanvil::assertions::Assertion>>,
+    /// CORE-573: `--fail-on-assert`.
+    fail_on_assert: bool,
 }
 
 /// Output format for `--diagnostics`.
@@ -291,9 +316,17 @@ fn render(args: Vec<String>) -> Result<()> {
         // CORE-571: layout-outcome events + summary from the final layout.
         let report =
             typeanvil::render_report::analyze_layout(&done.dom, &done.stylesheet, &done.layout);
+        // CORE-573: assertions read the same final layout and report.
+        let outcomes = opts.assertions.as_ref().map(|list| {
+            typeanvil::assertions::evaluate(&done.dom, &done.stylesheet, &done.layout, &report, list)
+        });
         match mode {
             DiagnosticsMode::Json => {
-                print!("{}", typeanvil::render_report::to_json(&events, &report))
+                let block = outcomes.as_deref().map(typeanvil::assertions::to_json_block);
+                print!(
+                    "{}",
+                    typeanvil::render_report::to_json_with(&events, &report, block.as_deref())
+                )
             }
             DiagnosticsMode::Text => {
                 for d in &events {
@@ -305,6 +338,15 @@ fn render(args: Vec<String>) -> Result<()> {
                 for e in &report.events {
                     eprintln!("{}", typeanvil::render_report::to_text(e));
                 }
+                for o in outcomes.iter().flatten() {
+                    eprintln!("{}", typeanvil::assertions::to_text(o));
+                }
+            }
+        }
+        if opts.fail_on_assert {
+            let failed = outcomes.iter().flatten().filter(|o| !o.passed).count();
+            if failed > 0 {
+                return Err(AssertionsFailed(failed).into());
             }
         }
     }
@@ -331,6 +373,8 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
     let mut from: Option<String> = None;
     let mut css_files: Vec<PathBuf> = Vec::new();
     let mut no_default_css = false;
+    let mut assert_file: Option<PathBuf> = None;
+    let mut fail_on_assert = false;
 
     let mut it = args.into_iter();
     while let Some(arg) = it.next() {
@@ -361,6 +405,8 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
             "--from" => from = Some(next_value(&mut it, &arg)?),
             "--css" => css_files.push(PathBuf::from(next_value(&mut it, &arg)?)),
             "--no-default-css" => no_default_css = true,
+            "--assert" => assert_file = Some(PathBuf::from(next_value(&mut it, &arg)?)),
+            "--fail-on-assert" => fail_on_assert = true,
             other if other.starts_with('-') => bail!("unknown flag `{other}`"),
             _ => {
                 if input.is_none() {
@@ -392,8 +438,31 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
         .into());
     }
 
+    // CORE-573: validate the assertions file BEFORE rendering (usage error,
+    // exit 2, no PDF). `--assert` implies `--diagnostics json`.
+    if fail_on_assert && assert_file.is_none() {
+        return Err(UsageError("--fail-on-assert requires --assert <file.json>".to_string()).into());
+    }
+    let assertions = match &assert_file {
+        None => None,
+        Some(f) => {
+            let text = std::fs::read_to_string(f).map_err(|e| {
+                UsageError(format!("--assert {}: {e}", f.display()))
+            })?;
+            let list = typeanvil::assertions::parse(&text)
+                .map_err(|e| UsageError(format!("--assert {}: {e}", f.display())))?;
+            Some(list)
+        }
+    };
+    let diagnostics = match (diagnostics, &assertions) {
+        (None, Some(_)) => Some(DiagnosticsMode::Json),
+        (d, _) => d,
+    };
+
     Ok(RenderArgs {
         input,
+        assertions,
+        fail_on_assert,
         markdown,
         css_files,
         no_default_css,

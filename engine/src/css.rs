@@ -3343,6 +3343,25 @@ pub fn cascade(dom: &Dom, stylesheet: &Stylesheet, geometry: &crate::geom::PageG
     cascade_evaluated(dom, &evaluated_css, geometry)
 }
 
+/// Elements matching a CSS selector list, in document order (CORE-573).
+/// Uses stylo's selector parser and the `selectors` matcher, exactly as the
+/// cascade does. Returns `None` when the list does not parse. Selectors with
+/// a pseudo-element are ignored.
+pub fn select(dom: &Dom, selector: &str) -> Option<Vec<NodeId>> {
+    use style::selector_parser::SelectorParser;
+    let url_data = breaks::url_data();
+    let list = SelectorParser::parse_author_origin_no_namespace(selector, &url_data).ok()?;
+    let lock = SharedRwLock::new();
+    let backend = TyBackend::new(dom, &lock);
+    let mut hit = vec![false; dom.nodes.len()];
+    for sel in list.slice().iter().filter(|s| !s.has_pseudo_element()) {
+        for id in breaks::matching_ids(&backend, sel) {
+            hit[id] = true;
+        }
+    }
+    Some((0..hit.len()).filter(|&i| hit[i]).collect())
+}
+
 /// Cascade against ALREADY media-evaluated CSS (CORE-156: the layout entry
 /// point evaluates the stylesheet once and shares the evaluated text
 /// between this cascade and `parse_page_rules`, so `@media` is never
