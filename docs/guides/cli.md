@@ -93,6 +93,8 @@ Flags and the input path can come in any order after `render`.
 | `--no-default-css` | none (switch) | off | Markdown only. Omit the built-in stylesheet. HTML input rejects it. |
 | `--assert` | JSON file path | none | Evaluate layout assertions after the render. Verdicts join the `--diagnostics` JSON. Implies `--diagnostics json`. |
 | `--fail-on-assert` | none (switch) | off | Exit `3` when any assertion fails. Needs `--assert`. |
+| `--data` | JSON file path | none | Treat the input as a data template and render it with this data. See [Data templates](#data-templates). |
+| `--schema` | JSON file path | sibling `<name>.schema.json` | Validate `--data` against this JSON Schema. Needs `--data`. |
 
 Parsing rules:
 
@@ -259,6 +261,20 @@ line and column, and element selector. The exit status does not change
 unless you also pass `--fail-on-assert`. A bad assertions file is a usage
 error (exit `2`). Spec: `docs/specifications/intent-assertions.spec.md`.
 
+## Data templates
+
+`--data invoice.json` treats the input as a MiniJinja (Jinja2 syntax)
+template and renders it with the JSON data. Values are HTML-escaped by
+default; `| safe` opts out. Templates cannot read files or the network.
+When a JSON Schema is present (`--schema`, or `<name>.schema.json` next to
+`<name>.tmpl.html`), the data is validated first. Each violation prints
+`typeanvil: error: [TEMPLATE_DATA_SCHEMA] <json-pointer>: <message>`, no PDF
+is written, and the exit code is `5`. `--diagnostics json` also prints the
+errors as `{"schema": 1, "template_errors": [...]}` on stdout.
+`typeanvil template-schema <template>` prints the schema an agent must fill.
+Examples live in `templates/`. Spec:
+`docs/specifications/data-templates.spec.md`.
+
 ## Exit codes and errors
 
 | Exit | Meaning |
@@ -267,6 +283,8 @@ error (exit `2`). Spec: `docs/specifications/intent-assertions.spec.md`.
 | `1` | Any error. |
 | `2` | Usage error for `--from`, `--css`, `--no-default-css`, `--assert`, or `--fail-on-assert`. |
 | `3` | `--fail-on-assert`: at least one assertion failed. The PDF and diagnostics were written. |
+| `4` | A `--max-*` or `--timeout` limit stopped the render. No PDF. |
+| `5` | `--data`: template, data or schema error (`TEMPLATE_*` codes). No PDF. |
 
 On error, the CLI prints a single line to stderr in the form
 `typeanvil: error: <reason>`. The reasons include:

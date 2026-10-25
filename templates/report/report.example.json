@@ -1,0 +1,37 @@
+{
+  "title": "Q3 2026 Operations Review",
+  "subtitle": "Print production and fulfilment",
+  "author": "Operations Team",
+  "date": "2026-10-25",
+  "kpis": [
+    { "label": "Jobs shipped", "value": 1284 },
+    { "label": "On-time rate", "value": "97.2%" },
+    { "label": "Reprint rate", "value": "0.8%" }
+  ],
+  "sections": [
+    {
+      "heading": "Summary",
+      "paragraphs": [
+        "Volume grew 11% over Q2 while the on-time rate held above target. Most of the growth came from recurring statement runs.",
+        "Two press outages in August cost about four production days. Both were recovered within the quarter."
+      ]
+    },
+    {
+      "heading": "Volume by product",
+      "paragraphs": ["Statements and invoices remain the largest lines. Book work is seasonal and peaks in Q4."],
+      "table": {
+        "columns": ["Product", "Q2", "Q3", "Change"],
+        "rows": [
+          ["Statements", 512, 590, "+15%"],
+          ["Invoices", 301, 322, "+7%"],
+          ["Reports", 214, 231, "+8%"],
+          ["Books", 129, 141, "+9%"]
+        ]
+      }
+    },
+    {
+      "heading": "Next quarter",
+      "paragraphs": ["Priorities: add a second finishing line, move proofs to tagged PDF, and cut reprints below 0.5%."]
+    }
+  ]
+}

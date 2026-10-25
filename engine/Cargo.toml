@@ -81,6 +81,10 @@ base64 = "0.22"
 # default `embed-fonts` feature (standard-14 substitutes) is off: TypeAnvil
 # PDFs embed every font they use.
 hayro = { version = "0.8", default-features = false }
+# Data template mode (CORE-576): Jinja2-syntax templates, pure Rust,
+# deterministic. No loader is registered (sandbox); `fuel` bounds loops,
+# `builtins` gives the standard filters, `serde` takes the JSON context.
+minijinja = { version = "3", default-features = false, features = ["builtins", "fuel", "serde"] }
 
 [profile.dev]
 # CORE-458: line tables keep file:line in panics and backtraces but cut the

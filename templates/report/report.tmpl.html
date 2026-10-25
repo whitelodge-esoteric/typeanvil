@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<meta name="author" content="{{ author }}">
+<style>
+  @page { size: Letter; margin: 0.9in 0.9in 1in 0.9in;
+    @top-right { content: "{{ title }}"; font-size: 8pt; color: #777; }
+    @bottom-center { content: counter(page); font-size: 8pt; color: #777; } }
+  @page :first { @top-right { content: none; } }
+  body { font-family: Georgia, "Times New Roman", serif; font-size: 11pt; line-height: 1.4; color: #222; }
+  .cover { page-break-after: always; padding-top: 2.5in; }
+  .cover h1 { font-size: 28pt; margin: 0 0 8pt 0; }
+  .cover .sub { font-size: 14pt; color: #555; }
+  .cover .byline { margin-top: 24pt; color: #555; }
+  h2 { font-size: 15pt; border-bottom: 1px solid #bbb; padding-bottom: 3pt; break-after: avoid; }
+  .kpis { display: flex; gap: 12pt; margin: 10pt 0 16pt 0; }
+  .kpi { flex: 1; border: 1px solid #ccc; padding: 6pt 8pt; }
+  .kpi .v { font-size: 16pt; font-weight: bold; }
+  .kpi .l { font-size: 8.5pt; color: #666; }
+  table { width: 100%; border-collapse: collapse; margin: 8pt 0; font-size: 9.5pt; }
+  th { text-align: left; border-bottom: 1.5px solid #333; padding: 3pt 5pt; }
+  td { border-bottom: 1px solid #ddd; padding: 3pt 5pt; }
+  td.num, th.num { text-align: right; }
+</style>
+</head>
+<body>
+<section class="cover">
+  <h1>{{ title }}</h1>
+  {% if subtitle %}<div class="sub">{{ subtitle }}</div>{% endif %}
+  <div class="byline">{{ author }} · {{ date }}</div>
+</section>
+
+{% if kpis %}
+<h2>Key figures</h2>
+<div class="kpis">
+  {% for k in kpis %}<div class="kpi"><div class="v">{{ k.value }}</div><div class="l">{{ k.label }}</div></div>{% endfor %}
+</div>
+{% endif %}
+
+{% for s in sections %}
+<section>
+  <h2>{{ loop.index }}. {{ s.heading }}</h2>
+  {% for p in s.paragraphs %}<p>{{ p }}</p>{% endfor %}
+  {% if s.table %}
+  <table>
+    <thead><tr>{% for c in s.table.columns %}<th{% if loop.index > 1 %} class="num"{% endif %}>{{ c }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for row in s.table.rows %}<tr>{% for cell in row %}<td{% if loop.index > 1 %} class="num"{% endif %}>{{ cell }}</td>{% endfor %}</tr>{% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+{% endfor %}
+</body>
+</html>
