@@ -41,6 +41,8 @@ pub fn raw(tool: &str, kind: Kind) -> &'static str {
         }
         ("explain", Kind::Input) => include_str!("../../../schemas/mcp/v1/explain.input.schema.json"),
         ("explain", Kind::Output) => include_str!("../../../schemas/mcp/v1/explain.output.schema.json"),
+        ("templates", Kind::Input) => include_str!("../../../schemas/mcp/v1/templates.input.schema.json"),
+        ("templates", Kind::Output) => include_str!("../../../schemas/mcp/v1/templates.output.schema.json"),
         _ => panic!("no schema for tool `{tool}`"),
     }
 }

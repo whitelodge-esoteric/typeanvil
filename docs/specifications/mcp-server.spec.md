@@ -171,7 +171,7 @@ Every criterion maps to a test in `engine/tests/it/mcp_conformance.rs` or
    against its output schema (or the `Error` schema) with an independent
    JSON Schema 2020-12 validator
    (`conformance_cases_pass_against_local_server`).
-2. Given `tools/list`, then it returns the five tools in contract order and
+2. Given `tools/list`, then it returns the six tools in contract order and
    each published schema agrees with its file on a probe set
    (S4; same test, `tools-list` case).
 3. Given a document file and page options, when it renders through the CLI

@@ -1,0 +1,16 @@
+{
+  "id": "templates-explicit-schema",
+  "tool": "templates",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "template": { "content": "<p>{{ total }}</p>" },
+    "schema": { "value": { "type": "object", "required": ["total"] } }
+  },
+  "expect": {
+    "ok": true,
+    "checks": [
+      { "pointer": "/schema_source", "equals": "explicit" },
+      { "pointer": "/schema/required/0", "equals": "total" }
+    ]
+  }
+}

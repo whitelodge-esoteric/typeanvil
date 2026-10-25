@@ -1,0 +1,13 @@
+{
+  "id": "render-template-data-ambiguous",
+  "tool": "render",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "document": { "content": "<p>{{ x }}</p>" },
+    "data": { "value": {}, "path": "fixtures/greeting.json" }
+  },
+  "expect": {
+    "error": "INPUT_SOURCE_AMBIGUOUS",
+    "checks": [{ "pointer": "/field", "equals": "/data" }]
+  }
+}

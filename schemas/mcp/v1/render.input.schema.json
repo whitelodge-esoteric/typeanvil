@@ -13,6 +13,8 @@
     },
     "assets": { "$ref": "common.schema.json#/$defs/AssetMap" },
     "options": { "$ref": "common.schema.json#/$defs/PageOptions" },
+    "data": { "$ref": "common.schema.json#/$defs/JsonSource", "description": "Contract 1.1. With data, document is a MiniJinja HTML template expanded with this JSON before render." },
+    "schema": { "$ref": "common.schema.json#/$defs/JsonSource", "description": "Contract 1.1. JSON Schema for data. Default: a path template's sibling <name>.schema.json. Requires data." },
     "output": {
       "type": "object",
       "properties": {

@@ -17,15 +17,52 @@ pub struct ToolError {
     pub code: &'static str,
     pub message: String,
     pub field: Option<String>,
+    /// Contract 1.1: every data-template error (TEMPLATE_* codes).
+    pub violations: Option<Vec<Value>>,
 }
 
 impl ToolError {
     pub fn new(code: &'static str, message: &str) -> ToolError {
-        ToolError { code, message: message.to_string(), field: None }
+        ToolError { code, message: message.to_string(), field: None, violations: None }
     }
 
     pub fn at(code: &'static str, field: &str, message: &str) -> ToolError {
-        ToolError { code, message: message.to_string(), field: Some(field.to_string()) }
+        ToolError { code, message: message.to_string(), field: Some(field.to_string()), violations: None }
+    }
+
+    /// Map data-template errors (CORE-576) to one tool error. The code is
+    /// the first error's; `field` points into the request: for a schema
+    /// violation on inline data (`data_ptr` = `/data/value`) it is
+    /// `/data/value<pointer>`, else `fallback_field`. Every error, with its
+    /// data pointer, is listed in `violations`.
+    pub fn template(
+        errs: &[crate::template::TemplateError],
+        data_ptr: Option<&str>,
+        fallback_field: &str,
+    ) -> ToolError {
+        let first = errs.first().expect("at least one template error");
+        let field = match (&first.pointer, data_ptr) {
+            (Some(p), Some(d)) if p == "/" => d.to_string(),
+            (Some(p), Some(d)) => format!("{d}{p}"),
+            _ => fallback_field.to_string(),
+        };
+        let message = crate::template::TemplateErrors(errs.to_vec()).to_string();
+        let violations = errs
+            .iter()
+            .map(|e| {
+                let mut m = Map::new();
+                m.insert("code".into(), json!(e.code));
+                if let Some(p) = &e.pointer {
+                    m.insert("pointer".into(), json!(p));
+                }
+                if let Some(l) = e.line.filter(|l| *l > 0) {
+                    m.insert("line".into(), json!(l));
+                }
+                m.insert("message".into(), json!(e.message));
+                Value::Object(m)
+            })
+            .collect();
+        ToolError { code: first.code, message, field: Some(field), violations: Some(violations) }
     }
 
     /// `retryable` per the contract's error table.
@@ -40,6 +77,9 @@ impl ToolError {
         m.insert("retryable".into(), json!(self.retryable()));
         if let Some(f) = &self.field {
             m.insert("field".into(), json!(f));
+        }
+        if let Some(v) = &self.violations {
+            m.insert("violations".into(), Value::Array(v.clone()));
         }
         m.insert("environment".into(), super::environment());
         Value::Object(m)
@@ -93,6 +133,16 @@ pub fn check_sources(args: &Value) -> ToolResult<()> {
     const DOC: [&str; 3] = ["path", "content", "url"];
     if let Some(d) = obj.get("document") {
         one(d, "/document", &DOC)?;
+    }
+    // Contract 1.1: the `templates` tool's template, and the JsonSource
+    // inputs `data` and `schema` (exactly one of value, path).
+    if let Some(t) = obj.get("template") {
+        one(t, "/template", &DOC)?;
+    }
+    for k in ["data", "schema"] {
+        if let Some(j) = obj.get(k) {
+            one(j, &format!("/{k}"), &["value", "path"])?;
+        }
     }
     if let Some(Value::Array(sheets)) = obj.get("stylesheets") {
         for (i, s) in sheets.iter().enumerate() {

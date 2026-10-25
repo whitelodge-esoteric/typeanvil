@@ -1,0 +1,13 @@
+{
+  "id": "render-schema-without-data",
+  "tool": "render",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "document": { "content": "<p>x</p>" },
+    "schema": { "value": { "type": "object" } }
+  },
+  "expect": {
+    "error": "INVALID_INPUT",
+    "checks": [{ "pointer": "/field", "equals": "/schema" }]
+  }
+}

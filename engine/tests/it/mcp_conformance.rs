@@ -16,7 +16,8 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
 use serde_json::{json, Value};
 
-const TOOLS: [&str; 5] = ["render", "validate", "inspect_page", "capabilities", "explain"];
+const TOOLS: [&str; 6] = ["render", "validate", "inspect_page", "capabilities", "explain", "templates"];
+const CONTRACT: &str = "1.1";
 const SCHEMA_BASE: &str = "https://typeanvil.com/schemas/mcp/v1/";
 
 fn repo() -> PathBuf {
@@ -197,7 +198,7 @@ fn substitute(v: &Value, base: &str) -> Value {
 fn check_environment(payload: &Value, case: &str) {
     let env = &payload["environment"];
     assert_eq!(env["runtime"], "local", "{case}: environment.runtime");
-    assert_eq!(env["contract_version"], "1.0", "{case}: environment.contract_version");
+    assert_eq!(env["contract_version"], CONTRACT, "{case}: environment.contract_version");
     for k in ["engine_version", "font_bundle_version"] {
         assert!(env[k].as_str().is_some_and(|s| !s.is_empty()), "{case}: environment.{k} missing");
     }
@@ -268,7 +269,7 @@ fn check_listing(schemas: &Schemas, client: &mut Client) {
 
 /// Valid and invalid instances that exercise each schema.
 fn probes(tool: &str, kind: &str) -> Vec<Value> {
-    let env = json!({ "contract_version": "1.0", "engine_version": "x", "font_bundle_version": "y", "runtime": "local" });
+    let env = json!({ "contract_version": CONTRACT, "engine_version": "x", "font_bundle_version": "y", "runtime": "local" });
     let mut v = vec![json!({}), json!(null), json!({ "nope": 1 })];
     match (tool, kind) {
         (_, "input") => {
@@ -286,6 +287,21 @@ fn probes(tool: &str, kind: &str) -> Vec<Value> {
             v.push(json!({ "document": { "content": "x" }, "output": { "mode": "path", "path": "o.pdf" } }));
             v.push(json!({ "section": "fonts" }));
             v.push(json!({ "section": "everything" }));
+            // Contract 1.1: data / schema JsonSources and the templates input.
+            v.push(json!({ "document": { "content": "x" }, "data": { "value": { "a": 1 } } }));
+            v.push(json!({ "document": { "content": "x" }, "data": { "path": "d.json" }, "schema": { "value": true } }));
+            v.push(json!({ "document": { "content": "x" }, "data": { "value": 1, "path": "d.json" } }));
+            v.push(json!({ "document": { "content": "x" }, "data": { "bogus": 1 } }));
+            v.push(json!({ "document": { "content": "x" }, "data": {} }));
+            v.push(json!({ "template": { "path": "t.tmpl.html" } }));
+            v.push(json!({ "template": { "content": "x" }, "schema": { "value": {} } }));
+            v.push(json!({ "template": { "content": "x", "path": "t" } }));
+        }
+        ("templates", _) => {
+            v.push(json!({ "environment": env, "template": null, "schema": null, "schema_source": "none" }));
+            v.push(json!({ "environment": env, "template": "/t.tmpl.html", "schema": { "type": "object" }, "schema_source": "sibling" }));
+            v.push(json!({ "environment": env, "template": null, "schema": 3, "schema_source": "none" }));
+            v.push(json!({ "environment": env, "template": null, "schema": null, "schema_source": "elsewhere" }));
         }
         ("render", _) => {
             v.push(json!({ "environment": env, "page_count": 1, "byte_size": 3, "sha256": "a".repeat(64), "artifact": { "kind": "bytes", "data_base64": "AA==" }, "diagnostics": [] }));
@@ -316,7 +332,7 @@ fn schema_files_are_valid_and_complete() {
         assert_eq!(v["$id"], json!(format!("{SCHEMA_BASE}{name}")), "{name} $id");
         seen += 1;
     }
-    assert_eq!(seen, 11, "five tools x (input, output) + common");
+    assert_eq!(seen, 13, "six tools x (input, output) + common");
     for t in TOOLS {
         for kind in ["input", "output"] {
             assert!(schema_dir().join(format!("{t}.{kind}.schema.json")).is_file());
@@ -535,6 +551,66 @@ fn mcp_render_bytes_equal_cli_render() {
         assert!(std::fs::read(written).unwrap() == cli_bytes, "tagged={tagged}: path artifact bytes");
         assert_eq!(r["structuredContent"]["sha256"], sc["sha256"]);
     }
+}
+
+/// CORE-588 Done-when: an agent fetches a template's schema and renders from
+/// data through MCP alone, and the PDF equals the CLI `render --data` bytes.
+/// A schema violation is a tool error whose `field` points at the bad datum.
+#[test]
+fn mcp_template_flow_matches_cli_data_render() {
+    use base64::Engine as _;
+    let repo = repo();
+    let tmpl = repo.join("templates/invoice/invoice.tmpl.html");
+    let example = repo.join("templates/invoice/invoice.example.json");
+    let dir = tempfile::tempdir().unwrap();
+    let cli_pdf = dir.path().join("cli.pdf");
+    let st = Command::new(env!("CARGO_BIN_EXE_typeanvil"))
+        .args(["render", tmpl.to_str().unwrap(), "--data", example.to_str().unwrap()])
+        .args(["--page-width", "8.5in", "--page-height", "11in", "--no-tagged"])
+        .args(["-o", cli_pdf.to_str().unwrap()])
+        .status()
+        .unwrap();
+    assert!(st.success());
+    let cli_bytes = std::fs::read(&cli_pdf).unwrap();
+
+    let mut client = Client::spawn(&repo, &[]);
+    client.initialize();
+    // 1. Fetch the schema.
+    let r = client.call("templates", json!({ "template": { "path": "templates/invoice/invoice.tmpl.html" } }));
+    assert_eq!(r["isError"], false, "{r}");
+    let sc = &r["structuredContent"];
+    assert_eq!(sc["schema_source"], "sibling");
+    let on_disk = read_json(&repo.join("templates/invoice/invoice.schema.json"));
+    assert_eq!(sc["schema"], on_disk, "templates returns the sibling schema verbatim");
+
+    // 2. Render from inline data: same bytes as the CLI.
+    let data = read_json(&example);
+    let r = client.call(
+        "render",
+        json!({
+            "document": { "path": "templates/invoice/invoice.tmpl.html" },
+            "data": { "value": data },
+        }),
+    );
+    assert_eq!(r["isError"], false, "{r}");
+    let mcp = base64::engine::general_purpose::STANDARD
+        .decode(r["structuredContent"]["artifact"]["data_base64"].as_str().unwrap())
+        .unwrap();
+    assert!(mcp == cli_bytes, "MCP template render differs from CLI render --data");
+
+    // 3. Break one required field: tool error, pointer into the data.
+    let mut bad = data.clone();
+    let first_required = on_disk["required"][0].as_str().unwrap().to_string();
+    bad.as_object_mut().unwrap().remove(&first_required);
+    let r = client.call(
+        "render",
+        json!({ "document": { "path": "templates/invoice/invoice.tmpl.html" }, "data": { "value": bad } }),
+    );
+    let sc = &r["structuredContent"];
+    assert_eq!(r["isError"], true, "{r}");
+    assert_eq!(sc["code"], "TEMPLATE_DATA_SCHEMA");
+    assert_eq!(sc["field"], json!(format!("/data/value/{first_required}")));
+    assert_eq!(sc["violations"][0]["pointer"], json!(format!("/{first_required}")));
 }
 
 /// JSON request mode: one request on stdin, one result on stdout, same

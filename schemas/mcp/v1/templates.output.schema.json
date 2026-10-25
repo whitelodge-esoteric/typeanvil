@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://typeanvil.com/schemas/mcp/v1/templates.output.schema.json",
+  "title": "templates — output",
+  "type": "object",
+  "required": ["environment", "template", "schema", "schema_source"],
+  "properties": {
+    "environment": { "$ref": "common.schema.json#/$defs/Environment" },
+    "template": { "type": ["string", "null"], "description": "Absolute path of a path template; null for content and url." },
+    "schema": { "type": ["object", "boolean", "null"], "description": "The data JSON Schema; null when the template has none (no validation)." },
+    "schema_source": { "enum": ["explicit", "sibling", "none"], "description": "Where the schema came from." }
+  },
+  "additionalProperties": false
+}

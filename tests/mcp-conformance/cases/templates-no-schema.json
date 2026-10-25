@@ -1,0 +1,14 @@
+{
+  "id": "templates-no-schema",
+  "tool": "templates",
+  "runtimes": ["local", "cloud"],
+  "input": { "template": { "content": "<p>Hello {{ name }}</p>" } },
+  "expect": {
+    "ok": true,
+    "checks": [
+      { "pointer": "/schema", "equals": null },
+      { "pointer": "/schema_source", "equals": "none" },
+      { "pointer": "/template", "equals": null }
+    ]
+  }
+}

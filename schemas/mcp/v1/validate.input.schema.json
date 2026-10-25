@@ -9,6 +9,8 @@
     "stylesheets": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/ContentSource" } },
     "assets": { "$ref": "common.schema.json#/$defs/AssetMap" },
     "options": { "$ref": "common.schema.json#/$defs/PageOptions" },
+    "data": { "$ref": "common.schema.json#/$defs/JsonSource", "description": "Contract 1.1. As in render: document is a template expanded with this JSON." },
+    "schema": { "$ref": "common.schema.json#/$defs/JsonSource", "description": "Contract 1.1. As in render. Requires data." },
     "assertions": {
       "type": "array",
       "items": {
