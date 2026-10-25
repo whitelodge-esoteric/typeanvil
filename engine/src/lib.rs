@@ -15,6 +15,7 @@ pub mod dom;
 pub mod fonts;
 pub mod frag;
 pub mod geom;
+pub mod guide;
 pub mod images;
 pub mod layout;
 pub mod margin_box;

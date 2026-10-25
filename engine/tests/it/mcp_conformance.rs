@@ -457,7 +457,7 @@ fn protocol_errors_are_jsonrpc_errors() {
     client.initialize();
     let r = client.request("tools/call", json!({ "name": "rasterize", "arguments": {} }));
     assert_eq!(r["error"]["code"], -32602, "unknown tool: {r}");
-    let r = client.request("resources/list", json!({}));
+    let r = client.request("sampling/createMessage", json!({}));
     assert_eq!(r["error"]["code"], -32601, "unknown method: {r}");
     client.stdin.write_all(b"{not json\n").unwrap();
     client.stdin.flush().unwrap();

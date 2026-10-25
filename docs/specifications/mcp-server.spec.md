@@ -48,7 +48,8 @@ The contract stays normative for tool names, fields and error codes.
 1. The cloud server and `typeanvil mcp --cloud` (contract Deferred options).
 2. Limits. The local server enforces none and reports every limit as `null`.
 3. Streamable HTTP transport. The local server speaks stdio only.
-4. MCP resources, prompts, sampling and progress notifications.
+4. MCP sampling and progress notifications, and resources and prompts other
+   than the authoring guide (`agent-authoring-guide.spec.md` adds those two).
 
 ## Behavior
 

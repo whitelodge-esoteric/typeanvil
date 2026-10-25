@@ -104,6 +104,51 @@ impl Server {
             "ping" => Ok(json!({})),
             "tools/list" => Ok(json!({ "tools": tool_descriptors() })),
             "tools/call" => self.tools_call(&params),
+            "resources/list" => Ok(json!({ "resources": [{
+                "uri": crate::guide::RESOURCE_URI,
+                "name": "authoring-guide",
+                "title": "TypeAnvil authoring guide",
+                "description": "How to write HTML that renders well in TypeAnvil. Generated from the capability manifest.",
+                "mimeType": "text/markdown",
+            }] })),
+            "resources/read" => {
+                let uri = params.get("uri").and_then(Value::as_str).unwrap_or_default();
+                if uri == crate::guide::RESOURCE_URI {
+                    Ok(json!({ "contents": [{
+                        "uri": uri,
+                        "mimeType": "text/markdown",
+                        "text": crate::guide::body(),
+                    }] }))
+                } else {
+                    Err((-32002, format!("resource not found: {uri}")))
+                }
+            }
+            "prompts/list" => Ok(json!({ "prompts": [{
+                "name": crate::guide::PROMPT_NAME,
+                "title": "Write a document for TypeAnvil",
+                "description": "Load the authoring guide before writing an HTML document that renders well to PDF.",
+                "arguments": [{ "name": "task", "description": "What the document should contain.", "required": false }],
+            }] })),
+            "prompts/get" => {
+                let name = params.get("name").and_then(Value::as_str).unwrap_or_default();
+                if name != crate::guide::PROMPT_NAME {
+                    Err((-32602, format!("unknown prompt: {name}")))
+                } else {
+                    let task = params
+                        .get("arguments")
+                        .and_then(|a| a.get("task"))
+                        .and_then(Value::as_str)
+                        .unwrap_or("the document the user asked for");
+                    let text = format!(
+                        "{}\n\n---\n\nTask: write {task}. Follow the guide above, then call `validate` and fix every finding before `render`.",
+                        crate::guide::body()
+                    );
+                    Ok(json!({
+                        "description": "TypeAnvil authoring guide",
+                        "messages": [{ "role": "user", "content": { "type": "text", "text": text } }],
+                    }))
+                }
+            }
             other => Err((-32601, format!("method not found: {other}"))),
         };
         Some(match result {
@@ -119,7 +164,11 @@ impl Server {
             .unwrap_or(PROTOCOL_VERSIONS[0]);
         json!({
             "protocolVersion": version,
-            "capabilities": { "tools": { "listChanged": false } },
+            "capabilities": {
+                "tools": { "listChanged": false },
+                "resources": { "listChanged": false },
+                "prompts": { "listChanged": false },
+            },
             "serverInfo": {
                 // Contract "Naming": the server name is always `typeanvil`.
                 "name": "typeanvil",

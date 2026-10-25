@@ -5,6 +5,7 @@
 //! filter: `cargo test --test it tables::`.
 
 mod alpha_color;
+mod authoring_guide;
 mod canvas_gradient;
 mod bookmarks;
 mod br_wrap_probe;
