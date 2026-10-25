@@ -1,0 +1,17 @@
+{
+  "id": "render-template-inline-schema",
+  "tool": "render",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "document": { "content": "<p>Total {{ total }}</p>" },
+    "data": { "value": {} },
+    "schema": { "value": { "type": "object", "required": ["total"] } }
+  },
+  "expect": {
+    "error": "TEMPLATE_DATA_SCHEMA",
+    "checks": [
+      { "pointer": "/field", "equals": "/data/value/total" },
+      { "pointer": "/violations/0/pointer", "equals": "/total" }
+    ]
+  }
+}

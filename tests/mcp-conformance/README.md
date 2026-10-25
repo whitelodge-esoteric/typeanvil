@@ -46,7 +46,7 @@ the cloud server in the Platform repo's CI.
 2. Error results validate against `common.schema.json#/$defs/Error`.
 3. Every result and error carries a valid `environment` whose `runtime`
    equals the target's runtime.
-4. `tools/list` returns the five tools, and each `inputSchema` and
+4. `tools/list` returns the six tools, and each `inputSchema` and
    `outputSchema` accepts and rejects exactly what the files in
    `schemas/mcp/v1/` accept and reject (the published schemas may be
    dereferenced copies).

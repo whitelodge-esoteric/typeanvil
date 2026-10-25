@@ -20,7 +20,7 @@ subcommand of the normal binary, so it needs no separate install:
 npx -y typeanvil mcp
 ```
 
-The server talks MCP over stdio. It offers five tools:
+The server talks MCP over stdio. It offers six tools:
 
 | Tool | What it does |
 |---|---|
@@ -29,6 +29,20 @@ The server talks MCP over stdio. It offers five tools:
 | `inspect_page` | Returns the layout boxes of one page and a PNG of it. |
 | `capabilities` | Tells the agent what this server supports. |
 | `explain` | Returns the computed style and page placement of the elements that match a CSS selector. |
+| `templates` | Returns the data JSON Schema of a data template, so the agent can write valid data. |
+
+**Data templates.** Give `render` or `validate` a `data` input and the
+document becomes a template (see [Data templates](../specifications/data-templates.spec.md)).
+Fetch the schema first, then render:
+
+```json
+{ "template": { "path": "templates/invoice/invoice.tmpl.html" } }
+{ "document": { "path": "templates/invoice/invoice.tmpl.html" }, "data": { "value": { "number": "INV-1" } } }
+```
+
+Bad data returns the tool error `TEMPLATE_DATA_SCHEMA`. Its `field` points
+at the bad value (for example `/data/value/items/0/qty`), and `violations`
+lists every problem.
 
 The full contract is in
 [MCP tool contract](../specifications/mcp-tool-contract.spec.md).

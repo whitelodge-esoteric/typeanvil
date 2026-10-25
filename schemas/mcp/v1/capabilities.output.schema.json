@@ -6,7 +6,7 @@
   "required": ["environment", "tools", "input_forms", "output_modes", "limits"],
   "properties": {
     "environment": { "$ref": "common.schema.json#/$defs/Environment" },
-    "tools": { "type": "array", "items": { "enum": ["render", "validate", "inspect_page", "capabilities", "explain"] }, "uniqueItems": true },
+    "tools": { "type": "array", "items": { "enum": ["render", "validate", "inspect_page", "capabilities", "explain", "templates"] }, "uniqueItems": true },
     "input_forms": {
       "type": "object",
       "required": ["path", "content", "url"],

@@ -57,7 +57,11 @@ normative for behavior.
 
 ## Contract version
 
-1. The contract version is `MAJOR.MINOR`. This spec defines `1.0`.
+1. The contract version is `MAJOR.MINOR`. This spec defines `1.1`.
+   1.1 (CORE-588) adds the `templates` tool, the optional `data` and
+   `schema` inputs of `render` and `validate`, the `TEMPLATE_*` error
+   codes and the optional `violations` field of `Error`. Every 1.0 request
+   stays valid and means the same thing.
 2. A change that adds an optional input field, an optional result field, a
    tool, or an error code is a MINOR change.
 3. A change that removes or renames a tool, field or error code, makes an
@@ -80,13 +84,14 @@ Tool names are exact. Each tool has an input schema and an output schema:
 | `inspect_page` | Layout boxes and a PNG of one page | `inspect_page.input` | `inspect_page.output` |
 | `capabilities` | What this server supports and its limits | `capabilities.input` | `capabilities.output` |
 | `explain` | Computed style and page placement for a selector | `explain.input` | `explain.output` |
+| `templates` | The data JSON Schema of a data template (1.1) | `templates.input` | `templates.output` |
 
 Schema file names are `<name>.input.schema.json` and
 `<name>.output.schema.json`. Shared definitions are in `common.schema.json`.
 
 ### Behavior
 
-1. A server shall register all five tools, using the exact names above.
+1. A server shall register all six tools, using the exact names above.
 2. A server shall publish the input schema of each tool as the MCP tool
    `inputSchema` and the output schema as `outputSchema`.
 3. A successful result shall return the output object as MCP
@@ -117,6 +122,44 @@ Schema file names are `<name>.input.schema.json` and
     element split across pages has several entries.
 12. Tools shall be stateless. Two calls share nothing. Each call carries its
     full input. (A later version may add sessions. That is a MINOR change.)
+
+## Data templates (1.1)
+
+Data template mode is defined by `data-templates.spec.md`. The MCP surface
+exposes it as follows.
+
+### Behavior
+
+1. `data` and `schema` are a `JsonSource`: exactly one of `value` (inline
+   JSON) or `path` (a JSON file, local only, inside the roots). Zero or two
+   keys shall return `INPUT_SOURCE_AMBIGUOUS` with `field` `/data` or
+   `/schema`, checked before the schema.
+2. With `data`, `render` and `validate` shall treat `document` as a
+   MiniJinja HTML template. The server validates the data, then expands the
+   template, then renders the result exactly as an HTML `document`. The
+   PDF shall equal the CLI `render <template> --data <file>` bytes for the
+   same template, data and options.
+3. The schema is `schema` when given. Otherwise it is the sibling
+   `<name>.schema.json` of a `path` template, when that file exists inside
+   the roots. Otherwise there is no validation.
+4. `schema` without `data` shall return `INVALID_INPUT` with `field`
+   `/schema`. `data` with a Markdown document shall return `INVALID_INPUT`
+   with `field` `/data`.
+5. A template error shall return a tool error and no PDF. The `code` is the
+   first error's code (`TEMPLATE_DATA_SCHEMA`, `TEMPLATE_DATA_INVALID_JSON`,
+   `TEMPLATE_SCHEMA_INVALID` or `TEMPLATE_ERROR`). `violations` lists every
+   error in document order. Each entry has `code` and `message`. A schema
+   violation also has the RFC 6901 `pointer` into the data.
+6. For a schema violation on inline data, `field` shall be `/data/value`
+   followed by the violation pointer (for example
+   `/data/value/items/0/qty`). For data from a `path` it is `/data`. For a
+   template syntax or evaluation error it is `/document`.
+7. `templates` takes `template` (a `ContentSource`) and an optional
+   `schema`. It returns `schema` (the resolved schema, or `null`),
+   `schema_source` (`explicit`, `sibling` or `none`) and `template` (the
+   absolute path of a `path` template, else `null`). It reads no data and
+   renders nothing. A sibling schema that is not valid JSON returns
+   `TEMPLATE_SCHEMA_INVALID`.
 
 ## Input forms
 
@@ -190,7 +233,7 @@ Every successful result and every error carries `environment`:
 
 ```json
 {
-  "contract_version": "1.0",
+  "contract_version": "1.1",
   "engine_version": "2026.10.2",
   "font_bundle_version": "liberation-2.1.5+tf1",
   "runtime": "local"
@@ -243,6 +286,10 @@ Everything about a document or a limit uses a tool error.
 | `PAGE_OUT_OF_RANGE` | `page` above `page_count` | no |
 | `SELECTOR_INVALID` | Selector does not parse | no |
 | `SELECTOR_NO_MATCH` | Reserved. `explain` does not use it in 1.0 | no |
+| `TEMPLATE_ERROR` | Template syntax or evaluation error (1.1) | no |
+| `TEMPLATE_DATA_INVALID_JSON` | The `data` file is not valid JSON (1.1) | no |
+| `TEMPLATE_DATA_SCHEMA` | `data` fails the template's schema (1.1) | no |
+| `TEMPLATE_SCHEMA_INVALID` | The schema is not valid JSON or not a schema (1.1) | no |
 | `LIMIT_TIMEOUT` | Call exceeded `timeout_seconds` | yes |
 | `LIMIT_INPUT_SIZE` | Input above `max_input_bytes` | no |
 | `LIMIT_OUTPUT_SIZE` | Output above `max_output_bytes` | no |
@@ -307,7 +354,7 @@ A contract test suite shall exist and both servers shall pass it.
 5. The suite shall run in CI for the local server, and in the Platform repo
    CI for the cloud server.
 6. The minimum case set:
-   - `tools/list` returns the five tool names with schemas equal to the files
+   - `tools/list` returns the six tool names with schemas equal to the files
      in `schemas/mcp/v1/`.
    - `render` with inline `content`, `url`, and (local only) `path`.
    - `render` with `path` on cloud returns `PATH_INPUT_UNSUPPORTED`.
@@ -323,6 +370,10 @@ A contract test suite shall exist and both servers shall pass it.
    - Each limit a server sets in `capabilities.limits` produces its
      `LIMIT_*` code when exceeded.
    - Every result and error carries a valid `environment`.
+   - (1.1) `templates` with a sibling schema, no schema and an explicit
+     schema; `render` from inline data; a schema violation with its
+     pointer; a template error; an ambiguous `data`; `schema` without
+     `data`; `validate` with `data` from a path.
 7. The schema files shall pass JSON Schema 2020-12 meta-validation. That
    check runs in the repo gate when the suite lands.
 
@@ -332,7 +383,7 @@ A contract test suite shall exist and both servers shall pass it.
    then it passes.
 2. Given `schemas/mcp/v1/`, when each file is loaded as JSON, then it
    parses and carries a `$id` under `https://typeanvil.com/schemas/mcp/v1/`.
-3. Given the five tool names, when the schema directory is listed, then each
+3. Given the six tool names, when the schema directory is listed, then each
    has an `.input.schema.json` and an `.output.schema.json` file.
 4. Given a cloud `render` call with `document.path`, when the contract is
    followed, then the result is `PATH_INPUT_UNSUPPORTED` with `field`.

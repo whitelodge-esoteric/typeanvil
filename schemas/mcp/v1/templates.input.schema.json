@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://typeanvil.com/schemas/mcp/v1/templates.input.schema.json",
+  "title": "templates — input",
+  "description": "Contract 1.1. Fetch the data JSON Schema of a data template before writing data for it.",
+  "type": "object",
+  "required": ["template"],
+  "properties": {
+    "template": { "$ref": "common.schema.json#/$defs/ContentSource", "description": "The template. A path template also finds its sibling <name>.schema.json." },
+    "schema": { "$ref": "common.schema.json#/$defs/JsonSource", "description": "An explicit schema. Wins over the sibling file." }
+  },
+  "additionalProperties": false
+}

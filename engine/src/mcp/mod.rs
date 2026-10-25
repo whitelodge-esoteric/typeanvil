@@ -24,15 +24,17 @@ use serde_json::{json, Map, Value};
 pub use input::ToolError;
 
 /// Contract version this server implements.
-pub const CONTRACT_VERSION: &str = "1.0";
+/// 1.1 (CORE-588) added the `templates` tool, `data`/`schema` inputs on
+/// `render`/`validate`, and the `TEMPLATE_*` error codes.
+pub const CONTRACT_VERSION: &str = "1.1";
 
 /// MCP protocol revisions this server speaks, newest first. The server
 /// answers `initialize` with the client's revision when it is listed here,
 /// else with the newest.
 pub const PROTOCOL_VERSIONS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
 
-/// The five contract tools, in contract order.
-pub const TOOL_NAMES: [&str; 5] = ["render", "validate", "inspect_page", "capabilities", "explain"];
+/// The six contract tools, in contract order.
+pub const TOOL_NAMES: [&str; 6] = ["render", "validate", "inspect_page", "capabilities", "explain", "templates"];
 
 /// One local server. Stateless between calls (contract Behavior 12): the
 /// only state is the configured path roots.
@@ -269,13 +271,15 @@ fn tool_title(name: &str) -> &'static str {
         "validate" => "Validate layout",
         "inspect_page" => "Inspect one page",
         "capabilities" => "Server capabilities",
+        "templates" => "Template data schema",
         _ => "Explain an element",
     }
 }
 
 fn tool_description(name: &str) -> &'static str {
     match name {
-        "render" => "Render an HTML or Markdown document to PDF. The document is a path, inline content or a URL. Returns the PDF as base64 bytes (default) or writes it to output.path, plus page_count, sha256 and diagnostics.",
+        "render" => "Render an HTML or Markdown document to PDF. The document is a path, inline content or a URL. With `data` (JSON), the document is a MiniJinja HTML template: the data is validated against the template's schema, then expanded. Returns the PDF as base64 bytes (default) or writes it to output.path, plus page_count, sha256 and diagnostics.",
+        "templates" => "Return the data JSON Schema of a data template (its sibling <name>.schema.json, or null when it has none). Call it before writing `data` for render.",
         "validate" => "Lay the document out without returning a PDF. Returns diagnostics, the fonts used and the result of each assertion (page_count, no_overflow, no_diagnostics, text_on_page, element_on_page, fonts_embedded). ok is false when an assertion fails.",
         "inspect_page" => "Return the layout boxes of one page (points, origin top-left) and a PNG of that page.",
         "capabilities" => "Report what this server supports: tools, input forms, output modes, limits, fonts and the CSS support guide.",

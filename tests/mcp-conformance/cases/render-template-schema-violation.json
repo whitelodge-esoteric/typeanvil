@@ -1,0 +1,17 @@
+{
+  "id": "render-template-schema-violation",
+  "tool": "render",
+  "runtimes": ["local"],
+  "input": {
+    "document": { "path": "fixtures/greeting.tmpl.html" },
+    "data": { "value": { "name": "Ada", "items": [{ "label": "Gears", "qty": -1 }] } }
+  },
+  "expect": {
+    "error": "TEMPLATE_DATA_SCHEMA",
+    "checks": [
+      { "pointer": "/field", "equals": "/data/value/items/0/qty" },
+      { "pointer": "/violations/0/code", "equals": "TEMPLATE_DATA_SCHEMA" },
+      { "pointer": "/violations/0/pointer", "equals": "/items/0/qty" }
+    ]
+  }
+}

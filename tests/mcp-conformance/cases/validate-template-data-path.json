@@ -1,0 +1,22 @@
+{
+  "id": "validate-template-data-path",
+  "tool": "validate",
+  "runtimes": ["local"],
+  "input": {
+    "document": { "path": "fixtures/greeting.tmpl.html" },
+    "data": { "path": "fixtures/greeting.json" },
+    "options": { "page_width": "5in", "page_height": "3in" },
+    "assertions": [
+      { "kind": "text_on_page", "text": "Hello Ada", "page": 1 },
+      { "kind": "text_on_page", "text": "Gears: 3" }
+    ]
+  },
+  "expect": {
+    "ok": true,
+    "checks": [
+      { "pointer": "/ok", "equals": true },
+      { "pointer": "/assertions/0/passed", "equals": true },
+      { "pointer": "/assertions/1/passed", "equals": true }
+    ]
+  }
+}

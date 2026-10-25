@@ -1,0 +1,16 @@
+{
+  "id": "render-template-error",
+  "tool": "render",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "document": { "content": "<p>{% include 'x.html' %}</p>" },
+    "data": { "value": {} }
+  },
+  "expect": {
+    "error": "TEMPLATE_ERROR",
+    "checks": [
+      { "pointer": "/field", "equals": "/document" },
+      { "pointer": "/violations/0/code", "equals": "TEMPLATE_ERROR" }
+    ]
+  }
+}

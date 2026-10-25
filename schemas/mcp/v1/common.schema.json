@@ -40,6 +40,31 @@
       },
       "additionalProperties": false
     },
+    "JsonSource": {
+      "description": "Contract 1.1. A JSON document: inline `value` (any JSON) or a file `path`. Exactly one.",
+      "type": "object",
+      "oneOf": [
+        { "required": ["value"] },
+        { "required": ["path"] }
+      ],
+      "properties": {
+        "value": {},
+        "path": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "TemplateViolation": {
+      "description": "Contract 1.1. One data-template error. pointer is an RFC 6901 pointer into the data (schema violations only).",
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "enum": ["TEMPLATE_DATA_SCHEMA", "TEMPLATE_DATA_INVALID_JSON", "TEMPLATE_SCHEMA_INVALID", "TEMPLATE_ERROR"] },
+        "pointer": { "type": "string" },
+        "line": { "type": "integer", "minimum": 1 },
+        "message": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
     "PageOptions": {
       "type": "object",
       "properties": {
@@ -104,6 +129,10 @@
         "PAGE_OUT_OF_RANGE",
         "SELECTOR_INVALID",
         "SELECTOR_NO_MATCH",
+        "TEMPLATE_ERROR",
+        "TEMPLATE_DATA_INVALID_JSON",
+        "TEMPLATE_DATA_SCHEMA",
+        "TEMPLATE_SCHEMA_INVALID",
         "LIMIT_TIMEOUT",
         "LIMIT_INPUT_SIZE",
         "LIMIT_OUTPUT_SIZE",
@@ -125,6 +154,11 @@
         "message": { "type": "string" },
         "retryable": { "type": "boolean" },
         "field": { "type": "string", "description": "JSON pointer to the offending input field." },
+        "violations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TemplateViolation" },
+          "description": "Contract 1.1. Every data-template error, for TEMPLATE_* codes."
+        },
         "limit": {
           "type": "object",
           "required": ["name", "value", "unit"],

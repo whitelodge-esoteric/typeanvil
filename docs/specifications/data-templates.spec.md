@@ -70,10 +70,10 @@ DECIDED 2026-10-25 (agent), recorded on CORE-576:
   One template is one file.
 - No full JSON Schema 2020-12. The supported keyword set is listed below.
   `$ref` and remote schemas are not resolved.
-- No MCP surface in this slice. A `templates` tool and a `data` input on
-  the MCP `render` tool change the versioned v1 tool contract
-  (`mcp-tool-contract.spec.md`), so they are a follow-up. Agents get the
-  schema from `typeanvil template-schema` today.
+- No MCP surface in this slice. It landed in CORE-588 as contract 1.1: the
+  `templates` tool and the `data`/`schema` inputs of `render` and
+  `validate` (`mcp-tool-contract.spec.md` § Data templates). The CLI
+  equivalent is `typeanvil template-schema`.
 - No Markdown templates. `--data` applies to HTML input only.
 
 ## Behavior

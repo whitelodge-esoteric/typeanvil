@@ -1,0 +1,14 @@
+{
+ "schema": "typeanvil.harness.reviews/1",
+ "candidate": {
+  "label": "candidate-8692e66",
+  "source_commit": "8692e66",
+  "binary_sha256": "545779b507a2af73cb95e77a493403f2f8bf761b93c1979102dc228a7a00c392"
+ },
+ "baseline": {
+  "label": "baseline-19e546c22941",
+  "source_commit": "19e546c22941a9e860f81b4ca71f6c42a0dd390d",
+  "binary_sha256": "90ec404d79c829c56a703e40a585fb4b056c1cfccd911d1c9def8255e10e9d21"
+ },
+ "dispositions": []
+}

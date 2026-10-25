@@ -1,0 +1,15 @@
+{
+  "id": "templates-sibling-schema",
+  "tool": "templates",
+  "runtimes": ["local"],
+  "input": { "template": { "path": "fixtures/greeting.tmpl.html" } },
+  "expect": {
+    "ok": true,
+    "checks": [
+      { "pointer": "/schema_source", "equals": "sibling" },
+      { "pointer": "/schema/type", "equals": "object" },
+      { "pointer": "/schema/required", "contains": "name" },
+      { "pointer": "/template", "contains": "greeting.tmpl.html" }
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html>
+<head><title>Greeting</title></head>
+<body>
+<h1>Hello {{ name }}</h1>
+<ul>
+{% for item in items %}<li>{{ item.label }}: {{ item.qty }}</li>
+{% endfor %}</ul>
+</body>
+</html>

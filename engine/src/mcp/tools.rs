@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-//! The five contract tools. Each takes the tool's input object and returns
+//! The six contract tools (contract 1.1 added `templates`). Each takes the tool's input object and returns
 //! its output object or a [`ToolError`].
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -40,6 +40,7 @@ pub fn dispatch(ctx: &Ctx, tool: &str, args: Value) -> ToolResult<Value> {
         "inspect_page" => inspect_page(ctx, &args),
         "capabilities" => Ok(capabilities(&args)),
         "explain" => explain(ctx, &args),
+        "templates" => templates(ctx, &args),
         other => Err(ToolError::new("INVALID_INPUT", &format!("unknown tool `{other}`"))),
     }
 }
@@ -73,7 +74,28 @@ fn prepare(ctx: &Ctx, args: &Value) -> ToolResult<Prepared> {
     let _ = crate::diagnostics::take_broken_anchors();
 
     let doc_src = &args["document"];
-    let doc = access.load(doc_src, "/document")?;
+    let mut doc = access.load(doc_src, "/document")?;
+    // Contract 1.1 (CORE-588): data template mode. Validate, then expand,
+    // before any render work; a template error writes no PDF.
+    if args.get("schema").is_some() && args.get("data").is_none() {
+        return Err(ToolError::at("INVALID_INPUT", "/schema", "`schema` requires `data`"));
+    }
+    if let Some(data_src) = args.get("data") {
+        if doc.markdown {
+            return Err(ToolError::at("INVALID_INPUT", "/data", "`data` applies to HTML templates only"));
+        }
+        let data = load_json(&access, data_src, "/data", "TEMPLATE_DATA_INVALID_JSON")?;
+        let data_ptr = data_src.get("value").map(|_| "/data/value");
+        let (schema, _) = resolve_schema(&access, args.get("schema"), doc.file.as_deref())?;
+        if let Some(schema) = schema {
+            let errs = crate::template::validate_data(&schema, &data);
+            if !errs.is_empty() {
+                return Err(ToolError::template(&errs, data_ptr, "/data"));
+            }
+        }
+        doc.text = crate::template::expand(&doc.text, &data)
+            .map_err(|e| ToolError::template(&e.0, None, "/document"))?;
+    }
     let mut extra_css = Vec::new();
     if let Some(Value::Array(sheets)) = args.get("stylesheets") {
         for (i, s) in sheets.iter().enumerate() {
@@ -225,6 +247,83 @@ fn prepare(ctx: &Ctx, args: &Value) -> ToolResult<Prepared> {
     let styles = crate::css::cascade(&done.dom, &done.stylesheet, &done.layout.geometry);
     drop(scratch);
     Ok(Prepared { done, diagnostics, overflow_pages, styles })
+}
+
+/// Load a `JsonSource` (inline `value` or a file `path`). A file that is not
+/// JSON is a tool error with `parse_code`.
+fn load_json(access: &Access, src: &Value, ptr: &str, parse_code: &'static str) -> ToolResult<Value> {
+    if let Some(v) = src.get("value") {
+        return Ok(v.clone());
+    }
+    let raw = opt_str(src, "path").unwrap_or_default();
+    let (real, bytes) = access.read_path(raw, &format!("{ptr}/path"))?;
+    let text = String::from_utf8_lossy(&bytes);
+    serde_json::from_str(&text).map_err(|e| {
+        let err = crate::template::TemplateError {
+            code: parse_code,
+            pointer: None,
+            line: Some(e.line()),
+            message: format!("{}: {e}", real.display()),
+        };
+        ToolError::template(&[err], None, &format!("{ptr}/path"))
+    })
+}
+
+/// The data schema for a template: the explicit `schema` input, else the
+/// sibling `<name>.schema.json` of a path template (inside the roots), else
+/// none. Returns the schema and its source (`explicit`, `sibling`, `none`).
+fn resolve_schema(
+    access: &Access,
+    explicit: Option<&Value>,
+    template_file: Option<&std::path::Path>,
+) -> ToolResult<(Option<Value>, &'static str)> {
+    let invalid = |msg: String, field: &str| {
+        let err = crate::template::TemplateError {
+            code: "TEMPLATE_SCHEMA_INVALID",
+            pointer: None,
+            line: None,
+            message: msg,
+        };
+        ToolError::template(&[err], None, field)
+    };
+    if let Some(src) = explicit {
+        let v = load_json(access, src, "/schema", "TEMPLATE_SCHEMA_INVALID")?;
+        if !(v.is_object() || v.is_boolean()) {
+            return Err(invalid("a schema must be an object or a boolean".into(), "/schema"));
+        }
+        return Ok((Some(v), "explicit"));
+    }
+    let Some(file) = template_file else { return Ok((None, "none")) };
+    let sibling = crate::template::schema_path_for(file);
+    if !sibling.is_file() || access.check_root(&sibling, "/document/path").is_err() {
+        return Ok((None, "none"));
+    }
+    match crate::template::load_schema(file, None) {
+        Ok(Some(v)) => Ok((Some(v), "sibling")),
+        Ok(None) => Ok((None, "none")),
+        Err(e) => Err(ToolError::template(&e.0, None, "/document/path")),
+    }
+}
+
+// --- templates -----------------------------------------------------------------
+
+/// Contract 1.1 (CORE-588): publish a template's data schema.
+fn templates(ctx: &Ctx, args: &Value) -> ToolResult<Value> {
+    let access = Access { roots: ctx.roots };
+    let tmpl = access.load(&args["template"], "/template")?;
+    let (schema, source) = resolve_schema(&access, args.get("schema"), tmpl.file.as_deref())
+        .map_err(|mut e| {
+            if e.field.as_deref() == Some("/document/path") {
+                e.field = Some("/template/path".into());
+            }
+            e
+        })?;
+    Ok(json!({
+        "environment": super::environment(),
+        "template": tmpl.file.as_ref().map(|f| f.to_string_lossy().into_owned()),
+        "schema": schema,
+        "schema_source": source,
+    }))
 }
 
 /// File extension for a materialized asset: from the key, else from the

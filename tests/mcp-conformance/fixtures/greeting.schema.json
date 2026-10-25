@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Greeting data",
+  "type": "object",
+  "required": ["name", "items"],
+  "properties": {
+    "name": { "type": "string", "minLength": 1 },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["label", "qty"],
+        "properties": {
+          "label": { "type": "string" },
+          "qty": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

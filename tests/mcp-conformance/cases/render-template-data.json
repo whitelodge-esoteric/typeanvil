@@ -1,0 +1,19 @@
+{
+  "id": "render-template-data",
+  "tool": "render",
+  "runtimes": ["local"],
+  "input": {
+    "document": { "path": "fixtures/greeting.tmpl.html" },
+    "data": { "value": { "name": "Ada", "items": [{ "label": "Gears", "qty": 3 }] } },
+    "options": { "page_width": "5in", "page_height": "3in" }
+  },
+  "repeat": 2,
+  "expect": {
+    "ok": true,
+    "checks": [
+      { "pointer": "/page_count", "equals": 1 },
+      { "pointer": "/byte_size", "min": 1 }
+    ],
+    "same_across_repeats": ["/sha256"]
+  }
+}
