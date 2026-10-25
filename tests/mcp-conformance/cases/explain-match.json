@@ -1,0 +1,21 @@
+{
+  "id": "explain-match",
+  "tool": "explain",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "document": { "content": "<!DOCTYPE html><html><head><style>p.note { color: rgb(0, 128, 0); }</style></head><body><p>plain</p><p class=\"note\">first</p><p class=\"note\">second</p></body></html>" },
+    "selector": "p.note",
+    "properties": ["color", "display"]
+  },
+  "expect": {
+    "ok": true,
+    "checks": [
+      { "pointer": "/selector", "equals": "p.note" },
+      { "pointer": "/match_count", "equals": 2 },
+      { "pointer": "/matches/0/element", "equals": "p.note" },
+      { "pointer": "/matches/0/computed_style/color", "equals": "rgb(0, 128, 0)" },
+      { "pointer": "/matches/0/computed_style/display", "equals": "block" },
+      { "pointer": "/matches/0/placements/0/page", "equals": 1 }
+    ]
+  }
+}

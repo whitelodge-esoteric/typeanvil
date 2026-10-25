@@ -1,0 +1,13 @@
+{
+  "id": "render-output-link-local",
+  "tool": "render",
+  "runtimes": ["local"],
+  "input": {
+    "document": { "content": "<p>a</p>" },
+    "output": { "mode": "link" }
+  },
+  "expect": {
+    "error": "OUTPUT_FORM_UNSUPPORTED",
+    "checks": [{ "pointer": "/field", "equals": "/output/mode" }]
+  }
+}

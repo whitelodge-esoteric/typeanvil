@@ -1,0 +1,13 @@
+{
+  "id": "render-deterministic",
+  "tool": "render",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "document": { "content": "<!DOCTYPE html><html><head><title>Twice</title></head><body><h1>Same input</h1><p>Same bytes.</p></body></html>" }
+  },
+  "repeat": 2,
+  "expect": {
+    "ok": true,
+    "same_across_repeats": ["/sha256", "/byte_size", "/page_count"]
+  }
+}

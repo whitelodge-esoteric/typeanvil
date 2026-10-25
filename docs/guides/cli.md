@@ -4,7 +4,7 @@ type: guide
 status: approved
 owner: maintainers
 created: 2026-10-14
-updated: 2026-10-24
+updated: 2026-10-25
 sidebar_position: 3
 tags: [guide, cli, reference]
 slug: /guides/cli
@@ -15,12 +15,15 @@ slug: /guides/cli
 TypeAnvil ships one command-line program, `typeanvil`. The `render`
 subcommand reads an HTML or Markdown file and writes a PDF. The
 `capabilities --json` subcommand prints a manifest of supported CSS (see
-[Capabilities](#capabilities)). Two more flags print the version and the help
-text.
+[Capabilities](#capabilities)). The `mcp` and `call` subcommands serve the
+agent tools (see [MCP and JSON requests](#mcp-and-json-requests)). Two more
+flags print the version and the help text.
 
 ```text
 typeanvil render <input.html|input.md> [flags] -o <output.pdf>
 typeanvil capabilities --json
+typeanvil mcp [--root <dir>]...
+typeanvil call <tool> [--root <dir>]... < request.json
 typeanvil --version
 typeanvil --help
 ```
@@ -220,6 +223,16 @@ formats. Each entry has a `status` (`supported`, `partial`, or
 not listed is unsupported. The manifest comes from the same tables as
 `--diagnostics`, so a warning always agrees with it. Spec:
 `docs/specifications/capability-manifest.spec.md`.
+
+## MCP and JSON requests
+
+`typeanvil mcp` runs an MCP server over stdio with the tools `render`,
+`validate`, `inspect_page`, `capabilities` and `explain`. `typeanvil call
+<tool>` runs one of those tools: it reads the request object from stdin and
+prints the result object as one JSON line. `call` exits `0` for a result, `1`
+for a tool error and `2` for a usage error. `--root <dir>` limits file access
+to that directory. Client setup and request examples:
+[MCP server and JSON requests](./mcp.md).
 
 ## Exit codes and errors
 

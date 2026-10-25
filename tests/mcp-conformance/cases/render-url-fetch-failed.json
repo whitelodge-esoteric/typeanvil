@@ -1,0 +1,15 @@
+{
+  "id": "render-url-fetch-failed",
+  "tool": "render",
+  "runtimes": ["local", "cloud"],
+  "input": {
+    "document": { "url": "{{BASE_URL}}/missing-page.html" }
+  },
+  "expect": {
+    "error": "URL_FETCH_FAILED",
+    "checks": [
+      { "pointer": "/retryable", "equals": true },
+      { "pointer": "/field", "equals": "/document/url" }
+    ]
+  }
+}
