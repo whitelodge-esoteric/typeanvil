@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://typeanvil.com/schemas/mcp/v1/common.schema.json",
+  "title": "TypeAnvil MCP contract v1 — shared definitions",
+  "$defs": {
+    "ContentSource": {
+      "description": "A document or asset input. Exactly one of path, content, url.",
+      "type": "object",
+      "oneOf": [
+        { "required": ["path"], "properties": { "path": { "type": "string", "minLength": 1 } } },
+        { "required": ["content"], "properties": { "content": { "type": "string" } } },
+        { "required": ["url"], "properties": { "url": { "type": "string", "format": "uri" } } }
+      ],
+      "properties": {
+        "path": {},
+        "content": {},
+        "url": {},
+        "format": { "enum": ["html", "markdown"], "description": "Input language. Default: inferred from the file extension or URL, else html." },
+        "base_url": { "type": "string", "format": "uri", "description": "Base for relative asset references when content is inline." }
+      },
+      "unevaluatedProperties": false
+    },
+    "AssetMap": {
+      "description": "Optional named assets for inline content. Key = reference as written in the document. Value = a ContentSource.",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/AssetSource" }
+    },
+    "AssetSource": {
+      "type": "object",
+      "oneOf": [
+        { "required": ["path"] },
+        { "required": ["url"] },
+        { "required": ["content_base64"] }
+      ],
+      "properties": {
+        "path": { "type": "string" },
+        "url": { "type": "string", "format": "uri" },
+        "content_base64": { "type": "string", "contentEncoding": "base64" },
+        "media_type": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "PageOptions": {
+      "type": "object",
+      "properties": {
+        "page_width": { "type": "string", "description": "CSS length, e.g. 8.5in." },
+        "page_height": { "type": "string" },
+        "margin_top": { "type": "string" },
+        "margin_right": { "type": "string" },
+        "margin_bottom": { "type": "string" },
+        "margin_left": { "type": "string" },
+        "tagged": { "type": "boolean", "default": false },
+        "title": { "type": "string" },
+        "author": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "Environment": {
+      "description": "Identity of the server that produced a result. Present in every result.",
+      "type": "object",
+      "required": ["contract_version", "engine_version", "font_bundle_version", "runtime"],
+      "properties": {
+        "contract_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+$" },
+        "engine_version": { "type": "string" },
+        "font_bundle_version": { "type": "string" },
+        "runtime": { "enum": ["local", "cloud"] }
+      },
+      "additionalProperties": false
+    },
+    "Diagnostic": {
+      "type": "object",
+      "required": ["code", "severity", "message"],
+      "properties": {
+        "code": { "type": "string" },
+        "severity": { "enum": ["error", "warning", "info"] },
+        "message": { "type": "string" },
+        "line": { "type": "integer", "minimum": 1 },
+        "column": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "Rect": {
+      "description": "PostScript points, origin top-left of the page box.",
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": { "type": "number" }, "y": { "type": "number" },
+        "width": { "type": "number" }, "height": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "ErrorCode": {
+      "enum": [
+        "INVALID_INPUT",
+        "INPUT_SOURCE_AMBIGUOUS",
+        "PATH_INPUT_UNSUPPORTED",
+        "PATH_NOT_FOUND",
+        "PATH_OUTSIDE_ROOT",
+        "URL_FETCH_FAILED",
+        "URL_BLOCKED",
+        "OUTPUT_FORM_UNSUPPORTED",
+        "PARSE_FAILED",
+        "RENDER_FAILED",
+        "PAGE_OUT_OF_RANGE",
+        "SELECTOR_INVALID",
+        "SELECTOR_NO_MATCH",
+        "LIMIT_TIMEOUT",
+        "LIMIT_INPUT_SIZE",
+        "LIMIT_OUTPUT_SIZE",
+        "LIMIT_PAGE_COUNT",
+        "LIMIT_ASSET_COUNT",
+        "QUOTA_EXCEEDED",
+        "RATE_LIMITED",
+        "UNAUTHENTICATED",
+        "FORBIDDEN",
+        "INTERNAL"
+      ]
+    },
+    "Error": {
+      "description": "Tool error payload. Returned as an MCP tool result with isError=true; content[0] is JSON text of this object, and structuredContent carries the same object.",
+      "type": "object",
+      "required": ["code", "message", "retryable", "environment"],
+      "properties": {
+        "code": { "$ref": "#/$defs/ErrorCode" },
+        "message": { "type": "string" },
+        "retryable": { "type": "boolean" },
+        "field": { "type": "string", "description": "JSON pointer to the offending input field." },
+        "limit": {
+          "type": "object",
+          "required": ["name", "value", "unit"],
+          "properties": {
+            "name": { "type": "string" },
+            "value": { "type": "number" },
+            "unit": { "enum": ["seconds", "bytes", "pages", "count", "requests"] },
+            "observed": { "type": "number" }
+          },
+          "additionalProperties": false
+        },
+        "environment": { "$ref": "#/$defs/Environment" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

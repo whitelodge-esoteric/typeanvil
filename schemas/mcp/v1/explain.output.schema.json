@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://typeanvil.com/schemas/mcp/v1/explain.output.schema.json",
+  "title": "explain — output",
+  "type": "object",
+  "required": ["environment", "selector", "match_count", "matches"],
+  "properties": {
+    "environment": { "$ref": "common.schema.json#/$defs/Environment" },
+    "selector": { "type": "string" },
+    "match_count": { "type": "integer", "minimum": 0 },
+    "matches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["element", "dom_path", "computed_style", "placements"],
+        "properties": {
+          "element": { "type": "string" },
+          "dom_path": { "type": "string" },
+          "computed_style": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "description": "Property name to computed value string."
+          },
+          "placements": {
+            "type": "array",
+            "description": "One entry per page fragment of the element. Empty when the element generates no box (display:none).",
+            "items": {
+              "type": "object",
+              "required": ["page", "rect"],
+              "properties": {
+                "page": { "type": "integer", "minimum": 1 },
+                "rect": { "$ref": "common.schema.json#/$defs/Rect" },
+                "continued_from_previous_page": { "type": "boolean" },
+                "continues_on_next_page": { "type": "boolean" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "unconsumed_properties": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Declared properties the engine does not consume for this element."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://typeanvil.com/schemas/mcp/v1/render.output.schema.json",
+  "title": "render — output",
+  "type": "object",
+  "required": ["environment", "page_count", "byte_size", "sha256", "artifact", "diagnostics"],
+  "properties": {
+    "environment": { "$ref": "common.schema.json#/$defs/Environment" },
+    "page_count": { "type": "integer", "minimum": 0 },
+    "byte_size": { "type": "integer", "minimum": 0 },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "artifact": {
+      "type": "object",
+      "required": ["kind"],
+      "oneOf": [
+        { "properties": { "kind": { "const": "path" }, "path": { "type": "string" } }, "required": ["kind", "path"] },
+        { "properties": { "kind": { "const": "bytes" }, "data_base64": { "type": "string", "contentEncoding": "base64" } }, "required": ["kind", "data_base64"] },
+        { "properties": { "kind": { "const": "link" }, "url": { "type": "string", "format": "uri" }, "expires_at": { "type": "string", "format": "date-time" } }, "required": ["kind", "url", "expires_at"] }
+      ],
+      "properties": { "media_type": { "const": "application/pdf" } }
+    },
+    "diagnostics": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/Diagnostic" } }
+  },
+  "additionalProperties": false
+}

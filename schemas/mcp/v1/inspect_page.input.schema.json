@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://typeanvil.com/schemas/mcp/v1/inspect_page.input.schema.json",
+  "title": "inspect_page — input",
+  "type": "object",
+  "required": ["document", "page"],
+  "properties": {
+    "document": { "$ref": "common.schema.json#/$defs/ContentSource" },
+    "stylesheets": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/ContentSource" } },
+    "assets": { "$ref": "common.schema.json#/$defs/AssetMap" },
+    "options": { "$ref": "common.schema.json#/$defs/PageOptions" },
+    "page": { "type": "integer", "minimum": 1, "description": "1-based page number." },
+    "image": {
+      "type": "object",
+      "properties": {
+        "include": { "type": "boolean", "default": true },
+        "dpi": { "type": "integer", "minimum": 36, "maximum": 300, "default": 96 }
+      },
+      "additionalProperties": false
+    },
+    "max_boxes": { "type": "integer", "minimum": 1, "maximum": 5000, "default": 500 }
+  },
+  "additionalProperties": false
+}

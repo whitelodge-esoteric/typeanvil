@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://typeanvil.com/schemas/mcp/v1/explain.input.schema.json",
+  "title": "explain — input",
+  "type": "object",
+  "required": ["document", "selector"],
+  "properties": {
+    "document": { "$ref": "common.schema.json#/$defs/ContentSource" },
+    "stylesheets": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/ContentSource" } },
+    "assets": { "$ref": "common.schema.json#/$defs/AssetMap" },
+    "options": { "$ref": "common.schema.json#/$defs/PageOptions" },
+    "selector": { "type": "string", "minLength": 1, "description": "CSS selector. Matches are returned in document order." },
+    "max_matches": { "type": "integer", "minimum": 1, "maximum": 100, "default": 10 },
+    "properties": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Limit computed_style to these property names. Default: all non-initial properties."
+    }
+  },
+  "additionalProperties": false
+}
