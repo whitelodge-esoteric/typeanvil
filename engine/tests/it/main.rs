@@ -50,6 +50,7 @@ mod core564_auto_inline_margins;
 mod core565_overflow_child_continuation;
 mod core567_spacer_fragments;
 mod core569_painted_spacer_fragments;
+mod core578_untrusted_input;
 mod core531_border_dashed;
 mod core363_mathml;
 mod core541_math_space;

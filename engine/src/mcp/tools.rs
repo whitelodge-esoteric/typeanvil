@@ -144,14 +144,34 @@ fn prepare(ctx: &Ctx, args: &Value) -> ToolResult<Prepared> {
         extra_css,
         default_css: true,
         geometry,
-        base_url: Some(base_dir),
+        base_url: Some(base_dir.clone()),
         title: opt_str(&opts, "title").map(str::to_string),
         author: opt_str(&opts, "author").map(str::to_string),
         tagged,
         ua: false,
         rewrite,
+        // CORE-578: MCP input is agent-written, so the server runs the
+        // strict local profile: document references read only under the
+        // document's base directory, the call's scratch (materialized
+        // assets) and the configured roots; remote references are blocked.
+        policy: {
+            let mut p = crate::safety::Policy {
+                fetch: crate::safety::FetchPolicy::Local,
+                ..crate::safety::Policy::unrestricted()
+            }
+            .with_root(&base_dir)
+            .with_root(&scratch.dir);
+            for r in ctx.roots {
+                p = p.with_root(r);
+            }
+            p
+        },
+        max_input_bytes: None,
     })
     .map_err(|e| {
+        if let Some(le) = e.downcast_ref::<crate::safety::LimitError>() {
+            return ToolError::new(le.kind.code(), &le.message);
+        }
         let text = format!("{e:#}");
         if text.starts_with("parsing HTML") || text.starts_with("converting Markdown") {
             ToolError::at("PARSE_FAILED", "/document", &text)
@@ -181,6 +201,9 @@ fn prepare(ctx: &Ctx, args: &Value) -> ToolResult<Prepared> {
         .chain(crate::diagnostics::analyze(done.stylesheet.source()).iter())
     {
         push(&d.code, &d.severity, &d.message, d.line, d.column);
+    }
+    for msg in &done.blocked {
+        push("fetch-blocked", "warning", msg, 0, 0);
     }
     for msg in crate::diagnostics::take_broken_anchors() {
         push("bookmark-anchor-unresolved", "warning", &msg, 0, 0);

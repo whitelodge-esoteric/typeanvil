@@ -26,6 +26,7 @@ pub mod paged;
 pub mod pdf;
 pub mod pipeline;
 pub mod render_report;
+pub mod safety;
 pub mod stylo_dom;
 pub mod svg_vector;
 pub mod table;
