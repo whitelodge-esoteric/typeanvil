@@ -233,14 +233,21 @@ fn render(args: Vec<String>) -> Result<()> {
                 column: 0,
             });
         }
+        // CORE-571: layout-outcome events + summary from the final layout.
+        let report = typeanvil::render_report::analyze_layout(&dom, &stylesheet, &laid_out);
         match mode {
-            DiagnosticsMode::Json => print!("{}", typeanvil::diagnostics::to_json(&events)),
+            DiagnosticsMode::Json => {
+                print!("{}", typeanvil::render_report::to_json(&events, &report))
+            }
             DiagnosticsMode::Text => {
                 for d in &events {
                     eprintln!(
                         "{}:{} {} [{}]: {}",
                         d.line, d.column, d.severity, d.code, d.message
                     );
+                }
+                for e in &report.events {
+                    eprintln!("{}", typeanvil::render_report::to_text(e));
                 }
             }
         }
