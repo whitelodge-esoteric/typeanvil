@@ -2594,6 +2594,18 @@ impl<'a> Ctx<'a> {
         crate::math::layout_math(self.dom, id, style.font_size.get(), style.font_face)
     }
 
+    /// CORE-555: `id` holds only text children, at least one non-blank.
+    fn is_text_only(&self, id: NodeId) -> bool {
+        let kids = &self.dom.nodes[id].children;
+        !kids.is_empty()
+            && kids
+                .iter()
+                .all(|&c| matches!(self.dom.nodes[c].kind, crate::dom::NodeKind::Text(_)))
+            && kids.iter().any(|&c| {
+                matches!(&self.dom.nodes[c].kind, crate::dom::NodeKind::Text(t) if !t.trim().is_empty())
+            })
+    }
+
     /// CORE-553: true when `id` is a plain in-flow block that declares a
     /// vertical mode inside a HORIZONTAL page flow, and no descendant declares
     /// a different mode. Only such boxes take the interior logical-frame path.
@@ -2617,6 +2629,13 @@ impl<'a> Ctx<'a> {
                 )
             })
         {
+            return false;
+        }
+        // CORE-555: a text-only paragraph sets its lines as vertical columns
+        // through the vertical line-stacking path (glyph orientation, one
+        // ActualText span); the logical frame would set it as rotated
+        // horizontal lines.
+        if self.is_text_only(id) {
             return false;
         }
         let mode = s.writing_mode;
@@ -3539,11 +3558,18 @@ impl<'a> Ctx<'a> {
         let box_wm = self.writing_mode_at(id);
         let border_x =
             if style.rtl
-                || !self.logical_frame && matches!(
-                    box_wm,
-                    crate::css::PageWritingMode::VerticalRl
-                        | crate::css::PageWritingMode::SidewaysRl
-                )
+                || !self.logical_frame
+                    && matches!(
+                        box_wm,
+                        crate::css::PageWritingMode::VerticalRl
+                            | crate::css::PageWritingMode::SidewaysRl
+                    )
+                    // CORE-553/555: an interior vertical text paragraph in a
+                    // horizontal flow resolves its margins in the containing
+                    // block (start-anchored), as the logical-frame path does.
+                    && !(style.writing_mode_declared
+                        && !self.page_flow_writing_mode().is_vertical()
+                        && self.is_text_only(id))
             {
                 Self::frag_border_x_rtl(style, origin_x, avail_width, box_border_w)
             } else {
