@@ -122,3 +122,4 @@ mod assertions;
 mod typography;
 mod ua_heading_breaks;
 mod writing_modes;
+mod core555_vertical_text;
