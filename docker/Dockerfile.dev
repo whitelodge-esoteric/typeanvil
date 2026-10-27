@@ -6,8 +6,13 @@ ENV CARGO_TERM_COLOR=always
 
 # Python 3.11 (bookworm default) + harness deps. playwright is optional at
 # runtime (oracle engine) but installed so the full harness works.
+#
+# CJK fonts: declared explicitly (CORE-589). Playwright's --with-deps also
+# pulls them in, but the CI engine job installs exactly these two packages,
+# so the dev container and CI must not depend on Playwright's choice.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends python3-pip \
+      fonts-wqy-zenhei fonts-ipafont-gothic \
  && rm -rf /var/lib/apt/lists/*
 RUN python3 --version && python3 -m pip install --no-cache-dir --break-system-packages \
       pillow \

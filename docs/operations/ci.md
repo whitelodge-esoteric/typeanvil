@@ -4,7 +4,7 @@ type: runbook
 status: approved
 owner: maintainers
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-27
 sidebar_position: 7
 tags: [ci, github-actions, clippy, cargo, harness, gate]
 trigger: When a CI run fails, when you change CI, or before you push engine or harness changes
@@ -135,6 +135,14 @@ Rules for tests:
 2. A test shall read the expected name from the face file the engine resolved. `engine/tests/it/fonts.rs` does this with `expected_ps_name(face)`, which reads nameID 6 from `typeanvil::fonts::face_path(face)`.
 3. A test that needs a macOS system face shall carry `#[cfg(target_os = "macos")]`.
 
+### CJK fonts
+
+The `engine` job installs two Debian/Ubuntu font packages: `fonts-wqy-zenhei` (WenQuanYi Zen Hei) and `fonts-ipafont-gothic` (IPAGothic). `docker/Dockerfile.dev` installs the same two packages, so a CJK test resolves the same faces in the dev container and in CI (CORE-589).
+
+- Without them, CJK text falls back to `.notdef`. A `--ua` render then fails PDF/UA validation (`ContainsNotDefGlyph`), and text-layer tests see different runs.
+- The `regression` and `visual-diff` jobs do not install them. Their baselines are generated against the bundled Liberation set only. Adding fonts there means regenerating the baselines in the same change.
+- If you add a CJK package, add it to `ci.yml` and `docker/Dockerfile.dev` in the same commit.
+
 `scripts/dev-container.sh` mounts the Mac Arial, so the tests also pass there when they depend on Arial by mistake. To run the CI font setup locally, run the tests in a container without that mount. The container copies Liberation to `/usr/share/fonts/typeanvil/`, then runs cargo as the `dev` user. Run it from the worktree root:
 
 ```bash
@@ -185,5 +193,5 @@ A passing run exits 0 from `scripts/gate.py`, writes a receipt that `--verify` a
 
 - **`cargo-clippy` is not installed (local run):** rebuild the dev image. It installs `clippy` and `rustfmt`.
 - **Container build killed for memory:** stop other builds. The script already passes `-j 2`.
-- **A test passes locally and fails in CI (or the reverse):** local runs use the macOS Arial mounted into the container. CI uses Liberation Sans. Check for a font-dependent assertion.
+- **A test passes locally and fails in CI (or the reverse):** local runs use the macOS Arial mounted into the container. CI uses Liberation Sans. Check for a font-dependent assertion. For CJK text, check that both places have the CJK packages listed under "CJK fonts".
 - **Clippy fails after a Rust version bump:** new lints may fire. Update the Rust version in `ci.yml` and `docker/Dockerfile.dev` together, then add or fix lints in the same commit.
