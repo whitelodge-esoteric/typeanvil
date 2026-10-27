@@ -41,6 +41,12 @@ jobs:
         run: |
           sudo mkdir -p /usr/share/fonts/typeanvil
           sudo cp docker/fonts/typeanvil/* /usr/share/fonts/typeanvil/
+      # CJK faces: the same packages docker/Dockerfile.dev installs, so CJK
+      # tests resolve real glyphs here too, not .notdef (CORE-589).
+      - name: Install CJK fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-wqy-zenhei fonts-ipafont-gothic
       # Ratchet: engine/Cargo.toml allows every lint that fires today, so
       # -D warnings fails only on a NEW warning. See docs/operations/ci.md.
       - name: Clippy
