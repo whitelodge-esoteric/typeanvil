@@ -12,7 +12,7 @@ trigger: When the `regression` CI job fails, or when an intended rendering chang
 
 # Regression gate
 
-The `regression` job in `.github/workflows/ci.yml` renders the small-tier gate documents of the corpus (`--role gate --size small`, 25 documents) on every pull request. It compares each page to the committed fingerprint in `baselines/<doc>.json`. The job fails on an unexplained change.
+The `regression` job in `.github/workflows/ci.yml` renders every document in the corpus (`--role any --size all`, 47 documents) on every pull request. Until CORE-592 it covered only the small gate tier, and a showcase-only regression (CORE-591) merged unnoticed; the full check takes under a minute. It runs without `--allow-missing`: every manifest entry has a committed baseline, so a new document without one fails the PR rather than slipping through. It compares each page to the committed fingerprint in `baselines/<doc>.json`. The job fails on an unexplained change.
 
 ## What a baseline holds
 
@@ -70,7 +70,7 @@ Run `update` only after you know why the page changed. The baseline diff is the 
 ## Known limits
 
 - The artifact has head PNGs only. A baseline stores fingerprints, not images, so base PNGs need a render of the base commit. CORE-487 owns the diff-image step and may add that render.
-- The PR job covers the `small` tier. The nightly covers all sizes.
+- The PR job and the nightly both cover every document. The nightly adds visual QA, which stays nightly-only because it is slow.
 - Unit tests for the comparison logic: `tests/test_regress.py`.
 
 ## Determinism check
