@@ -118,6 +118,16 @@ jobs:
     if: always() && needs.resolve.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
+      # The default branch carries nightly_linear.py, as in `resolve`.
+      - uses: actions/checkout@v7
+      # regress.log and qa-report.json for the Linear issue body; absent on an early failure.
+      - name: Download evidence
+        if: needs.full-run.result != 'success'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: nightly-evidence
+          path: nightly-evidence
       # Release precondition (CORE-487): a commit status named `nightly` on the tip SHA.
       - name: Publish commit status
         run: |
@@ -133,7 +143,7 @@ jobs:
         if: needs.full-run.result != 'success'
         run: |
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          body="Nightly full run **${{ needs.full-run.result }}** on \`${{ needs.resolve.outputs.branch }}\` @ \`${{ needs.resolve.outputs.sha }}\`. Run: ${run_url}. Linear: CORE-490."
+          body="Nightly full run **${{ needs.full-run.result }}** on \`${{ needs.resolve.outputs.branch }}\` @ \`${{ needs.resolve.outputs.sha }}\`. Run: ${run_url}. A Linear \`nightly-failure\` issue is opened or updated too (CORE-592)."
           existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --label nightly-failure --json number --jq '.[0].number // empty')"
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$body"
@@ -148,3 +158,24 @@ jobs:
           for n in $(gh issue list --repo "$GITHUB_REPOSITORY" --state open --label nightly-failure --json number --jq '.[].number'); do
             gh issue close "$n" --repo "$GITHUB_REPOSITORY" --comment "Green again: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           done
+      # Linear mirror (CORE-592). The script warns and exits 0 on a missing key or API error.
+      - name: Open or update the Linear failure issue
+        if: needs.full-run.result != 'success'
+        continue-on-error: true
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: |
+          python3 scripts/nightly_linear.py fail \
+            --run-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --branch "${{ needs.resolve.outputs.branch }}" --sha "${{ needs.resolve.outputs.sha }}" \
+            --result "${{ needs.full-run.result }}" \
+            --regress nightly-evidence/regress.log --qa nightly-evidence/qa-report.json
+      - name: Comment on the Linear failure issue after a green run
+        if: needs.full-run.result == 'success'
+        continue-on-error: true
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: |
+          python3 scripts/nightly_linear.py green \
+            --run-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --branch "${{ needs.resolve.outputs.branch }}" --sha "${{ needs.resolve.outputs.sha }}"
