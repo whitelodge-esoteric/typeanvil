@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-10-23
-updated: 2026-10-24
+updated: 2026-10-27
 sidebar_position: 72
 tags: [engine, layout, writing-modes, css-writing-modes, fragmentation, coordinates]
 spec_id: writing-modes-layout
@@ -520,6 +520,12 @@ Limits carried to later children:
   `margin-right` no longer right-anchors it (this supersedes the CORE-182
   anchoring test). Link rects inside the box are dropped. Everything outside
   the gate keeps the existing path and stays with CORE-554.
+- **Interior vertical anchoring (DECIDED 2026-10-27, lead; CORE-555).** A
+  vertical box inside a horizontal-tb ltr containing block sits at the start
+  (left) edge plus `margin-left`, in every vertical mode (CSS 2.1 §10.3.3;
+  Chromium agrees). Text-only interior vertical boxes skip
+  `layout_interior_vertical` and take the CORE-555 vertical line path, but
+  keep this anchoring.
 - `html` root margins are ignored in every mode (`probe/root-margin-*.html`),
   which keeps `block-002-wm-*` at test=2 / ref=3 pages. Split out as
   CORE-563. Logical border styles (`block-001-wm-*` pixel residual) are

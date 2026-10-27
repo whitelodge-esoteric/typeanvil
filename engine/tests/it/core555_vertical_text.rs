@@ -165,9 +165,11 @@ const LATIN: &str = "one two three four five six seven eight nine ten eleven";
 /// Line DIRECTION and STACKING ORDER: each line is a tall column (a
 /// line-height wide, the box's inline extent tall); successive lines step
 /// LEFT in the `-rl` modes and RIGHT in the `-lr` modes, starting at the
-/// box's block-start edge. The box is 90pt wide with 15pt margins; the
-/// `-rl` modes right-anchor it (CORE-153), so its right edge is 285pt; the
-/// `-lr` modes left-anchor it at 15pt. Content y runs 15..165pt.
+/// box's block-start edge. The box is 90pt wide with 15pt margins. Its
+/// containing block (the body) is horizontal-tb ltr, so every mode places
+/// it at the start edge, x = margin-left = 15pt (CSS 2.1 §10.3.3; DECIDED
+/// 2026-10-27, CORE-553 rule). Its right edge is 105pt. Content y runs
+/// 15..165pt.
 #[test]
 fn vertical_lines_stack_along_the_block_axis() {
     for (wm, rl) in [
@@ -186,7 +188,7 @@ fn vertical_lines_stack_along_the_block_axis() {
         }
         let first_x = ls[0].0;
         if rl {
-            assert!((first_x - (285.0 - 22.5)).abs() < 0.01, "{wm}: first column at the right edge, got {first_x}");
+            assert!((first_x - (105.0 - 22.5)).abs() < 0.01, "{wm}: first column at the box's right edge, got {first_x}");
         } else {
             assert!((first_x - 15.0).abs() < 0.01, "{wm}: first column at the left edge, got {first_x}");
         }
@@ -271,7 +273,7 @@ fn upright_glyphs_advance_down_the_column() {
     assert_eq!(ls.len(), 1, "three ideographs fit one column");
     let (x, _, w, _, t) = &ls[0];
     assert_eq!(t, "日本語");
-    assert!((x + w - 285.0).abs() < 0.01, "column at the right edge, got x={x} w={w}");
+    assert!((x + w - 105.0).abs() < 0.01, "column at the box's right edge, got x={x} w={w}");
 }
 
 /// Sideways-lr runs BOTTOM TO TOP: its rotated run starts at the column's
