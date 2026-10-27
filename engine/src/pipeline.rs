@@ -46,6 +46,8 @@ pub struct RenderInput {
     pub policy: crate::safety::Policy,
     /// CORE-578: largest accepted document source, in bytes.
     pub max_input_bytes: Option<usize>,
+    /// CORE-577: files embedded as PDF associated files (empty = none).
+    pub attachments: Vec<crate::pdf::Attachment>,
 }
 
 /// The finished render: the PDF plus the intermediate state the report,
@@ -111,8 +113,15 @@ pub fn run(input: RenderInput) -> Result<Rendered> {
         crate::layout::layout_with_images(&dom, &stylesheet, input.geometry, input.base_url.as_deref());
     stage()?;
     let meta = crate::metadata::extract_metadata(&dom, input.title, input.author);
-    let pdf = crate::pdf::render_with_options(&layout, Some(&dom), &meta, input.tagged, input.ua)
-        .context("rendering PDF")?;
+    let pdf = crate::pdf::render_with_attachments(
+        &layout,
+        Some(&dom),
+        &meta,
+        input.tagged,
+        input.ua,
+        &input.attachments,
+    )
+    .context("rendering PDF")?;
     stage()?;
     Ok(Rendered {
         dom,

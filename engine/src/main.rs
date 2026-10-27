@@ -248,6 +248,8 @@ Flags (render):
       --schema <file.json>  Validate --data against this JSON Schema (default:
                             the template's sibling <name>.schema.json, if any).
                             Template or data errors write no PDF and exit 5
+      --embed-source        Attach the input file to the PDF (/AFRelationship /Source)
+      --embed-data <file>   Attach a data file, e.g. JSON (/Data; repeatable)
 
 Safety flags (render; untrusted input, default off):
       --fetch <mode>        none | local | allow-list | unrestricted (default).
@@ -307,6 +309,10 @@ struct RenderArgs {
     /// CORE-576: `--data` (the input is a template) and `--schema`.
     data: Option<PathBuf>,
     schema: Option<PathBuf>,
+    /// CORE-577: `--embed-source`.
+    embed_source: bool,
+    /// CORE-577: `--embed-data` files, in order.
+    embed_data: Vec<PathBuf>,
 }
 
 /// Output format for `--diagnostics`.
@@ -369,6 +375,9 @@ fn render(args: Vec<String>) -> Result<()> {
     }
     .with_root(&root);
 
+    // CORE-577: embedded source / data files (pdf-embedded-source.spec.md).
+    let attachments = collect_attachments(&opts)?;
+
     // CORE-575: the same pipeline the MCP `render` tool calls.
     let result = pipeline::run(RenderInput {
         source,
@@ -392,6 +401,7 @@ fn render(args: Vec<String>) -> Result<()> {
         rewrite: None,
         policy,
         max_input_bytes: opts.max_input_bytes,
+        attachments,
     });
     let done = match result {
         Ok(d) => d,
@@ -504,6 +514,61 @@ fn expand_template(
     t::expand(source, &data)
 }
 
+/// CORE-577: build the attachment list for `--embed-source` /
+/// `--embed-data`. Bytes are read raw so the attachment equals the file.
+fn collect_attachments(opts: &RenderArgs) -> Result<Vec<typeanvil::pdf::Attachment>> {
+    use typeanvil::pdf::{Attachment, AttachmentRelation};
+    fn base_name(p: &std::path::Path) -> String {
+        p.file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| p.to_string_lossy().into_owned())
+    }
+    let mut out: Vec<Attachment> = Vec::new();
+    if opts.embed_source {
+        let data = std::fs::read(&opts.input)
+            .with_context(|| format!("reading input {}", opts.input.display()))?;
+        let (mime, desc) = if opts.markdown {
+            ("text/markdown", "Source Markdown")
+        } else {
+            ("text/html", "Source HTML")
+        };
+        out.push(Attachment {
+            name: base_name(&opts.input),
+            mime_type: mime.to_string(),
+            description: desc.to_string(),
+            relation: AttachmentRelation::Source,
+            data,
+        });
+    }
+    for f in &opts.embed_data {
+        let data = std::fs::read(f)
+            .map_err(|e| UsageError(format!("--embed-data {}: {e}", f.display())))?;
+        let ext = f
+            .extension()
+            .map(|e| e.to_string_lossy().to_ascii_lowercase())
+            .unwrap_or_default();
+        let mime = match ext.as_str() {
+            "json" => "application/json",
+            "xml" => "application/xml",
+            "csv" => "text/csv",
+            _ => "application/octet-stream",
+        };
+        out.push(Attachment {
+            name: base_name(f),
+            mime_type: mime.to_string(),
+            description: "Source data".to_string(),
+            relation: AttachmentRelation::Data,
+            data,
+        });
+    }
+    for (i, a) in out.iter().enumerate() {
+        if out[..i].iter().any(|b| b.name == a.name) {
+            return Err(UsageError(format!("duplicate embedded file name `{}`", a.name)).into());
+        }
+    }
+    Ok(out)
+}
+
 fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
     let mut input: Option<PathBuf> = None;
     let mut output: Option<PathBuf> = None;
@@ -534,6 +599,8 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
     let mut max_image_pixels: Option<u64> = None;
     let mut data: Option<PathBuf> = None;
     let mut schema: Option<PathBuf> = None;
+    let mut embed_source = false;
+    let mut embed_data: Vec<PathBuf> = Vec::new();
 
     let mut it = args.into_iter();
     while let Some(arg) = it.next() {
@@ -568,6 +635,8 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
             "--fail-on-assert" => fail_on_assert = true,
             "--data" => data = Some(PathBuf::from(next_value(&mut it, &arg)?)),
             "--schema" => schema = Some(PathBuf::from(next_value(&mut it, &arg)?)),
+            "--embed-source" => embed_source = true,
+            "--embed-data" => embed_data.push(PathBuf::from(next_value(&mut it, &arg)?)),
             // CORE-578: fetch policy and limits.
             "--fetch" => fetch_mode = Some(next_value(&mut it, &arg)?),
             "--fetch-hosts" => fetch_hosts = Some(next_value(&mut it, &arg)?),
@@ -690,6 +759,8 @@ fn parse_render_args(args: Vec<String>) -> Result<RenderArgs> {
         max_image_pixels,
         data,
         schema,
+        embed_source,
+        embed_data,
     })
 }
 

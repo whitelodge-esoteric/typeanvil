@@ -95,6 +95,8 @@ Flags and the input path can come in any order after `render`.
 | `--fail-on-assert` | none (switch) | off | Exit `3` when any assertion fails. Needs `--assert`. |
 | `--data` | JSON file path | none | Treat the input as a data template and render it with this data. See [Data templates](#data-templates). |
 | `--schema` | JSON file path | sibling `<name>.schema.json` | Validate `--data` against this JSON Schema. Needs `--data`. |
+| `--embed-source` | none (switch) | off | Attach the exact input file to the PDF (`/AFRelationship /Source`). See [PDF embedded source](../specifications/pdf-embedded-source.spec.md). |
+| `--embed-data` | file path (repeatable) | none | Attach a data file such as invoice JSON (`/AFRelationship /Data`). An unreadable file is a usage error. |
 
 Parsing rules:
 
@@ -281,7 +283,7 @@ Examples live in `templates/`. Spec:
 |---|---|
 | `0` | Success: the PDF was written, or `--version` / `--help` was printed. |
 | `1` | Any error. |
-| `2` | Usage error for `--from`, `--css`, `--no-default-css`, `--assert`, or `--fail-on-assert`. |
+| `2` | Usage error for `--from`, `--css`, `--no-default-css`, `--assert`, `--fail-on-assert`, or `--embed-data`, and duplicate embedded file names. |
 | `3` | `--fail-on-assert`: at least one assertion failed. The PDF and diagnostics were written. |
 | `4` | A `--max-*` or `--timeout` limit stopped the render. No PDF. |
 | `5` | `--data`: template, data or schema error (`TEMPLATE_*` codes). No PDF. |

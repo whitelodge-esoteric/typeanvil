@@ -189,6 +189,7 @@ fn prepare(ctx: &Ctx, args: &Value) -> ToolResult<Prepared> {
             p
         },
         max_input_bytes: None,
+        attachments: Vec::new(),
     })
     .map_err(|e| {
         if let Some(le) = e.downcast_ref::<crate::safety::LimitError>() {
