@@ -4,14 +4,14 @@
   "page_count": 1,
   "pages": [
     {
-      "dark_pixels": 1876,
-      "dhash": "0303020000000000",
+      "dark_pixels": 79204,
+      "dhash": "8ca82c0080000000",
       "page": 1,
       "size": [
         841.89,
         595.28
       ],
-      "text_sha256": "c54428fb8d1a13b646054dae6a064cab157d96b37ab9e90522fa3e31c24d9297"
+      "text_sha256": "16a0e91d2ab5ccfef53ad21a89b50612a9a1baf40c9db3eaf213ba346cef9cbe"
     }
   ]
 }
