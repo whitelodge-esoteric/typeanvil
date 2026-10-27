@@ -54,7 +54,8 @@ jobs:
       - name: Test
         run: cargo test --no-fail-fast
 
-  # Fingerprint regression gate (CORE-489). Small tier only; runbook:
+  # Fingerprint regression gate (CORE-489). Full corpus, every role and size
+  # (CORE-592: showcase docs were nightly-only and a regression merged). Runbook:
   # docs/operations/regression-gate.md
   regression:
     if: github.event_name == 'pull_request'
@@ -81,7 +82,7 @@ jobs:
       - name: Build engine
         run: cargo build --manifest-path engine/Cargo.toml
       - name: Regression check
-        run: uv run python scripts/regress.py check --role gate --size small --artifacts regress-artifacts
+        run: uv run python scripts/regress.py check --role any --size all --artifacts regress-artifacts
       - name: Upload changed pages
         if: failure()
         uses: actions/upload-artifact@v4

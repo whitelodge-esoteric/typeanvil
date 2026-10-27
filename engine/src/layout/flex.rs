@@ -421,12 +421,18 @@ impl<'a> Ctx<'a> {
             // zero width beside a fixed sibling and its text vanished).
             // Shrink stays unapplied: packing already fits every line
             // except a lone overlong item, which overflows as before.
+            // Free space counts main sizes only, exactly as the nowrap pass
+            // and the justify pass do: the block path applies each item's
+            // margins itself (CORE-202). Counting margins here double-applies
+            // them; negative margins then over-grow the items (CORE-591:
+            // weasyprint-report's `margin: 0 -2cm` cover bands ran off the
+            // page).
             if wrap {
                 for line in &mut lines {
                     let used: f64 = line
                         .items
                         .iter()
-                        .map(|&i| outer_main(&items[i]))
+                        .map(|&i| items[i].main_size.get())
                         .sum::<f64>()
                         + gap.get() * (line.items.len().saturating_sub(1) as f64);
                     let line_free = inner_width.get() - used;

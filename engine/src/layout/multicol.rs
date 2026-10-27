@@ -434,7 +434,16 @@ impl<'a> Ctx<'a> {
                 Scalar::ZERO
             }
         };
-        let used = (box_top - top) + box_height + style.margin_bottom;
+        // The finished container's border box ends below its bottom padding
+        // and border; the background below paints that far, so the flow must
+        // advance that far too (CORE-591: a following sibling overlapped the
+        // bottom padding, weasyprint-ticket's chip row under its `dl` band).
+        let paint_height = if done {
+            box_height + style.padding_bottom + style.border_bottom
+        } else {
+            box_height
+        };
+        let used = (box_top - top) + paint_height + style.margin_bottom;
 
         // Offsets become relative to the container fragment.
         let origin = Point::new(inner_left, top);
@@ -477,11 +486,7 @@ impl<'a> Ctx<'a> {
                 + style.padding_left
                 + style.padding_right
                 + style.border_right;
-            let bh = if done {
-                box_height + style.padding_bottom + style.border_bottom
-            } else {
-                box_height
-            };
+            let bh = paint_height;
             let has_border = style.border_top.get() > 0.0
                 || style.border_right.get() > 0.0
                 || style.border_bottom.get() > 0.0
