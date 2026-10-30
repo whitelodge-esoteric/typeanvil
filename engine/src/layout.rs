@@ -2631,13 +2631,10 @@ impl<'a> Ctx<'a> {
         {
             return false;
         }
-        // CORE-555: a text-only paragraph sets its lines as vertical columns
-        // through the vertical line-stacking path (glyph orientation, one
-        // ActualText span); the logical frame would set it as rotated
-        // horizontal lines.
-        if self.is_text_only(id) {
-            return false;
-        }
+        // CORE-561: text-only paragraphs take the frame too. `map_frag`
+        // turns every logical line into a native vertical line, so the
+        // frame sets glyph orientation, link rects and mixed block/text
+        // content on one path.
         let mode = s.writing_mode;
         // Narrow slice: the logical pass is monolithic and drops out-of-flow
         // state, so subtrees holding multicol, floats, positioned boxes,
@@ -2706,6 +2703,7 @@ impl<'a> Ctx<'a> {
         let mut stack = vec![id];
         while let Some(n) = stack.pop() {
             logical[n] = crate::vertical::transpose_style(&self.styles[n], mode);
+            crate::vertical::add_orientation_feature(self.dom, self.styles, n, mode, &mut logical[n]);
             stack.extend(self.dom.nodes[n].children.iter().copied());
         }
         // The box's own margins are applied physically below.
@@ -2764,9 +2762,10 @@ impl<'a> Ctx<'a> {
             &BreakToken::break_before(),
             &mut scratch,
         );
-        // Link rects from the logical pass are in the wrong frame: drop them
-        // (interior vertical links are out of scope for this slice).
-        self.links.borrow_mut().truncate(links_before);
+        // Link rects from the logical pass are frame-relative (the box's
+        // logical border box sits at the frame origin); they map to physical
+        // points with the box below (CORE-561).
+        let frame_links: Vec<CollectedLink> = self.links.borrow_mut().split_off(links_before);
         let mut frag = res.fragment;
         let (lw, lh) = frag.size;
         let (pw, ph) = (lh, lw);
@@ -2785,7 +2784,15 @@ impl<'a> Ctx<'a> {
             (true, false) => origin_x + style.margin_left + Scalar(free.get().max(0.0)),
             _ => origin_x + style.margin_left,
         };
-        crate::vertical::map_root(&mut frag, mode, Rect::new(box_left, box_top, pw, ph));
+        let phys = Rect::new(box_left, box_top, pw, ph);
+        crate::vertical::map_root(&mut frag, mode, phys);
+        {
+            let mut links = self.links.borrow_mut();
+            for mut l in frame_links {
+                (l.x, l.y, l.w, l.h) = crate::vertical::map_rect(mode, phys, (l.x, l.y, l.w, l.h));
+                links.push(l);
+            }
+        }
         // `map_root` adds the rect origin to the mapped offset; the logical
         // border box sits at (0,0), so the result is the box's physical origin.
         BlockResult { used: ph + style.margin_top, fragment: frag, outgoing: None, empty: false }

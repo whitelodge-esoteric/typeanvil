@@ -1006,16 +1006,34 @@ fn draw_shaped_vertical(
             && t.glyphs[j].face == g0.face
             && t.glyphs[j].color == g0.color
             && t.glyphs[j].upright == g0.upright
+            && t.glyphs[j].bg == g0.bg
         {
             j += 1;
         }
-        surface.set_fill(Some(solid_fill(g0.color.unwrap_or(t.color))));
         let seg_face = g0.face.unwrap_or(t.font_face);
         let seg_font: &Font = match g0.face {
             Some(f) => font_for(f)?,
             None => font,
         };
         let seg_adv: f32 = glyphs[i..j].iter().map(|g| g.x_advance).sum::<f32>() * fs;
+        // CORE-561: an inline element's own background fills its content
+        // area behind the glyphs: `seg_adv` along the inline axis, the run
+        // face's ascent + descent across the column, centred on the column
+        // centre (the central baseline).
+        if let Some(bg) = g0.bg {
+            let (asc, desc) = crate::typography::font_metrics(t.font_face);
+            let across = ((asc - desc) as f32) * fs;
+            let y0 = if down { t.y + pen } else { t.y - pen - seg_adv };
+            if let Some(rect) = Rect::from_xywh(t.x - across * 0.5, y0, across, seg_adv) {
+                let mut pb = krilla::geom::PathBuilder::new();
+                pb.push_rect(rect);
+                if let Some(path) = pb.finish() {
+                    surface.set_fill(Some(solid_fill(bg)));
+                    surface.draw_path(&path);
+                }
+            }
+        }
+        surface.set_fill(Some(solid_fill(g0.color.unwrap_or(t.color))));
         if g0.upright && down {
             // Upright: one glyph at a time at pen + (x_off, -y_off); the
             // shaper's offsets already move the vertical origin (top

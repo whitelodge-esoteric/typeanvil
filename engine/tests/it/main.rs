@@ -125,3 +125,4 @@ mod ua_heading_breaks;
 mod writing_modes;
 mod core555_vertical_text;
 mod core593_logical_frame_text;
+mod core561_vertical_residuals;

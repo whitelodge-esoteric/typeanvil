@@ -266,27 +266,40 @@ pub const ORIENT_MIXED: u32 = 1;
 /// `text-orientation: upright`: every character upright.
 pub const ORIENT_UPRIGHT: u32 = 2;
 
-/// Whether `ch` is set upright under `text-orientation: mixed`
-/// (CORE-555). Approximates UAX #50 `Vertical_Orientation` U/Tu/Tr: the
-/// CJK, kana, hangul, Yi, CJK symbol/punctuation, compatibility and
-/// fullwidth blocks are upright; everything else is rotated (R).
+/// Whether `ch` is ALWAYS set upright under `text-orientation: mixed`
+/// (CORE-561): UAX #50 `Vertical_Orientation` U or Tu. Tr characters are
+/// upright only when the font has a vertical form for them; see
+/// [`is_transformed_or_rotated`]. Everything else (R) is rotated.
 pub fn is_upright_char(ch: char) -> bool {
-    matches!(ch as u32,
-        0x1100..=0x11FF       // Hangul Jamo
-        | 0x2E80..=0x2FDF     // CJK radicals, Kangxi
-        | 0x2FF0..=0x303F     // IDC, CJK symbols and punctuation
-        | 0x3040..=0x31FF     // Hiragana .. Katakana ext
-        | 0x3200..=0x9FFF     // enclosed CJK .. CJK unified
-        | 0xA000..=0xA4CF     // Yi
-        | 0xA960..=0xA97F     // Hangul Jamo ext A
-        | 0xAC00..=0xD7FF     // Hangul syllables, Jamo ext B
-        | 0xF900..=0xFAFF     // CJK compatibility ideographs
-        | 0xFE10..=0xFE1F     // vertical forms
-        | 0xFE30..=0xFE4F     // CJK compatibility forms
-        | 0xFF00..=0xFF60     // fullwidth forms
-        | 0xFFE0..=0xFFE7
-        | 0x1F000..=0x1FAFF   // mahjong .. symbols (emoji are upright)
-        | 0x20000..=0x3FFFD)  // CJK ext B..
+    matches!(
+        unicode_vo::char_orientation(ch),
+        unicode_vo::Orientation::Upright | unicode_vo::Orientation::TransformedOrUpright
+    )
+}
+
+/// UAX #50 `Tr` (CORE-561): the character needs a vertical alternate
+/// glyph; without one it falls back to the rotated code-chart glyph.
+pub fn is_transformed_or_rotated(ch: char) -> bool {
+    unicode_vo::char_orientation(ch) == unicode_vo::Orientation::TransformedOrRotated
+}
+
+/// Whether `face` substitutes a vertical form (`vert`/`vrt2`) for `ch`
+/// (CORE-561): shaping it top-to-bottom yields a different glyph than
+/// left-to-right. Cached per (face, char); deterministic.
+fn has_vertical_form(face: FaceId, ch: char) -> bool {
+    static CACHE: LazyLock<Mutex<HashMap<(u32, char), bool>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
+    if let Some(&r) = CACHE.lock().unwrap().get(&(face.0, ch)) {
+        return r;
+    }
+    let mut buf = [0u8; 4];
+    let s: &str = ch.encode_utf8(&mut buf);
+    let h = shape_single_face(s, Scalar(1.0), face, &[], false);
+    let v = shape_single_face(s, Scalar(1.0), face, &[], true);
+    let ids = |r: &ShapeRun| r.glyphs.iter().map(|g| g.id).collect::<Vec<_>>();
+    let found = ids(&h) != ids(&v) && v.glyphs.iter().all(|g| g.id != 0);
+    CACHE.lock().unwrap().insert((face.0, ch), found);
+    found
 }
 
 /// The orientation value carried by `features` (0 = horizontal).
@@ -578,7 +591,11 @@ fn shape_word_uncached(
             _ => false,
         }
     };
-    if !word.chars().any(needs_fallback) && !word.chars().any(upright_at) {
+    let maybe_tr = |ch: char| orient == ORIENT_MIXED && is_transformed_or_rotated(ch);
+    if !word.chars().any(needs_fallback)
+        && !word.chars().any(upright_at)
+        && !word.chars().any(maybe_tr)
+    {
         return shape_single_face(word, font_size, face, features, false);
     }
     // Segment into (byte start, byte end, face override, upright).
@@ -589,7 +606,12 @@ fn shape_word_uncached(
         } else {
             None
         };
-        let up = upright_at(ch);
+        // UAX #50 Tr: upright only when the shaping face has a vertical
+        // form for it (CORE-561); otherwise the rotated fallback.
+        let up = upright_at(ch)
+            || (orient == ORIENT_MIXED
+                && is_transformed_or_rotated(ch)
+                && has_vertical_form(fb.unwrap_or(face), ch));
         let end = i + ch.len_utf8();
         match segs.last_mut() {
             Some(last) if last.2 == fb && last.3 == up => last.1 = end,

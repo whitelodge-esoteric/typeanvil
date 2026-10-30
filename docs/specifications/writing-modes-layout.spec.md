@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-10-23
-updated: 2026-10-27
+updated: 2026-10-30
 sidebar_position: 72
 tags: [engine, layout, writing-modes, css-writing-modes, fragmentation, coordinates]
 spec_id: writing-modes-layout
@@ -666,11 +666,49 @@ CORE-553/554.
   rectangles and inline backgrounds in vertical lines,
   `text-combine-upright`, `direction: rtl` in vertical lines, splitting a
   vertical paragraph across pages, and mixed block/text vertical boxes.
+  CORE-561 delivers all of these except `text-combine-upright`.
 
 Tests: `engine/tests/it/core555_vertical_text.rs` (real fonts; content
 stream matrices for orientation, fragment geometry for stacking, decoded
 `/ActualText` and ToUnicode for the text layer, byte equality for
 determinism).
+
+## Implementation notes — child 4b (CORE-561, 2026-10-30)
+
+**DECIDED 2026-10-30 (agent):** one path sets vertical text: the logical
+frame (CORE-553). The frame already owns page progression and link rects.
+
+- **Native vertical lines.** `vertical::map_frag` turns each logical text
+  line into a vertical line (`Fragment::orientation`). It drops the old 90°
+  line rotation. The baseline point moves to the start of the central
+  baseline: the em-box centre across the column, the inline start along
+  it. A line that already carries a `transform` keeps the rotation path.
+- **Shaping.** Logical-frame styles in `vertical-rl`/`vertical-lr` carry
+  the orientation pseudo-feature (`vertical::add_orientation_feature`), so
+  their lines shape like the CORE-555 path.
+- **Which boxes.** A plain interior vertical box takes the frame whether its
+  content is text only or mixed with block children. Boxes the frame
+  refuses (inside floats, multicol, flex/grid, positioned boxes) keep the
+  CORE-555 column path.
+- **Links.** The interior frame maps its link rects to physical points with
+  the box (`vertical::map_rect`). A root-vertical flow already did.
+- **Inline backgrounds.** `pdf::draw_shaped_vertical` fills each `bg`
+  segment's content area: the segment advance along the column, the run
+  face's ascent + descent across it, centred on the column centre.
+- **`direction: rtl`.** Text in an rtl vertical line starts at the column
+  bottom (`text-align: start` resolves to the inline end edge of the
+  logical line, which maps to physical bottom). Bidi reordering of mixed
+  rtl runs is out of scope; the engine has no bidi pass.
+- **Fragmentation.** In a vertical page flow the frame splits a paragraph
+  between columns like horizontal lines, so columns continue on the next
+  page. An interior vertical box in a horizontal page stays monolithic
+  (orthogonal flow; css-break-3 §4.1 lets a UA treat it so).
+- **UAX #50.** `typography::is_upright_char` reads the UAX #50 table
+  (`unicode-vo` crate): U and Tu are upright. A Tr character is upright
+  only when the shaping face substitutes a vertical form for it (`vert`);
+  otherwise it rotates.
+
+Tests: `engine/tests/it/core561_vertical_residuals.rs`.
 
 ## Child issue map
 
