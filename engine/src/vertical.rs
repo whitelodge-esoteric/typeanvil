@@ -133,6 +133,43 @@ pub fn mode_at(dom: &Dom, styles: &[ComputedStyle], id: NodeId) -> PageWritingMo
     styles[dom.find_tag("html").unwrap_or(dom.root)].writing_mode
 }
 
+/// CORE-561: add the vertical glyph-orientation pseudo-feature to a
+/// logical-frame style, so its lines shape as vertical text (`mixed` and
+/// `upright` set CJK upright through `typography::ORIENTATION_TAG`). The
+/// orientation is the nearest ancestor-or-self `text-orientation`
+/// (default `mixed`); the sideways modes rotate every glyph (no feature).
+pub fn add_orientation_feature(
+    dom: &Dom,
+    styles: &[ComputedStyle],
+    id: NodeId,
+    mode: PageWritingMode,
+    t: &mut ComputedStyle,
+) {
+    use crate::css::TextOrientation as O;
+    if !matches!(mode, PageWritingMode::VerticalRl | PageWritingMode::VerticalLr) {
+        return;
+    }
+    let mut orient = O::Mixed;
+    let mut cur = Some(id);
+    while let Some(n) = cur {
+        if n >= dom.nodes.len() {
+            break;
+        }
+        if let Some(o) = styles[n].text_orientation {
+            orient = o;
+            break;
+        }
+        cur = dom.nodes[n].parent;
+    }
+    let v = match orient {
+        O::Mixed => crate::typography::ORIENT_MIXED,
+        O::Upright => crate::typography::ORIENT_UPRIGHT,
+        O::Sideways => return,
+    };
+    t.ot_features.retain(|&(tag, _)| tag != crate::typography::ORIENTATION_TAG);
+    t.ot_features.push((crate::typography::ORIENTATION_TAG, v));
+}
+
 /// The logical-frame copy of `styles` for a `root_mode` root. Every box whose
 /// mode in effect is vertical is rotated with the ROOT frame's permutation;
 /// orthogonal (horizontal) boxes are copied as-is (CORE-554 owns them).
@@ -149,7 +186,9 @@ pub fn transpose_styles(
             if id >= dom.nodes.len() || !mode_at(dom, styles, id).is_vertical() {
                 s.clone()
             } else {
-                transpose_style(s, root_mode)
+                let mut t = transpose_style(s, root_mode);
+                add_orientation_feature(dom, styles, id, mode_at(dom, styles, id), &mut t);
+                t
             }
         })
         .collect()
@@ -165,7 +204,37 @@ fn map_frag(f: &mut Fragment, mode: PageWritingMode, pw: Scalar, ph: Scalar) {
         PageWritingMode::SidewaysLr => (y, pw - x - w),
         PageWritingMode::HorizontalTb => (x, y),
     };
-    if let FragmentContent::Text(run) = &mut f.content {
+    if let (FragmentContent::Text(run), None, PageWritingMode::VerticalRl
+        | PageWritingMode::VerticalLr
+        | PageWritingMode::SidewaysRl
+        | PageWritingMode::SidewaysLr) = (&mut f.content, f.transform, mode)
+    {
+        // CORE-561: a text line becomes a native vertical line
+        // (`Fragment::orientation`). Its baseline point is the start of the
+        // central baseline: the em-box centre across the column, the
+        // line's inline start along it. The em-box centre sits
+        // `(ascent + descent) / 2` above the alphabetic baseline; the
+        // line's logical top faces physical right (left in `sideways-lr`),
+        // the same sense the old 90° line rotation used.
+        let (asc, desc) = crate::typography::font_metrics(run.font_face);
+        let centre_from_top =
+            (run.baseline.y - y).get() - (asc + desc) * 0.5 * run.font_size.get();
+        let inline_start = (run.baseline.x - x - run.protrude_left).get();
+        let up = mode == PageWritingMode::SidewaysLr;
+        let (bx, by) = if up {
+            (px.get() + centre_from_top, py.get() + w.get() - inline_start)
+        } else {
+            (px.get() + h.get() - centre_from_top, py.get() + inline_start)
+        };
+        run.baseline = Point::new(Scalar(bx), Scalar(by));
+        run.protrude_left = Scalar::ZERO;
+        run.protrude_right = Scalar::ZERO;
+        f.orientation = if up {
+            crate::frag::LineOrientation::VerticalUp
+        } else {
+            crate::frag::LineOrientation::VerticalDown
+        };
+    } else if let FragmentContent::Text(run) = &mut f.content {
         // A text line keeps its LOGICAL interior and paints under a 90°
         // rotation about its own top-left: clockwise for `-rl`/`vertical-lr`
         // (Latin `text-orientation: mixed`), counter-clockwise for

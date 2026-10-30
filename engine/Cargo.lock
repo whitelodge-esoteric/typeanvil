@@ -2602,6 +2602,7 @@ dependencies = [
  "stylo_traits",
  "tempfile",
  "unicode-linebreak",
+ "unicode-vo",
  "url",
  "web_atoms",
 ]
