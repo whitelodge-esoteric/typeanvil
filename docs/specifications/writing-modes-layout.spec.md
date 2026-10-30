@@ -702,13 +702,51 @@ frame (CORE-553). The frame already owns page progression and link rects.
 - **Fragmentation.** In a vertical page flow the frame splits a paragraph
   between columns like horizontal lines, so columns continue on the next
   page. An interior vertical box in a horizontal page stays monolithic
-  (orthogonal flow; css-break-3 §4.1 lets a UA treat it so).
+  (orthogonal flow; css-break-3 §4.1 lets a UA treat it so). CORE-597
+  confirms this as a decision; see the next section.
 - **UAX #50.** `typography::is_upright_char` reads the UAX #50 table
   (`unicode-vo` crate): U and Tu are upright. A Tr character is upright
   only when the shaping face substitutes a vertical form for it (`vert`);
   otherwise it rotates.
 
 Tests: `engine/tests/it/core561_vertical_residuals.rs`.
+
+## Decision — interior vertical boxes do not split (CORE-597, 2026-10-30)
+
+**DECIDED 2026-10-30 (agent): an interior vertical box inside a
+`horizontal-tb` page flow is monolithic. TypeAnvil shall not split it across
+pages.**
+
+35. An interior vertical box (orthogonal flow) in a horizontal page flow
+    shall be monolithic in the page flow (css-break-3 §4.1;
+    css-writing-modes-3 §7.3 makes orthogonal fragmentation optional).
+    - When the box does not fit the room left on a page that already holds
+      content, it shall move whole to the next page.
+    - When the box is taller than a page (a declared physical `height`), it
+      shall overflow the page. It shall not be sliced and shall not add
+      pages of its own (fragmentation-core Behavior 10).
+    - Every word of the box shall be placed exactly once.
+
+Why:
+
+- The box's lines run along the physical vertical axis, which is the page
+  progression axis. A page break inside the box can only cut lines, and a
+  line box is monolithic. "Continuing columns on the next page" has no
+  break opportunity to use: an auto inline size is already capped at the
+  page content height (Behavior 8 / §7.3), so columns fit a page unless the
+  author declares a taller `height`.
+- Chromium agrees on the model. `LayoutBox::IsMonolithic()` returns true
+  for `Parent() && IsWritingModeRoot()` (Chromium `layout_box.cc`, read
+  2026-10-30). In print it then slices the paint of an over-tall box at the
+  page edge: probe `probe/core597/tallh.html` (300pt x 225pt page, a
+  `height: 600px` vertical-rl box after a 100px block) prints words cut in
+  half across pages 2 and 3 ("fox" / "trot"). TypeAnvil does not slice
+  monolithic content, so it keeps the whole box on one page and overflows.
+- Splitting in a VERTICAL page flow (root `writing-mode: vertical-*`) is a
+  different case: there the lines are parallel to the page edge and the
+  frame breaks between them (CORE-561).
+
+Test: `engine/tests/it/core597_interior_vertical_monolithic.rs`.
 
 ## Child issue map
 
