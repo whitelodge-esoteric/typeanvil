@@ -3770,8 +3770,13 @@ impl<'a> Ctx<'a> {
         // CORE-555: a text-only block whose mode in effect is vertical sets
         // its lines as columns (vertical line stacking). The paragraph is
         // monolithic in the flow; `y` advances by the column length.
+        // CORE-593: never inside a logical frame (a vertical root, or the
+        // interior frame of a vertical wrapper). That frame already lays the
+        // subtree out in logical coordinates and rotates it to physical once;
+        // stacking columns there turns the text twice, so it ends horizontal.
         let mut vertical_done = false;
         if fresh
+            && !self.logical_frame
             && style.content.is_empty()
             && box_wm.is_vertical()
             && self.vertical_text_eligible(id, style, &items, flow)

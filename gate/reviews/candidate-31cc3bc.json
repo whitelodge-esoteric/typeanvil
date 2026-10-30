@@ -1,0 +1,29 @@
+{
+ "schema": "typeanvil.harness.reviews/1",
+ "candidate": {
+  "label": "candidate-31cc3bc",
+  "source_commit": "31cc3bc",
+  "binary_sha256": "2bb65faffddd8af8d1b18fbcf894933931d11a456612fe309352e47b74a69cdf"
+ },
+ "baseline": {
+  "label": "baseline-ad97480",
+  "source_commit": "ad974808",
+  "binary_sha256": "0cb7411b44bb2d50df30a2aceeec89ddd02c815b3243dcc877fb0266c17beea1"
+ },
+ "dispositions": [
+  {
+   "doc_id": "css/css-multicol/moz-multicol3-column-balancing-break-inside-avoid-1.html",
+   "change_id": "f02f384c1a8d7f7b247fade37e4ec701aa48c346ca33f1c13f4d40300b2ee186",
+   "kind": "variation",
+   "reason": "Not from CORE-593. CORE-591 (f93b5e9, multicol advances past its bottom padding) landed between the CORE-555 parent baseline ad97480 and this branch point. The release tip f93b5e9 without this fix renders this document byte-identically to the candidate.",
+   "provenance": "CORE-591 f93b5e9; probe 2026-10-30: base-f93b5e9 and candidate PDFs share sha1 cff0a04e (test) and a0892a57 (ref); WPT status unchanged"
+  },
+  {
+   "doc_id": "css/css-multicol/moz-multicol3-column-balancing-break-inside-avoid-1-ref.html",
+   "change_id": "2232fd7c3d64a718f54a8ca3f047bd1163641712a3179a251b0089fae8cbb8f2",
+   "kind": "variation",
+   "reason": "Reference of the same test. Changed by CORE-591 (f93b5e9), not by CORE-593; the release tip renders it identically to the candidate.",
+   "provenance": "CORE-591 f93b5e9; probe 2026-10-30: PDF sha1 a0892a57 on both base-f93b5e9 and candidate"
+  }
+ ]
+}
