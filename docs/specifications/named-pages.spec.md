@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-09-04
-updated: 2026-09-27
+updated: 2026-10-31
 sidebar_position: 25
 tags: [engine, css-page, paged-media, layout, breaks]
 spec_id: named-pages
@@ -153,11 +153,15 @@ the WPT refs actually encode.
      root-level sibling page changes still break
      (`page-name-orthogonal-writing-002`).
    - A wrapper that switches the mode and then switches it BACK to the page's
-     own mode is not an orthogonal context, so its page change still breaks
+     own mode is not an orthogonal context by itself. Since CORE-554 it
+     still sits inside a monolithic orthogonal box (writing-modes-layout
+     Behavior 38), so no break inside that box fires: neither the page
+     change nor a forced break
      (`page-name-orthogonal-writing-004`: `horizontal-tb` inside
-     `vertical-rl` under an htb page; its ref forces the same break with
-     `break-after: page`, and `page_boundaries.rs`
-     `page_change_breaks_when_inner_mode_matches_page_flow` pins it).
+     `vertical-rl` under an htb page; test and ref both render one page, as
+     Chromium does, re-measured 2026-10-31; `page_boundaries.rs`
+     `page_change_inside_nested_orthogonal_box_stays_one_page`). Superseded:
+     before CORE-554 both sides broke to two pages.
    - A subtree whose mode stays orthogonal to the page's keeps the
      suppression (`page-name-orthogonal-writing-001/003`;
      `page_boundaries.rs::page_change_suppressed_when_inner_mode_orthogonal_to_page_flow`).
@@ -208,9 +212,10 @@ Each maps to a live WPT test in the harness (`harness run --filter css-page`):
   subtree, no break fires (`page-name-inline-block-001/003`,
   `page-name-orthogonal-writing-001/003`).
 - Given a mode-switching wrapper whose innermost mode matches the page's own
-  flow, the page change still breaks
+  flow, inside an orthogonal box, no break fires
   (`page-name-orthogonal-writing-004`; `page_boundaries.rs`
-  `page_change_breaks_when_inner_mode_matches_page_flow` renders two pages).
+  `page_change_inside_nested_orthogonal_box_stays_one_page` renders one page
+  for the test and the reference shapes; CORE-554).
 - Given two `page:a` blocks separated by a bare text run, the render is three
   pages — a, default, a (`engine/tests/page_boundaries.rs`
   `p3_named_text_named_breaks_twice`).

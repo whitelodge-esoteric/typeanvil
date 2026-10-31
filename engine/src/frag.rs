@@ -319,6 +319,12 @@ pub struct Fragment {
     /// `baseline` is the START of its central baseline (the column centre
     /// at the line's inline-start edge).
     pub orientation: LineOrientation,
+    /// CORE-554: this fragment's CHILDREN are already in physical
+    /// coordinates (an orthogonal `horizontal-tb` box laid out in its own
+    /// physical frame inside a vertical logical frame). The logical-to-
+    /// physical mapping (`vertical::map_frag`) places this fragment and
+    /// swaps its size, but never descends into it.
+    pub physical_frame: bool,
 }
 
 /// The physical inline direction of a line (CORE-555).
@@ -365,6 +371,7 @@ impl Fragment {
             transform: None,
             opacity: 1.0,
             orientation: LineOrientation::Horizontal,
+            physical_frame: false,
         }
     }
 
@@ -384,6 +391,7 @@ impl Fragment {
             transform: None,
             opacity: 1.0,
             orientation: LineOrientation::Horizontal,
+            physical_frame: false,
         }
     }
 }
@@ -661,6 +669,7 @@ impl Fragmentainer {
                 transform: None,
                 opacity: 1.0,
                 orientation: LineOrientation::Horizontal,
+                physical_frame: false,
             },
             background: None,
             page_orientation: None,

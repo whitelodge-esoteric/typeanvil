@@ -446,6 +446,18 @@ struct Ctx<'a> {
     /// a vertical root. A `horizontal-tb` abspos subtree inside that body lays
     /// out against it (`Ctx::layout_physical_abspos`) and is never mapped.
     phys_frame: Option<(Rect, Rect)>,
+    /// CORE-554: the cascaded (PHYSICAL) styles, untouched by any logical
+    /// frame. An orthogonal `horizontal-tb` box inside a vertical frame lays
+    /// out from these in its own physical frame.
+    orig_styles: &'a [ComputedStyle],
+    /// CORE-554: this Ctx lays the inside of a monolithic orthogonal box
+    /// (writing-modes-layout Behavior 35/36). It has no break
+    /// opportunities: forced breaks and page-change breaks are ignored.
+    monolithic: bool,
+    /// CORE-554: this Ctx is a physical `horizontal-tb` frame nested in a
+    /// vertical page flow. Rules keyed on "the page flow is vertical" do
+    /// not apply inside it.
+    horiz_frame: bool,
 }
 
 /// Interned `<img>` info for one source element (CORE-106). Layout reads the
@@ -1475,6 +1487,9 @@ fn paginate(
             fn_numbers,
             counter_snaps: &counter_snaps,
             column_height: std::cell::Cell::new(None),
+            orig_styles: styles,
+            monolithic: false,
+            horiz_frame: false,
         };
         // The initial containing block for `position: fixed` boxes: the FIRST
         // page's content box (CORE-127 slice b). With per-page @page rules the
@@ -1557,6 +1572,9 @@ fn paginate(
                 fn_numbers,
                 counter_snaps: &counter_snaps,
                 column_height: std::cell::Cell::new(None),
+                orig_styles: styles,
+                monolithic: false,
+                horiz_frame: false,
             };
             ctx2.layout_root(root, content.y, &token, flow)
         };
@@ -2118,6 +2136,9 @@ fn paginate(
                 fn_numbers,
                 counter_snaps: &counter_snaps,
                 column_height: std::cell::Cell::new(None),
+                orig_styles: styles,
+                monolithic: false,
+                horiz_frame: false,
             };
             let fstyle = &styles[fid];
             // Measure the fixed box's margin box at the ICB width (the same
@@ -2667,6 +2688,17 @@ impl<'a> Ctx<'a> {
         let mut stack: Vec<NodeId> = self.dom.nodes[id].children.clone();
         while let Some(n) = stack.pop() {
             let c = &self.styles[n];
+            // CORE-554: a plain `horizontal-tb` block child is an orthogonal
+            // flow the frame lays out physically (`layout_interior_horizontal`);
+            // its own subtree is that frame's business.
+            if c.writing_mode_declared
+                && c.writing_mode == crate::css::PageWritingMode::HorizontalTb
+                && c.display == Display::Block
+                && plain(c)
+                && c.running_name.is_none()
+            {
+                continue;
+            }
             if c.writing_mode_declared && c.writing_mode != mode {
                 return false;
             }
@@ -2718,7 +2750,25 @@ impl<'a> Ctx<'a> {
             s.margin_bottom_auto = false;
             s.margin_left_auto = false;
         }
-        let inline_avail = self.page_height;
+        // CORE-554 (css-writing-modes-3 §7.3): the available inline space is
+        // the parent's DEFINITE block size (a declared physical height) when
+        // it has one, else the page content height (the fragmentainer).
+        let inline_avail = self
+            .dom
+            .nodes[id]
+            .parent
+            .and_then(|p| {
+                let ps = &self.styles[p];
+                self.resolved_height(ps).map(|h| {
+                    let inner = if ps.box_sizing == crate::css::StyloBoxSizing::BorderBox {
+                        h - ps.padding_top - ps.padding_bottom - ps.border_top - ps.border_bottom
+                    } else {
+                        h
+                    };
+                    Scalar(inner.get().max(0.0))
+                })
+            })
+            .unwrap_or(self.page_height);
         let sub = Ctx {
             dom: self.dom,
             styles: &logical,
@@ -2739,13 +2789,19 @@ impl<'a> Ctx<'a> {
             fn_numbers: self.fn_numbers,
             counter_snaps: self.counter_snaps,
             column_height: std::cell::Cell::new(None),
+            orig_styles: self.orig_styles,
+            monolithic: true,
+            horiz_frame: false,
         };
         let links_before = self.links.borrow().len();
         // Orthogonal flow (css-writing-modes-3 §7.3): an auto inline size is
         // fit-content, bounded by the available inline space (the page
         // content height).
         let inline_avail = if logical[id].width.is_none() && logical[id].width_percent.is_none() {
-            let stf = sub.shrink_to_fit(id, inline_avail);
+            // CORE-554: fit-content = min(max-content, available). Measure
+            // max-content unbounded; a wrapped measurement at the available
+            // size returns the widest wrapped line, which is short of it.
+            let stf = sub.shrink_to_fit(id, Scalar(f64::MAX / 8.0));
             if stf.get() < inline_avail.get() { stf } else { inline_avail }
         } else {
             inline_avail
@@ -2798,6 +2854,193 @@ impl<'a> Ctx<'a> {
         BlockResult { used: ph + style.margin_top, fragment: frag, outgoing: None, empty: false }
     }
 
+    /// CORE-554 Behavior 36: true when `id` is a plain in-flow block that
+    /// declares `horizontal-tb` inside a VERTICAL logical frame (a vertical
+    /// root, or the frame of an interior vertical box). Such a box is an
+    /// orthogonal flow: it lays out in its own physical frame.
+    fn is_interior_horizontal(&self, id: NodeId) -> bool {
+        if !self.logical_frame || id >= self.dom.nodes.len() {
+            return false;
+        }
+        let s = &self.styles[id];
+        if !s.writing_mode_declared
+            || s.writing_mode != crate::css::PageWritingMode::HorizontalTb
+            || s.display != Display::Block
+            || s.float != crate::css::Float::None
+            || matches!(s.position, Position::Absolute | Position::Fixed)
+            || s.running_name.is_some()
+            || s.column_count.is_some()
+            || s.column_width.is_some()
+            || !s.transform.is_empty()
+        {
+            return false;
+        }
+        let Some(p) = self.dom.nodes[id].parent else { return false };
+        if matches!(self.styles[p].display, Display::Flex | Display::InlineFlex | Display::Grid) {
+            return false;
+        }
+        self.writing_mode_at(p).is_vertical()
+    }
+
+    /// CORE-554 Behavior 36: lay an interior `horizontal-tb` box (see
+    /// [`Ctx::is_interior_horizontal`]) out in its own PHYSICAL frame and
+    /// return it as one monolithic box of the enclosing logical frame.
+    ///
+    /// Inline size (physical width), css-writing-modes-3 §7.3: a declared
+    /// `width` wins; else the parent's definite block size (a declared
+    /// physical width on the vertical parent) fills it; else shrink-to-fit
+    /// bounded by the initial containing block's width. The block size is
+    /// auto from content. The fragment carries `physical_frame`, so the
+    /// frame mapping places it and never rotates its subtree.
+    #[allow(clippy::too_many_arguments)]
+    fn layout_interior_horizontal(
+        &self,
+        id: NodeId,
+        origin_x: Scalar,
+        top: Scalar,
+        bottom_limit: Scalar,
+        page_has_content: bool,
+        flow: &mut Flow,
+    ) -> BlockResult {
+        let parent = self.dom.nodes[id].parent.unwrap_or(self.dom.root);
+        // The enclosing frame's permutation: a vertical root frame rotates
+        // every vertical box with the ROOT mode (`transpose_styles`); an
+        // interior vertical frame holds one mode (its box's).
+        let mode = if self.page_flow_writing_mode().is_vertical() {
+            self.page_flow_writing_mode()
+        } else {
+            self.writing_mode_at(parent)
+        };
+        // Logical margins of the box in the enclosing frame.
+        let lstyle = crate::vertical::transpose_style(&self.orig_styles[id], mode);
+        let mut phys: Vec<ComputedStyle> = self.orig_styles.to_vec();
+        {
+            let s = &mut phys[id];
+            s.margin_top = Scalar::ZERO;
+            s.margin_right = Scalar::ZERO;
+            s.margin_bottom = Scalar::ZERO;
+            s.margin_left = Scalar::ZERO;
+            s.margin_top_auto = false;
+            s.margin_right_auto = false;
+            s.margin_bottom_auto = false;
+            s.margin_left_auto = false;
+        }
+        let sub = Ctx {
+            dom: self.dom,
+            styles: &phys,
+            logical_frame: false,
+            phys_frame: None,
+            content_x: Scalar::ZERO,
+            content_width: self.icb_height,
+            content_y: Scalar::ZERO,
+            page_height: Scalar(f64::MAX / 4.0),
+            icb_width: self.icb_height,
+            icb_height: self.icb_width,
+            target_pages: self.target_pages,
+            target_counters: self.target_counters,
+            total_pages: self.total_pages,
+            links: self.links,
+            page_index: self.page_index,
+            image_infos: self.image_infos,
+            fn_numbers: self.fn_numbers,
+            counter_snaps: self.counter_snaps,
+            column_height: std::cell::Cell::new(None),
+            orig_styles: self.orig_styles,
+            monolithic: true,
+            horiz_frame: true,
+        };
+        // The parent's block size in the frame is its logical height
+        // (physical width). Definite only when declared.
+        let ps = &self.styles[parent];
+        let definite_cb = self.resolved_height(ps).map(|h| {
+            let inner = if ps.box_sizing == crate::css::StyloBoxSizing::BorderBox {
+                h - ps.padding_top - ps.padding_bottom - ps.border_top - ps.border_bottom
+            } else {
+                h
+            };
+            Scalar(inner.get().max(0.0))
+        });
+        let fallback = self.icb_height;
+        let declared = sub.resolved_width(&phys[id], definite_cb.unwrap_or(fallback)).is_some()
+            || phys[id].width_percent.is_some();
+        let avail = match definite_cb {
+            Some(cb) => cb,
+            None if declared => fallback,
+            // Shrink-to-fit: min(max-content, available). Max-content wider
+            // than the ICB fills it (css-writing-modes-3 §7.3), so measure
+            // unbounded first.
+            None => {
+                let max_content = sub.measure_float(id, Scalar(f64::MAX / 8.0)).0;
+                if max_content.get() > fallback.get() { fallback } else { max_content }
+            }
+        };
+        let links_before = self.links.borrow().len();
+        let mut scratch = flow.clone();
+        scratch.abspos.clear();
+        scratch.abspos_physical.clear();
+        scratch.abspos_cb = None;
+        let res = sub.layout_box(
+            id,
+            Scalar::ZERO,
+            avail,
+            Scalar::ZERO,
+            Scalar(f64::MAX / 4.0),
+            false,
+            &BreakToken::break_before(),
+            &mut scratch,
+        );
+        let mut frag = res.fragment;
+        // Nested abspos inside the box ride in its fragment.
+        let mut spilled = std::mem::take(&mut scratch.abspos);
+        spilled.extend(std::mem::take(&mut scratch.abspos_physical));
+        spilled.sort_by_key(|(z, _)| *z);
+        let fo = frag.offset;
+        for (sz, mut sf) in spilled {
+            sf.offset = Point::new(sf.offset.x - fo.x, sf.offset.y - fo.y);
+            if sz.is_some_and(|z| z < 0) {
+                frag.children.insert(0, sf);
+            } else {
+                frag.children.push(sf);
+            }
+        }
+        for n in scratch.pending_footnotes {
+            if !flow.pending_footnotes.contains(&n) {
+                flow.pending_footnotes.push(n);
+            }
+        }
+        let (pw, ph) = frag.size;
+        let (lw, lh) = (ph, pw);
+        let box_top = top + lstyle.margin_top;
+        if box_top + lh > bottom_limit && page_has_content {
+            self.links.borrow_mut().truncate(links_before);
+            return BlockResult {
+                fragment: Fragment::block(Point::new(origin_x, top), (Scalar::ZERO, Scalar::ZERO)),
+                used: Scalar::ZERO,
+                outgoing: Some(BreakToken::break_before()),
+                empty: true,
+            };
+        }
+        let box_left = origin_x + lstyle.margin_left;
+        // Link rects from the physical pass are box-relative physical
+        // points; restate them in the enclosing logical frame.
+        {
+            let mut links = self.links.borrow_mut();
+            for l in links.iter_mut().skip(links_before) {
+                (l.x, l.y, l.w, l.h) =
+                    crate::vertical::unmap_inner_rect(mode, (box_left, box_top, lw, lh), (l.x, l.y, l.w, l.h));
+            }
+        }
+        frag.offset = Point::new(box_left, box_top);
+        frag.size = (lw, lh);
+        frag.physical_frame = true;
+        BlockResult {
+            used: lh + lstyle.margin_top + lstyle.margin_bottom,
+            fragment: frag,
+            outgoing: None,
+            empty: false,
+        }
+    }
+
     /// CORE-553 Behavior 28: lay a `horizontal-tb` `position: absolute` box
     /// that sits inside a root-vertical LOGICAL frame out in the PHYSICAL
     /// frame. Returns `None` when the box is not such a case (the caller
@@ -2841,6 +3084,9 @@ impl<'a> Ctx<'a> {
             fn_numbers: self.fn_numbers,
             counter_snaps: self.counter_snaps,
             column_height: std::cell::Cell::new(None),
+            orig_styles: self.orig_styles,
+            monolithic: self.monolithic,
+            horiz_frame: false,
         };
         let (mut fw, fh) = ctx.measure_float(id, phys.width);
         if let Some(dw) = ctx.resolved_width(style, phys.width) {
@@ -3447,6 +3693,11 @@ impl<'a> Ctx<'a> {
         if fresh && self.is_simple_interior_vertical(id) {
             return self.layout_interior_vertical(id, origin_x, avail_width, top, bottom_limit, page_has_content, flow);
         }
+        // CORE-554: an interior `horizontal-tb` block inside a vertical
+        // logical frame lays out in its own physical frame (Behavior 36).
+        if fresh && self.is_interior_horizontal(id) {
+            return self.layout_interior_horizontal(id, origin_x, top, bottom_limit, page_has_content, flow);
+        }
 
         // Margins/padding adjoining a fragmentainer break truncate to zero
         // (css-break-3 §3.1). On resume (not fresh) the top margin/padding is
@@ -3954,6 +4205,7 @@ impl<'a> Ctx<'a> {
                 let cstyle = &self.styles[*child];
                 let child_fresh = self.child_incoming(token, i).is_break_before();
                 if child_fresh
+                    && !self.monolithic
                     && cstyle.break_before.is_forced()
                     && (!children.is_empty() || broke || oof_placed)
                 {
@@ -4573,6 +4825,7 @@ impl<'a> Ctx<'a> {
                     // Forced break-before propagates to the line: rest of the
                     // items go to the next fragmentainer.
                     if child_tok.is_break_before()
+                        && !self.monolithic
                         && cstyle.break_before.is_forced()
                         && (!children.is_empty() || broke || i > start_index)
                     {
@@ -6089,7 +6342,7 @@ impl<'a> Ctx<'a> {
                     // basic-pagination-001 body render ONE page — the
                     // diagnostic-step-2 assumption on the issue was wrong,
                     // CORE-176).
-                    if cstyle.break_after.is_forced() && i + 1 < items.len() {
+                    if cstyle.break_after.is_forced() && !self.monolithic && i + 1 < items.len() {
                         seen_all = false;
                         outgoing_children.push(ChildToken {
                             index: i + 1,
@@ -8753,6 +9006,11 @@ impl<'a> Ctx<'a> {
     /// mode, never an interior orthogonal context), defaulting to
     /// `horizontal-tb`.
     fn page_flow_writing_mode(&self) -> crate::css::PageWritingMode {
+        // CORE-554: inside a physical `horizontal-tb` frame nested in a
+        // vertical flow, the flow this Ctx lays out is horizontal.
+        if self.horiz_frame {
+            return crate::css::PageWritingMode::HorizontalTb;
+        }
         self.styles[self.dom.find_tag("html").unwrap_or(self.dom.root)].writing_mode
     }
 
@@ -8978,11 +9236,15 @@ impl<'a> Ctx<'a> {
     /// predicate is the AXIS of the mode in effect at the page-declaring boxes,
     /// NOT "does any intermediate ancestor declare a mode": a wrapper that
     /// switches the mode and then switches it BACK to the page's own mode is
-    /// not an orthogonal context, so its named-page change still breaks
-    /// (orthogonal-writing-004 nests `horizontal-tb` inside `vertical-rl` under
-    /// an htb page, and its ref forces the same break with `break-after:
-    /// page`).
+    /// not an orthogonal context by this predicate. CORE-554: such a wrapper
+    /// still sits inside a monolithic orthogonal box, whose inner Ctx sets
+    /// `monolithic`, so orthogonal-writing-004 stays one page (Chromium).
     fn orthogonal_flow(&self, id: NodeId) -> bool {
+        // CORE-554: everything inside a monolithic orthogonal box is part of
+        // an orthogonal flow (Behavior 36): no page-change breaks.
+        if self.monolithic {
+            return true;
+        }
         self.writing_mode_at(id).is_vertical() != self.page_flow_writing_mode().is_vertical()
     }
 
