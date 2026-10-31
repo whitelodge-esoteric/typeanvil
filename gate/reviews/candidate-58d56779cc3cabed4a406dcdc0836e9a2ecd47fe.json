@@ -1,0 +1,43 @@
+{
+ "schema": "typeanvil.harness.reviews/1",
+ "candidate": {
+  "label": "cand-58d56779cc3cabed4a406dcdc0836e9a2ecd47fe",
+  "source_commit": "58d56779cc3cabed4a406dcdc0836e9a2ecd47fe",
+  "binary_sha256": "f940d7a837c88f7fe1b38b610817b09488a8f6c7ec84ad0682549e39dfb871a9"
+ },
+ "baseline": {
+  "label": "base-1782e7589726519bd08020515016d5f2631d369b",
+  "source_commit": "1782e7589726519bd08020515016d5f2631d369b",
+  "binary_sha256": "5f61e7fac75e5347de0f7b964f75131e6486340a4187f3e61b50aa768258d7b4"
+ },
+ "dispositions": [
+  {
+   "doc_id": "css/css-page/page-name-orthogonal-writing-001-print.html",
+   "change_id": "b209456e72c7aab1a888ac64df3658cd025a821c84176e6d23b6d098fc060747",
+   "kind": "correction",
+   "reason": "The horizontal-tb wrapper inside the vertical-rl root now lays out in its own physical frame: 'a' and 'b' are two horizontal lines stacked top to bottom at the page's block-start (right) edge. Base drew them as two rotated vertical columns. Chromium (oracle-pdf.py, Letter, 0 margins, 2026-10-31) extracts 'ab' at x 600.0-605.6 y 10.9-30.1; candidate x 600.0-605.5 y 11.5-31.8. Still 1 page; status PASS -> PASS.",
+   "provenance": "css-writing-modes-3 \u00a77.3 orthogonal flows; docs/specifications/writing-modes-layout.spec.md Behaviors 36, 38 (CORE-554)"
+  },
+  {
+   "doc_id": "css/css-page/page-name-orthogonal-writing-001-print-ref.html",
+   "change_id": "9e360c22f7cfb3baadbe3d249960465a052d567016267a43c854249977e85048",
+   "kind": "correction",
+   "reason": "Same shape as the test without page names: the horizontal-tb wrapper renders horizontal lines in its own frame. Matches Chromium's word box ('ab' x 600.0-605.6 y 10.9-30.1; candidate x 600.0-605.5 y 11.5-31.8). 1 page.",
+   "provenance": "css-writing-modes-3 \u00a77.3 orthogonal flows; docs/specifications/writing-modes-layout.spec.md Behavior 36 (CORE-554)"
+  },
+  {
+   "doc_id": "css/css-page/page-name-orthogonal-writing-004-print.html",
+   "change_id": "1bf65fc1daf0933f28e6cd982a1951c35b65e082b3fbfa5090b2967dfd838448",
+   "kind": "correction",
+   "reason": "2 -> 1 pages. The vertical-rl wrapper in a horizontal page is an orthogonal box, monolithic in the page flow, so the page:a -> page:b change inside its horizontal-tb child no longer breaks. Chromium prints this test as ONE page with 'a' and 'b' stacked (x 6.0-11.6 y 10.9-30.1); candidate 1 page, x 6.0-11.5 y 11.5-31.8. The reference moves the same way, so the pair stays PASS.",
+   "provenance": "css-break-3 \u00a74.1 monolithic content; css-writing-modes-3 \u00a77.3; docs/specifications/writing-modes-layout.spec.md Behavior 38; named-pages.spec.md Behavior 4 (superseded text, CORE-554)"
+  },
+  {
+   "doc_id": "css/css-page/page-name-orthogonal-writing-004-print-ref.html",
+   "change_id": "324781b08eedea5d4142be3a12e4aa54b419a8d7f988d9e0fcf7fb195f4ec17c",
+   "kind": "correction",
+   "reason": "2 -> 1 pages. The reference's break-after:page sits inside the monolithic vertical-rl box and no longer fires. Chromium prints this reference as ONE page ('ab' x 6.0-11.6 y 10.9-30.1); candidate 1 page, x 6.0-11.5 y 11.5-31.8.",
+   "provenance": "css-break-3 \u00a74.1 monolithic content; docs/specifications/writing-modes-layout.spec.md Behavior 38 (CORE-554)"
+  }
+ ]
+}

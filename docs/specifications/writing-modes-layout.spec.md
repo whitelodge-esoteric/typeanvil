@@ -5,7 +5,7 @@ type: spec
 status: draft
 owner: maintainers
 created: 2026-10-23
-updated: 2026-10-30
+updated: 2026-10-31
 sidebar_position: 72
 tags: [engine, layout, writing-modes, css-writing-modes, fragmentation, coordinates]
 spec_id: writing-modes-layout
@@ -748,6 +748,52 @@ Why:
 
 Test: `engine/tests/it/core597_interior_vertical_monolithic.rs`.
 
+## Implementation notes — child 3/5 nested orthogonal flows (CORE-554, 2026-10-31)
+
+**DECIDED 2026-10-31 (agent):** an orthogonal box is laid out in its own
+frame and is monolithic in the enclosing flow, in both directions. The
+CORE-127/155 page-change suppression inside an orthogonal flow stays.
+
+36. **Horizontal inside vertical.** A plain in-flow `horizontal-tb` block
+    whose parent is vertical, inside a vertical logical frame (a vertical
+    root or an interior vertical box), lays out in its own PHYSICAL frame
+    from the cascaded styles (`Ctx::layout_interior_horizontal`). Its text
+    stays horizontal. Its inline size (physical width) is, in order:
+    - its declared `width`;
+    - else the parent's definite block size (a declared physical `width` on
+      the vertical parent);
+    - else shrink-to-fit, `min(max-content, ICB width)`
+      (css-writing-modes-3 §7.3).
+    Its block size is auto from content. It maps into the enclosing frame as
+    one atomic box: the fragment carries `Fragment::physical_frame`, and
+    `vertical::map_frag` places it without rotating its subtree. Its own
+    logical margins (in the enclosing frame) position it.
+37. **Vertical inside horizontal.** The interior vertical frame
+    (`Ctx::layout_interior_vertical`) uses the parent's DEFINITE block size
+    (a declared physical `height`) as its available inline size, else the
+    page content height. An auto inline size is `min(max-content,
+    available)`, with max-content measured unbounded.
+38. **Continuation.** Both orthogonal boxes are monolithic in the
+    enclosing page flow (Behavior 35, css-break-3 §4.1). A box that does not
+    fit the room left on a page that holds content moves whole to the next
+    page; the flow after it continues normally. Inside the box there are no
+    break opportunities: `break-before`/`break-after: page` and named-page
+    changes do not fire (`Ctx::monolithic`). This keeps
+    `page-name-orthogonal-writing-001` and `-003` at one page.
+39. **Narrow slice.** A `horizontal-tb` box that is floated, positioned,
+    multicol, transformed, or a flex/grid item keeps the earlier path.
+    Splitting an orthogonal box across pages is not supported.
+
+Measured against Chromium (`oracle-pdf.py`, 400pt x 300pt page, 12pt/16pt
+sans-serif): in the five probe shapes in `~/workspace/typeanvil-evidence/CORE-554/`,
+TypeAnvil's box rects match the column and line extents of Chromium's words
+within about 1pt (Chromium's print PDF drops the background fills, so
+the comparison uses word boxes).
+
+Test: `engine/tests/it/core554_orthogonal_flows.rs` (definite and
+indefinite sizes in both directions, nesting inside an interior vertical
+box, whole-box deferral, ignored forced and page-change breaks).
+
 ## Child issue map
 
 | Child | Issue | Owns behaviors | Depends on |
@@ -891,9 +937,11 @@ issue-evidence rules).
 
 - **Mode change mid-tree and back.** A wrapper that switches to `vertical-rl`
   and a descendant that switches back to `horizontal-tb` is not orthogonal to
-  the page flow for the descendant. Named-page suppression keys on the axis of
-  the mode at the page-declaring box, not on any intermediate declaration
-  (`orthogonal_flow`, orthogonal-writing-004).
+  the page flow for the descendant. It still sits inside the vertical
+  wrapper, which is a monolithic orthogonal box (Behavior 38), so no break
+  inside it fires: orthogonal-writing-004's test and reference both render
+  one page, as in Chromium (re-measured 2026-10-31). Superseded: before
+  CORE-554 the descendant's page change broke (2 pages on both sides).
 - **`html` vs `body` declaration.** Only the root element sets the page flow
   mode. A `writing-mode` on `body` is an interior declaration unless `html`
   declares none and the author propagates it by CSS rules that make `body`

@@ -204,6 +204,13 @@ fn map_frag(f: &mut Fragment, mode: PageWritingMode, pw: Scalar, ph: Scalar) {
         PageWritingMode::SidewaysLr => (y, pw - x - w),
         PageWritingMode::HorizontalTb => (x, y),
     };
+    // CORE-554: an orthogonal `horizontal-tb` box already laid its subtree
+    // out in physical coordinates: place it, swap its size, stop.
+    if f.physical_frame {
+        f.offset = Point::new(px, py);
+        f.size = (h, w);
+        return;
+    }
     if let (FragmentContent::Text(run), None, PageWritingMode::VerticalRl
         | PageWritingMode::VerticalLr
         | PageWritingMode::SidewaysRl
@@ -276,6 +283,26 @@ fn map_frag(f: &mut Fragment, mode: PageWritingMode, pw: Scalar, ph: Scalar) {
 pub fn map_root(f: &mut Fragment, mode: PageWritingMode, phys: Rect) {
     map_frag(f, mode, phys.height, phys.width);
     f.offset = Point::new(f.offset.x + phys.x, f.offset.y + phys.y);
+}
+
+/// CORE-554: the LOGICAL rect (in a `mode` frame) of a rectangle that sits
+/// at physical offset `(dx, dy)` and size `(dw, dh)` inside a
+/// `physical_frame` box whose logical border box is `(lx, ly, lw, lh)`.
+/// Mapping the result with the frame (`map_rect` / `map_frag`) lands on
+/// the box's physical origin plus `(dx, dy)`.
+pub fn unmap_inner_rect(
+    mode: PageWritingMode,
+    bx: (Scalar, Scalar, Scalar, Scalar),
+    r: (Scalar, Scalar, Scalar, Scalar),
+) -> (Scalar, Scalar, Scalar, Scalar) {
+    let (lx, ly, lw, lh) = bx;
+    let (dx, dy, dw, dh) = r;
+    match mode {
+        PageWritingMode::VerticalRl | PageWritingMode::SidewaysRl => (lx + dy, ly + lh - dx - dw, dh, dw),
+        PageWritingMode::VerticalLr => (lx + dy, ly + dx, dh, dw),
+        PageWritingMode::SidewaysLr => (lx + lw - dy - dh, ly + dx, dh, dw),
+        PageWritingMode::HorizontalTb => (lx + dx, ly + dy, dw, dh),
+    }
 }
 
 /// Map a logical page-level rectangle `(x, y, w, h)` (link annotations) into

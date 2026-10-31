@@ -169,23 +169,29 @@ fn page_name_002_shape_renders_eight_pages() {
 // orthogonal-writing family pins all four shapes.
 
 #[test]
-fn page_change_breaks_when_inner_mode_matches_page_flow() {
-    // page-name-orthogonal-writing-004: an `horizontal-tb` wrapper (the page
-    // flow's own mode — the root declares nothing) nested inside a
-    // `vertical-rl` one. The page:a -> page:b change must break: the fixture's
-    // reference forces the same break with `break-after: page`, and Chromium
-    // renders both as two pages.
+fn page_change_inside_nested_orthogonal_box_stays_one_page() {
+    // page-name-orthogonal-writing-004: an `horizontal-tb` wrapper nested
+    // inside a `vertical-rl` one under a horizontal page. CORE-554
+    // (writing-modes-layout Behavior 38): the vertical wrapper is an
+    // orthogonal box, monolithic in the page flow, so no break inside it
+    // fires: neither the page:a -> page:b change nor the reference's
+    // `break-after: page`. Chromium (re-measured 2026-10-31,
+    // `probe/p554/oracle-pdf.py`) prints BOTH the test and the reference
+    // as ONE page; the earlier 2-page claim here was not current.
     let body = concat!(
         r#"<div style="writing-mode:vertical-rl">"#,
         r#"<div style="writing-mode:horizontal-tb">"#,
         r#"<div style="page:a">a</div><div style="page:b">b</div>"#,
         r#"</div></div>"#,
     );
-    assert_eq!(
-        lay_body(body).pages.len(),
-        2,
-        "an htb wrapper inside a vrl wrapper is NOT orthogonal to an htb page"
+    assert_eq!(lay_body(body).pages.len(), 1, "004 test shape: one page");
+    let reference = concat!(
+        r#"<div style="writing-mode:vertical-rl">"#,
+        r#"<div style="writing-mode:horizontal-tb">"#,
+        r#"<div style="break-after:page">a</div><div>b</div>"#,
+        r#"</div></div>"#,
     );
+    assert_eq!(lay_body(reference).pages.len(), 1, "004 reference shape: one page");
 }
 
 #[test]
