@@ -5,9 +5,9 @@
   "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/whitelodge-esoteric/typeanvil.git"
+    "url": "git+https://github.com/winterloom/typeanvil.git"
   },
-  "homepage": "https://github.com/whitelodge-esoteric/typeanvil",
+  "homepage": "https://github.com/winterloom/typeanvil",
   "os": [
     "linux"
   ],

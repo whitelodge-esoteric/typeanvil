@@ -23,7 +23,7 @@ see [Markdown to PDF](./markdown.md).
 ## Option 1: download a release binary
 
 Tagged releases on
-[GitHub Releases](https://github.com/whitelodge-esoteric/typeanvil/releases)
+[GitHub Releases](https://github.com/winterloom/typeanvil/releases)
 include one archive per platform, named `typeanvil-<version>-<target>.tar.gz`,
 plus a `SHA256SUMS` file:
 
@@ -56,7 +56,7 @@ You need a current stable [Rust toolchain](https://www.rust-lang.org/tools/insta
 Clone the repository and build the release binary:
 
 ```bash
-git clone https://github.com/whitelodge-esoteric/typeanvil
+git clone https://github.com/winterloom/typeanvil
 cd typeanvil
 cargo build --release --manifest-path engine/Cargo.toml
 ```

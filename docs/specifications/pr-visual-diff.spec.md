@@ -32,7 +32,7 @@ A pull request that changes rendering shows the changed pages as images in its d
 
 ## Decisions
 
-- DECIDED 2026-10-17 (user): host images on an orphan `pr-assets` branch of `whitelodge-esoteric/typeanvil-showcase`. The description embeds them by `raw.githubusercontent.com` URL. A GitHub artifact is not embeddable inline.
+- DECIDED 2026-10-17 (user): host images on an orphan `pr-assets` branch of `winterloom/typeanvil-showcase`. The description embeds them by `raw.githubusercontent.com` URL. A GitHub artifact is not embeddable inline.
 - DECIDED 2026-10-17 (agent): the job renders base and head itself (base = PR base commit built in `base/`), so it does not depend on stored fingerprints. A page counts as changed when the fingerprint diff flags it or the page counts differ, and at least one pixel differs. A fingerprint flag with identical pixels is dropped.
 - DECIDED 2026-10-17 (agent): image path is `pr-<N>/<head sha8>/<doc>-pNNN.png`. A new path per push keeps the raw URLs immutable and avoids image caching.
 - DECIDED 2026-10-17 (agent): the job writes the artifact `visual-diff` too, and runs after `regression` with `always()`, so a red regression job still gets images.

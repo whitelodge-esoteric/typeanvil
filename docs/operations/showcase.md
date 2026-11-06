@@ -13,8 +13,8 @@ trigger: When you set up showcase publishing, or when a showcase publish fails
 # Showcase publishing
 
 Each release publishes rendered documents to
-[whitelodge-esoteric/typeanvil-showcase](https://github.com/whitelodge-esoteric/typeanvil-showcase).
-Site: https://whitelodge-esoteric.github.io/typeanvil-showcase/. Contract:
+[winterloom/typeanvil-showcase](https://github.com/winterloom/typeanvil-showcase).
+Site: https://winterloom.github.io/typeanvil-showcase/. Contract:
 `docs/specifications/showcase-publish.spec.md`.
 
 ## One-time setup (owner)

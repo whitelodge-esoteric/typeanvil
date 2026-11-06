@@ -18,7 +18,7 @@ dependencies: [showcase-render, release-ci]
 
 ## Overview
 
-Rendered showcase output stays out of the engine repo. On each release, a workflow renders the showcase documents and publishes them to the public repo `whitelodge-esoteric/typeanvil-showcase`. GitHub Pages serves the same files.
+Rendered showcase output stays out of the engine repo. On each release, a workflow renders the showcase documents and publishes them to the public repo `winterloom/typeanvil-showcase`. GitHub Pages serves the same files.
 
 ## Behavior
 

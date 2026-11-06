@@ -1,4 +1,4 @@
-Vendored from `whitelodge-esoteric/typeanvil-branding` at commit `9713eb9`.
+Vendored from `winterloom/typeanvil-branding` at commit `9713eb9`.
 
 Files in this folder are byte copies of:
 

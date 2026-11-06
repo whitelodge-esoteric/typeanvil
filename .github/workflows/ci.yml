@@ -161,7 +161,7 @@ jobs:
           printf '%s\n' "$SHOWCASE_DEPLOY_KEY" > ~/.ssh/showcase_key
           chmod 600 ~/.ssh/showcase_key
           export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/showcase_key -o StrictHostKeyChecking=accept-new"
-          repo=git@github.com:whitelodge-esoteric/typeanvil-showcase.git
+          repo=git@github.com:winterloom/typeanvil-showcase.git
           if git ls-remote --exit-code --heads "$repo" pr-assets >/dev/null 2>&1; then
             git clone --depth 50 --branch pr-assets "$repo" assets
           else

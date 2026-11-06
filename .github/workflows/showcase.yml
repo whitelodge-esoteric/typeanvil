@@ -1,6 +1,6 @@
 # Showcase publish (CORE-494): when the release workflow succeeds, render the
 # showcase documents with the release binary and push versions/<tag>/ to
-# whitelodge-esoteric/typeanvil-showcase. Spec:
+# winterloom/typeanvil-showcase. Spec:
 # docs/specifications/showcase-publish.spec.md. Runbook: docs/operations/showcase.md.
 #
 # Needs the secret SHOWCASE_DEPLOY_KEY (a write deploy key on the showcase
@@ -35,7 +35,7 @@ jobs:
     env:
       TAG: ${{ github.event.workflow_run.head_branch || inputs.tag }}
       SHOWCASE_DEPLOY_KEY: ${{ secrets.SHOWCASE_DEPLOY_KEY }}
-      SHOWCASE_REPO: whitelodge-esoteric/typeanvil-showcase
+      SHOWCASE_REPO: winterloom/typeanvil-showcase
     steps:
       - name: Check credentials
         id: creds
