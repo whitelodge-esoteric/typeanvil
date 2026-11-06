@@ -6,7 +6,7 @@ Spec: docs/specifications/showcase-publish.spec.md
 Input : corpus/out/showcase/images/<doc>/page-NNN-ta.png (+ page-NNN-pr.png oracle)
         produced by scripts/build-showcase.sh, and corpus/manifest.json
         (entries whose `roles` include "showcase").
-Output: a site tree in --site (a checkout of whitelodge-esoteric/typeanvil-showcase):
+Output: a site tree in --site (a checkout of winterloom/typeanvil-showcase):
 
     README.md  index.md  _config.yml
     versions/<tag>/README.md
@@ -27,9 +27,9 @@ import sys
 from pathlib import Path
 
 TAG_RE = re.compile(r"^v(\d{4})\.(\d{1,2})\.(\d+)$")
-ENGINE_URL = "https://github.com/whitelodge-esoteric/typeanvil"
-SHOWCASE_URL = "https://github.com/whitelodge-esoteric/typeanvil-showcase"
-PAGES_URL = "https://whitelodge-esoteric.github.io/typeanvil-showcase/"
+ENGINE_URL = "https://github.com/winterloom/typeanvil"
+SHOWCASE_URL = "https://github.com/winterloom/typeanvil-showcase"
+PAGES_URL = "https://winterloom.github.io/typeanvil-showcase/"
 THUMB_WIDTH = 240
 PAGE_RE = re.compile(r"^page-(\d{3})-(ta|pr)\.png$")
 # CORE-529: documents longer than this publish PNGs for pages 1..MAX_PAGES only,

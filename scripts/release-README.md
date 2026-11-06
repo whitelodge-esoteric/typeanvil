@@ -12,4 +12,4 @@ Install (Node.js/Bun): `npm install -g typeanvil` (see the npm package).
 Install (macOS): `brew install whitelodge/tap/typeanvil` (see the Homebrew tap).
 
 Typeanvil is open source under AGPL-3.0-only.
-https://github.com/whitelodge-esoteric/typeanvil
+https://github.com/winterloom/typeanvil

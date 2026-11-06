@@ -12,7 +12,7 @@ trigger: When the `visual-diff` CI job fails or the PR description shows broken 
 
 # PR visual diffs
 
-Spec: `docs/specifications/pr-visual-diff.spec.md`. The `visual-diff` job in `.github/workflows/ci.yml` renders base and head, builds three-panel PNGs for changed pages, pushes them to the `pr-assets` branch of `whitelodge-esoteric/typeanvil-showcase`, and rewrites the marked section of the PR description.
+Spec: `docs/specifications/pr-visual-diff.spec.md`. The `visual-diff` job in `.github/workflows/ci.yml` renders base and head, builds three-panel PNGs for changed pages, pushes them to the `pr-assets` branch of `winterloom/typeanvil-showcase`, and rewrites the marked section of the PR description.
 
 ## Run it locally
 

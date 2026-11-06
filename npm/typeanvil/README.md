@@ -62,4 +62,4 @@ Set `TYPEANVIL_BIN` to an explicit binary path to bypass package resolution
 
 ## License
 
-AGPL-3.0-only. https://github.com/whitelodge-esoteric/typeanvil
+AGPL-3.0-only. https://github.com/winterloom/typeanvil

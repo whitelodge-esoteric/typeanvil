@@ -5,10 +5,10 @@
   "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/whitelodge-esoteric/typeanvil.git"
+    "url": "git+https://github.com/winterloom/typeanvil.git"
   },
-  "homepage": "https://github.com/whitelodge-esoteric/typeanvil",
-  "bugs": "https://github.com/whitelodge-esoteric/typeanvil/issues",
+  "homepage": "https://github.com/winterloom/typeanvil",
+  "bugs": "https://github.com/winterloom/typeanvil/issues",
   "keywords": [
     "pdf",
     "html-to-pdf",

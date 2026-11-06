@@ -26,7 +26,7 @@ build the binary from source instead, see [Getting started](./getting-started.md
 
 | Form | Status (checked 2026-10-14) |
 |---|---|
-| Container image | Published. `ghcr.io/whitelodge-esoteric/typeanvil` has tags `2026.9.3`, `2026.9.4` and `2026.9.5`. |
+| Container image | Published. `ghcr.io/winterloom/typeanvil` has tags `2026.9.3`, `2026.9.4` and `2026.9.5`. |
 | npm packages | **Not published yet.** `typeanvil` and `@typeanvil/*` return 404 from the npm registry. |
 
 ## Container image
@@ -37,7 +37,7 @@ The release workflow (`.github/workflows/release.yml`) pushes the image to
 `ghcr.io/<repository owner>/typeanvil`. For the public repository that is:
 
 ```text
-ghcr.io/whitelodge-esoteric/typeanvil:<version>
+ghcr.io/winterloom/typeanvil:<version>
 ```
 
 `<version>` is the CalVer release version **without** the leading `v` of the
@@ -51,8 +51,8 @@ under that name. Use the repository-owner path above.
 ### Pull and check the version
 
 ```bash
-docker pull ghcr.io/whitelodge-esoteric/typeanvil:2026.9.5
-docker run --rm ghcr.io/whitelodge-esoteric/typeanvil:2026.9.5 --version
+docker pull ghcr.io/winterloom/typeanvil:2026.9.5
+docker run --rm ghcr.io/winterloom/typeanvil:2026.9.5 --version
 ```
 
 `--version` prints `typeanvil <version>`, for example `typeanvil 2026.9.5`.
@@ -65,7 +65,7 @@ The image's entrypoint is the `typeanvil` binary and its working directory is
 
 ```bash
 docker run --rm -v "$PWD:/work" \
-  ghcr.io/whitelodge-esoteric/typeanvil:2026.9.5 \
+  ghcr.io/winterloom/typeanvil:2026.9.5 \
   render /work/in.html --page-width 8.5in --page-height 11in -o /work/out.pdf
 ```
 
@@ -146,7 +146,7 @@ Mount a font directory read-only at `/usr/share/fonts/user`:
 docker run --rm \
   -v "$PWD:/work" \
   -v "$HOME/.fonts:/usr/share/fonts/user:ro" \
-  ghcr.io/whitelodge-esoteric/typeanvil:2026.9.5 \
+  ghcr.io/winterloom/typeanvil:2026.9.5 \
   render /work/in.html --page-width 8.5in --page-height 11in -o /work/out.pdf
 ```
 

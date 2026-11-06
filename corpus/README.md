@@ -6,8 +6,8 @@ benchmark, and the tagged-PDF gate. Tags in `manifest.json` decide which
 document serves which use.
 
 Rendered pages are not committed here (CORE-495). Browse them in the public
-[typeanvil-showcase](https://github.com/whitelodge-esoteric/typeanvil-showcase)
-repo or on its [Pages site](https://whitelodge-esoteric.github.io/typeanvil-showcase/).
+[typeanvil-showcase](https://github.com/winterloom/typeanvil-showcase)
+repo or on its [Pages site](https://winterloom.github.io/typeanvil-showcase/).
 See `docs/operations/showcase.md` for how renders are published and
 `docs/operations/demo-refresh.md` for the refresh and triage flow.
 

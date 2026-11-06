@@ -31,7 +31,7 @@ binary:
 
 ```bash
 docker run --rm -v "$PWD:/work" -v "$HOME/.fonts:/usr/share/fonts/user:ro" \
-  ghcr.io/whitelodge-esoteric/typeanvil render /work/in.html -o /work/out.pdf
+  ghcr.io/winterloom/typeanvil render /work/in.html -o /work/out.pdf
 ```
 
 The image bundles an open-source font set so fallback text renders with valid
@@ -146,7 +146,7 @@ Liberation Serif / Liberation Mono; `sans-serif` keeps the bundled set.
 ### Container image
 
 ```text
-ghcr.io/whitelodge-esoteric/typeanvil:<tag>
+ghcr.io/winterloom/typeanvil:<tag>
   /usr/bin/typeanvil          # the musl release binary
   /usr/share/fonts/typeanvil/ # bundled Liberation Sans/Serif/Mono (12 faces) + OFL license
   /usr/share/fonts/user/      # user mount point (documented contract)

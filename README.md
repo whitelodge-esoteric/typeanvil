@@ -34,7 +34,7 @@ TypeAnvil's expected behavior.
 Build from source with a current stable Rust toolchain:
 
 ```bash
-git clone https://github.com/whitelodge-esoteric/typeanvil
+git clone https://github.com/winterloom/typeanvil
 cd typeanvil
 cargo build --release --manifest-path engine/Cargo.toml
 ```
@@ -128,9 +128,9 @@ and [release gate](docs/operations/release-gate.md) describe verification.
 ## Showcase
 
 Rendered output for every release lives in the
-[typeanvil-showcase](https://github.com/whitelodge-esoteric/typeanvil-showcase)
-repo and on its [Pages site](https://whitelodge-esoteric.github.io/typeanvil-showcase/).
-The [latest version](https://github.com/whitelodge-esoteric/typeanvil-showcase/tree/main/latest)
+[typeanvil-showcase](https://github.com/winterloom/typeanvil-showcase)
+repo and on its [Pages site](https://winterloom.github.io/typeanvil-showcase/).
+The [latest version](https://github.com/winterloom/typeanvil-showcase/tree/main/latest)
 link stays stable.
 
 ## Documentation
